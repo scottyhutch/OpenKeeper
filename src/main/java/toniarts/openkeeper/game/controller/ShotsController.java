@@ -28,6 +28,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_CREA
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJECT;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_HEALTH;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.POSSESS_CREATURE;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.SIGHT_OF_EVIL;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -77,6 +78,13 @@ public final class ShotsController implements IShotsController {
             }
             case MODIFY_HEALTH -> {
                 EntityController.setDamage(entityData, target, -shotData1);
+            }
+            case SIGHT_OF_EVIL -> {
+
+                // Shot data 1 is the radius, the shot lifetime (in game ticks) the duration
+                if (shotData1 > 0) {
+                    mapController.revealSightOfEvil(WorldUtils.vectorToPoint(position), shotData1, shot.getHealth(), playerId);
+                }
             }
             default ->
                 logger.log(Logger.Level.WARNING, "Shot type {0} not implemented", shot.getProcessType());
