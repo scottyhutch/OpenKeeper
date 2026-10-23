@@ -61,6 +61,7 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
     private final SafeArrayList<ICreatureEntrance> entrances = new SafeArrayList<>(ICreatureEntrance.class);
     private final IKwdFile kwdFile;
     private final PortalCreatureChoice creatureChoice = new PortalCreatureChoice(Utils.getRandom());
+    private boolean uniqueLayouts = false;
 
     public CreatureSpawnSystem(ICreaturesController creaturesController, Collection<IPlayerController> playerControllers,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings, ILevelInfo levelInfo,
@@ -132,9 +133,15 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
                 && player.getRoomControl().isPortalsOpen() && !isCreatureLimitReached(player)) {
 
             // Evaluate what creature can we spawn
+            // A unique creature called in by a secret room layout comes first
             Map<Integer, CreaturePool> pool = kwdFile.getCreaturePool(player.getKeeper().getId());
-            Creature creature = creatureChoice.chooseCreature(player, entrance, creaturesController,
-                    type -> isCreatureAvailableFromPool(type, player, pool) && isCreatureRequirementsSatisfied(type, player));
+            Creature creature = uniqueLayouts
+                    ? creatureChoice.chooseUniqueCreature(player, playerControllersById.values(), creaturesController, kwdFile)
+                    : null;
+            if (creature == null) {
+                creature = creatureChoice.chooseCreature(player, entrance, creaturesController,
+                        type -> isCreatureAvailableFromPool(type, player, pool) && isCreatureRequirementsSatisfied(type, player));
+            }
 
             // Spawn by the weights, as the original does
             // TODO: also get notified about the evicted and newly introduced creatures
@@ -174,6 +181,7 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
 
     @Override
     public void start() {
+        uniqueLayouts = PortalCreatureChoice.isUniqueLayoutLevel(kwdFile.getGameLevel().getLvlFlags());
 
         // The creature types the keepers can attract from the start are not favoured later
         for (IPlayerController player : playerControllersById.values()) {
