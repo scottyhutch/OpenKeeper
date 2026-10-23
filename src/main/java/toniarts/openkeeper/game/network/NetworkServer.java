@@ -98,6 +98,7 @@ import toniarts.openkeeper.game.component.Threat;
 import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.component.Trigger;
+import toniarts.openkeeper.game.component.Turncoat;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.component.ViewType;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
@@ -229,6 +230,7 @@ public final class NetworkServer {
             Serializer.registerClass(TrapComponent.class, new FieldSerializer());
             Serializer.registerClass(TrapViewState.class, new FieldSerializer());
             Serializer.registerClass(Trigger.class, new FieldSerializer());
+            Serializer.registerClass(Turncoat.class, new FieldSerializer());
             Serializer.registerClass(Unconscious.class, new FieldSerializer());
         }
     }
