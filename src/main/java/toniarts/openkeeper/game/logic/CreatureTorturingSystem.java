@@ -33,6 +33,7 @@ import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.InHand;
+import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.ICreaturesController;
@@ -41,7 +42,6 @@ import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.tools.convert.map.Creature;
-import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.GameTimeCounter;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -66,9 +66,9 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
     private static final int INFO_THINKER_2 = 9;
     private static final int INFO_ANY = 10;
     private static final int INFO_ROOM = 11;
+    private static final short ELECTRIC_CHAIR_OBJECT_ID = 61;
 
     private final EntityData entityData;
-    private final IKwdFile kwdFile;
     private final ICreaturesController creaturesController;
     private final IMapController mapController;
     private final EntitySet torturedEntities;
@@ -77,14 +77,13 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
     private final Map<List<Short>, Set<Integer>> infoKnown = new HashMap<>();
     private final Map<Short, Set<RoomInstance>> roomsRevealed = new HashMap<>();
 
-    public CreatureTorturingSystem(EntityData entityData, IKwdFile kwdFile, ICreaturesController creaturesController, IMapController mapController) {
-        this(entityData, kwdFile, creaturesController, mapController, new Random());
+    public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController) {
+        this(entityData, creaturesController, mapController, new Random());
     }
 
-    CreatureTorturingSystem(EntityData entityData, IKwdFile kwdFile, ICreaturesController creaturesController, IMapController mapController, Random random) {
+    CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController, Random random) {
         this.random = random;
         this.entityData = entityData;
-        this.kwdFile = kwdFile;
         this.creaturesController = creaturesController;
         this.mapController = mapController;
 
@@ -118,7 +117,7 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
 
             // Like in DK II, the torture works once a second
             if ((int) (creatureTortured.timeTortured + tpf) > (int) creatureTortured.timeTortured) {
-                tortureForASecond(entity.getId(), creatureComponent, owner.ownerId == playerId);
+                tortureForASecond(entity.getId(), owner.ownerId == playerId);
             }
 
             if (creatureTortured.timeTortured + tpf >= creatureComponent.tortureTimeToConvert) {
@@ -141,17 +140,36 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
      * torture mood change, which a Mistress enjoys. The health change is done
      * by the health system.
      */
-    private void tortureForASecond(EntityId victim, CreatureComponent creatureComponent, boolean ownCreature) {
+    private void tortureForASecond(EntityId victim, boolean ownCreature) {
         if (!ownCreature) {
             return;
         }
-        Creature creature = kwdFile.getCreature(creatureComponent.creatureId);
+        Creature creature = creaturesController.createController(victim).getCreature();
         CreatureMood mood = entityData.getComponent(victim, CreatureMood.class);
         if (creature == null || mood == null || creature.getAttributes().getTortureMoodChange() == 0
                 || (creature.getFlags2() != null && creature.getFlags2().contains(Creature.CreatureFlag2.IS_EMOTIONLESS))) {
             return;
         }
         entityData.setComponent(victim, mood.add(CreatureMood.REASON_OTHER, creature.getAttributes().getTortureMoodChange()));
+    }
+
+    /**
+     * Get the animation of a torture victim. A victim on the Electric Chair
+     * sits in the chair, the others are on the Torture Wheel
+     *
+     * @param entityData the entity data
+     * @param entityId the victim
+     * @return the animation
+     */
+    static Creature.AnimationType getTortureAnimation(EntityData entityData, EntityId entityId) {
+        CreatureTortured tortured = entityData.getComponent(entityId, CreatureTortured.class);
+        if (tortured != null && tortured.device != null) {
+            ObjectComponent device = entityData.getComponent(tortured.device, ObjectComponent.class);
+            if (device != null && device.objectId == ELECTRIC_CHAIR_OBJECT_ID) {
+                return Creature.AnimationType.TORTURED_CHAIR;
+            }
+        }
+        return Creature.AnimationType.TORTURED_WHEEL;
     }
 
     private IRoomController getChamber(Entity entity) {
@@ -185,7 +203,7 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
             CreatureComponent creatureComponent = entityData.getComponent(victim, CreatureComponent.class);
             if (entityData.getComponent(victim, Death.class) != null && owner != null && creatureComponent != null
                     && owner.ownerId != playerId) {
-                revealInformation(playerId, owner.ownerId, kwdFile.getCreature(creatureComponent.creatureId));
+                revealInformation(playerId, owner.ownerId, creaturesController.createController(victim).getCreature());
             }
 
             if (!chamber.getRoomInstance().isDestroyed()

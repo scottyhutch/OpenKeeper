@@ -24,11 +24,9 @@ import com.simsilica.es.EntitySet;
 import java.util.Collections;
 import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureAi;
-import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.Navigation;
-import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Unconscious;
@@ -46,8 +44,6 @@ import toniarts.openkeeper.utils.GameTimeCounter;
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
 public final class CreatureViewSystem extends GameTimeCounter {
-
-    private static final short ELECTRIC_CHAIR_OBJECT_ID = 61;
 
     private final EntityData entityData;
     private final EntitySet creatureViewEntities;
@@ -91,7 +87,7 @@ public final class CreatureViewSystem extends GameTimeCounter {
                 } else {
                     CreatureAi aiState = entityData.getComponent(entityId, CreatureAi.class);
                     if (aiState != null && aiState.getCreatureState() == CreatureState.TORTURED) {
-                        targetState = getTortureAnimation(entityData, entityId);
+                        targetState = CreatureTorturingSystem.getTortureAnimation(entityData, entityId);
                     } else if (aiState != null) {
                         targetState = getAnimation(aiState.getCreatureState());
                     }
@@ -128,25 +124,6 @@ public final class CreatureViewSystem extends GameTimeCounter {
     public void stop() {
         creatureViewEntities.release();
         creatureEntities.clear();
-    }
-
-    /**
-     * Get the animation of a torture victim. A victim on the Electric Chair
-     * sits in the chair, the others are on the Torture Wheel
-     *
-     * @param entityData the entity data
-     * @param entityId the victim
-     * @return the animation
-     */
-    static Creature.AnimationType getTortureAnimation(EntityData entityData, EntityId entityId) {
-        CreatureTortured tortured = entityData.getComponent(entityId, CreatureTortured.class);
-        if (tortured != null && tortured.device != null) {
-            ObjectComponent device = entityData.getComponent(tortured.device, ObjectComponent.class);
-            if (device != null && device.objectId == ELECTRIC_CHAIR_OBJECT_ID) {
-                return Creature.AnimationType.TORTURED_CHAIR;
-            }
-        }
-        return Creature.AnimationType.TORTURED_WHEEL;
     }
 
     private static Creature.AnimationType getAnimation(CreatureState creatureState) {

@@ -39,17 +39,17 @@ class TortureAnimationTest {
 
     @Test
     void victimOnTheWheel() {
-        assertEquals(Creature.AnimationType.TORTURED_WHEEL, CreatureViewSystem.getTortureAnimation(entityData, victimOn(device(TORTURE_WHEEL))));
+        assertEquals(Creature.AnimationType.TORTURED_WHEEL, CreatureTorturingSystem.getTortureAnimation(entityData, victimOn(device(TORTURE_WHEEL))));
     }
 
     @Test
     void victimOnTheChair() {
-        assertEquals(Creature.AnimationType.TORTURED_CHAIR, CreatureViewSystem.getTortureAnimation(entityData, victimOn(device(ELECTRIC_CHAIR))));
+        assertEquals(Creature.AnimationType.TORTURED_CHAIR, CreatureTorturingSystem.getTortureAnimation(entityData, victimOn(device(ELECTRIC_CHAIR))));
     }
 
     @Test
     void victimWithoutADevice() {
-        assertEquals(Creature.AnimationType.TORTURED_WHEEL, CreatureViewSystem.getTortureAnimation(entityData, victimOn(null)));
+        assertEquals(Creature.AnimationType.TORTURED_WHEEL, CreatureTorturingSystem.getTortureAnimation(entityData, victimOn(null)));
     }
 
     private EntityId device(short objectId) {

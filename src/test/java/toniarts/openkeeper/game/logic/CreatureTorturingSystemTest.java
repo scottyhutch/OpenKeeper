@@ -43,7 +43,6 @@ import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectTyp
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.tools.convert.map.Creature;
-import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.TortureVictimFixtures;
 import toniarts.openkeeper.utils.Point;
@@ -91,7 +90,7 @@ class CreatureTorturingSystemTest {
             TROLL, TortureVictimFixtures.victim(TROLL, (short) 1092, Creature.JobClass.ARTISAN, false),
             MISTRESS, TortureVictimFixtures.victim(MISTRESS, (short) -1000, Creature.JobClass.FIGHTER, false),
             IMP, TortureVictimFixtures.victim(IMP, (short) 1092, Creature.JobClass.ARTISAN, true));
-    private CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, kwdFile(), creaturesController(), mapController(), lastChoice);
+    private CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), lastChoice);
 
     @Test
     void enemyTorturedToDeathRevealsOneOfItsKeepersRooms() {
@@ -113,7 +112,7 @@ class CreatureTorturingSystemTest {
     void victimTellsWhatTheKeeperDoesNotKnowYet() {
 
         // An artisan has two things to tell about its keeper, every victim one more thing
-        system = new CreatureTorturingSystem(entityData, kwdFile(), creaturesController(), mapController(), firstChoice);
+        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), firstChoice);
         torturedToDeath(HERO_ID);
         torturedToDeath(HERO_ID);
         torturedToDeath(HERO_ID);
@@ -286,14 +285,6 @@ class CreatureTorturingSystemTest {
         return victim;
     }
 
-    private IKwdFile kwdFile() {
-        return (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(),
-                new Class<?>[]{IKwdFile.class}, (proxy, method, args) -> switch (method.getName()) {
-                    case "getCreature" -> creatures.get((Short) args[0]);
-                    default -> throw new UnsupportedOperationException(method.getName());
-                });
-    }
-
     private ICreaturesController creaturesController() {
         return (ICreaturesController) Proxy.newProxyInstance(ICreaturesController.class.getClassLoader(),
                 new Class<?>[]{ICreaturesController.class}, (proxy, method, args) -> switch (method.getName()) {
@@ -310,6 +301,7 @@ class CreatureTorturingSystemTest {
                         yield null;
                     }
                     case "getStateMachine" -> stateMachine(entityId);
+                    case "getCreature" -> creatures.get(entityData.getComponent(entityId, CreatureComponent.class).creatureId);
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
     }
