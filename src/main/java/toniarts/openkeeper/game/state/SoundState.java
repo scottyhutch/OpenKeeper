@@ -203,7 +203,10 @@ public final class SoundState extends AbstractPauseAwareState {
             return;
         }
 
-        String file = AssetsConverter.SOUNDS_FOLDER + File.separator + backgroundState.getNext();
+        String file = backgroundState.getNext();
+        if (file == null)
+            return;
+        file = AssetsConverter.SOUNDS_FOLDER + File.separator + file;
 
         backgroundNode = new AudioNode(app.getAssetManager(), file, DataType.Buffer);
         if (backgroundNode == null) {
@@ -256,42 +259,36 @@ public final class SoundState extends AbstractPauseAwareState {
                 throw new RuntimeException("Category " + category + " does not exist");
             }
 
-            if (this.sc.getGroups().isEmpty()) {
-                throw new RuntimeException("We have no groups in category " + category);
-            }
+            if (this.sc.getGroups().isEmpty())
+                logger.log(Level.WARNING, "We have no groups in category " + category);
 
             int total = 0;
             for (SoundGroup group : this.sc.getGroups().values()) {
                 total += group.getFiles().size();
             }
-            if (total == 0) {
-                throw new RuntimeException("We have no files in groups in category " + category);
-            }
+            if (total == 0)
+                logger.log(Level.WARNING, "We have no files in groups in category " + category);
 
             itGroup = null;
             itFile = null;
         }
 
         public synchronized String getNext() {
-            if (itGroup == null) {
+            if (itGroup == null)
                 itGroup = sc.getGroups().values().iterator();
-            }
 
-            if (itFile == null) {
+            while (itFile == null || !itFile.hasNext()) {
                 if (itGroup.hasNext()) {
                     itFile = itGroup.next().getFiles().iterator();
                 } else {
-                    itGroup = null;
-                    return this.getNext();
+                    // Exhausted all groups, start over if there are files
+                    itGroup = sc.getGroups().values().iterator();
+                    if (!itGroup.hasNext())
+                        return null;
                 }
             }
 
-            if (itFile.hasNext()) {
-                return itFile.next().getFilename();
-            } else {
-                itFile = null;
-                return this.getNext();
-            }
+            return itFile.next().getFilename();
         }
     }
 
