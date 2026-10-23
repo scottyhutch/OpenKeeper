@@ -144,7 +144,7 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
                 entityId = creaturesController.spawnCreature(kwdFile.getImp().getCreatureId(), player.getKeeper().getId(), 1, new Vector2f(entranceCoordinate.x, entranceCoordinate.y), ICreaturesController.SpawnType.PLACE);
                 spawned = true;
             }
-        } else if (timeSinceLastSpawn >= Math.max(entranceCooldownTime, entranceCooldownTime * player.getCreatureControl().getTypeCount() * 0.5)
+        } else if (timeSinceLastSpawn >= getGenerationInterval(entrance)
                 && player.getRoomControl().isPortalsOpen() && !isCreatureLimitReached(player)) {
 
             // Evaluate what creature can we spawn
@@ -180,7 +180,24 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
 
             // Reset spawn time
             entrance.onSpawn(timeElapsed, entityId);
+        } else if (!entrance.isDungeonHeart() && timeSinceLastSpawn >= getGenerationInterval(entrance)) {
+
+            // As in the original, the Portal's clock restarts on every check, also when no creature came in
+            entrance.onGenerationSkipped(timeElapsed);
         }
+    }
+
+    /**
+     * Get the time between the entrance's creature generation checks. In the original it is the level's
+     * entrance generation speed plus the square of the creatures that came in through the Portal since it was
+     * claimed, so each Portal slows down on its own.
+     *
+     * @param entrance the creature entrance
+     * @return the generation interval, in seconds
+     */
+    private double getGenerationInterval(ICreatureEntrance entrance) {
+        int creaturesEntered = entrance.getCreaturesEntered();
+        return entranceCooldownTime + creaturesEntered * creaturesEntered;
     }
 
     private boolean isCreatureLimitReached(IPlayerController player) {
