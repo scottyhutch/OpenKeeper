@@ -65,12 +65,19 @@ public final class Train extends AbstractCapacityCriticalRoomTask {
 
     @Override
     public Vector2f getTarget(ICreatureController creature) {
-        return getAccessibleTargetNextToLocation(creature);
+        return getTargetNextToFurniture(creature);
     }
 
     @Override
     public boolean isFaceTarget() {
         return true;
+    }
+
+    @Override
+    public Vector2f getWorkPosition(ICreatureController creature) {
+
+        // DK II puts the trainee half a tile from the dummy, within reach
+        return getWorkPositionAtFurniture(creature);
     }
 
     @Override
