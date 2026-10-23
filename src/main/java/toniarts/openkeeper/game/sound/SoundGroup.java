@@ -17,8 +17,10 @@
 package toniarts.openkeeper.game.sound;
 
 import java.io.File;
+import java.io.IOException;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.List;
@@ -64,6 +66,13 @@ public final class SoundGroup {
 
     private void parseFiles() {
         BankMapFile bank = category.getBankMapFile();
+        Path sfxFolder;
+        try {
+            // The real case matters on case sensitive file systems, the SDT paths have it too
+            sfxFolder = Paths.get(PathUtils.getRealFileName(PathUtils.getDKIIFolder(), PathUtils.DKII_SFX_FOLDER));
+        } catch (IOException ex) {
+            throw new RuntimeException("Sound folder " + PathUtils.DKII_SFX_FOLDER + " not found", ex);
+        }
 
         for (SfxEEEntry eEEntry : entry.getEntries()) {
             for (SfxSoundEntry eEEEntry : eEEntry.getSounds()) {
@@ -76,8 +85,7 @@ public final class SoundGroup {
                     throw new RuntimeException("Sdt file " + archiveFilename + " does not exist");
                 }
 
-                String relative = Paths.get(PathUtils.getDKIIFolder(), PathUtils.DKII_SFX_FOLDER)
-                        .relativize(sdt.getFile()).toString();
+                String relative = sfxFolder.relativize(sdt.getFile()).toString();
 
                 try {
                     var sdtFileEntry = sdt.getEntries()[soundId];
