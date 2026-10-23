@@ -28,6 +28,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.InHand;
@@ -40,7 +41,10 @@ import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
+import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Room;
+import toniarts.openkeeper.tools.convert.map.TortureVictimFixtures;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -48,21 +52,64 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The victims leave their torture devices when they are converted, die, are
- * picked up or their chamber is gone
+ * What happens to the victims in a torture chamber, like in DK II
  */
 class CreatureTorturingSystemTest {
 
     private static final short KEEPER_ID = 3;
     private static final short HERO_ID = 1;
     private static final Point CHAMBER_TILE = new Point(4, 4);
+    private static final short TROLL = 10;
+    private static final short MISTRESS = 38;
+    private static final short IMP = 1;
 
     private final EntityData entityData = new DefaultEntityData();
     private final List<EntityId> leftDevice = new ArrayList<>();
     private final Map<EntityId, Short> converted = new HashMap<>();
     private final Map<EntityId, CreatureState> states = new HashMap<>();
     private final RoomInstance chamberInstance = new RoomInstance(new Room());
-    private final CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, creaturesController(), mapController());
+    private final Map<Short, Creature> creatures = Map.of(
+            TROLL, TortureVictimFixtures.victim(TROLL, (short) 1092, Creature.JobClass.ARTISAN, false),
+            MISTRESS, TortureVictimFixtures.victim(MISTRESS, (short) -1000, Creature.JobClass.FIGHTER, false),
+            IMP, TortureVictimFixtures.victim(IMP, (short) 1092, Creature.JobClass.ARTISAN, true));
+    private final CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, kwdFile(), creaturesController(), mapController());
+
+    @Test
+    void ownVictimGetsAngrierEverySecond() {
+        EntityId victim = victim(KEEPER_ID, 1000, TROLL);
+
+        tick(3);
+
+        assertEquals(3 * 1092, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
+
+    @Test
+    void ownMistressEnjoysIt() {
+        EntityId victim = victim(KEEPER_ID, 1000, MISTRESS);
+        entityData.setComponent(victim, new CreatureMood(0, 0, 0, 0, 0, 5000));
+
+        tick(2);
+
+        assertEquals(3000, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
+
+    @Test
+    void emotionlessVictimFeelsNothing() {
+        EntityId victim = victim(KEEPER_ID, 1000, IMP);
+
+        tick(3);
+
+        assertEquals(0, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
+
+    @Test
+    void enemyVictimsMoodIsNotChanged() {
+        EntityId victim = victim(HERO_ID, 1000, TROLL);
+
+        tick(3);
+
+        assertEquals(0, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
 
     @Test
     void convertedEnemyLeavesTheDevice() {
@@ -143,14 +190,28 @@ class CreatureTorturingSystemTest {
     }
 
     private EntityId victim(short ownerId, float tortureTimeToConvert) {
+        return victim(ownerId, tortureTimeToConvert, TROLL);
+    }
+
+    private EntityId victim(short ownerId, float tortureTimeToConvert, short creatureId) {
         EntityId victim = entityData.createEntity();
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.tortureTimeToConvert = tortureTimeToConvert;
+        creatureComponent.creatureId = creatureId;
+        entityData.setComponent(victim, new CreatureMood());
         entityData.setComponent(victim, creatureComponent);
         entityData.setComponent(victim, new Owner(ownerId, KEEPER_ID));
         entityData.setComponent(victim, new Position(0, WorldUtils.pointToVector3f(CHAMBER_TILE)));
         entityData.setComponent(victim, new CreatureTortured(0, -1, 0));
         return victim;
+    }
+
+    private IKwdFile kwdFile() {
+        return (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(),
+                new Class<?>[]{IKwdFile.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "getCreature" -> creatures.get((Short) args[0]);
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
     }
 
     private ICreaturesController creaturesController() {
