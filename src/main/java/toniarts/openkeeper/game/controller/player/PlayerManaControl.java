@@ -39,7 +39,10 @@ public final class PlayerManaControl {
         this.keeper = keeper;
 
         this.keeper.setMaxMana((int) gameSettings.get(MiscType.MAXIMUM_MANA_THRESHOLD).getValue());
-        this.maxManaGain = (int) gameSettings.get(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND).getValue();
+
+        // A level without the limit doesn't limit the gain
+        Variable.MiscVariable maxManaGainVariable = gameSettings.get(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND);
+        this.maxManaGain = maxManaGainVariable != null ? (int) maxManaGainVariable.getValue() : Integer.MAX_VALUE;
     }
 
     /**
@@ -54,7 +57,7 @@ public final class PlayerManaControl {
      */
     public void updateMana(int gain, int loose, int maxGainIncrease) {
 
-        keeper.setManaGain(Math.min(gain, maxManaGain + maxGainIncrease));
+        keeper.setManaGain((int) Math.min(gain, (long) maxManaGain + maxGainIncrease));
         keeper.setManaLoose(loose);
 
         addMana(keeper.getManaGain() - keeper.getManaLoose());
