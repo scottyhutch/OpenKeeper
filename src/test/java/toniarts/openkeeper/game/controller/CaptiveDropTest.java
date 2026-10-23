@@ -16,13 +16,16 @@
  */
 package toniarts.openkeeper.game.controller;
 
+import com.jme3.math.Vector3f;
 import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.tools.convert.map.Room;
+import toniarts.openkeeper.utils.WorldUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -61,6 +64,14 @@ class CaptiveDropTest {
     void otherRoomsHoldNoCaptives() {
         assertNull(GameWorldController.getCaptiveState(room(ObjectType.LAIR), HERO_ID));
         assertNull(GameWorldController.getCaptiveState(null, HERO_ID));
+    }
+
+    @Test
+    void victimIsOnTheDeviceFacingItsWay() {
+        Position victim = GameWorldController.getVictimPosition(new Position(1.5f, new Vector3f(3.5f, 0.2f, 4.5f)));
+
+        assertEquals(1.5f, victim.rotation);
+        assertEquals(new Vector3f(3.5f, WorldUtils.FLOOR_HEIGHT, 4.5f), victim.position);
     }
 
     private static IRoomController room(ObjectType objectType) {
