@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
 import toniarts.openkeeper.game.component.CreatureAi;
+import toniarts.openkeeper.game.component.FetchPortalGem;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Owner;
@@ -44,7 +45,8 @@ import toniarts.openkeeper.game.navigation.INavigationService;
  * keeper has less mana than that, the Reaper leaves. A Reaper summoned for a
  * set time leaves when the time is up, and costs nothing. Slapping the Reaper
  * sends him back too, and so does running out of things to destroy. A leaving
- * Reaper stops what he is doing and is gone six seconds later.
+ * Reaper stops what he is doing and is gone six seconds later. A Reaper sent for
+ * the Portal Gem at the end of the level only goes for the gem.
  */
 public final class SummonedReaperSystem implements IGameLogicUpdatable {
 
@@ -74,6 +76,15 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
          * @return {@code false} if there is nothing left for the Reaper to do
          */
         boolean think(EntityId reaper, short ownerId);
+
+        /**
+         * Lets the Reaper go for the Portal Gem and pick it up
+         *
+         * @param reaper the Reaper
+         * @param gem the Portal Gem object
+         */
+        default void fetchPortalGem(EntityId reaper, EntityId gem) {
+        }
 
         /**
          * Releases the resources
@@ -126,7 +137,14 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
             SummonedReaper summonedReaper = entity.get(SummonedReaper.class);
             short ownerId = entity.get(Owner.class).ownerId;
 
-            if (summonedReaper.isLeaving()) {
+            FetchPortalGem fetchPortalGem = entityData.getComponent(entityId, FetchPortalGem.class);
+            if (fetchPortalGem != null) {
+
+                // Nothing can stop him now, he does it once he is on his feet
+                if (entityData.getComponent(entityId, CreatureAi.class) != null) {
+                    decisions.fetchPortalGem(entityId, fetchPortalGem.gem);
+                }
+            } else if (summonedReaper.isLeaving()) {
                 if (gameTime >= summonedReaper.leaveTime + LEAVE_DURATION_SECONDS) {
                     creaturesController.createController(entityId).remove();
                 }

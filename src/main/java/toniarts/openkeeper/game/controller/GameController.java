@@ -313,6 +313,12 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
             }
         }
 
+        // The Horned Reaper comes for the Portal Gem
+        if (win) {
+            new PortalGemReaper(levelInfo.getLevelData(), entityData, gameTimer, gameWorldController.getCreaturesController(),
+                    gameWorldController.getObjectsController(), navigationService).callForGem(playerId);
+        }
+
         // Enable the end game state on the player (client)
         playerService.endGame(win, playerId);
     }

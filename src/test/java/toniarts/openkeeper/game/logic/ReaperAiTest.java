@@ -29,12 +29,15 @@ import java.util.Random;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.AttackTarget;
+import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Navigation;
+import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.Unconscious;
@@ -220,6 +223,54 @@ class ReaperAiTest {
         assertEquals(CreatureState.MELEE_ATTACK, state);
     }
 
+    @Test
+    void walksToThePortalGem() {
+        Point gemTile = new Point(20, 14);
+        EntityId gem = addGem(gemTile);
+
+        ai().fetchPortalGem(reaper, gem);
+
+        Navigation navigation = entityData.getComponent(reaper, Navigation.class);
+        assertNotNull(navigation);
+        assertEquals(gemTile, navigation.target);
+        assertEquals(CreatureState.WANDER, state);
+    }
+
+    @Test
+    void goesBackToTheGemIfHeWandersOff() {
+        Point gemTile = new Point(20, 14);
+        EntityId gem = addGem(gemTile);
+        entityData.setComponent(reaper, new Navigation(new Point(2, 2), null, null));
+
+        ai().fetchPortalGem(reaper, gem);
+
+        assertEquals(gemTile, entityData.getComponent(reaper, Navigation.class).target);
+    }
+
+    @Test
+    void picksUpThePortalGemOnItsTile() {
+        EntityId gem = addGem(REAPER_TILE);
+        entityData.setComponent(reaper, new CreatureAi(0, CreatureState.WANDER, (short) 27));
+        entityData.setComponent(reaper, new Navigation(REAPER_TILE, null, null));
+
+        ai().fetchPortalGem(reaper, gem);
+
+        assertNotNull(entityData.getComponent(reaper, PortalGem.class));
+        assertNull(entityData.getComponent(gem, ObjectComponent.class));
+        assertNull(entityData.getComponent(gem, Position.class));
+
+        // With the gem in his hands he has done his job
+        assertNull(entityData.getComponent(reaper, CreatureAi.class));
+        assertNull(entityData.getComponent(reaper, Navigation.class));
+    }
+
+    private EntityId addGem(Point tile) {
+        EntityId gem = entityData.createEntity();
+        entityData.setComponent(gem, new ObjectComponent((short) 28, null));
+        entityData.setComponent(gem, new Position(0, WorldUtils.pointToVector3f(tile)));
+        return gem;
+    }
+
     private EntityId addCreature(short ownerId, Point tile) {
         EntityId entityId = entityData.createEntity();
         entityData.setComponent(entityId, new CreatureComponent());
@@ -257,6 +308,7 @@ class ReaperAiTest {
                         yield null;
                     }
                     case "getEntityId" -> reaper;
+                    case "unassingCurrentTask" -> null;
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         return (ICreaturesController) Proxy.newProxyInstance(ICreaturesController.class.getClassLoader(),
