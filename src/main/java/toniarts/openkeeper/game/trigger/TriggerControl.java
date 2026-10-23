@@ -421,7 +421,10 @@ public class TriggerControl extends Control {
                 return true;
 
             case SET_SYSTEM_MESSAGES:
-                levelInfo.setSystemMessagesEnabled(trigger.getUserData("available", short.class) == 1);
+                // One switch for the whole level, the scripted speeches and texts are not affected
+                boolean systemMessages = trigger.getUserData("available", short.class) == 1;
+                levelInfo.setSystemMessagesEnabled(systemMessages);
+                playerService.setSystemMessagesEnabled(systemMessages);
                 return true;
 
             case SET_TIMER_SPEECH:

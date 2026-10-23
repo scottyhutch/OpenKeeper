@@ -435,7 +435,7 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         private final Map<Integer, ActionPoint> actionPointsById = new HashMap<>();
         private final List<ActionPoint> actionPoints = new ArrayList<>();
         private boolean creatureMoodsEnabled = false;
-        private boolean systemMessagesEnabled = false;
+        private boolean systemMessagesEnabled = true; // The original turns them on at the start of every level
         private boolean timerSpeechEnabled = false;
 
         public LevelInfo(IKwdFile kwdFile) {
