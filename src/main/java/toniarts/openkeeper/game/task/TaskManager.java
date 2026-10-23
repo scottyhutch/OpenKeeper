@@ -845,6 +845,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                 return new Gamble(navigationService, mapController, target, creature.getOwnerId(), room, this, entityData,
                         gameWorldController, objectsController, gameSettings,
                         room instanceof CasinoController casino ? casino::getPayOut : () -> CasinoController.PayOut.SMILES,
+                        FastMath.rand);
             }
             case GUARD -> {
                 return new Guard(navigationService, mapController, target, creature.getOwnerId(), room, this,

@@ -16,6 +16,8 @@
  */
 package toniarts.openkeeper.tools.convert.map;
 
+import java.util.EnumSet;
+
 /**
  * Builds the level data the Portal creature generation tests need. Lives in
  * the data classes' own package because their setters are {@code protected}
@@ -27,12 +29,17 @@ public final class PortalGenerationFixtures {
     }
 
     /**
-     * A creature without attraction requirements
+     * A creature the Portal can attract: available through the Portal, with
+     * the Lair as its first attraction room but no requirement on it
      */
     public static Creature creature(short creatureId) {
         Creature creature = new Creature();
         creature.setCreatureId(creatureId);
-        creature.setAttractions(new Creature.Attraction[0]);
+        Creature.Attraction lair = new Creature.Attraction();
+        lair.setRoomId(2);
+        creature.setAttractions(new Creature.Attraction[]{lair});
+        creature.setFlags(EnumSet.of(Creature.CreatureFlag.AVAILABLE_VIA_PORTAL));
+        creature.setFlags2(EnumSet.noneOf(Creature.CreatureFlag2.class));
         return creature;
     }
 

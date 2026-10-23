@@ -20,6 +20,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -54,6 +55,8 @@ class PortalSpawnCooldownTest {
         lairRequirement.setRoomId(2);
         lairRequirement.setPresent(1);
         goblin.setAttractions(new Creature.Attraction[]{lairRequirement});
+        goblin.setFlags(EnumSet.of(Creature.CreatureFlag.AVAILABLE_VIA_PORTAL));
+        goblin.setFlags2(EnumSet.noneOf(Creature.CreatureFlag2.class));
         Creature imp = new Creature();
         imp.setCreatureId((short) 1);
         Room portalDefinition = new Room();
@@ -104,7 +107,7 @@ class PortalSpawnCooldownTest {
         setting(settings, Variable.MiscVariable.MiscType.CREATURES_SUPPORTED_BY_FIRST_PORTAL, 10);
         setting(settings, Variable.MiscVariable.MiscType.CREATURES_SUPPORTED_PER_ADDITIONAL_PORTAL, 5);
         setting(settings, Variable.MiscVariable.MiscType.TIME_BEFORE_FREE_IMP_GENERATED_SECONDS, 30);
-        CreatureSpawnSystem system = new CreatureSpawnSystem(spawner, List.of(player), settings,
+        CreatureSpawnSystem system = new CreatureSpawnSystem(entities, spawner, List.of(player), settings,
                 stub(ILevelInfo.class, (method, args) -> level), map);
         timer.processTick(109.5f);
         system.processTick(109.5f);
