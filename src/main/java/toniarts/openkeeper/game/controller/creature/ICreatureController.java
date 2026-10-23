@@ -248,6 +248,15 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public int getResearchPerTick();
 
     /**
+     * Get the research points the creature makes once a second on top of its
+     * research per tick while its keeper tortures one of his own creatures of
+     * the same type
+     *
+     * @return the research points, 0 if no such creature is tortured
+     */
+    public int getTorturedTypeResearchBonus();
+
+    /**
      * Get research per second attribute
      *
      * @return research per second

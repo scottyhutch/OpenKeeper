@@ -1515,6 +1515,51 @@ public final class CreatureController extends EntityController implements ICreat
                 levelPercent != null ? levelPercent.getValue() : 100);
     }
 
+    @Override
+    public int getTorturedTypeResearchBonus() {
+        Variable.MiscVariable percentage = gameSettings.get(Variable.MiscVariable.MiscType.INCREASED_WORK_RATE_PERCENTAGE_OF_PLAYERS_TORTURED_CREATURE_TYPES);
+        if (percentage == null || !isTypeTortured(entityData, creature.getCreatureId(), getOwnerId())) {
+            return 0;
+        }
+        return getTorturedTypeBonus(getResearchPerTick(), levelInfo.getLevelData().getGameLevel().getTicksPerSec(), (int) percentage.getValue());
+    }
+
+    /**
+     * Get the work rate bonus a creature gets once a second while its keeper
+     * tortures one of his own creatures of the same type. This is DK II's
+     * reckoning: the sum of the ticks per second and the percentage, times the
+     * ticks per second and the points per tick, in hundredths
+     *
+     * @param pointsPerTick the points the creature makes on each tick
+     * @param ticksPerSecond the level's ticks per second
+     * @param percentage the work rate increase percentage of tortured creature
+     * types
+     * @return the bonus points
+     */
+    static int getTorturedTypeBonus(int pointsPerTick, int ticksPerSecond, int percentage) {
+        return (ticksPerSecond + percentage) * ticksPerSecond * pointsPerTick / 100;
+    }
+
+    /**
+     * Is the keeper torturing one of his own creatures of the type, in his own
+     * torture chamber
+     *
+     * @param entityData the entity data
+     * @param creatureId the creature type
+     * @param playerId the keeper
+     * @return true if such a creature is tortured
+     */
+    static boolean isTypeTortured(EntityData entityData, short creatureId, short playerId) {
+        for (EntityId victim : entityData.findEntities(null, CreatureTortured.class, CreatureComponent.class, Owner.class)) {
+            Owner owner = entityData.getComponent(victim, Owner.class);
+            if (owner.ownerId == playerId && owner.controlId == playerId
+                    && entityData.getComponent(victim, CreatureComponent.class).creatureId == creatureId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     /**
      * Turn a creature's points per second into the points it makes on each
      * game tick, like DK II. When the level loads, DK II divides the per
