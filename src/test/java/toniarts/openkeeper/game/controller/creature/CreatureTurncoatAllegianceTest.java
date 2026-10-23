@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Turncoat;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
+import toniarts.openkeeper.game.controller.entity.IEntityController;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.tools.convert.map.SpellTargetFixtures;
@@ -65,7 +66,7 @@ class CreatureTurncoatAllegianceTest {
         EntityId oldFriend = creature(VICTIM_OWNER);
         sensedEntities.add(oldFriend);
 
-        ICreatureController attackTarget = controller(turncoat).getAttackTarget();
+        IEntityController attackTarget = controller(turncoat).getAttackTarget();
 
         assertNotNull(attackTarget);
         assertEquals(oldFriend, attackTarget.getEntityId());
@@ -88,7 +89,7 @@ class CreatureTurncoatAllegianceTest {
         entityData.setComponent(turncoat, new Turncoat(CASTER, 125));
         sensedEntities.add(turncoat);
 
-        ICreatureController attackTarget = controller(oldFriend).getAttackTarget();
+        IEntityController attackTarget = controller(oldFriend).getAttackTarget();
 
         assertNotNull(attackTarget);
         assertEquals(turncoat, attackTarget.getEntityId());
