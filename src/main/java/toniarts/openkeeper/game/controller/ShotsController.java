@@ -21,6 +21,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import java.lang.System.Logger;
 import java.util.Map;
+import toniarts.openkeeper.game.component.Tremor;
 import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Shot;
@@ -28,6 +29,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_CREA
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJECT;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_HEALTH;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.POSSESS_CREATURE;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.TREMOR;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -77,6 +79,12 @@ public final class ShotsController implements IShotsController {
             }
             case MODIFY_HEALTH -> {
                 EntityController.setDamage(entityData, target, -shotData1);
+            }
+            case TREMOR -> {
+
+                // Shot data 1 is the duration in seconds, shot data 2 the radius in tiles
+                double now = gameTimer.getGameTime();
+                entityData.setComponent(entityData.createEntity(), new Tremor(WorldUtils.vectorToPoint(position), shotData2, now, now + shotData1));
             }
             default ->
                 logger.log(Logger.Level.WARNING, "Shot type {0} not implemented", shot.getProcessType());
