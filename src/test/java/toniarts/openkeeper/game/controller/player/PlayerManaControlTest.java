@@ -16,22 +16,57 @@
  */
 package toniarts.openkeeper.game.controller.player;
 
+import java.util.EnumMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 import toniarts.openkeeper.tools.convert.map.VariableFixtures;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 /**
- * The mana a keeper spends at once shows with the loss of that second
+ * The mana a keeper spends at once shows with the loss of that second, and the
+ * gain is limited
  */
 class PlayerManaControlTest {
 
     private final Keeper keeper = new Keeper(false, (short) 3);
-    private final PlayerManaControl manaControl = new PlayerManaControl(keeper,
-            Map.of(MiscType.MAXIMUM_MANA_THRESHOLD, VariableFixtures.miscVariable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000)));
+    private final PlayerManaControl manaControl = new PlayerManaControl(keeper, settings());
+
+    @Test
+    void gainUnderTheLimitIsKept() {
+        manaControl.updateMana(130, 7, 0);
+
+        assertEquals(130, keeper.getManaGain());
+        assertEquals(7, keeper.getManaLoose());
+        assertEquals(123, keeper.getMana());
+    }
+
+    @Test
+    void gainIsCappedAtTheMaximumManaGain() {
+        manaControl.updateMana(800, 0, 0);
+
+        assertEquals(500, keeper.getManaGain());
+        assertEquals(500, keeper.getMana());
+    }
+
+    @Test
+    void upkeepIsPaidAfterTheCap() {
+        manaControl.updateMana(800, 70, 0);
+
+        assertEquals(500, keeper.getManaGain());
+        assertEquals(430, keeper.getMana());
+    }
+
+    @Test
+    void ownedTilesRaiseTheCap() {
+        manaControl.updateMana(800, 0, 200);
+
+        assertEquals(700, keeper.getManaGain());
+        assertEquals(700, keeper.getMana());
+    }
 
     @Test
     void spentManaIsTakenAtOnce() {
@@ -47,7 +82,7 @@ class PlayerManaControlTest {
         keeper.setMana(1000);
         manaControl.spendMana(250);
 
-        manaControl.updateMana(20, 5);
+        manaControl.updateMana(20, 5, 0);
 
         assertEquals(255, keeper.getManaLoose());
         assertEquals(20, keeper.getManaGain());
@@ -60,11 +95,18 @@ class PlayerManaControlTest {
     void spentManaShowsOnlyOnce() {
         keeper.setMana(1000);
         manaControl.spendMana(250);
-        manaControl.updateMana(20, 5);
+        manaControl.updateMana(20, 5, 0);
 
-        manaControl.updateMana(20, 5);
+        manaControl.updateMana(20, 5, 0);
 
         assertEquals(5, keeper.getManaLoose());
+    }
+
+    private static Map<MiscType, MiscVariable> settings() {
+        Map<MiscType, MiscVariable> settings = new EnumMap<>(MiscType.class);
+        settings.put(MiscType.MAXIMUM_MANA_THRESHOLD, VariableFixtures.miscVariable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000));
+        settings.put(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, VariableFixtures.miscVariable(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, 500));
+        return settings;
     }
 
 }
