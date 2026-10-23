@@ -20,11 +20,8 @@ import com.jme3.math.Vector2f;
 import com.jme3.util.SafeArrayList;
 import com.simsilica.es.EntityId;
 import toniarts.openkeeper.utils.Point;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
-import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Set;
@@ -63,6 +60,7 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
     private final Map<Short, IPlayerController> playerControllersById;
     private final SafeArrayList<ICreatureEntrance> entrances = new SafeArrayList<>(ICreatureEntrance.class);
     private final IKwdFile kwdFile;
+    private final PortalCreatureChoice creatureChoice = new PortalCreatureChoice(Utils.getRandom());
 
     public CreatureSpawnSystem(ICreaturesController creaturesController, Collection<IPlayerController> playerControllers,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings, ILevelInfo levelInfo,
@@ -135,22 +133,15 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
 
             // Evaluate what creature can we spawn
             Map<Integer, CreaturePool> pool = kwdFile.getCreaturePool(player.getKeeper().getId());
-            List<Creature> possibleCreatures = new ArrayList<>(player.getCreatureControl().getTypesAvailable());
-            Iterator<Creature> iter = possibleCreatures.iterator();
-            while (iter.hasNext()) {
-                Creature creature = iter.next();
-                if (!isCreatureAvailableFromPool(creature, player, pool)
-                        || !isCreatureRequirementsSatisfied(creature, player)) {
-                    iter.remove();
-                }
-            }
+            Creature creature = creatureChoice.chooseCreature(player, entrance, creaturesController,
+                    type -> isCreatureAvailableFromPool(type, player, pool) && isCreatureRequirementsSatisfied(type, player));
 
-            // Spawn random?
+            // Spawn by the weights, as the original does
             // TODO: also get notified about the evicted and newly introduced creatures
             // Maybe store these under the keeper etc.? For saving purposes
             // The logic classes shouldn't have anything to save
-            if (!possibleCreatures.isEmpty()) {
-                short creatureId = Utils.getRandomItem(possibleCreatures).getCreatureId();
+            if (creature != null) {
+                short creatureId = creature.getCreatureId();
                 Point entranceCoordinate = entrance.getEntranceCoordinate();
                 entityId = creaturesController.spawnCreature(creatureId, player.getKeeper().getId(), 1, new Vector2f(entranceCoordinate.x, entranceCoordinate.y), ICreaturesController.SpawnType.ENTRANCE);
                 spawned = true;
@@ -184,6 +175,14 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
     @Override
     public void start() {
 
+        // The creature types the keepers can attract from the start are not favoured later
+        for (IPlayerController player : playerControllersById.values()) {
+            if (!isCreatureLimitReached(player)) {
+                Map<Integer, CreaturePool> pool = kwdFile.getCreaturePool(player.getKeeper().getId());
+                creatureChoice.start(player, creaturesController,
+                        type -> isCreatureAvailableFromPool(type, player, pool) && isCreatureRequirementsSatisfied(type, player));
+            }
+        }
     }
 
     @Override
