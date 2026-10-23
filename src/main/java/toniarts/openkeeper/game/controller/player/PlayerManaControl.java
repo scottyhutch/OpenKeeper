@@ -31,6 +31,7 @@ import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 public final class PlayerManaControl {
 
     private final Keeper keeper;
+    private final int maxManaGain;
     private final SafeArrayList<PlayerManaListener> listeners = new SafeArrayList<>(PlayerManaListener.class);
 
     public PlayerManaControl(Keeper keeper,
@@ -38,17 +39,25 @@ public final class PlayerManaControl {
         this.keeper = keeper;
 
         this.keeper.setMaxMana((int) gameSettings.get(MiscType.MAXIMUM_MANA_THRESHOLD).getValue());
+
+        // A level without the limit doesn't limit the gain
+        Variable.MiscVariable maxManaGainVariable = gameSettings.get(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND);
+        this.maxManaGain = maxManaGainVariable != null ? (int) maxManaGainVariable.getValue() : Integer.MAX_VALUE;
     }
 
     /**
-     * Updates gain and loose and adds/removes mana accordingly to the player
+     * Updates gain and loose and adds/removes mana accordingly to the player.
+     * The gain is limited to the maximum mana gain per second, raised by the
+     * owned tiles (mana vaults), and the loose is paid after the limit
      *
      * @param gain mana gain
      * @param loose mana loose
+     * @param maxGainIncrease how much the owned mana sources raise the gain
+     * limit
      */
-    public void updateMana(int gain, int loose) {
+    public void updateMana(int gain, int loose, int maxGainIncrease) {
 
-        keeper.setManaGain(gain);
+        keeper.setManaGain((int) Math.min(gain, (long) maxManaGain + maxGainIncrease));
         keeper.setManaLoose(loose);
 
         addMana(keeper.getManaGain() - keeper.getManaLoose());

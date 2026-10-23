@@ -1,0 +1,74 @@
+/*
+ * Copyright (C) 2014-2026 OpenKeeper
+ *
+ * OpenKeeper is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * OpenKeeper is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with OpenKeeper.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package toniarts.openkeeper.game.controller.player;
+
+import java.util.EnumMap;
+import java.util.Map;
+import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
+import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
+
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static toniarts.openkeeper.tools.convert.map.ManaRulesFixtures.manaVariable;
+
+class PlayerManaControlTest {
+
+    private final Keeper keeper = new Keeper(false, (short) 3);
+    private final PlayerManaControl manaControl = new PlayerManaControl(keeper, settings());
+
+    @Test
+    void gainUnderTheLimitIsKept() {
+        manaControl.updateMana(130, 7, 0);
+
+        assertEquals(130, keeper.getManaGain());
+        assertEquals(7, keeper.getManaLoose());
+        assertEquals(123, keeper.getMana());
+    }
+
+    @Test
+    void gainIsCappedAtTheMaximumManaGain() {
+        manaControl.updateMana(800, 0, 0);
+
+        assertEquals(500, keeper.getManaGain());
+        assertEquals(500, keeper.getMana());
+    }
+
+    @Test
+    void upkeepIsPaidAfterTheCap() {
+        manaControl.updateMana(800, 70, 0);
+
+        assertEquals(500, keeper.getManaGain());
+        assertEquals(430, keeper.getMana());
+    }
+
+    @Test
+    void ownedTilesRaiseTheCap() {
+        manaControl.updateMana(800, 0, 200);
+
+        assertEquals(700, keeper.getManaGain());
+        assertEquals(700, keeper.getMana());
+    }
+
+    private static Map<MiscType, MiscVariable> settings() {
+        Map<MiscType, MiscVariable> settings = new EnumMap<>(MiscType.class);
+        settings.put(MiscType.MAXIMUM_MANA_THRESHOLD, manaVariable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000));
+        settings.put(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, manaVariable(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, 500));
+        return settings;
+    }
+
+}

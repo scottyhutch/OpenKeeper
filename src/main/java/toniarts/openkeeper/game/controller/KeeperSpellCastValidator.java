@@ -114,8 +114,20 @@ public final class KeeperSpellCastValidator {
         return true;
     }
 
-    private static boolean checkPlayerMana(int manaCost, Keeper player) {
-        return manaCost <= player.getMana() - player.getManaLoose();
+    /**
+     * As in DK II, the spell can be cast when the keeper has the mana, whatever
+     * the ongoing upkeep
+     *
+     * @param manaCost the mana the cast costs, see {@link KeeperSpellCost}
+     * @param player the casting player
+     * @return true if the keeper has the mana
+     */
+    static boolean checkPlayerMana(int manaCost, Keeper player) {
+        return manaCost <= player.getMana();
+    }
+
+    static boolean checkPlayerMana(KeeperSpell keeperSpell, Keeper player) {
+        return checkPlayerMana(keeperSpell.getManaCost(), player);
     }
 
     private static boolean checkTargetRule(EntityId target, EntityData entityData, IKwdFile kwdFile, KeeperSpell keeperSpell, Keeper player) {
