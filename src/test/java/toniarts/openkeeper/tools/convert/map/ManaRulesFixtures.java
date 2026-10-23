@@ -41,4 +41,10 @@ public final class ManaRulesFixtures {
         return terrain;
     }
 
+    public static KeeperSpell manaSpell(int manaCost) {
+        KeeperSpell keeperSpell = new KeeperSpell();
+        keeperSpell.setManaCost(manaCost);
+        return keeperSpell;
+    }
+
 }
