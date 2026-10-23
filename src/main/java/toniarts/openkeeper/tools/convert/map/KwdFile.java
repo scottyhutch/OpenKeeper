@@ -135,7 +135,7 @@ public final class KwdFile implements IKwdFile, IKwdMap {
     private Map<Integer, Map<StatType, CreatureStats>> creatureStatistics;
     private Map<Integer, Map<StatType, CreatureFirstPerson>> creatureFirstPersonStatistics;
     private Map<MiscVariable.MiscType, MiscVariable> variables;
-    private Set<Sacrifice> sacrifices;
+    private List<Sacrifice> sacrifices;
     private Set<PlayerAlliance> playerAlliances;
     private Set<Variable.Unknown> unknownVariables;
     //
@@ -2970,7 +2970,7 @@ public final class KwdFile implements IKwdFile, IKwdMap {
             creatureStatistics = HashMap.newHashMap(10);
             creatureFirstPersonStatistics = HashMap.newHashMap(10);
             variables = new HashMap<>();
-            sacrifices = new HashSet<>();
+            sacrifices = new ArrayList<>();
             playerAlliances = new HashSet<>();
             unknownVariables = new HashSet<>();
         } else {
@@ -3308,6 +3308,11 @@ public final class KwdFile implements IKwdFile, IKwdMap {
     @Override
     public Set<PlayerAlliance> getPlayerAlliances() {
         return playerAlliances;
+    }
+
+    @Override
+    public List<Sacrifice> getSacrifices() {
+        return sacrifices;
     }
 
     @Override

@@ -50,5 +50,6 @@ public enum TaskType {
     GAMBLE,
     FETCH_CORPSE,
     CARRY_CORPSE_TO_GRAVEYARD,
-    GUARD
+    GUARD,
+    PRAY
 }
