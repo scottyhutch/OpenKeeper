@@ -32,6 +32,7 @@ import java.util.function.Predicate;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.Interaction;
+import toniarts.openkeeper.game.component.Morphed;
 import toniarts.openkeeper.game.controller.SlapRules;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.sound.FootstepSounds;
@@ -42,6 +43,7 @@ import toniarts.openkeeper.gui.CursorFactory;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Creature.CreatureFlag;
+import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.view.animation.AnimationLoader;
 import toniarts.openkeeper.view.text.EntityTextParser;
@@ -63,9 +65,46 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     private boolean stepWarningLogged;
     private Predicate<Vector3f> waterCheck = position -> false;
 
+    /**
+     * Which model the creature is drawn with
+     */
+    enum Look {
+
+        /**
+         * The creature's own animations
+         */
+        OWN,
+        /**
+         * The mesh of the object it is morphed into
+         */
+        MORPH,
+        /**
+         * The in-hand mesh of the object it is morphed into
+         */
+        MORPH_IN_HAND
+    }
+
+    private final GameObject morphObject;
+    private boolean morphed;
+
+    /**
+     * Creates a creature view control
+     *
+     * @param entityId the creature entity
+     * @param entityData the entity data
+     * @param data the creature
+     * @param animation the starting animation
+     * @param morphObject the object the Chicken spell turns creatures into,
+     * can be {@code null}
+     * @param assetManager the asset manager
+     * @param textParser the tooltip parser, can be {@code null}
+     */
     public CreatureViewControl(EntityId entityId, EntityData entityData, Creature data, Creature.AnimationType animation,
-            AssetManager assetManager, EntityTextParser<Creature> textParser) {
+            GameObject morphObject, AssetManager assetManager, EntityTextParser<Creature> textParser) {
         super(entityId, entityData, data, animation, assetManager, textParser);
+        this.morphObject = morphObject;
+
+        morphed = isMorphed();
     }
 
     @Override
@@ -73,6 +112,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         Collection<Class<? extends EntityComponent>> components = super.getWatchedComponents();
         components.add(CreatureAi.class);
         components.add(CreatureImprisoned.class);
+        components.add(Morphed.class);
         return components;
     }
 
@@ -85,6 +125,42 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
         boolean imprisoned = getEntity().get(CreatureImprisoned.class) != null;
         return SlapRules.canSlapCreature(playerId, getOwnerId(), getControlId(), imprisoned);
+    }
+
+    private void updateMorph() {
+
+        // The Chicken spell changes the look, and back again when it wears off
+        boolean nowMorphed = isMorphed();
+        if (nowMorphed != morphed) {
+            boolean lookChanged = currentState != null && getLook(morphed, currentState) != getLook(nowMorphed, currentState);
+            morphed = nowMorphed;
+            if (lookChanged) {
+                playAnimation(currentState);
+            }
+        }
+    }
+
+    private boolean isMorphed() {
+        return morphObject != null && getEntity().get(Morphed.class) != null;
+    }
+
+    /**
+     * Which model the creature is drawn with. A creature morphed into a
+     * chicken is drawn with the chicken object's mesh, also when it is in
+     * hand, but it dies with its own animations
+     *
+     * @param morphed whether the creature is morphed
+     * @param state the creature animation
+     * @return the model to use
+     */
+    static Look getLook(boolean morphed, Creature.AnimationType state) {
+        if (!morphed || state == Creature.AnimationType.DIE || state == Creature.AnimationType.DEATH_POSE) {
+            return Look.OWN;
+        }
+        if (state == Creature.AnimationType.IN_HAND) {
+            return Look.MORPH_IN_HAND;
+        }
+        return Look.MORPH;
     }
 
     @Override
@@ -122,8 +198,8 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     }
 
     private void playAnimation(Creature.AnimationType animation) {
-        AnimationLoader.playAnimation(getSpatial(), getDataObject().getAnimation(animation), assetManager);
-        if (getDataObject().getFlags().contains(CreatureFlag.IS_UNIQUE)) {
+        AnimationLoader.playAnimation(getSpatial(), getAnimationData(animation), assetManager);
+        if (getLook(morphed, animation) == Look.OWN && getDataObject().getFlags().contains(CreatureFlag.IS_UNIQUE)) {
             CreatureVariantTextures.apply(getSpatial(), assetManager);
         }
         isAnimationPlaying = true;
@@ -150,6 +226,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         }
 
         playFootsteps();
+        updateMorph();
     }
 
     /**
@@ -247,7 +324,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     @Override
     public ArtResource getInHandMesh() {
-        return getDataObject().getAnimation(Creature.AnimationType.IN_HAND);
+        return getAnimationData(Creature.AnimationType.IN_HAND);
     }
 
     @Override
@@ -257,7 +334,14 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     @Override
     protected ArtResource getAnimationData(Creature.AnimationType state) {
-        return getDataObject().getAnimation(state);
+        switch (getLook(morphed, state)) {
+            case MORPH:
+                return morphObject.getMeshResource();
+            case MORPH_IN_HAND:
+                return morphObject.getInHandMeshResource();
+            default:
+                return getDataObject().getAnimation(state);
+        }
     }
 
     private boolean isWorkAnimation() {

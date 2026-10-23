@@ -40,6 +40,7 @@ import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.RoomEffect;
 import toniarts.openkeeper.game.component.TrapViewState;
+import toniarts.openkeeper.game.controller.ObjectsController;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -346,7 +347,8 @@ public class PlayerEntityViewState extends AbstractAppState {
             Creature creature = kwdFile.getCreature(creatureViewState.creatureId);
             result = creatureLoader.load(assetManager, creatureViewState);
             if (result != null) {
-                CreatureViewControl control = new CreatureViewControl(e.getId(), entityData, creature, creatureViewState.state, assetManager, textParser != null ? textParser.getCreatureTextParser() : null);
+                CreatureViewControl control = new CreatureViewControl(e.getId(), entityData, creature, creatureViewState.state,
+                        kwdFile.getObject(ObjectsController.OBJECT_CHICKEN_ID), assetManager, textParser != null ? textParser.getCreatureTextParser() : null);
                 control.setWaterCheck(this::isWater);
                 result.addControl(control);
 
