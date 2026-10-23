@@ -317,6 +317,8 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
                 return "Textures/GUI/moods/SJ-Training.png";
             case GAMBLE:
                 return "Textures/GUI/moods/SJ-Casino.png";
+            case GUARD:
+                return "Textures/GUI/moods/SJ-Guarding.png";
             default:
                 return null;
         }
