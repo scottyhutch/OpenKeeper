@@ -1565,4 +1565,20 @@ public enum MentorType implements IIndexable {
             return null;
         }
     }
+
+    /**
+     * Miscellaneous mentor speech by its file number, e.g. {@code 149} for
+     * misc149, the speech before the cutscene of the first level.
+     *
+     * @param number the number in the speech file name
+     * @return the speech type, or {@code null} if there is no such speech
+     */
+    @Nullable
+    public static MentorType forMisc(int number) {
+        try {
+            return valueOf(String.format("MISC%03d", number));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
 }

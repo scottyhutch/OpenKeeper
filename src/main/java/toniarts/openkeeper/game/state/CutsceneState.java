@@ -22,6 +22,7 @@ import com.jme3.app.state.AppStateManager;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import toniarts.openkeeper.Main;
+import toniarts.openkeeper.game.sound.MentorType;
 import toniarts.openkeeper.game.sound.SoundCategory;
 import toniarts.openkeeper.game.sound.SoundEngine;
 import toniarts.openkeeper.game.sound.SoundManager;
@@ -74,7 +75,14 @@ public final class CutsceneState extends AbstractAppState {
         this.app.getInputManager().setCursorVisible(false);
 
         if (cutscene.getSpeechId() != null && !cutscene.getSpeechId().isEmpty()) {
-            speechHandle = SoundManager.playSound(SoundCategory.SPEECH_MENTOR, Integer.parseInt(cutscene.getSpeechId()));
+
+            // The cutscene names the speech by its file number (misc149), the sound bank by its own id
+            MentorType speech = MentorType.forMisc(Integer.parseInt(cutscene.getSpeechId()));
+            if (speech != null) {
+                speechHandle = SoundManager.playSound(SoundCategory.SPEECH_MENTOR, speech);
+            } else {
+                logger.log(Level.WARNING, "No mentor speech misc{0} for the cutscene", cutscene.getSpeechId());
+            }
             if (speechHandle == SoundEngine.NO_HANDLE) {
                 speechFinished = true;
             }
