@@ -98,6 +98,7 @@ public final class GameClientState extends AbstractPauseAwareState {
     private final CampaignLevel campaignLevel;
 
     private PlayerMapViewState playerMapViewState;
+    private AmbienceState ambienceState;
     private PlayerEntityViewState playerModelViewState;
     private MinimapPanelState minimapPanelState;
     private FullscreenMapState fullscreenMapState;
@@ -177,6 +178,10 @@ public final class GameClientState extends AbstractPauseAwareState {
     private void detachRelatedAppStates() {
         stateManager.detach(minimapPanelState);
         stateManager.detach(fullscreenMapState);
+        if (ambienceState != null) {
+            stateManager.detach(ambienceState);
+            ambienceState = null;
+        }
         stateManager.detach(playerModelViewState);
         stateManager.detach(playerMapViewState);
         stateManager.detach(playerState);
@@ -466,6 +471,12 @@ public final class GameClientState extends AbstractPauseAwareState {
                 musicLevelState = new MusicLevelState(gameClientService.getEntityData(), players.get(playerId), kwdFile);
                 stateManager.attach(musicLevelState);
                 playerState.setEnabled(true);
+
+                // The background sounds of the level
+                if (playerMapViewState != null) {
+                    ambienceState = new AmbienceState(kwdFile, playerMapViewState);
+                    stateManager.attach(ambienceState);
+                }
 
                 // Release the lock and enter to the game phase
                 synchronized (loadingObject) {
@@ -762,6 +773,9 @@ public final class GameClientState extends AbstractPauseAwareState {
     public void setPossessedCreature(EntityId entityId) {
         if (playerMapViewState != null) {
             playerMapViewState.setPossessedCreature(entityId);
+        }
+        if (ambienceState != null) {
+            ambienceState.setPossessing(entityId != null);
         }
     }
 
