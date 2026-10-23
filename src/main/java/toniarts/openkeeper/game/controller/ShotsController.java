@@ -24,6 +24,7 @@ import java.util.Map;
 import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Shot;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CHICKEN;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_CREATURE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJECT;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_HEALTH;
@@ -74,6 +75,11 @@ public final class ShotsController implements IShotsController {
             }
             case POSSESS_CREATURE -> {
                 creaturesController.createController(target).setPossession(true);
+            }
+            case CHICKEN -> {
+                if (target != null && creaturesController.isValidEntity(target)) {
+                    creaturesController.createController(target).turnIntoChicken(shotData1);
+                }
             }
             case MODIFY_HEALTH -> {
                 EntityController.setDamage(entityData, target, -shotData1);
