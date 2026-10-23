@@ -42,7 +42,9 @@ import java.util.TreeMap;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.ClaimingFloor;
 import toniarts.openkeeper.game.component.Death;
+import toniarts.openkeeper.game.component.DiggingTiles;
 import toniarts.openkeeper.game.component.DropArea;
 import toniarts.openkeeper.game.component.Food;
 import toniarts.openkeeper.game.component.Health;
@@ -116,6 +118,12 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      * tiles as the crow flies
      */
     static final int DROP_AREA_RADIUS = 3;
+
+    /**
+     * How far around it a digging worker carries on digging, in tiles as the
+     * crow flies
+     */
+    static final int DIG_ON_RADIUS = 10;
 
     private final IMapController mapController;
     private final IGameWorldController gameWorldController;
@@ -857,6 +865,8 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             final Point currentLocation = creature.getCreatureCoordinates();
             DropArea dropArea = entityData.getComponent(creature.getEntityId(), DropArea.class);
             boolean workLeftInDropArea = false;
+            boolean claiming = entityData.getComponent(creature.getEntityId(), ClaimingFloor.class) != null;
+            boolean digging = entityData.getComponent(creature.getEntityId(), DiggingTiles.class) != null;
 
             // Give points by distance and priority, no need to know can we do the task as this point as it might be a heavy check
             for (Task task : taskQueue) {
@@ -870,8 +880,10 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                     continue;
                 }
 
+                boolean digsOn = digging && isNextDig(task, currentLocation);
+                boolean claimsOn = claiming && isNextClaim(task, currentLocation);
                 int points = WorldUtils.calculateDistance(currentLocation, WorldUtils.vectorToPoint(target)) + task.getPriority();
-                priorizedTasks.add(new TaskWorkerPriority(task, creature, points, digNextToDrop, inDropArea, workResult));
+                priorizedTasks.add(new TaskWorkerPriority(task, creature, points, digNextToDrop, digsOn, inDropArea, claimsOn, workResult));
             }
 
             // The area around the drop is dug and claimed, back to normal work
@@ -900,6 +912,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
                 // Assign task
                 taskWorkerPriority.task.assign(taskWorkerPriority.creature, true);
+                setCurrentWork(taskWorkerPriority.creature, taskWorkerPriority.task.getTaskType());
                 taskWorkerPriority.workResult.accept(Boolean.TRUE);
 
                 // Prune list and re-sort tasks
@@ -911,8 +924,29 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
         // Finally anybody without assigment will get feedback
         unemployedWorkers.forEach((t, u) -> {
+            setCurrentWork(t, null);
             u.accept(Boolean.FALSE);
         });
+    }
+
+    /**
+     * Remembers whether the worker is claiming or digging, so that it carries
+     * on with it
+     *
+     * @param creature the worker
+     * @param taskType the task it got, {@code null} for none
+     */
+    private void setCurrentWork(ICreatureController creature, TaskType taskType) {
+        if (taskType == TaskType.CLAIM_TILE) {
+            entityData.setComponent(creature.getEntityId(), new ClaimingFloor());
+        } else {
+            entityData.removeComponent(creature.getEntityId(), ClaimingFloor.class);
+        }
+        if (taskType == TaskType.DIG_TILE) {
+            entityData.setComponent(creature.getEntityId(), new DiggingTiles());
+        } else {
+            entityData.removeComponent(creature.getEntityId(), DiggingTiles.class);
+        }
     }
 
     static int sortByTaskStatusAndDistance(TaskWorkerPriority o1, TaskWorkerPriority o2) {
@@ -923,8 +957,20 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             return result;
         }
 
+        // A digging worker stays at it, it digs on around it
+        result = Boolean.compare(o2.digsOn, o1.digsOn);
+        if (result != 0) {
+            return result;
+        }
+
         // Then a dropped worker claims the floor around the drop before anything else
         result = Boolean.compare(o2.inDropArea, o1.inDropArea);
+        if (result != 0) {
+            return result;
+        }
+
+        // A claiming worker carries on with the floor right next to it
+        result = Boolean.compare(o2.claimsOn, o1.claimsOn);
         if (result != 0) {
             return result;
         }
@@ -991,13 +1037,50 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     }
 
     /**
+     * Whether the task claims a floor tile right next to the worker, one of
+     * the eight tiles around it
+     *
+     * @param task the task
+     * @param workerLocation the tile the worker stands on
+     * @return true if a claiming worker carries on with it
+     */
+    static boolean isNextClaim(Task task, Point workerLocation) {
+        if (task.getTaskType() != TaskType.CLAIM_TILE) {
+            return false;
+        }
+        Point tile = task.getTaskLocation();
+        return Math.abs(tile.x - workerLocation.x) <= 1 && Math.abs(tile.y - workerLocation.y) <= 1;
+    }
+
+    /**
+     * Whether the task digs a tile around the worker, within
+     * {@link #DIG_ON_RADIUS} tiles as the crow flies
+     *
+     * @param task the task
+     * @param workerLocation the tile the worker stands on
+     * @return true if a digging worker carries on with it
+     */
+    static boolean isNextDig(Task task, Point workerLocation) {
+        if (task.getTaskType() != TaskType.DIG_TILE) {
+            return false;
+        }
+        Point tile = task.getTaskLocation();
+        int dx = tile.x - workerLocation.x;
+        int dy = tile.y - workerLocation.y;
+        return dx * dx + dy * dy <= DIG_ON_RADIUS * DIG_ON_RADIUS;
+    }
+
+    /**
      * @param digNextToDrop the task digs a tile right next to the spot this
      * worker was dropped on
+     * @param digsOn the worker is digging and the task digs a tile around it
      * @param inDropArea the task claims floor around the spot this worker was
      * dropped on
+     * @param claimsOn the worker is claiming and the task claims the floor
+     * right next to it
      */
-    static record TaskWorkerPriority(Task task, ICreatureController creature, int points, boolean digNextToDrop, boolean inDropArea,
-            Consumer<Boolean> workResult) {
+    static record TaskWorkerPriority(Task task, ICreatureController creature, int points, boolean digNextToDrop, boolean digsOn,
+            boolean inDropArea, boolean claimsOn, Consumer<Boolean> workResult) {
 
     }
 
