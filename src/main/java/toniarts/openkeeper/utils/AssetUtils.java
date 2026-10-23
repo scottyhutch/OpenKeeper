@@ -415,7 +415,9 @@ public final class AssetUtils {
                 // use previous img
                 logger.log(Level.WARNING, "Animated Texture {0}{1} not found", new Object[]{name, x});
             }
-            g.drawImage(img, null, img.getWidth() * x, 0);
+            // Into the first frame's slot, in case only some frames have an HD copy
+            int frameWidth = text.getWidth() / textures.size();
+            g.drawImage(img, frameWidth * x, 0, frameWidth, text.getHeight(), null);
         }
         g.dispose();
         
