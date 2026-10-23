@@ -22,7 +22,9 @@ import toniarts.openkeeper.utils.Point;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.Stored;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
@@ -45,26 +47,106 @@ public abstract class RoomTortureeControl extends AbstractRoomObjectControl<Enti
         return 1;
     }
 
+    /**
+     * Puts a victim on a torture device. Like in DK II, each device holds one
+     * victim. The victim goes on the free device closest to where it was
+     * dropped.
+     *
+     * @param torturee the victim
+     * @param p where the victim was dropped, may be {@code null}
+     * @return the device the victim is on, {@code null} if every device is
+     * taken
+     */
     @Override
     public EntityId addItem(EntityId torturee, Point p) {
+        EntityId device = getFreeDevice(p);
+        if (device == null) {
+            return null;
+        }
+
+        objectsByCoordinate.computeIfAbsent(getDevicePoint(device), point -> new ArrayList<>()).add(torturee);
         setRoomStorageToItem(torturee, false);
         addCurrentCapacity(1);
 
-        return torturee;
+        return device;
     }
 
     @Override
     public void removeItem(EntityId object) {
+        if (!isVictim(object)) {
+            return;
+        }
         super.removeItem(object);
 
         addCurrentCapacity(-1);
     }
 
+    /**
+     * Get the torture device a victim is on
+     *
+     * @param torturee the victim
+     * @return the device, {@code null} if the creature is not tortured here
+     */
+    public EntityId getDevice(EntityId torturee) {
+        for (EntityId device : getDevices()) {
+            Collection<EntityId> victims = objectsByCoordinate.get(getDevicePoint(device));
+            if (victims != null && victims.contains(torturee)) {
+                return device;
+            }
+        }
+        return null;
+    }
+
     @Override
     public void destroy() {
-        super.destroy();
 
-        // TODO: The creature is released
+        // The victims are set free
+        for (Collection<EntityId> victims : objectsByCoordinate.values()) {
+            for (EntityId victim : victims) {
+                entityData.removeComponent(victim, Stored.class);
+                entityData.removeComponent(victim, CreatureTortured.class);
+            }
+        }
+        objectsByCoordinate.clear();
+
+        super.destroy();
+    }
+
+    private boolean isVictim(EntityId object) {
+        for (Collection<EntityId> victims : objectsByCoordinate.values()) {
+            if (victims.contains(object)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private EntityId getFreeDevice(Point p) {
+        EntityId closest = null;
+        int closestDistance = Integer.MAX_VALUE;
+        for (EntityId device : getDevices()) {
+            Point devicePoint = getDevicePoint(device);
+            Collection<EntityId> victims = objectsByCoordinate.get(devicePoint);
+            if (victims != null && !victims.isEmpty()) {
+                continue;
+            }
+            int distance = (p == null ? 0 : Math.abs(devicePoint.x - p.x) + Math.abs(devicePoint.y - p.y));
+            if (distance < closestDistance) {
+                closest = device;
+                closestDistance = distance;
+            }
+        }
+        return closest;
+    }
+
+    private List<EntityId> getDevices() {
+        List<EntityId> devices = new ArrayList<>(parent.getFloorFurniture());
+        devices.addAll(parent.getWallFurniture());
+        return devices;
+    }
+
+    private Point getDevicePoint(EntityId device) {
+        return WorldUtils.vectorToPoint(entityData.getComponent(device, Position.class).position);
     }
 
     @Override
