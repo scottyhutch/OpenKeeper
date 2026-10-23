@@ -106,6 +106,7 @@ public final class GameLoopManager {
                 new CreatureAiSystem(entityData, gameWorldController.getCreaturesController(), taskManager),
                 new ChickenAiSystem(entityData, gameWorldController.getObjectsController()),
                 new CreatureViewSystem(entityData, levelInfo.getLevelData()),
+                new DoorSystem(entityData, level, gameWorldController.getMapController(), levelInfo),
                 new DoorViewSystem(entityData, positionSystem),
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),
                 new TrapSystem(entityData, level, gameController.getGameTimer(),

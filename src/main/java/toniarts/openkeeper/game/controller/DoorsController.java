@@ -23,6 +23,7 @@ import com.simsilica.es.EntityId;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.Map;
+import java.util.OptionalInt;
 import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.Health;
@@ -104,8 +105,9 @@ public final class DoorsController implements IDoorsController {
     }
 
     private EntityId loadDoor(int x, int y, short doorId, short ownerId, Integer triggerId, boolean locked, boolean blueprint) {
+        Door door = kwdFile.getDoorById(doorId);
         EntityId entity = entityData.createEntity();
-        entityData.setComponent(entity, new DoorComponent(doorId, locked, blueprint));
+        entityData.setComponent(entity, new DoorComponent(doorId, locked, blueprint, !blueprint && isSecret(door)));
         entityData.setComponent(entity, new Owner(ownerId, ownerId));
 
         // Move to the center of the tile
@@ -119,7 +121,6 @@ public final class DoorsController implements IDoorsController {
         entityData.setComponent(entity, new Position(rotation, pos));
 
         // Add additional components
-        Door door = kwdFile.getDoorById(doorId);
         if (door.getTrapTypeId() > 0) {
             entityData.setComponent(entity, new TrapComponent(door.getTrapTypeId()));
         }
@@ -164,12 +165,41 @@ public final class DoorsController implements IDoorsController {
             return;
         }
 
-        setBuilt(blueprint, kwdFile.getDoorById(doorComponent.doorId));
-        entityData.setComponent(blueprint, new DoorComponent(doorComponent.doorId, doorComponent.locked, false));
+        Door door = kwdFile.getDoorById(doorComponent.doorId);
+        setBuilt(blueprint, door);
+        entityData.setComponent(blueprint, new DoorComponent(doorComponent.doorId, doorComponent.locked, false, isSecret(door)));
         DoorViewState viewState = entityData.getComponent(blueprint, DoorViewState.class);
         if (viewState != null) {
             entityData.setComponent(blueprint, new DoorViewState(viewState.doorId, viewState.locked, false, viewState.open));
         }
+    }
+
+    @Override
+    public OptionalInt sellDoor(Point tile, short playerId) {
+        for (EntityId entity : entityData.findEntities(null, DoorComponent.class, Position.class, Owner.class)) {
+            if (entityData.getComponent(entity, Owner.class).ownerId != playerId
+                    || !WorldUtils.vectorToPoint(entityData.getComponent(entity, Position.class).position).equals(tile)) {
+                continue;
+            }
+
+            // A blueprint returns the same as a built door. The share is the one of the rooms, the original doesn't
+            // use DOOR_SELL_VALUE_PERCENTAGE_OF_COST
+            Door door = kwdFile.getDoorById(entityData.getComponent(entity, DoorComponent.class).doorId);
+            int sellValuePercentage = (int) gameSettings.get(Variable.MiscVariable.MiscType.ROOM_SELL_VALUE_PERCENTAGE_OF_COST).getValue();
+            entityData.removeEntity(entity);
+
+            return OptionalInt.of(door.getGoldCost() * sellValuePercentage / 100);
+        }
+
+        return OptionalInt.empty();
+    }
+
+    /**
+     * A secret door is secret from the moment it is built, a blueprint isn't
+     * secret yet
+     */
+    private static boolean isSecret(Door door) {
+        return door.getFlags().contains(Door.DoorFlag.IS_SECRET);
     }
 
     @Override
