@@ -33,6 +33,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJE
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_SINGLE_CREATURE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_HEALTH;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.POSSESS_CREATURE;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.SUMMON_REAPER;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -97,6 +98,9 @@ public final class ShotsController implements IShotsController {
             case MODIFY_HEALTH -> {
                 EntityController.setDamage(entityData, target, -shotData1);
                 playShotHit(shot, target);
+            }
+            case SUMMON_REAPER -> {
+                new ReaperSummoner(kwdFile, entityData, gameTimer, creaturesController).summon(shotTypeId, shotData1, playerId, WorldUtils.vector3fToVector2f(position));
             }
             default ->
                 logger.log(Logger.Level.WARNING, "Shot type {0} not implemented", shot.getProcessType());
