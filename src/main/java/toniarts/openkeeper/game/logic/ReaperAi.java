@@ -36,6 +36,7 @@ import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Navigation;
+import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
@@ -43,6 +44,7 @@ import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
+import toniarts.openkeeper.game.controller.creature.DungeonHeartTarget;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -54,16 +56,16 @@ import toniarts.openkeeper.utils.WorldUtils;
 /**
  * What a summoned Horned Reaper does, as in DK II. Whenever he is free he
  * decides again: one time in three he roams about. Otherwise he goes for the
- * nearest enemy creature he can reach. With no such creature he goes for the
- * nearest enemy Dungeon Heart he can reach, and with no heart either he has
- * nothing left to do and leaves. He has no needs, so he never looks for a lair,
- * food or work. Sent for the Portal Gem, he walks to it and picks it up, and
- * that is the end of his job.
+ * nearest enemy creature he can reach. With no such creature he attacks the
+ * nearest enemy Dungeon Heart he can get next to, turning on any creature that
+ * comes within reach meanwhile, and with no heart either he has nothing left to
+ * do and leaves. He has no needs, so he never looks for a
+ * lair, food or work. Sent for the Portal Gem, he walks to it and picks it up,
+ * and that is the end of his job.
  */
 final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
 
     private static final int WANDER_CHANCE = 3;
-    private static final int HEART_RADIUS = 2;
 
     private final EntityData entityData;
     private final Map<Short, Keeper> keepers;
@@ -71,6 +73,7 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
     private final INavigationService navigationService;
     private final Random random;
     private final EntitySet creatures;
+    private final EntitySet objects;
 
     ReaperAi(EntityData entityData, Map<Short, Keeper> keepers, ICreaturesController creaturesController,
             INavigationService navigationService, Random random) {
@@ -81,15 +84,30 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
         this.random = random;
 
         creatures = entityData.getEntities(CreatureComponent.class, Owner.class, Position.class, Health.class);
+        objects = entityData.getEntities(ObjectComponent.class, Owner.class, Position.class, Health.class);
     }
 
     @Override
     public boolean think(EntityId reaper, short ownerId) {
         creatures.applyChanges();
+        objects.applyChanges();
 
         Keeper keeper = keepers.get(ownerId);
         ICreatureController reaperController = creaturesController.createController(reaper);
-        if (keeper == null || isBusy(reaper, reaperController, keeper)) {
+        if (keeper == null) {
+            return true;
+        }
+        if (isBusy(reaper, reaperController, keeper)) {
+
+            // While at a heart he looks about again, and turns on a fighter that has come into reach
+            AttackTarget attackTarget = entityData.getComponent(reaper, AttackTarget.class);
+            if (attackTarget != null && DungeonHeartTarget.isDungeonHeart(entityData, attackTarget.entityId)) {
+                EntityId fighter = findNearestEnemy(reaper, reaperController, keeper);
+                if (fighter != null) {
+                    entityData.setComponent(reaper, new AttackTarget(fighter));
+                    reaperController.getStateMachine().changeState(CreatureState.FIGHT);
+                }
+            }
             return true;
         }
 
@@ -107,7 +125,7 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
             return true;
         }
 
-        return goToNearestEnemyHeart(reaper, reaperController, keeper);
+        return attackNearestEnemyHeart(reaper, reaperController, keeper);
     }
 
     @Override
@@ -217,34 +235,28 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
     }
 
     /**
-     * Attacking the heart isn't there yet, so he just goes to it
+     * Picks the nearest enemy Dungeon Heart he can get next to and attacks it
      */
-    private boolean goToNearestEnemyHeart(EntityId reaper, ICreatureController reaperController, Keeper keeper) {
+    private boolean attackNearestEnemyHeart(EntityId reaper, ICreatureController reaperController, Keeper keeper) {
         Vector3f reaperPosition = entityData.getComponent(reaper, Position.class).position;
         Point from = WorldUtils.vectorToPoint(reaperPosition);
-        List<Point> hearts = new ArrayList<>();
-        for (Keeper other : keepers.values()) {
-            if (keeper.isEnemy(other.getId()) && other.getDungeonHeartLocation() != null) {
-                hearts.add(other.getDungeonHeartLocation());
+        List<Entity> hearts = new ArrayList<>();
+        for (Entity entity : objects) {
+            Health health = entity.get(Health.class);
+            if (DungeonHeartTarget.isDungeonHeart(entityData, entity.getId()) && health.health > 0
+                    && keeper.isEnemy(entity.get(Owner.class).ownerId)) {
+                hearts.add(entity);
             }
         }
-        hearts.sort(Comparator.comparingDouble(heart -> WorldUtils.pointToVector3f(heart).distanceSquared(reaperPosition)));
+        hearts.sort(Comparator.comparingDouble(entity -> entity.get(Position.class).position.distanceSquared(reaperPosition)));
 
-        for (Point heart : hearts) {
-            if (from.equals(heart)) {
-                return true;
-            }
-
-            // The heart itself may be in the way, then go next to it
-            Point destination = heart;
-            GraphPath<IMapTileInformation> path = navigationService.findPath(from, destination, reaperController);
-            if (path == null) {
-                destination = navigationService.findRandomAccessibleTile(heart, HEART_RADIUS, reaperController);
-                path = destination != null ? navigationService.findPath(from, destination, reaperController) : null;
-            }
-            if (path != null) {
-                reaperController.getStateMachine().changeState(CreatureState.WANDER);
-                entityData.setComponent(reaper, new Navigation(destination, null, SteeringUtils.pathToList(path)));
+        for (Entity heart : hearts) {
+            Point heartTile = WorldUtils.vectorToPoint(heart.get(Position.class).position);
+            Point attackTile = DungeonHeartTarget.getAttackTile(from, heartTile,
+                    navigationService, reaperController);
+            if (attackTile != null) {
+                entityData.setComponent(reaper, new AttackTarget(heart.getId()));
+                reaperController.getStateMachine().changeState(CreatureState.FIGHT);
                 return true;
             }
         }
@@ -255,6 +267,7 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
     @Override
     public void stop() {
         creatures.release();
+        objects.release();
     }
 
 }
