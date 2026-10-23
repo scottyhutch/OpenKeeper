@@ -449,9 +449,14 @@ public final class CreaturesController implements ICreaturesController {
                 return CreatureState.IMPRISONED;
             }
             if (room.hasObjectControl(AbstractRoomController.ObjectType.TORTUREE)) {
-                room.getObjectControl(AbstractRoomController.ObjectType.TORTUREE).addItem(entityId, location);
-                entityData.setComponent(entityId, new CreatureTortured(0, gameTimer.getGameTime(), gameTimer.getGameTime()));
-                return CreatureState.TORTURED;
+                EntityId device = (EntityId) room.getObjectControl(AbstractRoomController.ObjectType.TORTUREE).addItem(entityId, location);
+                if (device != null) {
+                    Position devicePosition = entityData.getComponent(device, Position.class);
+                    entityData.setComponent(entityId, new Position(devicePosition.rotation,
+                            new Vector3f(devicePosition.position.x, WorldUtils.FLOOR_HEIGHT, devicePosition.position.z)));
+                    entityData.setComponent(entityId, new CreatureTortured(0, gameTimer.getGameTime(), gameTimer.getGameTime(), device));
+                    return CreatureState.TORTURED;
+                }
             }
         }
         return CreatureState.IDLE;

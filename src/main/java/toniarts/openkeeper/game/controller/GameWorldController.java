@@ -62,6 +62,7 @@ import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.controller.room.storage.RoomGoldControl;
 import toniarts.openkeeper.game.controller.room.storage.RoomLairControl;
+import toniarts.openkeeper.game.controller.room.storage.RoomTortureeControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
@@ -1231,32 +1232,37 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         boolean torture = false;
         boolean imprison = false;
         CreatureState creatureState = null;
+        Position devicePosition = null;
 
         // TODO: Evict & sacrifice
         // TODO: Duplicated code with CreaturesController
         // TODO: capacities
         if (roomController != null) {
             Owner owner = entityData.getComponent(entity, Owner.class);
-            if (roomController.getRoomInstance().getOwnerId() != owner.ownerId) {
-                if (roomController.hasObjectControl(AbstractRoomController.ObjectType.PRISONER)) {
-                    roomController.getObjectControl(AbstractRoomController.ObjectType.PRISONER).addItem(entity, tile);
-                    creatureState = CreatureState.IMPRISONED;
-                    imprison = true;
+            CreatureState captiveState = getCaptiveState(roomController, owner.ownerId);
+            if (captiveState == CreatureState.IMPRISONED) {
+                roomController.getObjectControl(AbstractRoomController.ObjectType.PRISONER).addItem(entity, tile);
+                creatureState = CreatureState.IMPRISONED;
+                imprison = true;
 
-                    // Set the component, continue the jail time if such is possible
-                    CreatureImprisoned imprisoned = entityData.getComponent(entity, CreatureImprisoned.class);
-                    entityData.setComponent(entity, new CreatureImprisoned(imprisoned != null ? imprisoned.startTime : gameTimer.getGameTime(), gameTimer.getGameTime()));
-                }
-                if (roomController.hasObjectControl(AbstractRoomController.ObjectType.TORTUREE)) {
+                // Set the component, continue the jail time if such is possible
+                CreatureImprisoned imprisoned = entityData.getComponent(entity, CreatureImprisoned.class);
+                entityData.setComponent(entity, new CreatureImprisoned(imprisoned != null ? imprisoned.startTime : gameTimer.getGameTime(), gameTimer.getGameTime()));
+            }
+            if (captiveState == CreatureState.TORTURED) {
 
-                    // TODO: you need to exactly drop the creature to a torture device, otherwise you just set him free in your base
-                    roomController.getObjectControl(AbstractRoomController.ObjectType.TORTUREE).addItem(entity, tile);
+                // The victim goes on a free torture device. Like in DK II, a
+                // full chamber takes no more victims, the creature is just dropped
+                RoomTortureeControl torturees = roomController.getObjectControl(AbstractRoomController.ObjectType.TORTUREE);
+                EntityId device = torturees.addItem(entity, tile);
+                if (device != null) {
                     creatureState = CreatureState.TORTURED;
                     torture = true;
+                    devicePosition = entityData.getComponent(device, Position.class);
 
                     // Set the component, continue the torturing time if such is possible
                     CreatureTortured tortured = entityData.getComponent(entity, CreatureTortured.class);
-                    entityData.setComponent(entity, new CreatureTortured(tortured != null ? tortured.timeTortured : 0.0d, gameTimer.getGameTime(), gameTimer.getGameTime()));
+                    entityData.setComponent(entity, new CreatureTortured(tortured != null ? tortured.timeTortured : 0.0d, gameTimer.getGameTime(), gameTimer.getGameTime(), device));
                 }
             }
             tortureOrImprisonment = imprison || torture;
@@ -1271,7 +1277,11 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         // Add position
         // Maybe in the future the physics deal with this and we just need to detect that we are airborne
         Vector3f pos = new Vector3f(coordinates.x, (tortureOrImprisonment ? WorldUtils.FLOOR_HEIGHT : WorldUtils.DROP_HEIGHT), coordinates.y);
-        entityData.setComponent(entity, new Position(0, pos));
+        if (devicePosition != null) {
+            entityData.setComponent(entity, getVictimPosition(devicePosition));
+        } else {
+            entityData.setComponent(entity, new Position(0, pos));
+        }
 
         // If we got state, add it
         if (creatureState != null) {
@@ -1313,6 +1323,43 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         } else {
             entityData.setComponent(entity, new Owner(owner.ownerId, owner.ownerId));
         }
+    }
+
+    /**
+     * Get the position of a torture victim. The victim is on the device and
+     * faces the way the device does.
+     *
+     * @param devicePosition the position of the torture device
+     * @return the position of the victim
+     */
+    static Position getVictimPosition(Position devicePosition) {
+        return new Position(devicePosition.rotation,
+                new Vector3f(devicePosition.position.x, WorldUtils.FLOOR_HEIGHT, devicePosition.position.z));
+    }
+
+    /**
+     * Get the state of a creature the keeper drops into a room. Enemies are
+     * imprisoned in a prison. Like in DK II, a torture chamber tortures any
+     * creature, also the keeper's own, only enemies can be converted there.
+     *
+     * @param roomController the room the creature is dropped into, may be
+     * {@code null}
+     * @param creatureOwnerId the owner of the creature
+     * @return {@link CreatureState#IMPRISONED}, {@link CreatureState#TORTURED}
+     * or {@code null} if the creature is just dropped
+     */
+    static CreatureState getCaptiveState(IRoomController roomController, short creatureOwnerId) {
+        if (roomController == null) {
+            return null;
+        }
+        if (roomController.hasObjectControl(AbstractRoomController.ObjectType.TORTUREE)) {
+            return CreatureState.TORTURED;
+        }
+        if (roomController.getRoomInstance().getOwnerId() != creatureOwnerId
+                && roomController.hasObjectControl(AbstractRoomController.ObjectType.PRISONER)) {
+            return CreatureState.IMPRISONED;
+        }
+        return null;
     }
 
     private void dropGold(EntityId entity, IRoomController roomController, short playerId, Point tile, Vector2f coordinates) {

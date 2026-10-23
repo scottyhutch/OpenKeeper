@@ -95,7 +95,9 @@ public final class CreatureViewSystem extends GameTimeCounter {
                             : getAnimation(taskComponent.taskType);
                 } else {
                     CreatureAi aiState = entityData.getComponent(entityId, CreatureAi.class);
-                    if (aiState != null) {
+                    if (aiState != null && aiState.getCreatureState() == CreatureState.TORTURED) {
+                        targetState = CreatureTorturingSystem.getTortureAnimation(entityData, entityId);
+                    } else if (aiState != null) {
                         targetState = getAnimation(aiState.getCreatureState());
                     }
                 }
