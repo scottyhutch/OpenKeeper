@@ -17,7 +17,6 @@
 package toniarts.openkeeper.game.task;
 
 import com.badlogic.gdx.ai.pfa.GraphPath;
-import com.jme3.math.Vector2f;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
@@ -962,21 +961,15 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             boolean claiming = entityData.getComponent(creature.getEntityId(), ClaimingFloor.class) != null;
             boolean digging = entityData.getComponent(creature.getEntityId(), DiggingTiles.class) != null;
 
-            // Give points by distance and priority, no need to know can we do the task as this point as it might be a heavy check
+            // Give points by distance and priority. The distance is to the task's own tile: finding the spot to work from, and
+            // whether it can be reached, takes path finding, which canAssign() does only for the tasks being handed out (#671)
             for (Task task : taskQueue) {
                 boolean digNextToDrop = dropArea != null && isDigNextToDrop(task, dropArea.center);
                 boolean inDropArea = dropArea != null && isClaimInDropArea(task, dropArea.center);
                 workLeftInDropArea |= digNextToDrop || inDropArea;
-                Vector2f target = task.getTarget(creature);
-                if (target == null) {
-
-                    // Can't reach
-                    continue;
-                }
-
                 boolean digsOn = digging && isNextDig(task, currentLocation);
                 boolean claimsOn = claiming && isNextClaim(task, currentLocation);
-                int points = WorldUtils.calculateDistance(currentLocation, WorldUtils.vectorToPoint(target)) + task.getPriority();
+                int points = WorldUtils.calculateDistance(currentLocation, task.getTaskLocation()) + task.getPriority();
                 priorizedTasks.add(new TaskWorkerPriority(task, creature, points, digNextToDrop, digsOn, inDropArea, claimsOn, workResult));
             }
 
