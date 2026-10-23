@@ -25,6 +25,9 @@ import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
+import toniarts.openkeeper.game.sound.EntitySounds;
+import toniarts.openkeeper.game.sound.ThingSounds;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.utils.WorldUtils;
 
 /**
@@ -40,10 +43,12 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
     private final EntityData entityData;
     private final IGameTimer gameTimer;
     private final EntitySet fallEntities;
+    private final EntitySounds entitySounds;
 
-    public CreatureFallSystem(EntityData entityData, IGameTimer gameTimer) {
+    public CreatureFallSystem(EntityData entityData, IGameTimer gameTimer, IKwdFile kwdFile) {
         this.entityData = entityData;
         this.gameTimer = gameTimer;
+        this.entitySounds = new EntitySounds(entityData, kwdFile);
 
         fallEntities = entityData.getEntities(CreatureFall.class, Position.class, CreatureComponent.class);
     }
@@ -63,6 +68,9 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
 
                 // We'll just remove this and add the AI
                 entityData.removeComponent(entity.getId(), CreatureFall.class);
+
+                // The landing thud, on touchdown (hand drops and conjured creatures alike)
+                entitySounds.play(entity.getId(), ThingSounds.CREATURE_LAND, newPosition.position);
 
                 // The state, depending on the landing
                 CreatureComponent creatureComponent = entity.get(CreatureComponent.class);

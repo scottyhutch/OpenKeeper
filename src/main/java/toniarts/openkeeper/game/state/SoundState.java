@@ -18,12 +18,10 @@ package toniarts.openkeeper.game.state;
 
 import com.jme3.app.Application;
 import com.jme3.app.state.AppStateManager;
-import com.jme3.audio.AudioData.DataType;
 import com.jme3.audio.AudioKey;
 import com.jme3.audio.AudioNode;
 import com.jme3.audio.AudioSource;
 import com.jme3.audio.AudioStream;
-import java.io.File;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.ArrayDeque;
@@ -39,9 +37,10 @@ import toniarts.openkeeper.game.sound.MentorType;
 import toniarts.openkeeper.game.sound.MusicLevel;
 import toniarts.openkeeper.game.sound.SequencedSoundStream;
 import toniarts.openkeeper.game.sound.SoundCategory;
+import toniarts.openkeeper.game.sound.SoundEngine;
 import toniarts.openkeeper.game.sound.SoundGroup;
+import toniarts.openkeeper.game.sound.SoundManager;
 import toniarts.openkeeper.game.sound.SoundSequencer;
-import toniarts.openkeeper.tools.convert.AssetsConverter;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.modelviewer.SoundsLoader;
 
@@ -73,7 +72,7 @@ public final class SoundState extends AbstractPauseAwareState {
     
     private Main app;
     private AppStateManager stateManager;
-    private AudioNode speechNode = null;
+    private int speechHandle = SoundEngine.NO_HANDLE;
     private IKwdFile kwdFile;
 
     /**
@@ -86,7 +85,8 @@ public final class SoundState extends AbstractPauseAwareState {
     /**
      * The background sound layers currently playing. Each one is an endless
      * stream following a sequenced sound group: AMBIENCE(341),
-     * OPTIONS_MUSIC(838), MUSIC(343, 345), ONE_SHOT_ATMOS(746)
+     * OPTIONS_MUSIC(838), MUSIC(343, 345), ONE_SHOT_ATMOS(746). In a level only
+     * the music plays here, the ambience is up to the {@link AmbienceState}
      */
     private final List<AudioNode> backgroundNodes = new ArrayList<>();
     private final List<SequencedSoundStream> backgroundStreams = new ArrayList<>();
@@ -117,12 +117,10 @@ public final class SoundState extends AbstractPauseAwareState {
 
         if (isInitialized()) {
             app.enqueue(() -> {
-                if (speechNode != null && speechNode.getStatus() != AudioSource.Status.Stopped) {
-                    if (enabled) {
-                        speechNode.play();
-                    } else {
-                        speechNode.pause();
-                    }
+                SoundManager.setPaused(!enabled);
+                if (speechHandle != SoundEngine.NO_HANDLE) {
+                    SoundManager.stopSound(speechHandle);
+                    speechHandle = SoundEngine.NO_HANDLE;
                 }
 
                 for (AudioNode backgroundNode : backgroundNodes) {
@@ -163,9 +161,9 @@ public final class SoundState extends AbstractPauseAwareState {
     }
 
     /**
-     * Starts the in-game background of the current level: the level's music
-     * track, the ambience and the atmospheric one shots. The music level starts
-     * silent, so only the ambience is heard until the first fight.
+     * Starts the music of the current level. The music level starts silent, so
+     * the music is only heard from the first fight on. The ambience of the
+     * level is played by the {@link AmbienceState}
      */
     public void startLevelBackground() {
         int track = kwdFile != null ? kwdFile.getGameLevel().getSoundTrack() : 0;
@@ -174,8 +172,6 @@ public final class SoundState extends AbstractPauseAwareState {
             musicLevel.set(MusicLevel.SILENT);
             musicLevel.update();
             startBackground(GlobalCategory.MUSIC, track < MUSIC_TRACKS.length ? MUSIC_TRACKS[track] : 0, true);
-            startBackground(GlobalCategory.AMBIENCE, GlobalType.AMBIENCE.getId(), false);
-            startBackground(GlobalCategory.ONE_SHOT_ATMOS, GlobalType.ONE_SHOT_ATMOS.getId(), false);
         });
     }
 
@@ -261,43 +257,31 @@ public final class SoundState extends AbstractPauseAwareState {
             return;
         }
 
-        try {
-            SoundCategory sc = SoundsLoader.load(soundCategory, false);
-            if (sc == null) {
-                throw new RuntimeException("Sound category " + soundCategory + " not found");
-            }
-
-            String file = AssetsConverter.SOUNDS_FOLDER + File.separator
-                    + sc.getGroup(speechId).getFiles().get(0).getFilename();
-            speechQueue.add(new Speech(speechId, file, listener));
-        } catch (RuntimeException e) {
-            logger.log(Level.WARNING, "Failed to attach speech from category " + soundCategory + " with id " + speechId, e);
+        if (SoundsLoader.load(soundCategory, false) == null) {
+            logger.log(Level.WARNING, "Sound category {0} not found", soundCategory);
+            return;
         }
+
+        speechQueue.add(new Speech(soundCategory, speechId, listener));
     }
 
     private void playSpeech(Speech speech) {
-        speechNode = new AudioNode(app.getAssetManager(), speech.file, DataType.Buffer);
-        if (speechNode == null) {
-            logger.log(Level.WARNING, "Audio file {0} not found", speech.file);
+        speechHandle = SoundManager.playSound(speech.soundCategory(), speech.speechId());
+        if (speechHandle == SoundEngine.NO_HANDLE) {
+            logger.log(Level.WARNING, "Failed to attach speech from category {0} with id {1}",
+                    new Object[]{speech.soundCategory(), speech.speechId()});
             return;
         }
-        speechNode.setLooping(false);
-        speechNode.setPositional(false);
-        float volume = Main.getUserSettings().getFloat(Settings.Setting.MASTER_VOLUME)
-                * Main.getUserSettings().getFloat(Settings.Setting.VOICE_VOLUME);
-        speechNode.setVolume(volume);
-        app.enqueue(() -> {
-            speechNode.play();
-            if (speech.listener != null) {
-                speech.listener.onStart();
-            }
-        });
+        if (speech.listener != null) {
+            speech.listener.onStart();
+        }
     }
 
     public void stopSpeech() {
         app.enqueue(() -> {
-            if (speechNode != null) {
-                speechNode.stop();
+            if (speechHandle != SoundEngine.NO_HANDLE) {
+                SoundManager.stopSound(speechHandle);
+                speechHandle = SoundEngine.NO_HANDLE;
             }
         });
     }
@@ -309,7 +293,8 @@ public final class SoundState extends AbstractPauseAwareState {
         }
 
         if (!speechQueue.isEmpty()) {
-            if (speechNode == null || speechNode.getStatus() == AudioSource.Status.Stopped) {
+            if (speechHandle == SoundEngine.NO_HANDLE || !SoundManager.isPlaying(speechHandle)) {
+                speechHandle = SoundEngine.NO_HANDLE;
                 playSpeech(speechQueue.poll());
             }
         }
@@ -327,9 +312,9 @@ public final class SoundState extends AbstractPauseAwareState {
     }
 
     /**
-         * Simple wrapper for a speech to play
-         */
-        private record Speech(int speechId, String file, ISpeechListener listener) {
+     * Simple wrapper for a speech to play
+     */
+    private record Speech(String soundCategory, int speechId, ISpeechListener listener) {
 
     }
 

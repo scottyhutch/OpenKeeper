@@ -79,6 +79,10 @@ import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Tile;
 import toniarts.openkeeper.tools.convert.map.Trap;
 import toniarts.openkeeper.tools.convert.map.Variable;
+import toniarts.openkeeper.game.sound.EntitySounds;
+import toniarts.openkeeper.game.sound.GlobalCategory;
+import toniarts.openkeeper.game.sound.SoundManager;
+import toniarts.openkeeper.game.sound.ThingSounds;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -115,6 +119,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
      */
     public static final Object GOLD_LOCK = new Object();
     private static final short WOODEN_BRIDGE_ROOM_ID = 8;
+    private static final int RECEIVE_IMPS_LEVEL = 5;
 
     private final IKwdFile kwdFile;
     private final EntityData entityData;
@@ -124,6 +129,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
     private ITrapsController trapsController;
     private IShotsController shotsController;
     private IEntityPositionLookup entityPositionLookup;
+    private final EntitySounds entitySounds;
     private final Map<Short, IPlayerController> playerControllers;
     private final Map<Short, Keeper> players;
     private final IGameTimer gameTimer;
@@ -142,6 +148,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         this.gameTimer = gameTimer;
         this.playerControllers = playerControllers;
         this.players = levelInfo.getPlayers();
+        this.entitySounds = new EntitySounds(entityData, kwdFile);
 
         this.createNewGame(gameController, levelInfo);
     }
@@ -360,6 +367,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
         // Notify the build
         notifyOnBuild(playerId, buildTiles);
+        playBuildSounds(room, placement.plots(), buildTiles);
     }
 
     private void buildRoomInstance(List<Point> instancePlots, Room room, short playerId, List<Point> buildTiles) {
@@ -417,6 +425,22 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         Point plot = new Point(x, y);
         if (remaining.remove(plot)) {
             open.addLast(plot);
+        }
+    }
+
+    /**
+     * One click for the whole placement, at its top left tile, and the sound of each tile that appears
+     */
+    private void playBuildSounds(Room room, List<Point> plots, List<Point> buildTiles) {
+        int minX = Integer.MAX_VALUE;
+        int minY = Integer.MAX_VALUE;
+        for (Point plot : plots) {
+            minX = Math.min(minX, plot.x);
+            minY = Math.min(minY, plot.y);
+        }
+        ThingSounds.play(room.getSoundCategory(), ThingSounds.ROOM_LAY_TILE, new Point(minX, minY));
+        for (Point tile : buildTiles) {
+            ThingSounds.play(room.getSoundCategory(), ThingSounds.OBJECT_CREATE, tile);
         }
     }
 
@@ -599,6 +623,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
         Terrain terrain = kwdFile.getTerrain(tile.getTerrainId());
         Room room = kwdFile.getRoomByTerrain(tile.getTerrainId());
+        ThingSounds.play(room.getSoundCategory(), ThingSounds.ROOM_SELL, p);
         if (room.getFlags().contains(Room.RoomFlag.PLACEABLE_ON_LAND)) {
             tile.setTerrainId(terrain.getDestroyedTypeTerrainId());
         } else if (tile.getBridgeTerrainType() == Tile.BridgeTerrainType.LAVA) {
@@ -1023,7 +1048,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
     }
 
     /**
-     * The "Receive imps" special: conjures 10 new imps for the player on the special's spot
+     * The "Receive imps" special: conjures new level 5 imps for the player on the special's spot. The original
+     * skips the spell for these, so there is no cast sound.
      *
      * @param playerId the player receiving the imps
      * @param position where the special was
@@ -1031,8 +1057,9 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
     private void receiveImps(short playerId, Position position) {
         short impId = kwdFile.getImp().getCreatureId();
         Vector2f spot = WorldUtils.vector3fToVector2f(position.position);
-        for (int i = 0; i < 10; i++) {
-            creaturesController.spawnCreature(impId, playerId, 1, spot, ICreaturesController.SpawnType.CONJURE);
+        int amount = (int) gameSettings.get(Variable.MiscVariable.MiscType.SPECIAL_RECEIVE_IMPS_AMOUNT).getValue();
+        for (int i = 0; i < amount; i++) {
+            creaturesController.spawnCreature(impId, playerId, RECEIVE_IMPS_LEVEL, spot, ICreaturesController.SpawnType.CONJURE);
         }
     }
 
@@ -1047,6 +1074,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         // Lose the position component on the entity, do it here since we have the knowledge on locations etc. keep the "hand" simple
         // And also no need to create a system for this which saves resources
         Position position = entityData.getComponent(entity, Position.class);
+        entitySounds.play(entity, ThingSounds.PICK_UP, position.position);
         entityData.removeComponent(entity, Navigation.class);
         entityData.removeComponent(entity, Position.class);
         entityData.removeComponent(entity, CreatureAi.class);
@@ -1118,6 +1146,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         if (entityData.getComponent(entity, CreatureComponent.class) != null) {
             if (canSlapCreature(entity, playerId)) {
                 entityData.setComponent(entity, new Slapped(gameTimer.getGameTime()));
+                playSlapSound(entity);
+                entitySounds.play(entity, ThingSounds.SLAP);
             }
             return;
         }
@@ -1144,8 +1174,27 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         ObjectComponent objectComponent = entityData.getComponent(entity, ObjectComponent.class);
         if (objectComponent != null && interaction.slappable) {
             entityData.setComponent(entity, new Slapped(gameTimer.getGameTime()));
+            playSlapSound(entity);
+            entitySounds.play(entity, ThingSounds.SLAP);
+            playSlappedThingSound(entity, objectComponent);
             return;
         }
+    }
+
+    /**
+     * The slapped object makes a sound of its own, e.g. a chicken squawks
+     */
+    private void playSlappedThingSound(EntityId entity, ObjectComponent objectComponent) {
+        Position position = entityData.getComponent(entity, Position.class);
+        GameObject object = kwdFile.getObject(objectComponent.objectId);
+        if (position != null && object != null) {
+            ThingSounds.play(object.getSoundCategory(), ThingSounds.OBJECT_SLAPPED, position.position);
+        }
+    }
+
+    private void playSlapSound(EntityId entity) {
+        // The slap comes from the player's hand, so it is not positional
+        SoundManager.playSound(GlobalCategory.HAND, ThingSounds.SLAP);
     }
 
     @Override
@@ -1155,6 +1204,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         Terrain terrain = mapTile != null ? mapController.getTerrain(mapTile) : null;
         if (playerHandControl.peek().equals(entity) && canDropEntity(entity, playerId, entityData, mapTile, terrain)) {
             playerHandControl.pop();
+            Vector3f dropPosition = new Vector3f(coordinates.x, 0, coordinates.y);
+            entitySounds.play(entity, ThingSounds.DROP, dropPosition);
 
             // Stuff drop differently
             IRoomController roomController = mapController.getRoomControllerByCoordinates(tile);
@@ -1241,6 +1292,10 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         // Add the dropping component to the creature
         if (!tortureOrImprisonment) {
             entityData.setComponent(entity, new CreatureFall());
+        } else {
+
+            // No fall, so no touchdown for the fall system to announce
+            entitySounds.play(entity, ThingSounds.CREATURE_LAND, pos);
         }
 
         // Also get rid of possible jailed or tortured status, we don't immediately remove them on picking up since the creature might be just displaced to another jail/torture room
@@ -1437,7 +1492,10 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         boolean spellUpgraded = researchableEntity.isUpgraded();
         int shotData1 = spellUpgraded ? keeperSpell.getBonusShotData1() : keeperSpell.getShotData1();
         int shotData2 = spellUpgraded ? keeperSpell.getBonusShotData2() : keeperSpell.getShotData2();
-        shotsController.createShot(keeperSpell.getShotTypeId(), shotData1, shotData2, playerId, WorldUtils.vector2fToVector3(position), target);
+        ThingSounds.play(keeperSpell.getSoundCategory(), ThingSounds.SHOT_LAUNCH, WorldUtils.vector2fToVector3(position));
+        short shotTypeId = spellUpgraded && kwdFile.getShotById(keeperSpell.getBonusShotTypeId()) != null
+                ? keeperSpell.getBonusShotTypeId() : keeperSpell.getShotTypeId();
+        shotsController.createShot(shotTypeId, shotData1, shotData2, playerId, WorldUtils.vector2fToVector3(position), target);
     }
 
     @Override

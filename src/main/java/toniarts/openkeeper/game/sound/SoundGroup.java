@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 OpenKeeper
+ * Copyright (C) 2014-2025 OpenKeeper
  *
  * OpenKeeper is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,45 +16,43 @@
  */
 package toniarts.openkeeper.game.sound;
 
-import java.io.File;
-import java.io.IOException;
-import java.lang.System.Logger;
-import java.lang.System.Logger.Level;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
-import toniarts.openkeeper.tools.convert.sound.BankMapFile;
-import toniarts.openkeeper.tools.convert.sound.SdtFile;
-import toniarts.openkeeper.tools.convert.sound.sfx.*;
-import toniarts.openkeeper.utils.PathUtils;
+import javax.annotation.Nullable;
 
 /**
- *
- * @author archdemon
+ * Legacy view of a {@link SoundEvent} of a category, flattening the event's
+ * primary group and every group reachable through property links into a single
+ * list of playable files. For the sequenced backgrounds (music, ambience) the
+ * groups are also kept as {@link SoundEntry entries} in their original order,
+ * with their links.
  */
 public final class SoundGroup {
-    
-    private static final Logger logger = System.getLogger(SoundGroup.class.getName());
 
     private final SoundCategory category;
-    private final SfxGroupEntry entry;
+    private final SoundEvent event;
     private final List<SoundFile> files = new ArrayList<>();
     private final List<SoundEntry> entries = new ArrayList<>();
 
-    public SoundGroup(SoundCategory category, SfxGroupEntry entry) {
+    public SoundGroup(SoundCategory category, SoundEvent event) {
         this.category = category;
-        this.entry = entry;
+        this.event = event;
 
         parseFiles();
+        parseEntries();
     }
 
     public int getId() {
-        return entry.getTypeId();
+        return event.getId();
     }
 
     public SoundCategory getCategory() {
         return category;
+    }
+
+    public SoundEvent getEvent() {
+        return event;
     }
 
     public List<SoundFile> getFiles() {
@@ -90,67 +88,58 @@ public final class SoundGroup {
     }
 
     /**
-     * @return playback flags of the group
-     * @see SfxGroupEntry#getFlags()
+     * The group that is played when no property is supplied.
      */
-    public int getFlags() {
-        return entry.getFlags();
+    @Nullable
+    public SoundEventGroup getPrimaryGroup() {
+        return event.getGroup(1);
     }
 
     private void parseFiles() {
-        BankMapFile bank = category.getBankMapFile();
-        Path sfxFolder;
-        try {
-            // The real case matters on case sensitive file systems, the SDT paths have it too
-            sfxFolder = Paths.get(PathUtils.getRealFileName(PathUtils.getDKIIFolder(), PathUtils.DKII_SFX_FOLDER));
-        } catch (IOException ex) {
-            throw new RuntimeException("Sound folder " + PathUtils.DKII_SFX_FOLDER + " not found", ex);
+        for (SoundEventGroup eventGroup : collectGroups()) {
+            for (SoundSample sample : eventGroup.getSamples()) {
+                String filename = sample.getArchive() == null ? null : sample.getArchive().getClipAssetPathNative(
+                        sample.getClip());
+                if (filename == null) {
+                    continue;
+                }
+                files.add(new SoundFile(this, sample.getClip(), filename, eventGroup, sample));
+            }
         }
+    }
 
-        for (SfxEEEntry eEEntry : entry.getEntries()) {
-            SoundEntry soundEntry = new SoundEntry(eEEntry.getMinVolume(), eEEntry.getMaxVolume(),
-                    eEEntry.getMinDelay(), eEEntry.getMaxDelay());
+    private void parseEntries() {
+        for (SoundEventGroup eventGroup : event.getGroups()) {
+            SoundEntry soundEntry = new SoundEntry(eventGroup.getVolumeMin(), eventGroup.getVolumeMax(),
+                    eventGroup.getDelayMin(), eventGroup.getDelayMax());
             entries.add(soundEntry);
-            if (eEEntry.getData() != null) {
-                for (SfxData link : eEEntry.getData()) {
-                    soundEntry.getLinks().add(new SoundEntry.Link(link.getIndex() - 1,
-                            link.getMinIntensity(), link.getMaxIntensity()));
-                }
+            for (SoundLink link : eventGroup.getLinks()) {
+                soundEntry.getLinks().add(new SoundEntry.Link(link.getGroupIndex() - 1, link.getPropertyMin(),
+                        link.getPropertyMax()));
             }
-
-            for (SfxSoundEntry eEEEntry : eEEntry.getSounds()) {
-                int archiveId = eEEEntry.getArchiveId() - 1;
-                int soundId = eEEEntry.getIndex() - 1;
-
-                String archiveFilename = PathUtils.convertFileSeparators(bank.getEntries()[archiveId].getName());
-                SdtFile sdt = SoundCategory.getSdtFile(archiveFilename);
-                if (sdt == null) {
-                    throw new RuntimeException("Sdt file " + archiveFilename + " does not exist");
-                }
-
-                String relative = sfxFolder.relativize(sdt.getFile()).toString();
-
-                try {
-                    var sdtFileEntry = sdt.getEntries()[soundId];
-                    if (sdtFileEntry == null)
-                        continue; // some entries are just "Blank"
-
-                    String soundFilename = relative.substring(0, relative.length() - 4) + File.separator + SdtFile.fixFileExtension(sdtFileEntry);
-                    SoundFile sf = new SoundFile(this, soundId, soundFilename,
-                            sdtFileEntry.getnSamples(), eEEEntry.getWeight());
-                    files.add(sf);
-                    soundEntry.getFiles().add(sf);
-                } catch (Exception ex) {
-                    logger.log(Level.ERROR, () -> {
-                        return "Error in file " + sdt.getFile().toString() + " with id " + soundId;
-                    }, ex);
+            for (SoundSample sample : eventGroup.getSamples()) {
+                String filename = sample.getArchive() == null ? null : sample.getArchive().getClipAssetPathNative(
+                        sample.getClip());
+                if (filename != null) {
+                    soundEntry.getFiles().add(new SoundFile(this, sample.getClip(), filename, eventGroup, sample));
                 }
             }
         }
+    }
+
+    private List<SoundEventGroup> collectGroups() {
+        SoundEventGroup primary = getPrimaryGroup();
+        if (primary == null) {
+            return Collections.emptyList();
+        }
+        if (!event.hasPropertyLinks()) {
+            return primary.getSamples().isEmpty() ? Collections.emptyList() : Collections.singletonList(primary);
+        }
+        return primary.resolve();
     }
 
     @Override
     public String toString() {
-        return "SoundGroup{" + "typeId=" + entry.getTypeId() + '}';
+        return "SoundGroup{" + "typeId=" + event.getId() + '}';
     }
 }
