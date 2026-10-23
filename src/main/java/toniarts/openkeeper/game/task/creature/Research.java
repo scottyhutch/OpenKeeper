@@ -69,8 +69,14 @@ public final class Research extends AbstractCapacityCriticalRoomTask {
     public void executeTask(ICreatureController creature, float executionDuration) {
 
         // Advance players spell research, DK II adds the creature's research
-        // points per tick on every game tick
-        ResearchableEntity researchableEntity = researchControl.research(creature.getResearchPerTick());
+        // points per tick on every game tick, and once a second the bonus
+        // while the keeper tortures one of his own creatures of the type
+        int researchPoints = creature.getResearchPerTick();
+        if (executionDuration - getExecutionDuration(creature) >= 1.0f) {
+            setExecutionDuration(creature, getExecutionDuration(creature) + 1.0f);
+            researchPoints += creature.getTorturedTypeResearchBonus();
+        }
+        ResearchableEntity researchableEntity = researchControl.research(researchPoints);
         if (researchableEntity != null) {
 
             // Create a spell book
