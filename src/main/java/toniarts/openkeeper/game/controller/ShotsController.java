@@ -22,6 +22,7 @@ import com.simsilica.es.EntityId;
 import java.lang.System.Logger;
 import java.util.Map;
 import toniarts.openkeeper.game.controller.entity.EntityController;
+import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Shot;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_CREATURE;
@@ -29,6 +30,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJE
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_HEALTH;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.POSSESS_CREATURE;
 import toniarts.openkeeper.tools.convert.map.Variable;
+import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
 /**
@@ -70,7 +72,15 @@ public final class ShotsController implements IShotsController {
                 creaturesController.spawnCreature((short) shotData1, playerId, shotData2, WorldUtils.vector3fToVector2f(position), ICreaturesController.SpawnType.CONJURE);
             }
             case CREATE_OBJECT -> {
-                objectsController.loadObject((short) shotData1, playerId, position, 0);
+                GameObject object = kwdFile.getObject((short) shotData1);
+                if (object != null && object.getFlags().contains(GameObject.ObjectFlag.OBJECT_TYPE_GOLD)) {
+
+                    // Create Gold: the shot's second value is the amount of gold
+                    Point tile = WorldUtils.vectorToPoint(position);
+                    objectsController.loadObject((short) shotData1, playerId, tile.x, tile.y, shotData2, null, null);
+                } else {
+                    objectsController.loadObject((short) shotData1, playerId, position, 0);
+                }
             }
             case POSSESS_CREATURE -> {
                 creaturesController.createController(target).setPossession(true);
