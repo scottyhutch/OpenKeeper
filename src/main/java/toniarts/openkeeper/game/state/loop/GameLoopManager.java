@@ -107,6 +107,7 @@ public final class GameLoopManager {
                 new PortalGemDropSystem(entityData, levelInfo.getLevelData(), gameWorldController.getObjectsController()),
                 new CreatureAiSystem(entityData, gameWorldController.getCreaturesController(), taskManager),
                 new ChickenAiSystem(entityData, gameWorldController.getObjectsController()),
+                new TrainingDummySystem(entityData, levelInfo.getLevelData(), gameWorldController.getMapController()),
                 new CreatureViewSystem(entityData, levelInfo.getLevelData()),
                 new DoorSystem(entityData, level, gameWorldController.getMapController(), levelInfo),
                 new DoorViewSystem(entityData, positionSystem),
