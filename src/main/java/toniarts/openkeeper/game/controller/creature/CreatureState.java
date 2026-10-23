@@ -33,6 +33,10 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void enter(ICreatureController entity) {
+            if (entity.isCombatPitFighter()) {
+                entity.getStateMachine().changeState(COMBAT_PIT);
+                return;
+            }
 
             // A chicken has nothing else to do
             if (entity.isChicken()) {
@@ -112,6 +116,10 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void update(ICreatureController entity) {
+            if (entity.isCombatPitFighter()) {
+                entity.getStateMachine().changeState(COMBAT_PIT);
+                return;
+            }
 
             // Should we flee or attack
             if (entity.shouldFleeOrAttack()) {
@@ -266,7 +274,7 @@ public enum CreatureState implements State<ICreatureController> {
         public void update(ICreatureController entity) {
             IEntityController attackTarget = entity.getAttackTarget();
             if (attackTarget == null) {
-                entity.getStateMachine().changeState(IDLE); // Nothing to do
+                entity.getStateMachine().changeState(entity.isCombatPitFighter() ? COMBAT_PIT : IDLE); // Nothing to do
                 return;
             }
 
@@ -709,6 +717,33 @@ public enum CreatureState implements State<ICreatureController> {
             // Just peck about
             if (entity.isStopped()) {
                 entity.navigateToRandomPoint();
+            }
+        }
+
+        @Override
+        public void exit(ICreatureController entity) {
+
+        }
+
+        @Override
+        public boolean onMessage(ICreatureController entity, Telegram telegram) {
+            return true;
+        }
+    }, COMBAT_PIT {
+
+        @Override
+        public void enter(ICreatureController entity) {
+            entity.unassingCurrentTask();
+        }
+
+        @Override
+        public void update(ICreatureController entity) {
+
+            // Wait in the pit for someone to fight
+            if (!entity.isCombatPitFighter()) {
+                entity.getStateMachine().changeState(IDLE);
+            } else if (entity.getAttackTarget() != null) {
+                entity.getStateMachine().changeState(FIGHT);
             }
         }
 
