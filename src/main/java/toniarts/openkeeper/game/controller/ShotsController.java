@@ -72,6 +72,11 @@ public final class ShotsController implements IShotsController {
             case CREATE_OBJECT -> {
                 objectsController.loadObject((short) shotData1, playerId, position, 0);
             }
+            case TURNCOAT -> {
+                if (target != null && creaturesController.isValidEntity(target)) {
+                    creaturesController.createController(target).turncoat(playerId, shotData1);
+                }
+            }
             case POSSESS_CREATURE -> {
                 creaturesController.createController(target).setPossession(true);
             }
