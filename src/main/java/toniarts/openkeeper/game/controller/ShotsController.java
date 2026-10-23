@@ -35,6 +35,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJE
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_SINGLE_CREATURE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_HEALTH;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.POSSESS_CREATURE;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.SIGHT_OF_EVIL;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.SUMMON_REAPER;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.TREMOR;
 import toniarts.openkeeper.tools.convert.map.Variable;
@@ -120,6 +121,13 @@ public final class ShotsController implements IShotsController {
                 // Shot data 1 is the duration in seconds, shot data 2 the radius in tiles
                 double now = gameTimer.getGameTime();
                 entityData.setComponent(entityData.createEntity(), new Tremor(WorldUtils.vectorToPoint(position), shotData2, now, now + shotData1));
+            }
+            case SIGHT_OF_EVIL -> {
+
+                // Shot data 1 is the radius, the shot lifetime (in game ticks) the duration
+                if (shotData1 > 0) {
+                    mapController.revealSightOfEvil(WorldUtils.vectorToPoint(position), shotData1, shot.getHealth(), playerId);
+                }
             }
             default ->
                 logger.log(Logger.Level.WARNING, "Shot type {0} not implemented", shot.getProcessType());
