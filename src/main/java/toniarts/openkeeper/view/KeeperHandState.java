@@ -48,6 +48,7 @@ import java.util.Objects;
 import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.ObjectViewState;
+import toniarts.openkeeper.game.controller.ObjectsController;
 import static toniarts.openkeeper.tools.convert.AssetsConverter.TEXTURES_FOLDER;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.ArtResource.ArtResourceType;
@@ -382,7 +383,8 @@ public abstract class KeeperHandState extends AbstractAppState {
             InHand inHand = entityData.getComponent(e.getId(), InHand.class);
             switch (inHand.type) {
                 case CREATURE: {
-                    viewControl = new CreatureViewControl(e.getId(), entityData, kwdFile.getCreature(inHand.id), Creature.AnimationType.IN_HAND, assetManager, null);
+                    viewControl = new CreatureViewControl(e.getId(), entityData, kwdFile.getCreature(inHand.id), Creature.AnimationType.IN_HAND,
+                            kwdFile.getObject(ObjectsController.OBJECT_CHICKEN_ID), assetManager, null);
                     break;
                 }
                 case OBJECT: {
