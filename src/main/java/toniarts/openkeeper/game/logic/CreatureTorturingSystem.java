@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.InHand;
@@ -34,6 +35,8 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.utils.GameTimeCounter;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -45,13 +48,15 @@ import toniarts.openkeeper.utils.WorldUtils;
 public final class CreatureTorturingSystem extends GameTimeCounter {
 
     private final EntityData entityData;
+    private final IKwdFile kwdFile;
     private final ICreaturesController creaturesController;
     private final IMapController mapController;
     private final EntitySet torturedEntities;
     private final Map<EntityId, IRoomController> chambersByVictim = new HashMap<>();
 
-    public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController) {
+    public CreatureTorturingSystem(EntityData entityData, IKwdFile kwdFile, ICreaturesController creaturesController, IMapController mapController) {
         this.entityData = entityData;
+        this.kwdFile = kwdFile;
         this.creaturesController = creaturesController;
         this.mapController = mapController;
 
@@ -80,10 +85,15 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
             }
 
             CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
-            if (creatureTortured.timeTortured + tpf >= creatureComponent.tortureTimeToConvert) {
+            Owner owner = entity.get(Owner.class);
+            short playerId = chamber.getRoomInstance().getOwnerId();
 
-                Owner owner = entity.get(Owner.class);
-                short playerId = chamber.getRoomInstance().getOwnerId();
+            // Like in DK II, the torture works once a second
+            if ((int) (creatureTortured.timeTortured + tpf) > (int) creatureTortured.timeTortured) {
+                tortureForASecond(entity.getId(), creatureComponent, owner.ownerId == playerId);
+            }
+
+            if (creatureTortured.timeTortured + tpf >= creatureComponent.tortureTimeToConvert) {
                 if (owner.ownerId != playerId) {
 
                     // Convert!
@@ -96,6 +106,24 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
 
             entity.set(new CreatureTortured(creatureTortured.timeTortured + tpf, timeElapsed, creatureTortured.healthCheckTime, creatureTortured.device));
         }
+    }
+
+    /**
+     * A second of torture. Like in DK II, the keeper's own victim gets its
+     * torture mood change, which a Mistress enjoys. The health change is done
+     * by the health system.
+     */
+    private void tortureForASecond(EntityId victim, CreatureComponent creatureComponent, boolean ownCreature) {
+        if (!ownCreature) {
+            return;
+        }
+        Creature creature = kwdFile.getCreature(creatureComponent.creatureId);
+        CreatureMood mood = entityData.getComponent(victim, CreatureMood.class);
+        if (creature == null || mood == null || creature.getAttributes().getTortureMoodChange() == 0
+                || (creature.getFlags2() != null && creature.getFlags2().contains(Creature.CreatureFlag2.IS_EMOTIONLESS))) {
+            return;
+        }
+        entityData.setComponent(victim, mood.add(CreatureMood.REASON_OTHER, creature.getAttributes().getTortureMoodChange()));
     }
 
     private IRoomController getChamber(Entity entity) {
