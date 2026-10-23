@@ -29,6 +29,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import toniarts.openkeeper.game.component.AttackTarget;
+import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureTortured;
@@ -36,6 +37,7 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.Unconscious;
@@ -55,7 +57,8 @@ import toniarts.openkeeper.utils.WorldUtils;
  * nearest enemy creature he can reach. With no such creature he goes for the
  * nearest enemy Dungeon Heart he can reach, and with no heart either he has
  * nothing left to do and leaves. He has no needs, so he never looks for a lair,
- * food or work.
+ * food or work. Sent for the Portal Gem, he walks to it and picks it up, and
+ * that is the end of his job.
  */
 final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
 
@@ -105,6 +108,45 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
         }
 
         return goToNearestEnemyHeart(reaper, reaperController, keeper);
+    }
+
+    @Override
+    public void fetchPortalGem(EntityId reaper, EntityId gem) {
+        Position gemPosition = entityData.getComponent(gem, Position.class);
+        if (gemPosition == null || entityData.getComponent(reaper, PortalGem.class) != null) {
+            return;
+        }
+
+        Point from = WorldUtils.vectorToPoint(entityData.getComponent(reaper, Position.class).position);
+        Point gemTile = WorldUtils.vectorToPoint(gemPosition.position);
+        ICreatureController reaperController = creaturesController.createController(reaper);
+        if (from.equals(gemTile)) {
+            pickUpPortalGem(reaper, reaperController, gem);
+            return;
+        }
+
+        // Keep him on his way, whatever else he might think of
+        Navigation navigation = entityData.getComponent(reaper, Navigation.class);
+        if (navigation != null && gemTile.equals(navigation.target)) {
+            return;
+        }
+        GraphPath<IMapTileInformation> path = navigationService.findPath(from, gemTile, reaperController);
+        if (path != null) {
+            reaperController.getStateMachine().changeState(CreatureState.WANDER);
+            entityData.setComponent(reaper, new Navigation(gemTile, null, SteeringUtils.pathToList(path)));
+        }
+    }
+
+    /**
+     * The gem is gone from the floor, the Reaper holds it and stands still
+     */
+    private void pickUpPortalGem(EntityId reaper, ICreatureController reaperController, EntityId gem) {
+        entityData.removeEntity(gem);
+        entityData.setComponent(reaper, new PortalGem());
+        reaperController.unassingCurrentTask();
+        entityData.removeComponent(reaper, AttackTarget.class);
+        entityData.removeComponent(reaper, CreatureAi.class);
+        entityData.removeComponent(reaper, Navigation.class);
     }
 
     /**
