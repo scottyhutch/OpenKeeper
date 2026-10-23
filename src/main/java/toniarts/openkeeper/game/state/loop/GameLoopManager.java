@@ -90,6 +90,8 @@ public final class GameLoopManager {
                         gameWorldController.getMapController()),
                 new DeathSystem(entityData, gameSettings, positionSystem),
                 new ChickenSpellSystem(entityData, gameController.getGameTimer()),
+                new GraveyardSystem(entityData, levelInfo.getLevelData(), gameSettings,
+                        gameWorldController.getMapController(), gameWorldController.getCreaturesController()),
                 new PlayerCreatureSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
                 new PlayerSpellbookSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
                 (IGameLogicUpdatable) gameController,
