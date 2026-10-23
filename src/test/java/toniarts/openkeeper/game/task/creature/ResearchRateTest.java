@@ -63,7 +63,16 @@ class ResearchRateTest {
         assertEquals(1000, researchFor(1, 4, 250));
     }
 
+    @Test
+    void torturedTypeBonusOnceASecond() {
+        assertEquals(4 * 10 + 10, researchFor(1, 1, 4, 10));
+    }
+
     private static int researchFor(int researchPerTick, int ticksPerSecond, float seconds) {
+        return researchFor(researchPerTick, 0, ticksPerSecond, seconds);
+    }
+
+    private static int researchFor(int researchPerTick, int torturedTypeBonus, int ticksPerSecond, float seconds) {
         ResearchableEntity door = new ResearchableEntity(DOOR_ID, ResearchableType.DOOR);
         Keeper keeper = new Keeper(false, (short) 3);
         keeper.setCurrentResearch(door);
@@ -71,7 +80,7 @@ class ResearchRateTest {
         // Make the door take forever so that it is never completed
         PlayerResearchControl researchControl = new PlayerResearchControl(keeper, kwdFile(ResearchFixtures.door(DOOR_ID, Integer.MAX_VALUE)));
         Research research = new Research(null, null, new Point(0, 0), keeper.getId(), null, null, researchControl, null);
-        ICreatureController creature = creature(researchPerTick);
+        ICreatureController creature = creature(researchPerTick, torturedTypeBonus);
         research.assign(creature, false);
 
         float tpf = 1.0f / ticksPerSecond;
@@ -90,10 +99,11 @@ class ResearchRateTest {
                 });
     }
 
-    private static ICreatureController creature(int researchPerTick) {
+    private static ICreatureController creature(int researchPerTick, int torturedTypeBonus) {
         return (ICreatureController) Proxy.newProxyInstance(ICreatureController.class.getClassLoader(),
                 new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "getResearchPerTick" -> researchPerTick;
+                    case "getTorturedTypeResearchBonus" -> torturedTypeBonus;
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];
                     default -> throw new UnsupportedOperationException(method.getName());
