@@ -69,6 +69,23 @@ public interface IMapController extends IMapInformation<IMapTileController>, IGa
     public void removeListener(short playerId, RoomListener listener);
 
     /**
+     * How many times the dungeon of the player has been breached, i.e. a wall
+     * of the player has been brought down by another player
+     *
+     * @param playerId the player
+     * @return the number of breaches
+     */
+    int getDungeonBreaches(short playerId);
+
+    /**
+     * How many times the player has breached the dungeon of another player
+     *
+     * @param playerId the player
+     * @return the number of breaches
+     */
+    int getEnemyBreaches(short playerId);
+
+    /**
      * Get all the room controllers. FIXME: At least with the current design,
      * the clients do not have this data, so either separate interface or design
      * controllers so that they share data
