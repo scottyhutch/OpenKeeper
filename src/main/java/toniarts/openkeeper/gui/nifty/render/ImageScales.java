@@ -89,8 +89,14 @@ public final class ImageScales {
      *
      * @param assetPath the asset path of the image
      * @return the size of the original, or null if there is no original PNG
+     * or no path
      */
     public ImageSize getOriginalSize(String assetPath) {
+
+        // Some Nifty effects create their image before its file name is set
+        if (assetPath == null) {
+            return null;
+        }
         return originalSizes.computeIfAbsent(assetPath, this::readOriginalSize).orElse(null);
     }
 
