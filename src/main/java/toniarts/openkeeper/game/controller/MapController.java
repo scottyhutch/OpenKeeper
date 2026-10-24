@@ -482,12 +482,13 @@ public final class MapController extends Container implements IMapController {
         Terrain terrain = getTerrain(tile);
         if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE) && tile.getOwnerId() != playerId) {
             if (terrain.getFlags().contains(Terrain.TerrainFlag.ROOM)) {
-                damageRoom(point, playerId);
+                damageRoom(point, playerId, creature);
             } else {
                 damageTile(point, playerId, creature);
             }
+        } else if (terrain.getFlags().contains(Terrain.TerrainFlag.ROOM) && getRoomControllerByCoordinates(point) != null) {
+            repairRoom(point, creature);
         } else {
-            // TODO: Room healing
             healTile(point, playerId, creature);
         }
     }
@@ -645,64 +646,69 @@ public final class MapController extends Container implements IMapController {
     }
 
     /**
-     * Damage a room
+     * Claim a room from its owner. The room has one health pool that the work
+     * of the imps wears down; when it is gone the room is captured. Imps do
+     * the work at the rate of the owner, nobody's rooms are harder to claim
+     * (DKII.EXE 0x497BF0).
      *
      * @param point tile coordinate
      * @param playerId for the player
+     * @param creature the imp doing the work, may be {@code null}
      */
-    private void damageRoom(Point point, short playerId) {
+    private void damageRoom(Point point, short playerId, ICreatureController creature) {
         IMapTileController tile = getMapData().getTile(point);
-
-        // Calculate the damage
-        int damage;
         short owner = tile.getOwnerId();
-        if (owner == Player.NEUTRAL_PLAYER_ID) {
-            damage = (int) getLevelVariable(Variable.MiscVariable.MiscType.CONVERT_ROOM_HEALTH);
-        } else {
-            damage = (int) getLevelVariable(Variable.MiscVariable.MiscType.ATTACK_ROOM_HEALTH);
-        }
+        int damage = TileWork.perApplication(getLevelVariable(RoomWork.claimVariable(owner)), getEfficiency(creature));
 
         // Get the room
         IRoomController room = getRoomControllerByCoordinates(point);
         List<Point> roomTiles = room.getRoomInstance().getCoordinates();
+        if (RoomWork.damage(getTiles(roomTiles), damage)) {
+            captureRoom(room, roomTiles, playerId, owner);
+            return;
+        }
+        room.setHealth(getHealth(roomTiles));
+    }
 
-        // Apply the damage equally to all tiles so that the overall condition can be checked easily
-        // I don't know if this model is correct or not, but like this the bigger the room the more effort it requires to claim
-        int damagePerTile = Math.abs(damage / roomTiles.size());
-        int currentHealth = 0;
+    private void captureRoom(IRoomController room, List<Point> roomTiles, short playerId, short previousOwner) {
         for (Point p : roomTiles) {
             IMapTileController roomTile = getMapData().getTile(p);
-            if (applyDamage(roomTile, damagePerTile)) {
+            roomTile.setOwnerId(playerId); // Claimed!
+            applyHealing(roomTile, roomTile.getMaxHealth());
 
-                // If one of the tiles runs out (everyone should run out of the same time, unless a new tile has recently being added..)
-                for (Point p2 : roomTiles) {
-                    roomTile = getMapData().getTile(p2);
-                    roomTile.setOwnerId(playerId); // Claimed!
-                    applyHealing(roomTile, tile.getMaxHealth());
-
-//                    effectManager.load(worldNode,
-//                            WorldUtils.pointToVector3f(point).addLocal(0, MapViewController.FLOOR_HEIGHT, 0),
-//                            tile.getTerrain().getMaxHealthEffectId(), false);
-//
-//                    // FIXME ROOM_CLAIM_ID is realy claim effect?
-//                    effectManager.load(worldNode,
-//                            WorldUtils.pointToVector3f(p2).addLocal(0, MapViewController.FLOOR_HEIGHT, 0),
-//                            room.getRoom().getEffects().get(EffectManagerState.ROOM_CLAIM_ID), false);
-                    // TODO: Claimed room wall tiles lose the claiming I think?
-                }
-
-                // Notify
-                notifyTileChange(roomTiles);
-                room.captured(playerId);
-                room.setHealth(room.getMaxHealth());
-                notifyOnCapturedByEnemy(owner, room);
-                notifyOnCaptured(playerId, room);
-                return;
-            }
-            currentHealth += roomTile.getHealth();
+            // TODO: Claimed room wall tiles lose the claiming I think?
         }
 
-        room.setHealth(currentHealth);
+        // Notify
+        notifyTileChange(roomTiles);
+        room.captured(playerId);
+        room.setHealth(room.getMaxHealth());
+        notifyOnCapturedByEnemy(previousOwner, room);
+        notifyOnCaptured(playerId, room);
+    }
+
+    /**
+     * Repair our own room. Like the claiming, the room has one health pool,
+     * and the imp adds to it at the repair room health rate (DKII.EXE
+     * 0x498120).
+     *
+     * @param point tile coordinate
+     * @param creature the imp doing the work, may be {@code null}
+     */
+    private void repairRoom(Point point, ICreatureController creature) {
+        IRoomController room = getRoomControllerByCoordinates(point);
+        List<Point> roomTiles = room.getRoomInstance().getCoordinates();
+        int healing = TileWork.perApplication(getLevelVariable(Variable.MiscVariable.MiscType.REPAIR_ROOM_HEALTH), getEfficiency(creature));
+        RoomWork.heal(getTiles(roomTiles), healing);
+        room.setHealth(getHealth(roomTiles));
+    }
+
+    private List<IMapTileController> getTiles(List<Point> points) {
+        return points.stream().map(p -> getMapData().getTile(p)).toList();
+    }
+
+    private int getHealth(List<Point> points) {
+        return getTiles(points).stream().mapToInt(IMapTileController::getHealth).sum();
     }
 
     /**
