@@ -33,6 +33,7 @@ import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.ActionPoint;
@@ -61,7 +62,7 @@ public class PlayerTriggerControl extends TriggerControl {
 
     private static final Set<TriggerGeneric.TargetType> EVENT_CONDITIONS = EnumSet.of(
             TriggerGeneric.TargetType.PLAYER_CREATURE_PICKED_UP, TriggerGeneric.TargetType.PLAYER_CREATURE_DROPPED,
-            TriggerGeneric.TargetType.PLAYER_CREATURE_SLAPPED);
+            TriggerGeneric.TargetType.PLAYER_CREATURE_SLAPPED, TriggerGeneric.TargetType.GUI_BUTTON_PRESSED);
     private static final Map<TriggerGeneric.TargetType, String> STUB_REASONS = createStubReasons();
 
     private final short playerId;
@@ -70,6 +71,7 @@ public class PlayerTriggerControl extends TriggerControl {
 
     // The statistics seen on the previous poll, the difference is what has happened since
     private final Map<TriggerGeneric.TargetType, Map<Creature, Integer>> seenStats = new EnumMap<>(TriggerGeneric.TargetType.class);
+    private final Map<PlayerStatsControl.PressedButton, Integer> seenButtonPresses = new HashMap<>();
 
     public PlayerTriggerControl(final IGameController gameController, final ILevelInfo levelInfo, final IGameTimer gameTimer, final IMapController mapController,
             final ICreaturesController creaturesController, final int triggerId, final short playerId,
@@ -118,6 +120,16 @@ public class PlayerTriggerControl extends TriggerControl {
             pollStatEvent(TriggerGeneric.TargetType.PLAYER_CREATURE_PICKED_UP, playerController.getStatsControl().getPickUps());
             pollStatEvent(TriggerGeneric.TargetType.PLAYER_CREATURE_DROPPED, playerController.getStatsControl().getDrops());
             pollStatEvent(TriggerGeneric.TargetType.PLAYER_CREATURE_SLAPPED, playerController.getStatsControl().getSlaps());
+            pollButtonEvents(playerController.getStatsControl().getButtonPresses());
+        }
+    }
+
+    private void pollButtonEvents(Map<PlayerStatsControl.PressedButton, Integer> current) {
+        for (Map.Entry<PlayerStatsControl.PressedButton, Integer> entry : Map.copyOf(current).entrySet()) {
+            if (entry.getValue() > seenButtonPresses.getOrDefault(entry.getKey(), 0)) {
+                seenButtonPresses.put(entry.getKey(), entry.getValue());
+                fire(TriggerGeneric.TargetType.GUI_BUTTON_PRESSED, entry.getKey().type().getValue(), entry.getKey().buttonId());
+            }
         }
     }
 
@@ -152,6 +164,12 @@ public class PlayerTriggerControl extends TriggerControl {
             // The creature type filter, 0 = any. The shipped maps all use 0 here
             int creatureId = condition.hasUserDataKey("creatureId") ? condition.getUserData("creatureId", short.class) : 0;
             return creatureId == 0 || creatureId == arg1;
+        }
+        if (type == TriggerGeneric.TargetType.GUI_BUTTON_PRESSED) {
+
+            // The button, arg1 is the button type and arg2 the button id inside the type
+            return condition.getUserData("targetType", short.class) == arg1
+                    && condition.getUserData("targetId", short.class) == arg2;
         }
         return super.eventMatches(condition, arg1, arg2);
     }
@@ -225,9 +243,6 @@ public class PlayerTriggerControl extends TriggerControl {
     private static Map<TriggerGeneric.TargetType, String> createStubReasons() {
         Map<TriggerGeneric.TargetType, String> result = new EnumMap<>(TriggerGeneric.TargetType.class);
 
-        // STUB, event: a GUI button was clicked, matched by the button group and button
-        // (userdata targetType / targetId). The place to raise it from is fire(GUI_BUTTON_PRESSED, group, button)
-        result.put(TriggerGeneric.TargetType.GUI_BUTTON_PRESSED, "The HUD buttons do not report their clicks to the game logic, and the map's button IDs would need a mapping to our own buttons. The place to raise it from is fire(GUI_BUTTON_PRESSED, group, button)");
 
         // STUB, events: an enemy broke into this dungeon / this player broke into one
         putStub(result, "Nothing in the game logic detects a dungeon breach, so there is nothing to raise these from",
