@@ -88,6 +88,8 @@ public final class GameLoopManager {
                 new RoomSoundSystem(gameWorldController.getMapController()),
                 new CreatureTorturingSystem(entityData, gameWorldController.getCreaturesController(),
                         gameWorldController.getMapController()),
+                new KeeperDefeatSystem(entityData, levelInfo, gameController, gameWorldController.getMapController(),
+                        gameWorldController.getObjectsController(), players != null && !players.isEmpty()),
                 new DeathSystem(entityData, gameSettings, positionSystem),
                 new ChickenSpellSystem(entityData, gameController.getGameTimer()),
                 new GraveyardSystem(entityData, levelInfo.getLevelData(), gameSettings,

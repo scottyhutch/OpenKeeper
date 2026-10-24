@@ -229,6 +229,11 @@ public class PlayerTriggerControl extends TriggerControl {
             case PLAYER_DESTROYS:
                 return true; // Always true in the original
 
+            case PLAYER_KILLED:
+
+                // Has this player been defeated, by a certain player or by anyone (0)
+                return getPlayer().isKilledBy(trigger.getUserData("playerId", short.class));
+
             default:
                 return super.isActive(trigger);
         }
@@ -285,9 +290,6 @@ public class PlayerTriggerControl extends TriggerControl {
         putStub(result, "The player creature control only keeps the creature IDs by type, going through them for these needs the creature controller of every one of them",
                 TriggerGeneric.TargetType.PLAYER_CREATURES_AT_LEVEL, TriggerGeneric.TargetType.PLAYER_CREATURES_DYING,
                 TriggerGeneric.TargetType.PLAYER_CREATURES_GROUPED);
-
-        // STUB: has this player been defeated, by a certain player (userdata playerId)
-        result.put(TriggerGeneric.TargetType.PLAYER_KILLED, "The game does not record who defeated a player");
         return result;
     }
 
