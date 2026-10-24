@@ -29,11 +29,14 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.listener.MapListener;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
 import toniarts.openkeeper.game.map.IMapInformation;
+import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.map.IRoomsInformation;
 import toniarts.openkeeper.game.map.MapInformation;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.modelviewer.Debug;
 import toniarts.openkeeper.utils.Point;
+import toniarts.openkeeper.utils.WorldUtils;
 import toniarts.openkeeper.view.effect.EffectManagerState;
 import toniarts.openkeeper.view.fogofwar.FogOfWarController;
 import toniarts.openkeeper.view.fogofwar.IFogOfWarInformation;
@@ -70,6 +73,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private final EffectManagerState effectManager;
     private final FlashTileViewState flashTileControl;
     private final MapRoomContainer mapRoomContainer;
+    private short[][] lastTerrainIds;
     private final FogOfWarController fogOfWarController;
 
     // Creature vision (and the initial fog seeding) can produce tile updates
@@ -84,12 +88,12 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private final List<Runnable> pendingFogChanges = new ArrayList<>();
     private final ConcurrentLinkedQueue<Point> pendingTileUpdates = new ConcurrentLinkedQueue<>();
 
-    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, ILoadCompleteNotifier loadCompleteNotifier) {
-        this(app, kwdFile, assetManager, players, entityData, playerId, loadCompleteNotifier, (entityId) -> {
+    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, boolean ceilingEnabled, ILoadCompleteNotifier loadCompleteNotifier) {
+        this(app, kwdFile, assetManager, players, entityData, playerId, ceilingEnabled, loadCompleteNotifier, (entityId) -> {
         });
     }
 
-    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, ILoadCompleteNotifier loadCompleteNotifier, Consumer<EntityId> enemySightedNotifier) {
+    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, boolean ceilingEnabled, ILoadCompleteNotifier loadCompleteNotifier, Consumer<EntityId> enemySightedNotifier) {
         this.app = app;
         this.kwdFile = kwdFile;
         this.assetManager = assetManager;
@@ -116,6 +120,15 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
                     fogSeeded = true;
                     pendingFogChanges.forEach(Runnable::run);
                     pendingFogChanges.clear();
+                }
+
+                // Snapshot the initial terrain of every tile, so we can later detect
+                // claim/repair transitions (terrain type changing to its max-health variant)
+                lastTerrainIds = new short[getWidth()][getHeight()];
+                for (int x = 0; x < getWidth(); x++) {
+                    for (int y = 0; y < getHeight(); y++) {
+                        lastTerrainIds[x][y] = getTile(x, y).getTerrainId();
+                    }
                 }
 
                 // Don't block the caller, might be called from the render thread...
@@ -156,7 +169,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         effectManager = new EffectManagerState(kwdFile, assetManager);
 
         // Create the actual map
-        mapLoader = new MapViewController(assetManager, kwdFile, mapInformation, fogOfWarController, playerId) {
+        mapLoader = new MapViewController(assetManager, kwdFile, mapInformation, fogOfWarController, playerId, true, ceilingEnabled) {
 
             @Override
             protected void updateProgress(float progress) {
@@ -299,6 +312,24 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         if (!mapLoaded) {
             pendingTileUpdates.addAll(Arrays.asList(points));
             return;
+        }
+        for (Point point : points) {
+            IMapTileInformation tile = mapInformation.getMapData().getTile(point);
+            short newTerrainId = tile.getTerrainId();
+            short oldTerrainId = lastTerrainIds[point.x][point.y];
+            if (newTerrainId != oldTerrainId) {
+                Terrain oldTerrain = kwdFile.getTerrain(oldTerrainId);
+                if (newTerrainId == oldTerrain.getMaxHealthTypeTerrainId()) {
+                    effectManager.load(worldNode,
+                            WorldUtils.pointToVector3f(point).addLocal(0, WorldUtils.FLOOR_HEIGHT, 0),
+                            oldTerrain.getMaxHealthEffectId(), false, tile.getOwnerId());
+                } else if (newTerrainId == oldTerrain.getDestroyedTypeTerrainId()) {
+                    effectManager.load(worldNode,
+                            WorldUtils.pointToVector3f(point).addLocal(0, WorldUtils.FLOOR_HEIGHT, 0),
+                            oldTerrain.getDestroyedEffectId(), false);
+                }
+                lastTerrainIds[point.x][point.y] = newTerrainId;
+            }
         }
         mapLoader.updateTiles(points);
     }
