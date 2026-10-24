@@ -91,6 +91,7 @@ import toniarts.openkeeper.game.task.worker.ClaimTileTask;
 import toniarts.openkeeper.game.task.worker.ClaimWallTileTask;
 import toniarts.openkeeper.game.task.worker.DigTileTask;
 import toniarts.openkeeper.game.task.worker.FetchObjectTask;
+import toniarts.openkeeper.game.task.worker.RepairRoomTask;
 import toniarts.openkeeper.game.task.worker.RepairWallTileTask;
 import toniarts.openkeeper.game.task.worker.RescueCreatureTask;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -110,6 +111,7 @@ import toniarts.openkeeper.utils.WorldUtils;
 public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     private static final Logger logger = System.getLogger(TaskManager.class.getName());
+    private static final int REPAIR_SCAN_INTERVAL_TICKS = 4;
 
     private final IMapController mapController;
     private final IGameWorldController gameWorldController;
@@ -126,6 +128,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     private final EntitySet freeObjectEntities;
     private final Map<Short, Set<Task>> taskQueues;
     private final Map<Long, Task> tasksByIds = new HashMap<>();
+    private int ticksSinceRepairScan = 0;
     private final Map<EntityId, Long> tasksIdsByEntities = new HashMap<>();
     private final Map<Short, IPlayerController> playerControllers;
     private final Map<IRoomController, Map<Point, AbstractCapacityCriticalRoomTask>> roomTasks = new HashMap<>();
@@ -202,6 +205,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             processAddedTasks(taskEntities.getAddedEntities());
             processChangedTasks(taskEntities.getChangedEntities());
         }
+        scanRepairRoomTasks();
         if (unconsciousEntities.applyChanges()) {
             processDeletedUnconsciousEntities(unconsciousEntities.getRemovedEntities());
             processAddedUnconsciousEntities(unconsciousEntities.getAddedEntities());
@@ -213,6 +217,38 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         if (freeObjectEntities.applyChanges()) {
             processDeletedFreeObjectEntities(freeObjectEntities.getRemovedEntities());
             processAddedFreeObjectEntities(freeObjectEntities.getAddedEntities());
+        }
+    }
+
+    /**
+     * Every few ticks, about once a second, look for damaged rooms of the
+     * players and give their imps the work of repairing them. Whoever damaged
+     * the room, the claiming enemy imps or a hero, the repair is the same.
+     */
+    private void scanRepairRoomTasks() {
+        if (++ticksSinceRepairScan < REPAIR_SCAN_INTERVAL_TICKS) {
+            return;
+        }
+        ticksSinceRepairScan = 0;
+        for (Set<Task> tasks : taskQueues.values()) {
+            removeObsoleteTileTasks(tasks);
+        }
+        for (IRoomController room : mapController.getRoomControllers()) {
+            short ownerId = room.getOwnerId();
+            if (taskQueues.containsKey(ownerId)) {
+                addRepairRoomTasks(room, ownerId);
+            }
+        }
+    }
+
+    private void addRepairRoomTasks(IRoomController room, short ownerId) {
+        for (Point p : room.getRoomInstance().getCoordinates()) {
+            if (mapController.isRepairableRoom(p, ownerId)) {
+                Task task = new RepairRoomTask(navigationService, mapController, p, ownerId);
+                if (!taskQueues.get(ownerId).contains(task)) {
+                    addTask(ownerId, task);
+                }
+            }
         }
     }
 
