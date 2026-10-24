@@ -135,6 +135,7 @@ public final class CreatureController extends EntityController implements ICreat
     private final CombatSounds combatSounds;
     private final StateMachine<ICreatureController, CreatureState> stateMachine;
     private float motionless = 0;
+    private final PathRetryBackoff pathRetryBackoff = new PathRetryBackoff();
 
     /**
      * The start time of the last slap this creature reacted to
@@ -471,6 +472,9 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public void navigateToAssignedTask() {
+        if (isWaitingToRetryPath()) {
+            return;
+        }
         Task assignedTask = getAssignedTask();
         if (assignedTask != null) {
             Vector2f loc = assignedTask.getTarget(this);
@@ -497,6 +501,7 @@ public final class CreatureController extends EntityController implements ICreat
     private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget, Vector2f workPosition) {
         GraphPath<IMapTileInformation> path = navigationService.findPath(currentLocation, destination, this);
         if (path == null) {
+            pathRetryBackoff.failed(destination, gameTimer.getGameTime());
             logger.log(Level.WARNING, "No path from {0} to {1}", getCreatureCoordinates(), destination);
             return true;
         }
@@ -507,6 +512,16 @@ public final class CreatureController extends EntityController implements ICreat
         }
         entityData.setComponent(entityId, new Navigation(destination, faceTarget, navigationPath));
         return false;
+    }
+
+    /**
+     * Tells if the assigned task is where a search for a path found nothing
+     * lately. Searching again at once, on every tick, would only fail again
+     */
+    private boolean isWaitingToRetryPath() {
+        Task assignedTask = getAssignedTask();
+        Vector2f target = assignedTask != null ? assignedTask.getTarget(this) : null;
+        return target != null && pathRetryBackoff.isWaiting(WorldUtils.vectorToPoint(target), gameTimer.getGameTime());
     }
 
     @Override
