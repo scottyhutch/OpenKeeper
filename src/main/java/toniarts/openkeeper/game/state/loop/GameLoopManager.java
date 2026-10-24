@@ -24,12 +24,17 @@ import toniarts.openkeeper.game.controller.GameController;
 import toniarts.openkeeper.game.controller.IGameController;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
+import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.trap.TrapEffects;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.fogofwar.IBlocksSight;
 import toniarts.openkeeper.game.logic.*;
+import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.state.session.GameSessionServerService;
 import toniarts.openkeeper.game.task.ITaskManager;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.GameLoop;
 
@@ -95,6 +100,11 @@ public final class GameLoopManager {
                 new DoorViewSystem(entityData, positionSystem),
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),
                 new HaulingSystem(entityData),
+                new TrapSystem(entityData, level, gameController.getGameTimer(),
+                        solidTilesBlockSight(gameWorldController.getMapController()), playerControllers,
+                        new TrapEffects(entityData, level, gameController.getGameTimer()),
+                        gameController.getLevelVariable(Variable.MiscVariable.MiscType.TRIGGER_TRAP_TRIGGER_SPEED_TILES_PER_SECOND)),
+                new FreezeSystem(entityData, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
                 (IGameLogicUpdatable) taskManager);
 
         loops.add(new GameLoop(gameLogicThread, 1_000_000_000 / levelInfo.getLevelData().getGameLevel().getTicksPerSec(), "Logic"));
@@ -109,6 +119,13 @@ public final class GameLoopManager {
 
         // Steering
         loops.add(new GameLoop(new GameLogicManager(new MovementSystem(entityData)), GameLoop.INTERVAL_FPS_60, "Steering"));
+    }
+
+    private static IBlocksSight solidTilesBlockSight(IMapController mapController) {
+        return (x, y) -> {
+            IMapTileInformation tile = mapController.getMapData().getTile(x, y);
+            return tile == null || mapController.getTerrain(tile).getFlags().contains(Terrain.TerrainFlag.SOLID);
+        };
     }
 
     public void pause() {
