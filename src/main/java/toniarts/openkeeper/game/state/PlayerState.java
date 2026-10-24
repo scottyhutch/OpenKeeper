@@ -476,6 +476,27 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         cameraState.zoomToPoint(point);
     }
 
+    /**
+     * Tell the game that the player pressed a HUD button, level scripts can
+     * wait for these
+     *
+     * @param type the button type
+     * @param buttonId the button id inside the type
+     */
+    public void buttonPressed(TriggerAction.MakeType type, int buttonId) {
+        stateManager.getState(GameClientState.class).getGameClientService().buttonPressed((short) type.getValue(), (short) buttonId);
+    }
+
+    /**
+     * Tell the game that the player pressed one of the miscellaneous HUD
+     * buttons
+     *
+     * @param button the button
+     */
+    public void buttonPressed(TriggerAction.ButtonType button) {
+        buttonPressed(TriggerAction.MakeType.MISC_BUTTON, button.getValue());
+    }
+
     protected void grabGold(int amount) {
         if (!interactionState.isKeeperHandFull()) {
             stateManager.getState(GameClientState.class).getGameClientService().getGold(amount);

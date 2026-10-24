@@ -115,6 +115,17 @@ public interface GameSessionServiceListener {
     public void onTransitionEnd(short playerId);
 
     /**
+     * Player pressed a HUD button
+     *
+     * @param buttonType the button type, a {@code TriggerAction.MakeType}
+     * value
+     * @param buttonId the button id inside the type
+     * @param playerId the player who pressed the button
+     */
+    @Asynchronous
+    public void onButtonPressed(short buttonType, short buttonId, short playerId);
+
+    /**
      * Player has requested to pause the game
      *
      * @param playerId the player who wants to pause the game

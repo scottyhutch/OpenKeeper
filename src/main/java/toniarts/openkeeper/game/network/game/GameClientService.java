@@ -184,6 +184,11 @@ public final class GameClientService extends AbstractClientService
     }
 
     @Override
+    public void buttonPressed(short buttonType, short buttonId) {
+        getDelegate().buttonPressed(buttonType, buttonId);
+    }
+
+    @Override
     public void pauseGame() {
         getDelegate().pauseGame();
     }

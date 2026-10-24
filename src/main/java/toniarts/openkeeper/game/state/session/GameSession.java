@@ -129,6 +129,16 @@ public interface GameSession {
     public void transitionEnd();
 
     /**
+     * The player pressed a HUD button that level scripts can wait for
+     *
+     * @param buttonType the button type, a {@code TriggerAction.MakeType}
+     * value
+     * @param buttonId the button id inside the type
+     */
+    @Asynchronous
+    public void buttonPressed(short buttonType, short buttonId);
+
+    /**
      * Request for pausing the game
      */
     @Asynchronous

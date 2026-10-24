@@ -279,6 +279,11 @@ public final class GameServerState extends AbstractAppState {
         }
 
         @Override
+        public void onButtonPressed(short buttonType, short buttonId, short playerId) {
+            game.getGameController().getPlayerController(playerId).getStatsControl().buttonPressed(buttonType, buttonId);
+        }
+
+        @Override
         public void onPauseRequest(short playerId) {
             // TODO: We should only allow the server owner etc. to pause, otherwise, send a system message that player x wants to pause?
             game.pause();

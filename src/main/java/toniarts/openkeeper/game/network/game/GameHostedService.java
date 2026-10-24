@@ -599,6 +599,13 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         }
 
         @Override
+        public void buttonPressed(short buttonType, short buttonId) {
+            for (GameSessionServiceListener listener : serverListeners.getArray()) {
+                listener.onButtonPressed(buttonType, buttonId, clientInfo.getKeeper().getId());
+            }
+        }
+
+        @Override
         public void pauseGame() {
             for (GameSessionServiceListener listener : serverListeners.getArray()) {
                 listener.onPauseRequest(clientInfo.getKeeper().getId());
