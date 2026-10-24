@@ -1402,6 +1402,21 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
+    public boolean isAfraid() {
+        return stateMachine.isInState(CreatureState.FLEE);
+    }
+
+    @Override
+    public void setRunning(boolean running) {
+        CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        Mobile mobile = entityData.getComponent(entityId, Mobile.class);
+        if (mobile != null) {
+            entityData.setComponent(entityId, new Mobile(mobile.canFly, mobile.canWalkOnWater, mobile.canWalkOnLava,
+                    running ? creatureComponent.runSpeed : creatureComponent.speed));
+        }
+    }
+
+    @Override
     public boolean isImprisoned() {
         return isImprisoned(entityData, entityId);
     }
