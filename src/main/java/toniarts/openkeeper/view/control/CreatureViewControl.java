@@ -28,6 +28,7 @@ import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.gui.CursorFactory;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.Creature.CreatureFlag;
 import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.view.animation.AnimationLoader;
 import toniarts.openkeeper.view.text.EntityTextParser;
@@ -81,6 +82,9 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     private void playAnimation(Creature.AnimationType animation) {
         AnimationLoader.playAnimation(getSpatial(), getDataObject().getAnimation(animation), assetManager);
+        if (getDataObject().getFlags().contains(CreatureFlag.IS_UNIQUE)) {
+            CreatureVariantTextures.apply(getSpatial(), assetManager);
+        }
         isAnimationPlaying = true;
         currentState = animation;
     }
@@ -93,6 +97,16 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         if (!Objects.equals(currentState, targetState)) {
             playAnimation(state);
         }
+    }
+
+    @Override
+    public int getSlapEffectId(short playerId) {
+        return getDataObject().getSlapEffectId();
+    }
+
+     @Override
+    public int getDeathEffectId() {
+        return getDataObject().getDeathEffectId();
     }
 
     @Override
