@@ -133,6 +133,16 @@ class ImageScalesTest {
         assertEquals(4, imageScales.getScale(ICON, 64, 32));
     }
 
+    @Test
+    void imageWithoutAFileNameHasNoOriginal() {
+
+        // Nifty's pulsating overlay effect asks for an image before its file name is set
+        ImageScales scales = new ImageScales(originals);
+
+        assertNull(scales.getOriginalSize(null));
+        assertEquals(1, scales.getScale((String) null, 64, 32));
+    }
+
     private Path writeOriginal(String assetPath, byte[] data) throws IOException {
         Path file = originals.resolve(assetPath);
         Files.createDirectories(file.getParent());
