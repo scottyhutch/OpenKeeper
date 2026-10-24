@@ -53,6 +53,7 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
      */
     private static final Set<TriggerGeneric.TargetType> EVENT_CONDITIONS = EnumSet.of(
             TriggerGeneric.TargetType.CREATURE_CREATED, TriggerGeneric.TargetType.CREATURE_KILLED,
+            TriggerGeneric.TargetType.CREATURE_AFRAID,
             TriggerGeneric.TargetType.CREATURE_SLAPPED, TriggerGeneric.TargetType.CREATURE_ATTACKED,
             TriggerGeneric.TargetType.CREATURE_IMPRISONED, TriggerGeneric.TargetType.CREATURE_TORTURED,
             TriggerGeneric.TargetType.CREATURE_CONVERTED, TriggerGeneric.TargetType.CREATURE_CLAIMED,
@@ -83,6 +84,7 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
             final PlayerService playerService, final boolean heroPartyMember) {
         super(gameController, levelInfo, gameTimer, mapController, creaturesController, triggerId, playerId, playerService);
 
+        eventStates.put(TriggerGeneric.TargetType.CREATURE_AFRAID, ICreatureController::isAfraid);
         eventStates.put(TriggerGeneric.TargetType.CREATURE_SLAPPED, ICreatureController::isSlapped);
         eventStates.put(TriggerGeneric.TargetType.CREATURE_ATTACKED, ICreatureController::isAttacked);
         eventStates.put(TriggerGeneric.TargetType.CREATURE_IMPRISONED, ICreatureController::isImprisoned);
@@ -209,11 +211,10 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
      */
     private static String getStubReason(TriggerGeneric.TargetType targetType) {
         return switch (targetType) {
-            // STUB, events: the creature became angry / afraid. The state changes can not be told
-            // from the outside: the anger is a set of counters (CreatureMood) with no "became
-            // angry" threshold, and the fear of the creature is a state of its AI
-            case CREATURE_ANGRY, CREATURE_AFRAID ->
-                "The state changes can not be told from the outside: the anger is a set of counters (CreatureMood) with no 'became angry' threshold, and the fear of the creature is a state of its AI";
+            // STUB, event: the creature became angry. The state change can not be told from the
+            // outside: the anger is a set of counters (CreatureMood) with no "became angry" threshold
+            case CREATURE_ANGRY ->
+                "The state change can not be told from the outside: the anger is a set of counters (CreatureMood) with no 'became angry' threshold";
             // STUB, event: the creature stole gold / a spell / a crate. The stealing job does not
             // report to anybody
             case CREATURE_STEALS ->
@@ -251,9 +252,8 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
                 return true;
 
             case ALTER_SPEED:
-                // STUB: 0 = walk, otherwise run. The creature controller has no movement speed to
-                // set, the speed comes from the creature's state and its attributes
-                logStub(trigger, "The creature controller has no movement speed to set, the speed comes from the creature's state and its attributes");
+                // 0 = walk, otherwise run
+                instanceControl.setRunning(trigger.getUserData("available", short.class) != 0);
                 return true;
 
             case REMOVE_FROM_MAP:

@@ -153,6 +153,22 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
 
     public boolean isStunned();
 
+    /**
+     * Is the creature afraid, i.e. so scared of the enemies that it is running
+     * away
+     *
+     * @return {@code true} if afraid
+     */
+    public boolean isAfraid();
+
+    /**
+     * Make the creature run or walk, the speed comes from the creature's run
+     * or walk speed attribute
+     *
+     * @param running {@code true} to run, {@code false} to walk
+     */
+    public void setRunning(boolean running);
+
     public int getLevel();
 
     public void attachPortalGem();
