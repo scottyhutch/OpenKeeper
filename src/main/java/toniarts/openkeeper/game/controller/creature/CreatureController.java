@@ -289,7 +289,7 @@ public final class CreatureController extends EntityController implements ICreat
     private int getEnemyThreat() {
         int enemyThreat = 0;
         for (EntityId entity : entityPositionLookup.getSensedEntities(entityId)) {
-            if (isEnemy(entity) && isThreat(entity)) {
+            if (isEnemy(entity) && isThreat(entity) && ThreatSource.isThreateningUs(entityData, entity, entityId)) {
                 enemyThreat += getThreat(entity);
             }
         }
@@ -1001,6 +1001,7 @@ public final class CreatureController extends EntityController implements ICreat
         Point nearest = null;
         for (EntityId entity : entityPositionLookup.getSensedEntities(entityId)) {
             IMapTileInformation tile = isEnemy(entity) && isThreat(entity) && getThreat(entity) > 0
+                    && ThreatSource.isThreateningUs(entityData, entity, entityId)
                     ? entityPositionLookup.getEntityLocation(entity) : null;
             if (tile != null && (nearest == null || tile.getLocation().distance(ourLocation) < nearest.distance(ourLocation))) {
                 nearest = tile.getLocation();
