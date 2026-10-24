@@ -67,8 +67,8 @@ public final class PlayerController implements IPlayerController {
         roomControl = new PlayerRoomControl(keeper, kwdFile.getRooms());
         spellControl = new PlayerSpellControl(keeper, kwdFile.getKeeperSpells());
         statsControl = new PlayerStatsControl();
-        doorControl = new PlayerDoorControl(keeper, kwdFile.getDoors());
-        trapControl = new PlayerTrapControl(keeper, kwdFile.getTraps());
+        doorControl = new PlayerDoorControl(keeper, kwdFile.getDoors(), entityData);
+        trapControl = new PlayerTrapControl(keeper, kwdFile.getTraps(), entityData);
 
         // Don't create certain controls for neutral nor good player
         if (keeper.getId() != Player.GOOD_PLAYER_ID && keeper.getId() != Player.NEUTRAL_PLAYER_ID) {

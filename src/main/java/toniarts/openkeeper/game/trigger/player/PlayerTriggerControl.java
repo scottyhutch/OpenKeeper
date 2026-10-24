@@ -256,6 +256,8 @@ public class PlayerTriggerControl extends TriggerControl {
         result.put(TriggerGeneric.TargetType.PLAYER_ROOM_FURNITURE,
                 (pid, trigger) -> getFurnitureCount(pid, trigger.getUserData("roomId", short.class)));
         result.put(TriggerGeneric.TargetType.PLAYER_SLAPS, (pid, trigger) -> getSlapCount(pid));
+        result.put(TriggerGeneric.TargetType.PLAYER_DOORS, this::getDoorCount);
+        result.put(TriggerGeneric.TargetType.PLAYER_TRAPS, this::getTrapCount);
         result.put(TriggerGeneric.TargetType.PLAYER_GOLD, (pid, trigger) -> getPlayer(pid).getGold());
         result.put(TriggerGeneric.TargetType.PLAYER_GOLD_MINED, (pid, trigger) -> getPlayer(pid).getGoldMined());
         result.put(TriggerGeneric.TargetType.PLAYER_MANA, (pid, trigger) -> getPlayer(pid).getMana());
@@ -282,9 +284,6 @@ public class PlayerTriggerControl extends TriggerControl {
         putStub(result, "A creature's death is not attributed to anybody, so there is nothing to count",
                 TriggerGeneric.TargetType.PLAYER_CREATURES_KILLED, TriggerGeneric.TargetType.PLAYER_KILLS_CREATURES);
 
-        // STUB: owned doors / traps by type, blueprints and built ones separately
-        putStub(result, "The door and trap controls only know the availability, their count is a constant 0 and nothing tells blueprints from built",
-                TriggerGeneric.TargetType.PLAYER_DOORS, TriggerGeneric.TargetType.PLAYER_TRAPS);
 
         // STUB: creatures by level / in the dying state / the size of the current creature group
         putStub(result, "The player creature control only keeps the creature IDs by type, going through them for these needs the creature controller of every one of them",
@@ -454,6 +453,34 @@ public class PlayerTriggerControl extends TriggerControl {
 
     private int getSlapCount(short playerId) {
         return getPlayerController(playerId).getStatsControl().getSlaps().values().stream().mapToInt(Integer::intValue).sum();
+    }
+
+    /**
+     * The flag byte of the door and trap conditions tells what is counted: bit
+     * 0x8 only the blueprints, bit 0x10 only the built ones, neither both. The
+     * door or trap type is only used when both are counted, like in the
+     * original.
+     */
+    private static boolean countsBlueprints(short flag) {
+        return (flag & 0x08) != 0 || (flag & 0x10) == 0;
+    }
+
+    private static boolean countsBuilt(short flag) {
+        return (flag & 0x08) == 0;
+    }
+
+    private static short getPlacedTypeId(TriggerGenericData trigger, short flag) {
+        return (flag & 0x18) == 0 ? trigger.getUserData("targetId", short.class) : 0;
+    }
+
+    private int getDoorCount(short playerId, TriggerGenericData trigger) {
+        short flag = trigger.getUserData("flag", short.class);
+        return getPlayerController(playerId).getDoorControl().getPlacedCount(getPlacedTypeId(trigger, flag), countsBlueprints(flag), countsBuilt(flag));
+    }
+
+    private int getTrapCount(short playerId, TriggerGenericData trigger) {
+        short flag = trigger.getUserData("flag", short.class);
+        return getPlayerController(playerId).getTrapControl().getPlacedCount(getPlacedTypeId(trigger, flag), countsBlueprints(flag), countsBuilt(flag));
     }
 
     private int getRoomCount(short playerId, short roomId) {
