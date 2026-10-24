@@ -279,6 +279,13 @@ public class TriggerControl extends Control {
                 logStub(trigger, "no world wide creature count");
                 return false;
 
+            case PARTY_MEMBERS_INCAPACITATED:
+
+                // The party is named in the condition (the byte the editor does not name), the same
+                // way in the party's tree, in a member's tree and anywhere else
+                return compare(trigger, countIncapacitatedMembers(trigger.getUserData("unknown", short.class)),
+                        trigger.getUserData("value", int.class));
+
             case LEVEL_PLAYED:
                 // STUB: the number of attempts at this level. The game does not keep any attempt
                 // statistics (nothing persists between sessions), so there is nothing to compare to.
@@ -289,6 +296,30 @@ public class TriggerControl extends Control {
                 reportUnhandled("condition", trigger);
                 return false;
         }
+    }
+
+    /**
+     * Count the members of a party that cannot fight: the members that are
+     * dead, down or not spawned (yet), of the members the party is defined
+     * with.
+     *
+     * @param partyId the party
+     * @return the number of incapacitated members, 0 if there is no such party
+     */
+    private int countIncapacitatedMembers(short partyId) {
+        IPartyController party = creaturesController.getParty(partyId);
+        if (party == null) {
+            return 0;
+        }
+        int able = 0;
+        if (party.isCreated()) {
+            for (ICreatureController member : party.getActualMembers()) {
+                if (!member.isDead() && !member.isIncapacitated()) {
+                    able++;
+                }
+            }
+        }
+        return party.getMembers().size() - able;
     }
 
     private boolean isFlagActive(TriggerGenericData trigger) {
