@@ -35,6 +35,7 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.entity.EntityController;
+import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Shot;
@@ -57,6 +58,12 @@ import toniarts.openkeeper.utils.WorldUtils;
  * seconds.</li>
  * <li>An alarm shot (Alarm Trap) raises an alarm for the trap's owner at the
  * trap, unless the owner's last alarm still lasts.</li>
+ * <li>A lightning shot (Lightning Trap) deals shot data 1 to its target, twice
+ * that when the target stands in water. Creatures immune to lightning take
+ * nothing.</li>
+ * <li>A fear shot (Fear Trap) does nothing itself. The original's handler for
+ * it is empty, the trap scares its victims away with the threat it makes after
+ * firing.</li>
  * </ul>
  * Area damage spares only the trap owner's creatures.
  */
@@ -73,14 +80,24 @@ public final class TrapEffects implements ITrapEffects {
     private final EntityData entityData;
     private final IKwdFile kwdFile;
     private final IGameTimer gameTimer;
+    private final IMapInformation mapInformation;
     private final EntitySet creatureEntities;
     private final EntitySet alarmEntities;
     private final Set<Shot.ProcessType> reportedProcessTypes = EnumSet.noneOf(Shot.ProcessType.class);
 
-    public TrapEffects(EntityData entityData, IKwdFile kwdFile, IGameTimer gameTimer) {
+    /**
+     * The trap shots
+     *
+     * @param entityData the entity data
+     * @param kwdFile the level data, for the shots and creatures
+     * @param gameTimer the game time
+     * @param mapInformation the map, for the water under a lightning strike
+     */
+    public TrapEffects(EntityData entityData, IKwdFile kwdFile, IGameTimer gameTimer, IMapInformation mapInformation) {
         this.entityData = entityData;
         this.kwdFile = kwdFile;
         this.gameTimer = gameTimer;
+        this.mapInformation = mapInformation;
 
         creatureEntities = entityData.getEntities(CreatureComponent.class, Owner.class, Position.class, Health.class);
         alarmEntities = entityData.getEntities(Alarm.class, Owner.class);
@@ -100,6 +117,12 @@ public final class TrapEffects implements ITrapEffects {
                 freeze(trap, target);
             case ALARM ->
                 raiseAlarm(ownerId, origin);
+            case LIGHTNING ->
+                strikeWithLightning(trap.getShotData1(), target);
+            case FEAR -> {
+
+                // The threat after the shot is what scares, see TrapSystem
+            }
             default ->
                 reportNotImplemented(shot.getProcessType());
         }
@@ -163,6 +186,30 @@ public final class TrapEffects implements ITrapEffects {
         }
 
         entityData.setComponent(target, new Frozen(gameTimer.getGameTime(), trap.getShotData1()));
+    }
+
+    /**
+     * Strikes the target with lightning, unless it is a creature immune to
+     * lightning
+     *
+     * @param damage the damage, doubled when the target stands in water
+     * @param target the struck creature, can be {@code null}
+     */
+    private void strikeWithLightning(int damage, EntityId target) {
+        Position position = target != null ? entityData.getComponent(target, Position.class) : null;
+        if (position == null || isImmuneToLightning(target)) {
+            return;
+        }
+
+        boolean inWater = mapInformation.isWater(WorldUtils.vectorToPoint(position.position));
+        EntityController.setDamage(entityData, target, inWater ? damage * 2 : damage);
+    }
+
+    private boolean isImmuneToLightning(EntityId target) {
+        CreatureComponent creatureComponent = entityData.getComponent(target, CreatureComponent.class);
+        Creature creature = creatureComponent != null ? kwdFile.getCreature(creatureComponent.creatureId) : null;
+        return creature != null && creature.getFlags3() != null
+                && creature.getFlags3().contains(Creature.CreatureFlag3.IS_IMMUNE_TO_LIGHTNING);
     }
 
     /**
