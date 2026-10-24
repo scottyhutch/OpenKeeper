@@ -19,7 +19,10 @@ package toniarts.openkeeper.game.controller.player;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import toniarts.openkeeper.tools.convert.ConversionUtils;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.TriggerAction;
 
 /**
  * A class to hold player's miscellaneous statistics
@@ -31,6 +34,7 @@ public final class PlayerStatsControl {
     private final Map<Creature, Integer> slapsMap = new HashMap<>();
     private final Map<Creature, Integer> pickUpsMap = new HashMap<>();
     private final Map<Creature, Integer> dropsMap = new HashMap<>();
+    private final Map<PressedButton, Integer> buttonPressesMap = new ConcurrentHashMap<>();
 
     public boolean hasSlapped() {
         return !slapsMap.isEmpty();
@@ -102,6 +106,46 @@ public final class PlayerStatsControl {
      */
     public Map<Creature, Integer> getDrops() {
         return Collections.unmodifiableMap(dropsMap);
+    }
+
+    /**
+     * Mark a HUD button as pressed
+     *
+     * @param type the button type
+     * @param buttonId the button id inside the type
+     */
+    public void buttonPressed(TriggerAction.MakeType type, short buttonId) {
+        buttonPressesMap.merge(new PressedButton(type, buttonId), 1, Integer::sum);
+    }
+
+    /**
+     * Mark a HUD button as pressed
+     *
+     * @param buttonType the button type, a {@link TriggerAction.MakeType} value
+     * @param buttonId the button id inside the type
+     */
+    public void buttonPressed(short buttonType, short buttonId) {
+        buttonPressed(ConversionUtils.parseEnum(buttonType, TriggerAction.MakeType.class), buttonId);
+    }
+
+    /**
+     * Get how many times each HUD button has been pressed
+     *
+     * @return read only view
+     */
+    public Map<PressedButton, Integer> getButtonPresses() {
+        return Collections.unmodifiableMap(buttonPressesMap);
+    }
+
+    /**
+     * A HUD button that level scripts can wait for
+     *
+     * @param type the button type
+     * @param buttonId the button, a room, spell, door, trap or creature id, or
+     * a {@link TriggerAction.ButtonType} value for the misc buttons
+     */
+    public record PressedButton(TriggerAction.MakeType type, short buttonId) {
+
     }
 
 }

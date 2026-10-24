@@ -227,7 +227,27 @@ public final class PlayerScreenController implements IPlayerScreenController {
         if (type == Type.SELL) {
             this.playButtonSound(GlobalCategory.GUI_SELL);
         }
-        state.interactionState.setInteractionState(type, Integer.parseInt(id));
+        int itemId = Integer.parseInt(id);
+        state.interactionState.setInteractionState(type, itemId);
+        reportSelection(type, itemId);
+    }
+
+    private void reportSelection(Type type, int itemId) {
+        switch (type) {
+            case ROOM ->
+                state.buttonPressed(TriggerAction.MakeType.ROOM, itemId);
+            case SPELL ->
+                state.buttonPressed(TriggerAction.MakeType.KEEPER_SPELL, itemId);
+            case DOOR ->
+                state.buttonPressed(TriggerAction.MakeType.DOOR, itemId);
+            case TRAP ->
+                state.buttonPressed(TriggerAction.MakeType.TRAP, itemId);
+            case SELL ->
+                state.buttonPressed(TriggerAction.ButtonType.SELL_ROOM);
+            default -> {
+                // Not a button the level scripts know
+            }
+        }
     }
 
     public void toggleGui() {
@@ -257,6 +277,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
         element.setUserData("toggle", !toggled);
         element.getParent().layoutElements();
+        state.buttonPressed(TriggerAction.ButtonType.GUI_MIN_MAX);
     }
 
     @Override
@@ -542,6 +563,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
 
     @Override
     public void grabGold() {
+        state.buttonPressed(TriggerAction.ButtonType.GOLD_VALUE);
         state.grabGold(100);
         buttonFlasher.stop("goldButton");
     }
@@ -557,6 +579,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
     public void resizeMap() {
         buttonFlasher.stop("zoomButton");
         playButtonSound("GUI_BUTTON_ZOOM");
+        state.buttonPressed(TriggerAction.ButtonType.ZOOM_IN_OUT);
         MinimapPanelState minimapPanelState = state.stateManager.getState(GameClientState.class).getMinimapPanelState();
         if (minimapPanelState != null) {
             minimapPanelState.zoomIn();
@@ -567,6 +590,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
      * "Resize Map" button, right click: zoom out one level (or back to fit mode).
      */
     public void resizeMapDown() {
+        state.buttonPressed(TriggerAction.ButtonType.ZOOM_IN_OUT);
         MinimapPanelState minimapPanelState = state.stateManager.getState(GameClientState.class).getMinimapPanelState();
         if (minimapPanelState != null) {
             minimapPanelState.zoomOut();
@@ -781,6 +805,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
             buttonFlasher.stop(HudButtonFlasher.CREATURE_TAB);
         }
         Tab tab = event.getTab();
+        if ("tab-creature".equals(tab.getId())) {
+            state.buttonPressed(TriggerAction.ButtonType.CREATURE_TAB);
+        }
         if (tab instanceof CustomTabControl) {
             String sound = ((CustomTabControl) event.getTab()).getSound();
             this.playButtonSound(sound);

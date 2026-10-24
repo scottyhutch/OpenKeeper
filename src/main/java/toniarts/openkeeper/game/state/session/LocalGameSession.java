@@ -397,6 +397,13 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     }
 
     @Override
+    public void buttonPressed(short buttonType, short buttonId) {
+        for (GameSessionServiceListener listener : serverListeners.getArray()) {
+            listener.onButtonPressed(buttonType, buttonId, PLAYER_ID);
+        }
+    }
+
+    @Override
     public void pauseGame() {
         for (GameSessionServiceListener listener : serverListeners.getArray()) {
             listener.onPauseRequest(PLAYER_ID);
