@@ -247,7 +247,7 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
                 return true;
 
             case SHOW_HEALTH_FLOWER:
-                getPlayerService().showUnitFlower(instanceControl.getEntityId(), trigger.getUserData("value", Integer.class), getPlayer().getId());
+                getPlayerService().showUnitFlower(instanceControl.getEntityId(), trigger.getUserData("value", Integer.class), getAudienceId());
                 return true;
 
             case ALTER_SPEED:
@@ -269,7 +269,7 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
                 return true;
 
             case ZOOM_TO:
-                getPlayerService().zoomViewToEntity(instanceControl.getEntityId(), getPlayer().getId());
+                getPlayerService().zoomViewToEntity(instanceControl.getEntityId(), getAudienceId());
                 return true;
 
             case SET_OBJECTIVE: // Creature part. Only for Good player
