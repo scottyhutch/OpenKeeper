@@ -49,6 +49,11 @@ public enum CreatureState implements State<ICreatureController> {
                 return;
             }
 
+            // An enemy door right next to us
+            if (entity.attackAdjacentDoor()) {
+                return;
+            }
+
             // Idling is the last resort
             entity.unassingCurrentTask();
             findStuffToDo(entity, (foundWork) -> {
@@ -130,6 +135,11 @@ public enum CreatureState implements State<ICreatureController> {
 
             // Should we flee or attack
             if (entity.shouldFleeOrAttack()) {
+                return;
+            }
+
+            // An enemy door right next to us
+            if (entity.attackAdjacentDoor()) {
                 return;
             }
 
