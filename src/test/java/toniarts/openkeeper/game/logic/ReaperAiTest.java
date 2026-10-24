@@ -73,6 +73,7 @@ class ReaperAiTest {
     private CreatureState state = CreatureState.IDLE;
     private int roll = 1;
     private boolean wandered = false;
+    private Point accessibleTile;
 
     ReaperAiTest() {
         Keeper keeper = new Keeper(false, PLAYER_ID);
@@ -300,6 +301,39 @@ class ReaperAiTest {
         assertNull(entityData.getComponent(reaper, Navigation.class));
     }
 
+    @Test
+    void picksUpThePortalGemWhenHeHasStoppedNextToIt() {
+        EntityId gem = addGem(new Point(11, 10));
+        entityData.setComponent(reaper, new CreatureAi(0, CreatureState.WANDER, (short) 27));
+
+        ai().fetchPortalGem(reaper, gem);
+
+        assertNotNull(entityData.getComponent(reaper, PortalGem.class));
+        assertNull(entityData.getComponent(gem, Position.class));
+    }
+
+    @Test
+    void keepsWalkingWhileNextToTheGemOnHisWay() {
+        EntityId gem = addGem(new Point(11, 10));
+        entityData.setComponent(reaper, new Navigation(new Point(11, 10), null, null));
+
+        ai().fetchPortalGem(reaper, gem);
+
+        assertNull(entityData.getComponent(reaper, PortalGem.class));
+    }
+
+    @Test
+    void walksNextToTheGemIfItsTileCanNotBeEntered() {
+        Point gemTile = new Point(20, 14);
+        EntityId gem = addGem(gemTile);
+        unreachableTiles.add(gemTile);
+        accessibleTile = new Point(19, 14);
+
+        ai().fetchPortalGem(reaper, gem);
+
+        assertEquals(accessibleTile, entityData.getComponent(reaper, Navigation.class).target);
+    }
+
     private EntityId addGem(Point tile) {
         EntityId gem = entityData.createEntity();
         entityData.setComponent(gem, new ObjectComponent((short) 28, null));
@@ -389,7 +423,7 @@ class ReaperAiTest {
                         path.add(tile(end));
                         yield path;
                     }
-                    case "findRandomAccessibleTile" -> null;
+                    case "findRandomAccessibleTile" -> accessibleTile;
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
     }

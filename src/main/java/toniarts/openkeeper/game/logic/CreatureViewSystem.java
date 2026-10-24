@@ -28,6 +28,7 @@ import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.Navigation;
+import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Unconscious;
@@ -99,6 +100,10 @@ public final class CreatureViewSystem extends GameTimeCounter {
                         targetState = CreatureTorturingSystem.getTortureAnimation(entityData, entityId);
                     } else if (aiState != null) {
                         targetState = getAnimation(aiState.getCreatureState());
+                    } else if (entityData.getComponent(entityId, PortalGem.class) != null) {
+
+                        // The Reaper holding the gem has nothing left to do, not even walk
+                        targetState = Creature.AnimationType.IDLE_1;
                     }
                 }
             }
