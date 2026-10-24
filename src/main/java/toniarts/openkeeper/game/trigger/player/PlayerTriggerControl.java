@@ -45,6 +45,7 @@ import toniarts.openkeeper.game.trigger.TriggerControl;
 import toniarts.openkeeper.game.trigger.TriggerGenericData;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
+import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 import toniarts.openkeeper.tools.convert.map.TriggerGeneric;
@@ -107,6 +108,21 @@ public class PlayerTriggerControl extends TriggerControl {
     }
 
     public short getPlayerId() {
+        return playerId;
+    }
+
+    /**
+     * The player that sees the speeches, camera moves and messages of this
+     * tree. That is the owner of the tree, except for the trees of heroes and
+     * neutral creatures. Those belong to the Good and the Neutral player, which
+     * nobody plays, and their actions are meant for the local human player.
+     *
+     * @return the player ID
+     */
+    protected short getAudienceId() {
+        if (playerId == Player.GOOD_PLAYER_ID || playerId == Player.NEUTRAL_PLAYER_ID) {
+            return getLocalPlayerId();
+        }
         return playerId;
     }
 
@@ -335,7 +351,7 @@ public class PlayerTriggerControl extends TriggerControl {
 
     private void followCameraPath(TriggerActionData trigger) { // gui part. Only for keeper x
         ActionPoint ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
-        playerService.doTransition(trigger.getUserData("pathId", short.class), WorldUtils.ActionPointToVector3f(ap), playerId);
+        playerService.doTransition(trigger.getUserData("pathId", short.class), WorldUtils.ActionPointToVector3f(ap), getAudienceId());
     }
 
     private void makeObjective(TriggerActionData trigger) { // Game part
@@ -348,7 +364,7 @@ public class PlayerTriggerControl extends TriggerControl {
     }
 
     private void zoomToActionPoint(TriggerActionData trigger) { // AP part
-        zoomToAP(playerId, trigger.getUserData("targetId", short.class));
+        zoomToAP(getAudienceId(), trigger.getUserData("targetId", short.class));
     }
 
     private void rotateAroundActionPoint(TriggerActionData trigger) { // AP part
@@ -356,7 +372,7 @@ public class PlayerTriggerControl extends TriggerControl {
         boolean isRelative = trigger.getUserData("available", short.class) == 0;
         int angle = (short) (int) trigger.getUserData("angle", int.class); // Signed 16 bit degrees
         int time = trigger.getUserData("time", int.class);
-        playerService.rotateViewAroundPoint(WorldUtils.ActionPointToVector3f(ap), isRelative, angle, time, playerId);
+        playerService.rotateViewAroundPoint(WorldUtils.ActionPointToVector3f(ap), isRelative, angle, time, getAudienceId());
     }
 
     private void playSpeech(TriggerActionData trigger) { // Info part
@@ -365,17 +381,17 @@ public class PlayerTriggerControl extends TriggerControl {
         // text show when Cinematic camera by pathId
         boolean introduction = trigger.getUserData("introduction", short.class) != 0;
         boolean showText = trigger.getUserData("text", short.class) == 0;
-        playerService.playSpeech(speechId, showText, introduction, pathId, playerId);
+        playerService.playSpeech(speechId, showText, introduction, pathId, getAudienceId());
     }
 
     private void displayTextString(TriggerActionData trigger) { // Info part
         int textId = trigger.getUserData("textId", int.class);
-        playerService.showMessage(textId, playerId);
+        playerService.showMessage(textId, getAudienceId());
     }
 
     private void setWidescreenMode(TriggerActionData trigger) { // Info part
         boolean available = trigger.getUserData("available", short.class) != 0;
-        playerService.setWidescreen(available, playerId);
+        playerService.setWidescreen(available, getAudienceId());
     }
 
     private void setMusicLevel(TriggerActionData trigger) {
