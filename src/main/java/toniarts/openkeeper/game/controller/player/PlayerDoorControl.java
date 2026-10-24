@@ -16,7 +16,12 @@
  */
 package toniarts.openkeeper.game.controller.player;
 
+import com.simsilica.es.EntityData;
+import com.simsilica.es.EntityId;
+import com.simsilica.es.filter.FieldFilter;
 import java.util.List;
+import toniarts.openkeeper.game.component.DoorComponent;
+import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.data.ResearchableType;
@@ -31,9 +36,11 @@ import toniarts.openkeeper.tools.convert.map.Door;
 public final class PlayerDoorControl extends AbstractResearchablePlayerControl<Door, ResearchableEntity, PlayerDoorListener> /*implements RoomListener*/ {
 
     private final int doorCount = 0;
+    private final EntityData entityData;
 
-    public PlayerDoorControl(Keeper keeper, List<Door> doors) {
+    public PlayerDoorControl(Keeper keeper, List<Door> doors, EntityData entityData) {
         super(keeper, keeper.getAvailableDoors(), doors);
+        this.entityData = entityData;
     }
 
     @Override
@@ -49,6 +56,25 @@ public final class PlayerDoorControl extends AbstractResearchablePlayerControl<D
     @Override
     public int getTypeCount() {
         return doorCount;
+    }
+
+    /**
+     * Count the doors this player has in the world
+     *
+     * @param doorId the door type, 0 = any
+     * @param blueprints count the blueprints (placed, not built yet)
+     * @param built count the built doors
+     * @return the number of the doors
+     */
+    public int getPlacedCount(short doorId, boolean blueprints, boolean built) {
+        int count = 0;
+        for (EntityId entityId : entityData.findEntities(new FieldFilter<>(Owner.class, "ownerId", keeper.getId()), Owner.class, DoorComponent.class)) {
+            DoorComponent door = entityData.getComponent(entityId, DoorComponent.class);
+            if (door != null && (doorId == 0 || door.doorId == doorId) && (door.blueprint ? blueprints : built)) {
+                count++;
+            }
+        }
+        return count;
     }
 
 }
