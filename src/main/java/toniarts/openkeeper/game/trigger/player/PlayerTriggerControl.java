@@ -261,6 +261,9 @@ public class PlayerTriggerControl extends TriggerControl {
         result.put(TriggerGeneric.TargetType.PLAYER_GOLD, (pid, trigger) -> getPlayer(pid).getGold());
         result.put(TriggerGeneric.TargetType.PLAYER_GOLD_MINED, (pid, trigger) -> getPlayer(pid).getGoldMined());
         result.put(TriggerGeneric.TargetType.PLAYER_MANA, (pid, trigger) -> getPlayer(pid).getMana());
+        result.put(TriggerGeneric.TargetType.PLAYER_CREATURES_AT_LEVEL, this::getCreaturesAtLevelCount);
+        result.put(TriggerGeneric.TargetType.PLAYER_CREATURES_DYING,
+                (pid, trigger) -> getPlayerController(pid).getCreatureControl().getDyingCount((short) 0));
         return result;
     }
 
@@ -285,9 +288,8 @@ public class PlayerTriggerControl extends TriggerControl {
                 TriggerGeneric.TargetType.PLAYER_CREATURES_KILLED, TriggerGeneric.TargetType.PLAYER_KILLS_CREATURES);
 
 
-        // STUB: creatures by level / in the dying state / the size of the current creature group
-        putStub(result, "The player creature control only keeps the creature IDs by type, going through them for these needs the creature controller of every one of them",
-                TriggerGeneric.TargetType.PLAYER_CREATURES_AT_LEVEL, TriggerGeneric.TargetType.PLAYER_CREATURES_DYING,
+        // STUB: the number of the creatures following the possessed creature
+        putStub(result, "Possessed creatures do not have followers, there is no group to count",
                 TriggerGeneric.TargetType.PLAYER_CREATURES_GROUPED);
         return result;
     }
@@ -489,6 +491,12 @@ public class PlayerTriggerControl extends TriggerControl {
         } else {
             return getPlayerController(playerId).getRoomControl().getTypeCount(levelInfo.getLevelData().getRoomById(roomId));
         }
+    }
+
+    private int getCreaturesAtLevelCount(short playerId, TriggerGenericData trigger) {
+
+        // The level is in the byte that is the other player in the other conditions
+        return getPlayerController(playerId).getCreatureControl().getCountAtLevel(trigger.getUserData("playerId", short.class));
     }
 
     protected void makeObjectiveOff(TriggerActionData trigger) {

@@ -63,7 +63,7 @@ public final class PlayerController implements IPlayerController {
 
         // Create the actual controllers
         goldControl = new PlayerGoldControl(keeper);
-        creatureControl = new PlayerCreatureControl(keeper, imp, kwdFile.getCreatureList());
+        creatureControl = new PlayerCreatureControl(keeper, imp, kwdFile.getCreatureList(), entityData);
         roomControl = new PlayerRoomControl(keeper, kwdFile.getRooms());
         spellControl = new PlayerSpellControl(keeper, kwdFile.getKeeperSpells());
         statsControl = new PlayerStatsControl();
