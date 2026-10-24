@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.view.camera;
 
+import com.jme3.math.FastMath;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.Camera;
@@ -23,14 +24,27 @@ import com.jme3.renderer.Camera;
 /**
  * Follows the Horned Reaper when he comes for the Portal Gem at the end of a
  * won level, as the chase camera does in DK II. The camera keeps its angle,
- * glides over to look at the Reaper and zooms in close to him.
+ * glides over to look at the Reaper's chest and keeps far enough to show all of
+ * him, from his feet to his horns.
  */
 public final class ReaperChaseCamera {
 
     /**
-     * How high the camera ends up over the floor
+     * How many times the Reaper's height the picture shows, so that there is
+     * room around him
      */
-    static final float ZOOM_HEIGHT = 5f;
+    static final float FRAMING = 2f;
+
+    /**
+     * The part of the picture the wide screen bars leave visible
+     */
+    static final float VISIBLE_PART = 0.75f;
+
+    /**
+     * Where the camera looks at, as a part of the Reaper's height from his
+     * feet. The chest, not the floor under his feet
+     */
+    static final float AIM_HEIGHT = 0.5f;
 
     /**
      * How much of the way to the Reaper the camera goes in a second
@@ -38,52 +52,65 @@ public final class ReaperChaseCamera {
     private static final float FOLLOW_SPEED = 2f;
 
     private final Camera camera;
+    private final float reaperHeight;
 
     /**
      * Creates the chase camera
      *
      * @param camera the camera to move
+     * @param reaperHeight the height of the Reaper, in tiles
      */
-    public ReaperChaseCamera(Camera camera) {
+    public ReaperChaseCamera(Camera camera, float reaperHeight) {
         this.camera = camera;
+        this.reaperHeight = reaperHeight;
     }
 
     /**
      * Moves the camera towards the Reaper
      *
-     * @param target where the Reaper is
+     * @param target where the Reaper's feet are
      * @param tpf the time since the last frame
      */
     public void update(Vector3f target, float tpf) {
         float amount = Math.min(1f, FOLLOW_SPEED * tpf);
-        Vector2f lookAt = getLookAtPoint(camera).interpolateLocal(new Vector2f(target.x, target.z), amount);
-        float height = camera.getLocation().y;
-        if (height > ZOOM_HEIGHT) {
-            height += (ZOOM_HEIGHT - height) * amount;
-        }
-        setLookAt(lookAt, height);
+        float aimY = target.y + reaperHeight * AIM_HEIGHT;
+        Vector2f lookAt = getLookAtPoint(camera, aimY).interpolateLocal(new Vector2f(target.x, target.z), amount);
+        float height = camera.getLocation().y - aimY;
+        height += (getFramingHeight() - height) * amount;
+        setLookAt(lookAt, aimY, height);
     }
 
     /**
-     * Where on the floor the camera looks at
+     * How high the camera needs to be over the point it looks at to show the
+     * whole Reaper, with its angle unchanged
+     */
+    float getFramingHeight() {
+        float halfView = FastMath.tan(camera.getFov() * FastMath.DEG_TO_RAD / 2f) * VISIBLE_PART;
+        float distance = reaperHeight * FRAMING / (2f * halfView);
+        return distance * -camera.getDirection().y;
+    }
+
+    /**
+     * Where the camera looks at, on a level
      *
      * @param camera the camera
-     * @return the point on the floor
+     * @param level the height of the level
+     * @return the point on the level
      */
-    static Vector2f getLookAtPoint(Camera camera) {
+    static Vector2f getLookAtPoint(Camera camera, float level) {
         Vector3f direction = camera.getDirection();
         Vector3f location = camera.getLocation();
-        Vector3f result = direction.mult(-location.y / direction.y).addLocal(location);
+        Vector3f result = direction.mult((level - location.y) / direction.y).addLocal(location);
         return new Vector2f(result.x, result.z);
     }
 
     /**
-     * Places the camera at the height so that it looks at the point, with its
+     * Places the camera at the height over the point it looks at, with its
      * angle unchanged
      */
-    private void setLookAt(Vector2f lookAt, float height) {
+    private void setLookAt(Vector2f lookAt, float level, float height) {
         Vector3f direction = camera.getDirection();
-        Vector3f location = new Vector3f(lookAt.x, 0, lookAt.y).subtractLocal(direction.mult(height / -direction.y));
+        Vector3f location = new Vector3f(lookAt.x, level, lookAt.y).subtractLocal(direction.mult(height / -direction.y));
         camera.setLocation(location);
     }
 

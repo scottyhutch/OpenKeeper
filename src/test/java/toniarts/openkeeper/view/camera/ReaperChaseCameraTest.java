@@ -26,52 +26,101 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class ReaperChaseCameraTest {
 
+    private static final float REAPER_HEIGHT = 1f;
+    private static final float FLOOR = 1f;
+
+    /**
+     * Like the one of the game: the lens of the levels, and the angle of level 3
+     */
     private static Camera camera() {
         Camera camera = new Camera(800, 600);
-        camera.setLocation(new Vector3f(10, 12, 0));
+        camera.setFrustumPerspective(28.6f, 800f / 600f, 0.1f, 100f);
+        camera.setLocation(new Vector3f(10, 10, 0));
         camera.lookAt(new Vector3f(10, 0, 8), Vector3f.UNIT_Y);
         return camera;
     }
 
+    private static void chase(Camera camera, Vector3f feet, int frames) {
+        ReaperChaseCamera chase = new ReaperChaseCamera(camera, REAPER_HEIGHT);
+        for (int i = 0; i < frames; i++) {
+            chase.update(feet, 1 / 60f);
+        }
+    }
+
+    /**
+     * Fails if the point is not in the part of the picture that the wide screen
+     * bars leave
+     */
+    private static void assertShown(Camera camera, Vector3f point, String what) {
+        Vector3f screen = camera.getScreenCoordinates(point);
+        float margin = (1f - ReaperChaseCamera.VISIBLE_PART) / 2f * camera.getHeight();
+        assertTrue(screen.y > margin && screen.y < camera.getHeight() - margin,
+                what + " is out of the picture, at " + screen);
+        assertTrue(screen.x > 0 && screen.x < camera.getWidth(), what + " is out of the picture, at " + screen);
+    }
+
     @Test
-    void theCameraEndsUpLookingAtTheReaperFromClose() {
+    void theWholeReaperIsShownFromHisFeetToHisHorns() {
+        Camera camera = camera();
+        Vector3f feet = new Vector3f(30, FLOOR, 40);
+
+        chase(camera, feet, 600);
+
+        assertShown(camera, feet, "The feet");
+        assertShown(camera, feet.add(0, REAPER_HEIGHT, 0), "The horns");
+    }
+
+    @Test
+    void theCameraLooksAtTheChestNotTheFloor() {
         Camera camera = camera();
         Vector3f direction = camera.getDirection().clone();
-        ReaperChaseCamera chase = new ReaperChaseCamera(camera);
+        Vector3f feet = new Vector3f(30, FLOOR, 40);
 
-        for (int i = 0; i < 600; i++) {
-            chase.update(new Vector3f(30, 0, 40), 1 / 60f);
-        }
+        chase(camera, feet, 600);
 
-        Vector2f lookAt = ReaperChaseCamera.getLookAtPoint(camera);
+        Vector2f lookAt = ReaperChaseCamera.getLookAtPoint(camera, FLOOR + REAPER_HEIGHT / 2);
         assertEquals(30f, lookAt.x, 0.01f);
         assertEquals(40f, lookAt.y, 0.01f);
-        assertEquals(ReaperChaseCamera.ZOOM_HEIGHT, camera.getLocation().y, 0.01f);
         assertTrue(direction.distance(camera.getDirection()) < 1e-4f, "The camera keeps its angle");
+    }
+
+    @Test
+    void aTallerReaperIsShownFromFurtherAway() {
+        Camera small = camera();
+        Camera tall = camera();
+        Vector3f feet = new Vector3f(30, FLOOR, 40);
+
+        chase(small, feet, 600);
+        new ReaperChaseCamera(tall, 2 * REAPER_HEIGHT).update(feet, 100f);
+
+        assertTrue(tall.getLocation().y > small.getLocation().y);
     }
 
     @Test
     void theCameraMovesSmoothly() {
         Camera camera = camera();
-        ReaperChaseCamera chase = new ReaperChaseCamera(camera);
+        Vector3f feet = new Vector3f(30, FLOOR, 40);
+        float startHeight = camera.getLocation().y;
 
-        chase.update(new Vector3f(30, 0, 40), 1 / 60f);
+        chase(camera, feet, 1);
 
-        Vector2f lookAt = ReaperChaseCamera.getLookAtPoint(camera);
+        Vector2f lookAt = ReaperChaseCamera.getLookAtPoint(camera, FLOOR + REAPER_HEIGHT / 2);
         assertTrue(lookAt.x > 10f && lookAt.x < 30f, "Moved part of the way: " + lookAt);
-        assertTrue(camera.getLocation().y < 12f && camera.getLocation().y > ReaperChaseCamera.ZOOM_HEIGHT);
+        assertTrue(camera.getLocation().y != startHeight && camera.getLocation().y > FLOOR);
     }
 
     @Test
-    void aCloserCameraIsNotZoomedOut() {
+    void aCameraThatIsTooCloseIsPulledBack() {
         Camera camera = new Camera(800, 600);
+        camera.setFrustumPerspective(28.6f, 800f / 600f, 0.1f, 100f);
         camera.setLocation(new Vector3f(10, 2, 0));
         camera.lookAt(new Vector3f(10, 0, 2), Vector3f.UNIT_Y);
-        ReaperChaseCamera chase = new ReaperChaseCamera(camera);
+        Vector3f feet = new Vector3f(10, FLOOR, 1.5f);
 
-        chase.update(new Vector3f(10, 0, 2), 1f);
+        chase(camera, feet, 600);
 
-        assertEquals(2f, camera.getLocation().y, 0.01f);
+        assertShown(camera, feet, "The feet");
+        assertShown(camera, feet.add(0, REAPER_HEIGHT, 0), "The horns");
     }
 
 }
