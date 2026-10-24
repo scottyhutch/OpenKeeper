@@ -127,6 +127,7 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
                 gameWorldController.getObjectsController());
         gameWorldController.setEntityPositionLookup(positionSystem);
         gameWorldController.setRoomAttackMessages(new RoomAttackMessages(playerService, gameTimer));
+        gameWorldController.getMapController().setBreachMessages(new BreachMessages(playerService, gameTimer));
 
         // Navigation
         navigationService = new NavigationService(gameWorldController.getMapController(), positionSystem);

@@ -71,6 +71,7 @@ public final class MapController extends Container implements IMapController {
     private final IMapInformation<IMapTileController> mapInformation;
     private final ILevelInfo levelInfo;
     private final TileBreaches tileBreaches = new TileBreaches();
+    private BreachMessages breachMessages;
 
     private final Map<EntityId, IRoomController> roomControllers = new HashMap<>();
     private final SafeArrayList<MapListener> mapListeners = new SafeArrayList<>(MapListener.class);
@@ -357,6 +358,11 @@ public final class MapController extends Container implements IMapController {
     }
 
     @Override
+    public void setBreachMessages(BreachMessages breachMessages) {
+        this.breachMessages = breachMessages;
+    }
+
+    @Override
     public Collection<IRoomController> getRoomControllers() {
         return roomControllers.values();
     }
@@ -550,7 +556,9 @@ public final class MapController extends Container implements IMapController {
         if (tileDestroyed) {
 
             // Bringing down the wall of another player is a breach
-            tileBreaches.record(terrain, tile.getOwnerId(), playerId);
+            if (tileBreaches.record(terrain, tile.getOwnerId(), playerId) && breachMessages != null) {
+                breachMessages.dungeonBreached(tile.getOwnerId(), point);
+            }
 
             // TODO: effect, drop loot & checks, claimed walls should also get destroyed if all adjacent tiles are not in cotrol anymore
             // The tile is dead
