@@ -22,8 +22,15 @@ import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.logging.Handler;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Alarm;
 import toniarts.openkeeper.game.component.CreatureComponent;
@@ -33,15 +40,18 @@ import toniarts.openkeeper.game.component.Frozen;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Shot;
 import toniarts.openkeeper.tools.convert.map.Trap;
 import toniarts.openkeeper.tools.convert.map.TrapFiringFixtures;
+import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class TrapEffectsTest {
 
@@ -49,18 +59,21 @@ class TrapEffectsTest {
     private static final short ENEMY = 4;
     private static final short IMP = 1;
     private static final short REAPER = 2;
+    private static final short KING = 21;
     private static final Vector3f TRAP_POSITION = new Vector3f(10, WorldUtils.FLOOR_HEIGHT, 10);
 
     private final EntityData entityData = new DefaultEntityData();
     private final Map<Short, Shot> shots = new HashMap<>();
     private final Map<Short, Creature> creatures = new HashMap<>();
+    private final Set<Point> waterTiles = new HashSet<>();
     private final TrapEffects trapEffects;
     private double gameTime = 5;
 
     TrapEffectsTest() {
         creatures.put(IMP, TrapFiringFixtures.creature(IMP, Creature.CreatureFlag.IS_WORKER));
         creatures.put(REAPER, TrapFiringFixtures.creature(REAPER, Creature.CreatureFlag.IS_HORNY));
-        trapEffects = new TrapEffects(entityData, kwdFile(), () -> gameTime);
+        creatures.put(KING, TrapFiringFixtures.immuneToLightning(TrapFiringFixtures.creature(KING)));
+        trapEffects = new TrapEffects(entityData, kwdFile(), () -> gameTime, mapInformation());
     }
 
     @Test
@@ -229,6 +242,84 @@ class TrapEffectsTest {
         assertEquals(2, entityData.getEntities(Alarm.class, Owner.class).size());
     }
 
+    @Test
+    void fearShotIsNotReportedAsMissing() {
+        Trap fear = trap((short) 8, Shot.ProcessType.FEAR, Shot.DamageType.NONE, 0, 3);
+        EntityId target = addCreature(ENEMY, 12, 10);
+        List<LogRecord> warnings = new ArrayList<>();
+        Logger logger = Logger.getLogger(TrapEffects.class.getName());
+        Handler handler = new Handler() {
+            @Override
+            public void publish(LogRecord logRecord) {
+                warnings.add(logRecord);
+            }
+
+            @Override
+            public void flush() {
+            }
+
+            @Override
+            public void close() {
+            }
+        };
+        logger.addHandler(handler);
+        try {
+            trapEffects.fire(fear, KEEPER, TRAP_POSITION, target);
+        } finally {
+            logger.removeHandler(handler);
+        }
+
+        assertTrue(warnings.isEmpty(), () -> "Unexpected log: " + warnings.get(0).getMessage());
+        assertEquals(0, damage(target));
+        assertNull(entityData.getComponent(target, Frozen.class));
+    }
+
+    @Test
+    void lightningHitsTheTarget() {
+        Trap lightning = trap((short) 6, Shot.ProcessType.LIGHTNING, Shot.DamageType.NONE, 400, 0);
+        EntityId target = addCreature(ENEMY, 13, 10);
+        EntityId bystander = addCreature(ENEMY, 13, 10);
+
+        trapEffects.fire(lightning, KEEPER, TRAP_POSITION, target);
+
+        assertEquals(400, damage(target));
+        assertEquals(0, damage(bystander));
+    }
+
+    @Test
+    void lightningHitsTwiceAsHardInWater() {
+        Trap lightning = trap((short) 6, Shot.ProcessType.LIGHTNING, Shot.DamageType.NONE, 400, 0);
+        EntityId target = addCreature(ENEMY, 13, 10);
+        waterTiles.add(new Point(13, 10));
+
+        trapEffects.fire(lightning, KEEPER, TRAP_POSITION, target);
+
+        assertEquals(800, damage(target));
+    }
+
+    @Test
+    void lightningDoesNotHurtCreaturesImmuneToIt() {
+        Trap lightning = trap((short) 6, Shot.ProcessType.LIGHTNING, Shot.DamageType.NONE, 400, 0);
+        EntityId king = addCreature(ENEMY, 13, 10);
+        CreatureComponent creatureComponent = new CreatureComponent();
+        creatureComponent.creatureId = KING;
+        entityData.setComponent(king, creatureComponent);
+
+        trapEffects.fire(lightning, KEEPER, TRAP_POSITION, king);
+
+        assertEquals(0, damage(king));
+    }
+
+    @Test
+    void lightningWithoutTargetHitsNobody() {
+        Trap lightning = trap((short) 6, Shot.ProcessType.LIGHTNING, Shot.DamageType.NONE, 400, 0);
+        EntityId bystander = addCreature(ENEMY, 10, 10);
+
+        trapEffects.fire(lightning, KEEPER, TRAP_POSITION, null);
+
+        assertEquals(0, damage(bystander));
+    }
+
     private Trap trap(short trapId, Shot.ProcessType processType, Shot.DamageType damageType, int shotData1, int shotData2) {
         short shotId = (short) (trapId + 100);
         shots.put(shotId, TrapFiringFixtures.shot(shotId, processType, damageType));
@@ -262,6 +353,16 @@ class TrapEffectsTest {
             default ->
                 throw new UnsupportedOperationException(method.getName());
         });
+    }
+
+    private IMapInformation mapInformation() {
+        return (IMapInformation) Proxy.newProxyInstance(IMapInformation.class.getClassLoader(), new Class<?>[]{IMapInformation.class},
+                (proxy, method, args) -> {
+                    if ("isWater".equals(method.getName())) {
+                        return waterTiles.contains((Point) args[0]);
+                    }
+                    throw new UnsupportedOperationException(method.getName());
+                });
     }
 
 }
