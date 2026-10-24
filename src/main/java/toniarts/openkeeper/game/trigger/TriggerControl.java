@@ -40,6 +40,7 @@ import toniarts.openkeeper.tools.convert.ConversionUtils;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
+import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 import toniarts.openkeeper.tools.convert.map.TriggerAction.FlagTargetValueActionType;
 import toniarts.openkeeper.tools.convert.map.TriggerGeneric;
@@ -83,6 +84,12 @@ public class TriggerControl extends Control {
      * quantization matters when "equals" is used, it can only hit one tick.
      */
     private static final int TICKS_PER_SECOND = 4;
+
+    /**
+     * The rooms that COLLAPSE_HERO_GATE collapses
+     */
+    private static final Set<Room.TileConstruction> HERO_GATES = EnumSet.of(Room.TileConstruction.HERO_GATE,
+            Room.TileConstruction.HERO_GATE_2_BY_2, Room.TileConstruction.HERO_GATE_3_BY_1);
 
     protected final TriggerGenericData root;
 
@@ -416,6 +423,10 @@ public class TriggerControl extends Control {
                 changeRoomOwner(trigger);
                 return true;
 
+            case COLLAPSE_HERO_GATE:
+                collapseHeroGate(trigger);
+                return true;
+
             default:
                 return doPresentationAction(trigger);
         }
@@ -477,11 +488,6 @@ public class TriggerControl extends Control {
             // controller, only the creature and the map controllers
             case CREATE_PORTAL_GEM ->
                 "the objects controller is not available to the triggers";
-            // STUB: collapse the hero gate room on the tile (1-based). Rooms can be captured
-            // (IRoomController.captured) and destroyed, but there is no "collapse" that plays
-            // the gate's own collapse sequence and removes the gate for good
-            case COLLAPSE_HERO_GATE ->
-                "there is no hero gate collapse sequence";
             // STUB: highlight the owner of a tile (or switch it off). There is no such
             // highlight in the game's view
             case DISPLAY_SLAB_OWNER ->
@@ -540,6 +546,25 @@ public class TriggerControl extends Control {
         IRoomController room = mapController.getRoomControllerByCoordinates(p);
         if (room != null) {
             room.captured(trigger.getUserData("playerId", short.class));
+        }
+    }
+
+    /**
+     * Collapses the hero gate on the tile (1-based). The original (the action
+     * handler 0x518AD0, case 0x20, and the room's 0x4E9130) only marks the room
+     * collapsed and redraws its tiles in the collapsed look. Nothing happens to
+     * the creatures on it. It does so for the hero gates and the Dungeon Heart,
+     * the shipped levels only collapse hero gates. Any other room, or a tile
+     * without a room, is left alone.
+     *
+     * @param trigger the action
+     */
+    private void collapseHeroGate(TriggerActionData trigger) {
+        Point p = new Point(trigger.getUserData("posX", int.class) - 1,
+                trigger.getUserData("posY", int.class) - 1);
+        IRoomController room = mapController.getRoomControllerByCoordinates(p);
+        if (room != null && HERO_GATES.contains(room.getRoom().getTileConstruction())) {
+            room.destroy();
         }
     }
 
