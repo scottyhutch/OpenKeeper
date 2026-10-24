@@ -34,7 +34,7 @@ class PortalGemAnimationTest {
     private final EntityData entityData = new DefaultEntityData();
 
     @Test
-    void theReaperHoldingTheGemStopsWalking() {
+    void theReaperPicksUpTheGem() {
         EntityId reaper = entityData.createEntity();
         entityData.setComponent(reaper, new Position(0, new Vector3f(5, 0, 5)));
         entityData.setComponent(reaper, new CreatureViewState((short) 27, 0, Creature.AnimationType.IDLE_1));
@@ -43,12 +43,13 @@ class PortalGemAnimationTest {
         system.processTick(0.25f);
         assertEquals(Creature.AnimationType.WALK, entityData.getComponent(reaper, CreatureViewState.class).state);
 
-        // He reaches the gem, takes it and has nothing left to do
+        // He reaches the gem and picks it up. The Horned Reaper's pick-up
+        // animation (REA3_PickUpGem4) is in his praying slot
         entityData.removeComponent(reaper, Navigation.class);
         entityData.setComponent(reaper, new PortalGem());
         system.processTick(0.25f);
 
-        assertEquals(Creature.AnimationType.IDLE_1, entityData.getComponent(reaper, CreatureViewState.class).state);
+        assertEquals(Creature.AnimationType.PRAYING, entityData.getComponent(reaper, CreatureViewState.class).state);
         system.stop();
     }
 

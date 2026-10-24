@@ -102,8 +102,8 @@ public final class CreatureViewSystem extends GameTimeCounter {
                         targetState = getAnimation(aiState.getCreatureState());
                     } else if (entityData.getComponent(entityId, PortalGem.class) != null) {
 
-                        // The Reaper holding the gem has nothing left to do, not even walk
-                        targetState = Creature.AnimationType.IDLE_1;
+                        // The Reaper picks up the gem. His pick-up animation is in the praying slot
+                        targetState = Creature.AnimationType.PRAYING;
                     }
                 }
             }
