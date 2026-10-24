@@ -62,6 +62,8 @@ import toniarts.openkeeper.utils.WorldUtils;
  */
 final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
 
+    private static final int GEM_RADIUS = 1;
+    private static final float REACH_SQUARED = 2.25f;
     private static final int WANDER_CHANCE = 3;
     private static final int HEART_RADIUS = 2;
 
@@ -117,23 +119,47 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
             return;
         }
 
-        Point from = WorldUtils.vectorToPoint(entityData.getComponent(reaper, Position.class).position);
+        Vector3f reaperPosition = entityData.getComponent(reaper, Position.class).position;
+        Point from = WorldUtils.vectorToPoint(reaperPosition);
         Point gemTile = WorldUtils.vectorToPoint(gemPosition.position);
         ICreatureController reaperController = creaturesController.createController(reaper);
-        if (from.equals(gemTile)) {
+        Navigation navigation = entityData.getComponent(reaper, Navigation.class);
+        if (from.equals(gemTile) || (navigation == null && isNextTo(reaperPosition, gemPosition.position))) {
             pickUpPortalGem(reaper, reaperController, gem);
             return;
         }
 
         // Keep him on his way, whatever else he might think of
-        Navigation navigation = entityData.getComponent(reaper, Navigation.class);
-        if (navigation != null && gemTile.equals(navigation.target)) {
+        if (navigation != null && Math.abs(navigation.target.x - gemTile.x) <= GEM_RADIUS
+                && Math.abs(navigation.target.y - gemTile.y) <= GEM_RADIUS) {
             return;
         }
-        GraphPath<IMapTileInformation> path = navigationService.findPath(from, gemTile, reaperController);
+        walkToPortalGem(reaper, reaperController, from, gemTile);
+    }
+
+    /**
+     * Has he stopped so close to the gem that he can reach out for it. He may
+     * not be able to stand on its tile, or the steering may stop short of it.
+     */
+    private static boolean isNextTo(Vector3f reaperPosition, Vector3f gemPosition) {
+        float dx = reaperPosition.x - gemPosition.x;
+        float dz = reaperPosition.z - gemPosition.z;
+        return dx * dx + dz * dz <= REACH_SQUARED;
+    }
+
+    /**
+     * Walks to the gem, or next to it if its tile can't be entered
+     */
+    private void walkToPortalGem(EntityId reaper, ICreatureController reaperController, Point from, Point gemTile) {
+        Point destination = gemTile;
+        GraphPath<IMapTileInformation> path = navigationService.findPath(from, destination, reaperController);
+        if (path == null) {
+            destination = navigationService.findRandomAccessibleTile(gemTile, GEM_RADIUS, reaperController);
+            path = destination != null ? navigationService.findPath(from, destination, reaperController) : null;
+        }
         if (path != null) {
             reaperController.getStateMachine().changeState(CreatureState.WANDER);
-            entityData.setComponent(reaper, new Navigation(gemTile, null, SteeringUtils.pathToList(path)));
+            entityData.setComponent(reaper, new Navigation(destination, null, SteeringUtils.pathToList(path)));
         }
     }
 
