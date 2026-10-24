@@ -56,12 +56,7 @@ public final class ActionPointTriggerControl extends TriggerControl {
                 return isCongregateActive(trigger);
 
             case AP_POSESSED_CREATURE_ENTERS:
-                // STUB: a possessed creature (or object, kind 6) of the given player and type is on the
-                // AP. Whether a creature is possessed is a component of the entity (Possessed), and
-                // this scope has no access to the entity data. Nothing in it either tells that the
-                // creature just entered
-                logStub(trigger, "Whether a creature is possessed is a component of the entity (Possessed), and this scope has no access to the entity data. Nothing in it either tells that the creature just entered");
-                return false;
+                return isPossessedCreatureActive(trigger);
 
             case AP_CLAIM_PART_OF: {
                 short playerId = trigger.getUserData("playerId", short.class);
@@ -100,6 +95,42 @@ public final class ActionPointTriggerControl extends TriggerControl {
         }
     }
 
+    /**
+     * The possessed creature condition holds while a creature that is
+     * possessed, of the player (0 = any) and of the creature type (0 = any),
+     * is on the action point. The original looks at the creatures on the
+     * tiles of the point and ignores the comparison and the value.
+     */
+    private boolean isPossessedCreatureActive(TriggerGenericData trigger) {
+        short playerId = trigger.getUserData("playerId", short.class);
+        short targetId = trigger.getUserData("targetId", short.class);
+        short type = trigger.getUserData("targetType", short.class);
+        if (type != 0 && type != 3) {
+            // STUB: the possessed objects (kind 6), nothing but creatures can be possessed here
+            logStub(trigger, "Only creatures can be possessed, targetType " + type + " is not supported");
+            return false;
+        }
+        return countCreatures(creature -> creature.isPossessed() && isWanted(creature, playerId, targetId)) > 0;
+    }
+
+    private static boolean isWanted(ICreatureController creature, short playerId, short targetId) {
+        return (playerId == 0 || creature.getOwnerId() == playerId) && (targetId == 0 || creature.getCreature().getCreatureId() == targetId);
+    }
+
+    private int countCreatures(Predicate<ICreatureController> filter) {
+        int count = 0;
+        for (int x = (int) ap.getStart().x; x <= (int) ap.getEnd().x; x++) {
+            for (int y = (int) ap.getStart().y; y <= (int) ap.getEnd().y; y++) {
+                for (ICreatureController creature : entityPositionLookup.getEntityTypesInLocation(x, y, ICreatureController.class)) {
+                    if (filter.test(creature)) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
     private boolean isCongregateActive(TriggerGenericData trigger) {
         short playerId = trigger.getUserData("playerId", short.class);
         short targetId = trigger.getUserData("targetId", short.class);
@@ -108,17 +139,7 @@ public final class ActionPointTriggerControl extends TriggerControl {
         switch (type) {
             case 0:
             case 3: // Creature
-                int target = 0;
-                for (int x = (int) ap.getStart().x; x <= (int) ap.getEnd().x; x++) {
-                    for (int y = (int) ap.getStart().y; y <= (int) ap.getEnd().y; y++) {
-                        for (ICreatureController creature : entityPositionLookup.getEntityTypesInLocation(x, y, ICreatureController.class)) {
-                            if ((playerId == 0 || creature.getOwnerId() == playerId) && (targetId == 0 || creature.getCreature().getCreatureId() == targetId)) {
-                                target++;
-                            }
-                        }
-                    }
-                }
-                return compare(trigger, target, value);
+                return compare(trigger, countCreatures(creature -> isWanted(creature, playerId, targetId)), value);
             case 6: // Object
                 // STUB: count the objects (by object type, e.g. a chicken) on the AP. The
                 // object controllers do not know their object type ID, only the room
