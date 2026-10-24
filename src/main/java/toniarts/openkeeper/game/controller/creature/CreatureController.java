@@ -55,6 +55,7 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedMovement;
 import toniarts.openkeeper.game.component.Slapped;
+import toniarts.openkeeper.game.component.StolenLoot;
 import toniarts.openkeeper.game.component.Stored;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Threat;
@@ -1132,6 +1133,16 @@ public final class CreatureController extends EntityController implements ICreat
         PortalGem portalGem = entityData.getComponent(entityId, PortalGem.class);
         return portalGem != null;
     }
+    @Override
+    public void markStolen() {
+        entityData.setComponent(entityId, new StolenLoot());
+    }
+
+    @Override
+    public boolean hasStolen() {
+        return entityData.getComponent(entityId, StolenLoot.class) != null;
+    }
+
     @Override
     public void attachPortalGem() {
         entityData.setComponent(entityId, new PortalGem());

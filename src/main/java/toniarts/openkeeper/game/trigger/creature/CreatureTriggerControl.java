@@ -58,7 +58,7 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
             TriggerGeneric.TargetType.CREATURE_CONVERTED, TriggerGeneric.TargetType.CREATURE_CLAIMED,
             TriggerGeneric.TargetType.CREATURE_STUNNED, TriggerGeneric.TargetType.CREATURE_DYING,
             TriggerGeneric.TargetType.CREATURE_HUNGER_SATED, TriggerGeneric.TargetType.CREATURE_PICKS_UP_PORTAL_GEM,
-            TriggerGeneric.TargetType.CREATURE_PICKED_UP);
+            TriggerGeneric.TargetType.CREATURE_PICKED_UP, TriggerGeneric.TargetType.CREATURE_STEALS);
     private static final Set<TriggerGeneric.TargetType> MEASURED_CONDITIONS = EnumSet.of(
             TriggerGeneric.TargetType.CREATURE_HEALTH, TriggerGeneric.TargetType.CREATURE_GOLD_HELD,
             TriggerGeneric.TargetType.CREATURE_EXPERIENCE_LEVEL);
@@ -94,6 +94,7 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
         eventStates.put(TriggerGeneric.TargetType.CREATURE_HUNGER_SATED, creature -> !creature.isHungry());
         eventStates.put(TriggerGeneric.TargetType.CREATURE_PICKS_UP_PORTAL_GEM, ICreatureController::isPortalGemInPosession);
         eventStates.put(TriggerGeneric.TargetType.CREATURE_PICKED_UP, ICreatureController::isPickedUp);
+        eventStates.put(TriggerGeneric.TargetType.CREATURE_STEALS, ICreatureController::hasStolen);
 
         // Events are only matched at the top level of the tree, so those are the only ones to watch
         for (TriggerData node : root.getChildren().getArray()) {
@@ -215,9 +216,7 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
             case CREATURE_ANGRY, CREATURE_AFRAID ->
                 "The state changes can not be told from the outside: the anger is a set of counters (CreatureMood) with no 'became angry' threshold, and the fear of the creature is a state of its AI";
             // STUB, event: the creature stole gold / a spell / a crate. The stealing job does not
-            // report to anybody
-            case CREATURE_STEALS ->
-                "The stealing job does not report to anybody";
+            // steal spells or crates, only gold, and the theft of gold raises the event (see eventStates)
             // STUB, events: the creature left the dungeon (leaves has no producer in the original
             // either) / was sacked. A creature leaving is not announced in the game logic
             case CREATURE_LEAVES, CREATURE_SACKED ->
