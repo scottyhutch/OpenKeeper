@@ -82,9 +82,6 @@ public final class PartyTriggerControl extends TriggerControl {
                 // A member that is dead, or that is no more with the good, is captured
                 return compare(trigger, getDefinedCount() - countMembers(true), trigger.getUserData("value", int.class));
 
-            case PARTY_MEMBERS_INCAPACITATED:
-                return compare(trigger, getDefinedCount() - countAbleMembers(), trigger.getUserData("value", int.class));
-
             default:
                 return super.isActive(trigger);
         }
@@ -108,18 +105,6 @@ public final class PartyTriggerControl extends TriggerControl {
         if (partyController.isCreated()) {
             for (ICreatureController creature : partyController.getActualMembers()) {
                 if (!creature.isDead() && (!onlyGood || creature.getOwnerId() == Player.GOOD_PLAYER_ID)) {
-                    count++;
-                }
-            }
-        }
-        return count;
-    }
-
-    private int countAbleMembers() {
-        int count = 0;
-        if (partyController.isCreated()) {
-            for (ICreatureController creature : partyController.getActualMembers()) {
-                if (!creature.isDead() && !creature.isIncapacitated()) {
                     count++;
                 }
             }
