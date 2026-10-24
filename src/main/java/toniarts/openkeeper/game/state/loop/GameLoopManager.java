@@ -98,6 +98,7 @@ public final class GameLoopManager {
                         gameWorldController.getMapController(), gameWorldController.getCreaturesController()),
                 new PlayerCreatureSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
                 new PlayerSpellbookSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
+                new CreatureMoodSwitchSystem(entityData, levelInfo::isCreatureMoodsEnabled),
                 (IGameLogicUpdatable) gameController,
                 new CreatureSpawnSystem(entityData, gameWorldController.getCreaturesController(), playerControllers.values(),
                         gameSettings, levelInfo, gameWorldController.getMapController()),
