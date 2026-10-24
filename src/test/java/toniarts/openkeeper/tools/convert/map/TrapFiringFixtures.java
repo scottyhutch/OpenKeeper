@@ -136,6 +136,17 @@ public final class TrapFiringFixtures {
     }
 
     /**
+     * Makes the creature immune to lightning, like King Reginald
+     *
+     * @param creature the creature
+     * @return the same creature
+     */
+    public static Creature immuneToLightning(Creature creature) {
+        creature.setFlags3(EnumSet.of(Creature.CreatureFlag3.IS_IMMUNE_TO_LIGHTNING));
+        return creature;
+    }
+
+    /**
      * A level variable
      *
      * @param type the variable
