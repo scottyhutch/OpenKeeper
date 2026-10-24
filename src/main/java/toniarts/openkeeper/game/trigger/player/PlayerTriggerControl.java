@@ -68,6 +68,7 @@ public class PlayerTriggerControl extends TriggerControl {
     private static final Map<TriggerGeneric.TargetType, String> STUB_REASONS = createStubReasons();
 
     private final short playerId;
+    private int seenPayDays;
     private final Map<TriggerAction.ActionType, Predicate<TriggerActionData>> actionHandlers = createActionHandlers();
     private final Map<TriggerGeneric.TargetType, ToIntBiFunction<Short, TriggerGenericData>> measures = createMeasures();
     private int seenDungeonBreaches;
@@ -171,6 +172,7 @@ public class PlayerTriggerControl extends TriggerControl {
             seenEnemyBreaches = enemyBreaches;
             fire(TriggerGeneric.TargetType.PLAYER_ENEMY_BREACHED);
         }
+        pollPayDays();
     }
 
     /**
@@ -191,6 +193,24 @@ public class PlayerTriggerControl extends TriggerControl {
                 previous.put(entry.getKey(), entry.getValue());
                 fire(event, entry.getKey().getCreatureId(), 0);
             }
+        }
+    }
+
+    /**
+     * Raises the pay day event when the player has had a pay day since the
+     * previous poll. The original raises it for the player right after paying
+     * its creatures (0x4BE1A0 calls 0x4C7A50 with event 0x2E)
+     */
+    private void pollPayDays() {
+        IPlayerController playerController = getPlayerController(playerId);
+        if (!isPlayerScope() || playerController == null) {
+            return;
+        }
+
+        int payDays = playerController.getStatsControl().getPayDays();
+        if (payDays > seenPayDays) {
+            seenPayDays = payDays;
+            fire(TriggerGeneric.TargetType.LEVEL_PAY_DAY);
         }
     }
 
@@ -299,9 +319,9 @@ public class PlayerTriggerControl extends TriggerControl {
 
 
 
-        // STUB, events: a creature left the player / the player was paid
-        putStub(result, "Nothing in the game logic announces either, there is no pay day processing to hook into",
-                TriggerGeneric.TargetType.PLAYER_CREATURE_SACKED, TriggerGeneric.TargetType.LEVEL_PAY_DAY);
+        // STUB, event: a creature left the player
+        putStub(result, "Nothing in the game logic announces it",
+                TriggerGeneric.TargetType.PLAYER_CREATURE_SACKED);
 
         // STUB: non-worker creatures that are happy / angry
         putStub(result, "Creatures only have anger counters per complaint (CreatureMood), the happy (0) and angry (2) mood values of the original and the thresholds that turn the counters into them are not known",
