@@ -132,6 +132,9 @@ public final class StealGold extends AbstractObjectiveTask {
     public void executeTask(ICreatureController creature, float executionDuration) {
         executed = true;
 
+        // The "creature steals" event of the thief's trigger, the original raises it before the gold is looked at
+        creature.markStolen();
+
         // The thief asks for all he can carry, the keeper loses all he gets
         // but he can only hold on to half of it
         int wanted = creature.getMaxGold() - creature.getGold();

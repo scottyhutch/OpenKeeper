@@ -247,6 +247,18 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public boolean isPortalGemInPosession();
 
     /**
+     * Mark the creature as one that has stolen something
+     */
+    public void markStolen();
+
+    /**
+     * Has the creature stolen something
+     *
+     * @return true if it has
+     */
+    public boolean hasStolen();
+
+    /**
      * When a creature is hauled to prison, call this to properly seal the enemy
      * to the prison
      *
