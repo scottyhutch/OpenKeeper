@@ -268,8 +268,7 @@ public class TriggerControl extends Control {
                         trigger.getUserData("value", int.class) * TICKS_PER_SECOND);
 
             case LEVEL_PAY_DAY:
-                // STUB, event: the player was paid. Nothing in the game logic announces a pay day
-                logStub(trigger, "pay day is not raised by anybody");
+                // Event: the player's pay day. The player scope raises it, see PlayerTriggerControl
                 return false;
 
             case LEVEL_CREATURES:
