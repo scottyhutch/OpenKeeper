@@ -498,6 +498,19 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
+    public boolean attackAdjacentDoor() {
+        if (!DoorAttackTarget.attacksAdjacentWhenIdle(getOwnerId())) {
+            return false;
+        }
+        EntityId door = DoorAttackTarget.findAdjacent(getCreatureCoordinates(), this::getBlockingDoor, this::canBreakDoor);
+        if (door == null) {
+            return false;
+        }
+        attackDoor(door);
+        return true;
+    }
+
+    @Override
     public boolean canBreakDoor(EntityId door) {
         return DoorAttackTarget.canBreak(entityData, door, creature.getFightStyle(), isEnemy(door));
     }
