@@ -31,6 +31,7 @@ import toniarts.openkeeper.tools.convert.map.TriggerAction;
  */
 public final class PlayerStatsControl {
 
+    private int payDays;
     private final Map<Creature, Integer> slapsMap = new HashMap<>();
     private final Map<Creature, Integer> pickUpsMap = new HashMap<>();
     private final Map<Creature, Integer> dropsMap = new HashMap<>();
@@ -42,6 +43,22 @@ public final class PlayerStatsControl {
 
     public boolean hasSlapped(Creature creature) {
         return slapsMap.containsKey(creature);
+    }
+
+    /**
+     * Counts a pay day of the player
+     */
+    public void payDay() {
+        payDays++;
+    }
+
+    /**
+     * Get how many pay days the player has had
+     *
+     * @return the pay days
+     */
+    public int getPayDays() {
+        return payDays;
     }
 
     public void creatureSlapped(Creature creature) {
