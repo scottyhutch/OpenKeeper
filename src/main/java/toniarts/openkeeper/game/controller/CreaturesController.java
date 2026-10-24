@@ -55,6 +55,7 @@ import toniarts.openkeeper.game.component.Fearless;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Interaction;
+import toniarts.openkeeper.game.component.JailBreaker;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Navigation;
@@ -155,7 +156,7 @@ public final class CreaturesController implements ICreaturesController {
     private void loadCreatures() {
         for (Thing.GoodCreature creature : kwdFile.getThings(Thing.GoodCreature.class)) {
             try {
-                spawnCreature(creature, new Vector2f(creature.getPosX(), creature.getPosY()));
+                markJailBreaker(spawnCreature(creature, new Vector2f(creature.getPosX(), creature.getPosY())), creature);
             } catch (Exception ex) {
                 logger.log(Level.WARNING, "Could not load Thing " + creature + "!", ex);
             }
@@ -194,6 +195,16 @@ public final class CreaturesController implements ICreaturesController {
             } catch (Exception ex) {
                 logger.log(Level.WARNING, "Could not load Thing " + heroParty + "!", ex);
             }
+        }
+    }
+
+    /**
+     * Marks the hero to free its imprisoned friends if it has the party flag
+     * for that
+     */
+    private void markJailBreaker(EntityId entity, Thing.GoodCreature hero) {
+        if (hero.getFlags() != null && hero.getFlags().contains(Thing.Creature.CreatureFlag.FREE_FRIENDS_ON_JAIL_BREAK)) {
+            entityData.setComponent(entity, new JailBreaker());
         }
     }
 
@@ -573,6 +584,7 @@ public final class CreaturesController implements ICreaturesController {
         for (Thing.GoodCreature creature : partyController.getMembers()) {
             EntityId entityId = spawnCreature(creature, position);
             entityData.setComponent(entityId, new Party(partyController.getId()));
+            markJailBreaker(entityId, creature);
 
             partyController.addMemberInstance(creature, createController(entityId));
         }
