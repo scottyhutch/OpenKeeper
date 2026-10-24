@@ -39,7 +39,7 @@ class PortalGemAnimationTest {
         entityData.setComponent(reaper, new Position(0, new Vector3f(5, 0, 5)));
         entityData.setComponent(reaper, new CreatureViewState((short) 27, 0, Creature.AnimationType.IDLE_1));
         entityData.setComponent(reaper, new Navigation(new Point(5, 5), null, null));
-        CreatureViewSystem system = new CreatureViewSystem(entityData);
+        CreatureViewSystem system = new CreatureViewSystem(entityData, null);
         system.processTick(0.25f);
         assertEquals(Creature.AnimationType.WALK, entityData.getComponent(reaper, CreatureViewState.class).state);
 
