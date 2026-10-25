@@ -230,6 +230,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
             appStates.add(interactionState);
             // FIXME add to appStates or directly to stateManager
             appStates.add(new SystemMessageState(screen.getMessages()));
+            appStates.add(new ManufactureProgressState(entityData, playerId));
             // Load the state
             for (AbstractAppState state : appStates) {
                 stateManager.attach(state);

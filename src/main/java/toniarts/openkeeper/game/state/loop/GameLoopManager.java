@@ -98,6 +98,8 @@ public final class GameLoopManager {
                 new GraveyardSystem(entityData, levelInfo.getLevelData(), gameSettings,
                         gameWorldController.getMapController(), gameWorldController.getCreaturesController()),
                 new PlayerCreatureSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
+                new ManufactureProgressSystem(entityData, playerControllers.values(),
+                        ManufactureProgressSystem.trapOrders(gameWorldController.getTrapsController())),
                 new PlayerSpellbookSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
                 new CreatureMoodSwitchSystem(entityData, levelInfo::isCreatureMoodsEnabled),
                 (IGameLogicUpdatable) gameController,
