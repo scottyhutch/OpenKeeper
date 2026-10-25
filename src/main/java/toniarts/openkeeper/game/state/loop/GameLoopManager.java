@@ -122,6 +122,7 @@ public final class GameLoopManager {
                 new CreatureViewSystem(entityData, levelInfo.getLevelData()),
                 new DoorSystem(entityData, level, gameWorldController.getMapController(), levelInfo),
                 new DoorViewSystem(entityData, positionSystem),
+                new BattleSystem(entityData, gameController.getGameTimer()),
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),
                 new TrapSystem(entityData, level, gameController.getGameTimer(),
                         solidTilesBlockSight(gameWorldController.getMapController()), playerControllers,
