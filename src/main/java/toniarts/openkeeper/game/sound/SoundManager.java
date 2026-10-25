@@ -21,7 +21,6 @@ import java.util.Locale;
 import javax.annotation.Nullable;
 import toniarts.openkeeper.game.data.IIndexable;
 import toniarts.openkeeper.tools.convert.AssetsConverter;
-import toniarts.openkeeper.tools.modelviewer.SoundsLoader;
 import toniarts.openkeeper.utils.Point;
 
 /**
@@ -152,6 +151,16 @@ public final class SoundManager {
     }
 
     /**
+     * Plays a single clip of a sound file, ignoring the event rules.
+     */
+    public static void playFile(SoundFile file) {
+        SoundEngine current = engine;
+        if (current != null && file != null) {
+            current.playClip(AssetsConverter.SOUNDS_FOLDER + "/" + file.getFilename());
+        }
+    }
+
+    /**
      * Loads a category, looking into the global sound folder first and into the
      * category folder of the non global sounds afterwards.
  */
@@ -163,9 +172,9 @@ public final class SoundManager {
 
         // speech categories live in their own folders, do not even look into the global one
         boolean local = category.toUpperCase(Locale.ROOT).startsWith(SoundCategory.SPEECH_PREFIX);
-        SoundCategory result = SoundsLoader.load(category, !local);
+        SoundCategory result = SoundCategory.load(category, !local);
         if (result == null) {
-            result = SoundsLoader.load(category, local);
+            result = SoundCategory.load(category, local);
         }
         return result;
     }

@@ -27,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import javax.annotation.Nullable;
 import toniarts.openkeeper.game.data.IIndexable;
@@ -38,9 +39,8 @@ import toniarts.openkeeper.utils.PathUtils;
 /**
  * A sound category, i.e. one {@code SFX.map} plus its {@code BANK.map}.
  * <p>
- * The file is parsed exactly as laid out in the design paper, which includes the
- * link records of a group that the original parser skipped, and which made every
- * sample after a group with links point at the wrong clip.
+ * The link records that follow a group in {@code SFX.map} have to be read as well,
+ * otherwise every sample after a group with links points at the wrong clip.
  */
 public final class SoundCategory {
 
@@ -56,6 +56,8 @@ public final class SoundCategory {
     public static final String SPEECH_MULTIPLAYER = "SPEECH_MULTIPLAYER";
     public static final String SPEECH_HORNY = "SPEECH_HORNY";
     public static final String SPEECH_MYPETDUNGEON = "SPEECH_MYPETDUNGEON";
+
+    private static final Map<String, SoundCategory> CACHE = new HashMap<>();
 
     private final String folder;
     private final String name;
@@ -99,6 +101,38 @@ public final class SoundCategory {
         for (Map.Entry<Integer, SoundEvent> entry : this.events.entrySet()) {
             groups.put(entry.getKey(), new SoundGroup(this, entry.getValue()));
         }
+    }
+
+    /**
+     * Loads a category, or returns the cached one. The same category name may
+     * exist both in the global and in a non global folder.
+     *
+     * @return the category, {@code null} if it does not exist or has no events
+     */
+    @Nullable
+    public static synchronized SoundCategory load(String category, boolean useGlobal) {
+        if (category == null || category.isEmpty()) {
+            return null;
+        }
+
+        String key = (useGlobal ? "global:" : "local:") + category.toUpperCase(Locale.ROOT);
+        SoundCategory result = CACHE.get(key);
+        if (result != null) {
+            return result;
+        }
+
+        try {
+            result = new SoundCategory(category, useGlobal);
+            if (result.getEvents().isEmpty()) {
+                logger.log(Level.WARNING, "Sound category {0} has no events", category);
+                return null;
+            }
+            CACHE.put(key, result);
+        } catch (Exception e) {
+            logger.log(Level.WARNING, "Sound category {0} does not exist", category);
+            result = null;
+        }
+        return result;
     }
 
     public String getName() {
