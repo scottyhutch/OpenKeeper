@@ -54,6 +54,7 @@ import toniarts.openkeeper.game.component.PlayerObjective;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
+import toniarts.openkeeper.game.component.PossessedMovement;
 import toniarts.openkeeper.game.component.Slapped;
 import toniarts.openkeeper.game.component.Stored;
 import toniarts.openkeeper.game.component.TaskComponent;
@@ -89,12 +90,7 @@ import toniarts.openkeeper.utils.WorldUtils;
 
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
+import java.util.*;
 import java.util.function.Consumer;
 
 /**
@@ -107,6 +103,13 @@ public final class CreatureController extends EntityController implements ICreat
 
     private static final Logger logger = System.getLogger(CreatureController.class.getName());
 
+    /**
+     * Possessed movement speed relative to walking forward
+     */
+    private static final float POSSESSED_BACKWARD_SPEED_FACTOR = 0.5f;
+    private static final float POSSESSED_STRAFE_SPEED_FACTOR = 0.667f;
+    private static final float SPEED_MULTIPLIER = 2f;
+
     private final INavigationService navigationService;
     private final ITaskManager taskManager;
     private final IGameTimer gameTimer;
@@ -114,6 +117,7 @@ public final class CreatureController extends EntityController implements ICreat
     private final ICreaturesController creaturesController;
     private final IEntityPositionLookup entityPositionLookup;
     private final ILevelInfo levelInfo;
+    private final RoomDestructionTrigger roomDestructionTrigger = new RoomDestructionTrigger();
     private final IShotsController shotsController;
     // TODO: All the data is not supposed to be on entities as they become too big, but I don't want these here either
     private final Creature creature;
@@ -967,6 +971,8 @@ public final class CreatureController extends EntityController implements ICreat
             motionless = 0;
         }
 
+        destroyRoomOnTheWay();
+
         // Task timer
         TaskComponent taskComponent = entityData.getComponent(entityId, TaskComponent.class);
         if (taskComponent != null && taskComponent.taskStarted) {
@@ -979,6 +985,29 @@ public final class CreatureController extends EntityController implements ICreat
         CreatureAi creatureAi = entityData.getComponent(entityId, CreatureAi.class);
         if (creatureAi == null || stateMachine.getCurrentState() != creatureAi.getCreatureState()) {
             entityData.setComponent(entityId, new CreatureAi(gameTimer.getGameTime(), stateMachine.getCurrentState(), creature.getId()));
+        }
+    }
+
+    /**
+     * A hero with the DESTROY_ROOMS flag wrecks the keeper's room tiles he
+     * steps on, on his way to wherever he is going (DKII.EXE 0x488930)
+     */
+    private void destroyRoomOnTheWay() {
+        CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        Position position = entityData.getComponent(entityId, Position.class);
+        Point tile = roomDestructionTrigger.onTheWay(position != null ? position.position : null, stateMachine.getCurrentState(),
+                creatureComponent != null && creatureComponent.destroysRooms, getOwnerId());
+        if (tile == null || entityData.getComponent(entityId, Possessed.class) != null
+                || !taskManager.assignDestroyRoomTask(this, tile)) {
+            return;
+        }
+
+        // Stop on the tile and swing at it
+        if (stateMachine.isInState(CreatureState.WORK)) {
+            stopCreature();
+            navigateToAssignedTask();
+        } else {
+            stateMachine.changeState(CreatureState.WORK);
         }
     }
 
@@ -1443,28 +1472,64 @@ public final class CreatureController extends EntityController implements ICreat
         }
     }
 
+    @Override
+    public void setPossessedMovement(Vector2f direction, float rotation, byte speedMode) {
+        // Use the level scaled speeds, same as the AI movement does
+        Creature.Attributes attributes = creature.getAttributes();
+        CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        float walkSpeed = creatureComponent != null ? creatureComponent.speed : attributes.getSpeed();
+        float runSpeed = creatureComponent != null ? creatureComponent.runSpeed : attributes.getRunSpeed();
+        float speed = switch (speedMode) {
+            case PossessedMovement.SPEED_RUN -> runSpeed;
+            case PossessedMovement.SPEED_CREEP -> attributes.getShuffleSpeed();
+            default -> walkSpeed;
+        };
+        Vector2f normalizedDirection = direction.lengthSquared() > 0 ? direction.normalize() : new Vector2f();
+        if (normalizedDirection.lengthSquared() > 0) {
+
+            // Backing up and strafing are slower than walking forward, relative to the facing
+            Vector2f facing = new Vector2f(FastMath.sin(rotation), FastMath.cos(rotation));
+            float forward = normalizedDirection.dot(facing);
+            float sideways = normalizedDirection.x * facing.y - normalizedDirection.y * facing.x;
+            speed *= new Vector2f(forward * (forward < 0 ? POSSESSED_BACKWARD_SPEED_FACTOR : 1f),
+                    sideways * POSSESSED_STRAFE_SPEED_FACTOR).length();
+        }
+        entityData.setComponent(entityId, new PossessedMovement(normalizedDirection, rotation, speed * SPEED_MULTIPLIER));
+    }
+
     private void startPossession() {
+        if (entityData.getComponent(entityId, Possessed.class) != null) {
+            return;
+        }
+
         CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
         int manaDrain = creatureComponent != null ? creatureComponent.posessionManaCost : 0;
         Mana mana = entityData.getComponent(entityId, Mana.class);
-        entityData.setComponent(entityId, new Mana(mana != null ? -manaDrain - mana.manaGeneration : -manaDrain));
+        entityData.setComponent(entityId, new Mana(mana != null ? mana.manaGeneration - manaDrain : -manaDrain));
         entityData.setComponent(entityId, new Possessed(manaDrain, gameTimer.getGameTime()));
         entityData.removeComponent(entityId, CreatureAi.class);
         entityData.removeComponent(entityId, Navigation.class);
+        unassingCurrentTask();
     }
 
     private void endPossession() {
-        entityData.setComponent(entityId, new CreatureAi(gameTimer.getGameTime(), CreatureState.IDLE, getCreature().getCreatureId()));
+        Possessed possessed = entityData.getComponent(entityId, Possessed.class);
+        if (possessed == null) {
+            return;
+        }
 
         // Return the mana flow
-        Possessed possessed = entityData.getComponent(entityId, Possessed.class);
         Mana mana = entityData.getComponent(entityId, Mana.class);
-        int manaGeneration = mana.manaGeneration + possessed.manaDrain;
+        int manaGeneration = (mana != null ? mana.manaGeneration : 0) + possessed.manaDrain;
         if (manaGeneration == 0) {
             entityData.removeComponent(entityId, Mana.class);
         } else {
             entityData.setComponent(entityId, new Mana(manaGeneration));
         }
+
+        entityData.removeComponent(entityId, PossessedMovement.class);
+        entityData.removeComponent(entityId, Possessed.class);
+        entityData.setComponent(entityId, new CreatureAi(gameTimer.getGameTime(), CreatureState.IDLE, getCreature().getCreatureId()));
     }
 
     @Override
@@ -1488,4 +1553,17 @@ public final class CreatureController extends EntityController implements ICreat
         getStateMachine().changeState(CreatureState.IDLE);
     }
 
+    @Override
+    public boolean equals(Object obj) {
+        if (!(obj instanceof CreatureController that)) {
+            return false;
+        }
+
+        return Objects.equals(entityId, that.entityId);
+    }
+
+    @Override
+    public int hashCode() {
+        return 31 * super.hashCode() + Objects.hashCode(entityId);
+    }
 }

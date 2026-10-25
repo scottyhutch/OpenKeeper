@@ -208,6 +208,21 @@ public final class GameClientService extends AbstractClientService
     }
 
     @Override
+    public void triggerSpawnCreatureCheat(short creatureId, int level, int amount) {
+        getDelegate().triggerSpawnCreatureCheat(creatureId, level, amount);
+    }
+
+    @Override
+    public void setPossessedMovement(Vector2f direction, float rotation, byte speedMode) {
+        getDelegate().setPossessedMovement(direction, rotation, speedMode);
+    }
+
+    @Override
+    public void endPossession() {
+        getDelegate().endPossession();
+    }
+
+    @Override
     public void castKeeperSpell(short keeperSpellId, EntityId target, Point tile, Vector2f position) {
         getDelegate().castKeeperSpell(keeperSpellId, target, tile, position);
     }
@@ -373,6 +388,13 @@ public final class GameClientService extends AbstractClientService
         public void onShowMessage(int textId) {
             for (GameSessionListener l : listeners.getArray()) {
                 l.onShowMessage(textId);
+            }
+        }
+
+        @Override
+        public void onShowMentorMessage(int speechId, Vector3f position) {
+            for (GameSessionListener l : listeners.getArray()) {
+                l.onShowMentorMessage(speechId, position);
             }
         }
 

@@ -223,6 +223,15 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     }
 
     @Override
+    public void showMentorMessage(int speechId, Vector3f position, short playerId) {
+        if (playerId == PLAYER_ID) {
+            for (GameSessionListener listener : listeners.getArray()) {
+                listener.onShowMentorMessage(speechId, position);
+            }
+        }
+    }
+
+    @Override
     public void zoomViewToPoint(Vector3f point, short playerId) {
         if (playerId == PLAYER_ID) {
             for (GameSessionListener listener : listeners.getArray()) {
@@ -405,6 +414,27 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     public void triggerCheat(CheatState.CheatType cheat) {
         for (GameSessionServiceListener listener : serverListeners.getArray()) {
             listener.onCheatTriggered(cheat, PLAYER_ID);
+        }
+    }
+
+    @Override
+    public void triggerSpawnCreatureCheat(short creatureId, int level, int amount) {
+        for (GameSessionServiceListener listener : serverListeners.getArray()) {
+            listener.onSpawnCreatureCheatTriggered(creatureId, level, amount, PLAYER_ID);
+        }
+    }
+
+    @Override
+    public void setPossessedMovement(Vector2f direction, float rotation, byte speedMode) {
+        for (GameSessionServiceListener listener : serverListeners.getArray()) {
+            listener.onSetPossessedMovement(direction, rotation, speedMode, PLAYER_ID);
+        }
+    }
+
+    @Override
+    public void endPossession() {
+        for (GameSessionServiceListener listener : serverListeners.getArray()) {
+            listener.onEndPossession(PLAYER_ID);
         }
     }
 
