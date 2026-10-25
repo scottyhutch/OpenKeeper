@@ -1296,6 +1296,13 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             }
         }
 
+        // Trap crates are brought to their blueprints before digging, claiming and the like, as in the original's imp
+        // work order (DKII.EXE 0x463DF0)
+        result = Boolean.compare(isArmingTrap(o2.task), isArmingTrap(o1.task));
+        if (result != 0) {
+            return result;
+        }
+
         // Walls are only worked on once there is nothing else to do, the floor is claimed first. Repairing goes with
         // reinforcing, in the original (DKII.EXE 0x46AEA0) both are one job that only comes after the usual work
         result = Boolean.compare(isWallWork(o1.task), isWallWork(o2.task));
@@ -1378,6 +1385,10 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      */
     static boolean isClaiming(Task task) {
         return task.getTaskType() == TaskType.CLAIM_TILE || task.getTaskType() == TaskType.CLAIM_ROOM;
+    }
+
+    private static boolean isArmingTrap(Task task) {
+        return task.getTaskType() == TaskType.FETCH_TRAP_CRATE || task.getTaskType() == TaskType.DELIVER_TRAP_CRATE;
     }
 
     /**
