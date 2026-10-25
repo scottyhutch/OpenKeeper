@@ -120,6 +120,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private Element selectedButton;
     private final Set<Element> unaffordableSpells = new HashSet<>();
     private final Set<Element> unaffordableRooms = new HashSet<>();
+    private final Set<Element> workshoplessIcons = new HashSet<>();
     private Label tooltip;
     private boolean initHud = false;
     private String cinematicText;
@@ -157,6 +158,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
                     lastImpCount = impCount;
                     populateSpellTab();
                 }
+            }
+            if (state != null && screen != null && SCREEN_HUD_ID.equals(screen.getScreenId())) {
+                updateWorkshopAvailability();
             }
             lastUpdate = 0;
         }
@@ -1218,6 +1222,43 @@ public final class PlayerScreenController implements IPlayerScreenController {
             Element element = contentPanel.addElement(createTrapIcon(trap));
             setResearchEffect(trap, element);
         }
+        workshoplessIcons.clear();
+        updateWorkshopAvailability();
+    }
+
+    /**
+     * Darkens the trap and door icons while the player has no Workshop to
+     * manufacture them in, as DKII.EXE does (0x412FC0)
+     */
+    private void updateWorkshopAvailability() {
+        Screen hud = nifty.getScreen(SCREEN_HUD_ID);
+        boolean hasWorkshop = state.hasWorkshop();
+        for (ResearchableEntity door : state.getAvailableDoors()) {
+            if (door.isDiscovered()) {
+                updateWorkshopIcon(hud.findElementById("door_" + state.getKwdFile().getDoorById(door.getId()).getDoorId()), hasWorkshop);
+            }
+        }
+        for (ResearchableEntity trap : state.getAvailableTraps()) {
+            if (trap.isDiscovered()) {
+                updateWorkshopIcon(hud.findElementById("trap_" + state.getKwdFile().getTrapById(trap.getId()).getTrapId()), hasWorkshop);
+            }
+        }
+    }
+
+    private void updateWorkshopIcon(Element icon, boolean hasWorkshop) {
+        if (icon == null || hasWorkshop != workshoplessIcons.contains(icon)) {
+            return;
+        }
+        if (!hasWorkshop) {
+            workshoplessIcons.add(icon);
+            icon.startEffect(EffectEventId.onCustom, null, "unaffordable");
+        } else {
+            workshoplessIcons.remove(icon);
+            icon.stopEffect(EffectEventId.onCustom);
+            if (icon == selectedButton) {
+                icon.startEffect(EffectEventId.onCustom, null, "select");
+            }
+        }
     }
 
     /**
@@ -1427,7 +1468,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
     protected void updateSelectedItem(PlayerInteractionState.InteractionState state) {
         if (selectedButton != null) {
             selectedButton.stopEffect(EffectEventId.onCustom);
-            if (unaffordableSpells.contains(selectedButton) || unaffordableRooms.contains(selectedButton)) {
+            if (unaffordableSpells.contains(selectedButton) || unaffordableRooms.contains(selectedButton)
+                    || workshoplessIcons.contains(selectedButton)) {
                 selectedButton.startEffect(EffectEventId.onCustom, null, "unaffordable");
             }
         }
