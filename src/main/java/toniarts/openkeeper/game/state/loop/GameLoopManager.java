@@ -76,6 +76,7 @@ public final class GameLoopManager {
                 new CreatureMoodSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
                 new SlapSystem(entityData, levelInfo.getLevelData(), playerControllers.values(), gameSettings),
                 new HealthSystem(entityData, positionSystem, gameSettings, gameWorldController.getCreaturesController(),
+                        gameWorldController.getRoomAttackMessages(),
                         levelInfo, playerControllers.values(), gameWorldController.getMapController()),
                 new CreatureTorturingSystem(entityData, gameWorldController.getCreaturesController(),
                         gameWorldController.getMapController()),

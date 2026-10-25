@@ -49,12 +49,15 @@ import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.RoomAttackMessages;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
+import toniarts.openkeeper.game.controller.creature.DungeonHeartTarget;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.GameTimeCounter;
+import toniarts.openkeeper.utils.WorldUtils;
 
 /**
  * Manages and monitors thing healthiness. Beeb... beeb... beeeeeeeeeeeeeeeeeeeb :)
@@ -67,6 +70,7 @@ public final class HealthSystem extends GameTimeCounter {
     private final SafeArrayList<EntityId> entityIds;
     private final IEntityPositionLookup entityPositionLookup;
     private final ICreaturesController creaturesController;
+    private final RoomAttackMessages roomAttackMessages;
     private final int timeToDeath;
     private final int healthRegeneratePerSecond;
     private final int healthRegeneratePerSecondImprisoned;
@@ -83,12 +87,13 @@ public final class HealthSystem extends GameTimeCounter {
 
     public HealthSystem(EntityData entityData, IEntityPositionLookup entityPositionLookup,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
-            ICreaturesController creaturesController, ILevelInfo levelInfo,
+            ICreaturesController creaturesController, RoomAttackMessages roomAttackMessages, ILevelInfo levelInfo,
             Collection<IPlayerController> playerControllers, IMapController mapController) {
 
         this.entityData = entityData;
         this.entityPositionLookup = entityPositionLookup;
         this.creaturesController = creaturesController;
+        this.roomAttackMessages = roomAttackMessages;
         this.levelInfo = levelInfo;
         this.mapController = mapController;
         entityIds = new SafeArrayList<>(EntityId.class);
@@ -275,6 +280,15 @@ public final class HealthSystem extends GameTimeCounter {
 
             // Remove the damage
             entityData.removeComponent(entityId, Damage.class);
+
+            // The keeper hears of the damage to his Dungeon Heart
+            if (damage.damage > 0 && roomAttackMessages != null && DungeonHeartTarget.isDungeonHeart(entityData, entityId)) {
+                Owner owner = entityData.getComponent(entityId, Owner.class);
+                Position position = entityData.getComponent(entityId, Position.class);
+                if (owner != null && position != null) {
+                    roomAttackMessages.heartAttacked(owner.ownerId, WorldUtils.vectorToPoint(position.position));
+                }
+            }
         }
 
         // Imprisonment
