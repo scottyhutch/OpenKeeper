@@ -1549,6 +1549,22 @@ public enum MentorType implements IIndexable {
     }
 
     /**
+     * Miscellaneous mentor speech, such as the cutscene speeches. The event
+     * ids are not contiguous, so the number can't be used as the id directly.
+     *
+     * @param number the number in the {@code miscNNN} file name
+     * @return the speech type, or {@code null} if there is no such speech
+     */
+    @Nullable
+    public static MentorType forMisc(int number) {
+        try {
+            return valueOf(String.format("MISC%03d", number));
+        } catch (IllegalArgumentException ex) {
+            return null;
+        }
+    }
+
+    /**
      * Level related mentor speech, i.e. the briefing and the two debriefing
      * speeches of a campaign level.
      *
@@ -1561,22 +1577,6 @@ public enum MentorType implements IIndexable {
     public static MentorType forLevel(int level, int index) {
         try {
             return valueOf(String.format("LEV%02d%03d", level, index + 1));
-        } catch (IllegalArgumentException ex) {
-            return null;
-        }
-    }
-
-    /**
-     * Miscellaneous mentor speech by its file number, e.g. {@code 149} for
-     * misc149, the speech before the cutscene of the first level.
-     *
-     * @param number the number in the speech file name
-     * @return the speech type, or {@code null} if there is no such speech
-     */
-    @Nullable
-    public static MentorType forMisc(int number) {
-        try {
-            return valueOf(String.format("MISC%03d", number));
         } catch (IllegalArgumentException ex) {
             return null;
         }

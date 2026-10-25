@@ -28,6 +28,7 @@ import java.util.List;
 import java.util.Map;
 import javax.annotation.Nullable;
 import toniarts.openkeeper.tools.convert.AssetsConverter;
+import toniarts.openkeeper.utils.AssetUtils;
 import toniarts.openkeeper.utils.Point;
 
 /**
@@ -47,8 +48,7 @@ public class SoundEngine {
 
     /**
      * Positional voices further away than this many tiles are not realised.
-     * The paper states this as a squared game unit distance; here it is applied
-     * to the tile distance that the game itself uses.
+     * The distance is measured between tile coordinates, not world units.
      */
     public static final int MAX_ELIGIBLE_DISTANCE = 12;
     /**
@@ -136,6 +136,17 @@ public class SoundEngine {
         // register immediately, so that handles can be stopped or queried before the voice is realised
         voices.put(voice.getHandle(), voice);
         return voice.getHandle();
+    }
+
+    /**
+     * Plays a single clip as it is, bypassing the event rules, i.e. for
+     * previewing in the tools. Not tracked, so it can not be stopped.
+     */
+    public synchronized void playClip(String assetPath) {
+        AudioBackend backend = factory.create(AudioSpec.stereo(AssetUtils.getCanonicalAssetKey(assetPath), masterVolume / 100.0f));
+        if (backend != null) {
+            backend.play();
+        }
     }
 
     @Nullable

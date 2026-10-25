@@ -11,7 +11,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.utils.Point;
 
@@ -213,7 +212,6 @@ class AmbienceTest {
         engine.tick();
     }
 
-    @Disabled("Fails on PR #594 itself (WIP), not caused by the local merge with #593")
 
     @Test
     void torchIsLoudestAtTheTorchAndSilentBeyondTwoTiles() {
@@ -221,6 +219,7 @@ class AmbienceTest {
         categories.put("OBJECT_TORCH", category("OBJECT_TORCH", AmbienceDriver.TORCH_EVENT,
                 event(AmbienceDriver.TORCH_EVENT, SEGMENTED_FLAGS, loud(0, 60, 4000))));
         AmbienceDriver driver = new AmbienceDriver(engine, categories::get);
+        engine.setListener(new Point(10, 10));
 
         driver.update(1_000, null, new Point(10, 10), new Point(10, 10));
         assertEquals(1, engine.getActiveVoiceCount());
