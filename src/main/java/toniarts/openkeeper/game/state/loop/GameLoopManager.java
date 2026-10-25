@@ -81,6 +81,8 @@ public final class GameLoopManager {
                         gameWorldController.getMapController()),
                 new DeathSystem(entityData, gameSettings, positionSystem),
                 new PlayerCreatureSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
+                new ManufactureProgressSystem(entityData, playerControllers.values(),
+                        ManufactureProgressSystem.trapOrders(gameWorldController.getTrapsController())),
                 new PlayerSpellbookSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
                 (IGameLogicUpdatable) gameController,
                 new CreatureSpawnSystem(gameWorldController.getCreaturesController(), playerControllers.values(),
