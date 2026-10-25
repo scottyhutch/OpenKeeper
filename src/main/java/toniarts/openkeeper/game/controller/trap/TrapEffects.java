@@ -35,6 +35,7 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.entity.EntityController;
+import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Shot;
@@ -56,7 +57,10 @@ import toniarts.openkeeper.utils.WorldUtils;
  * <li>A freeze shot (Freeze Trap) freezes its target for shot data 1
  * seconds.</li>
  * <li>An alarm shot (Alarm Trap) raises an alarm for the trap's owner at the
- * trap, unless the owner's last alarm still lasts.</li>
+ * trap, unless the owner's last alarm still lasts, and tells the owner that
+ * enemy creatures are rampaging through his Dungeon (DKII.EXE queues message
+ * 0x2f in the shot handler 0x4AE120, the queue 0x4C4600 does not repeat it
+ * while it is shown, so the alarm's duration is enough).</li>
  * </ul>
  * Area damage spares only the trap owner's creatures.
  */
@@ -70,17 +74,24 @@ public final class TrapEffects implements ITrapEffects {
      */
     private static final double ALARM_DURATION = 50;
 
+    /**
+     * "Enemy creatures are rampaging through your Dungeon"
+     */
+    private static final int ALARM_SPEECH_ID = 1346;
+
     private final EntityData entityData;
     private final IKwdFile kwdFile;
     private final IGameTimer gameTimer;
+    private final PlayerService playerService;
     private final EntitySet creatureEntities;
     private final EntitySet alarmEntities;
     private final Set<Shot.ProcessType> reportedProcessTypes = EnumSet.noneOf(Shot.ProcessType.class);
 
-    public TrapEffects(EntityData entityData, IKwdFile kwdFile, IGameTimer gameTimer) {
+    public TrapEffects(EntityData entityData, IKwdFile kwdFile, IGameTimer gameTimer, PlayerService playerService) {
         this.entityData = entityData;
         this.kwdFile = kwdFile;
         this.gameTimer = gameTimer;
+        this.playerService = playerService;
 
         creatureEntities = entityData.getEntities(CreatureComponent.class, Owner.class, Position.class, Health.class);
         alarmEntities = entityData.getEntities(Alarm.class, Owner.class);
@@ -167,7 +178,7 @@ public final class TrapEffects implements ITrapEffects {
 
     /**
      * Raises an alarm for the player at the trap, unless the player's last
-     * alarm still lasts
+     * alarm still lasts, and tells the player about it
      *
      * @param ownerId the player the alarm is for
      * @param origin where the trap is
@@ -185,6 +196,9 @@ public final class TrapEffects implements ITrapEffects {
         entityData.setComponent(alarm, new Owner(ownerId, ownerId));
         entityData.setComponent(alarm, new Position(0, origin.clone()));
         entityData.setComponent(alarm, new Decay(gameTimer.getGameTime(), ALARM_DURATION));
+        if (playerService != null) {
+            playerService.showMentorMessage(ALARM_SPEECH_ID, origin, ownerId);
+        }
     }
 
     private static float distanceSquared(Vector3f from, Vector3f to) {
