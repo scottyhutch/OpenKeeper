@@ -75,13 +75,10 @@ public final class CutsceneState extends AbstractAppState {
         this.app.getInputManager().setCursorVisible(false);
 
         if (cutscene.getSpeechId() != null && !cutscene.getSpeechId().isEmpty()) {
-
-            // The cutscene names the speech by its file number (misc149), the sound bank by its own id
+            // The speech id is the number of the miscNNN file, not the sound event id
             MentorType speech = MentorType.forMisc(Integer.parseInt(cutscene.getSpeechId()));
             if (speech != null) {
                 speechHandle = SoundManager.playSound(SoundCategory.SPEECH_MENTOR, speech);
-            } else {
-                logger.log(Level.WARNING, "No mentor speech misc{0} for the cutscene", cutscene.getSpeechId());
             }
             if (speechHandle == SoundEngine.NO_HANDLE) {
                 speechFinished = true;
