@@ -24,10 +24,9 @@ import java.util.Map;
 import toniarts.openkeeper.game.component.ManufactureProgress;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.controller.IPlayerController;
-import toniarts.openkeeper.game.controller.ITrapsController;
+import toniarts.openkeeper.game.controller.WorkshopOrders;
 import toniarts.openkeeper.game.controller.player.PlayerManufactureControl;
 import toniarts.openkeeper.game.data.ResearchableType;
-import toniarts.openkeeper.tools.convert.map.Trap;
 
 /**
  * Tells the HUD what each keeper's workshops are manufacturing. Each keeper
@@ -83,16 +82,16 @@ public final class ManufactureProgressSystem implements IGameLogicUpdatable {
     }
 
     /**
-     * The orders come from the trap blueprints. Doors are not manufactured
-     * yet, when they are, their orders go in the same list
+     * The orders come from the keeper's one manufacture list of trap and door
+     * blueprints
      *
-     * @param trapsController the traps
+     * @param workshopOrders the manufacture list
      * @return the orders
      */
-    public static OrderLookup trapOrders(ITrapsController trapsController) {
+    public static OrderLookup workshopOrders(WorkshopOrders workshopOrders) {
         return playerId -> {
-            Trap trap = trapsController.getTrapToManufacture(playerId);
-            return trap != null ? new Order(ResearchableType.TRAP, trap.getTrapId(), trap.getManufToBuild()) : null;
+            WorkshopOrders.Order order = workshopOrders.getNext(playerId);
+            return order != null ? new Order(order.type(), order.typeId(), order.manufToBuild()) : null;
         };
     }
 

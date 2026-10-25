@@ -32,12 +32,9 @@ import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.ManufactureProgress;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.controller.IPlayerController;
-import toniarts.openkeeper.game.controller.ITrapsController;
 import toniarts.openkeeper.game.controller.player.PlayerManufactureControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableType;
-import toniarts.openkeeper.tools.convert.map.Trap;
-import toniarts.openkeeper.tools.convert.map.TrapFixtures;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -170,22 +167,6 @@ class ManufactureProgressSystemTest {
         assertNotNull(progressEntity(KEEPER));
         assertNotNull(progressEntity(OTHER_KEEPER));
         assertNull(progressEntity(GOOD_PLAYER));
-    }
-
-    @Test
-    void trapOrdersComeFromTheTrapBlueprints() {
-        Trap sentry = TrapFixtures.trapToManufacture(SENTRY, SENTRY_POINTS);
-        ITrapsController trapsController = (ITrapsController) Proxy.newProxyInstance(ITrapsController.class.getClassLoader(),
-                new Class<?>[]{ITrapsController.class}, (proxy, method, args) -> {
-                    if ("getTrapToManufacture".equals(method.getName())) {
-                        return (short) args[0] == KEEPER ? sentry : null;
-                    }
-                    throw new UnsupportedOperationException(method.getName());
-                });
-        ManufactureProgressSystem.OrderLookup orders = ManufactureProgressSystem.trapOrders(trapsController);
-
-        assertEquals(sentry(), orders.getNext(KEEPER));
-        assertNull(orders.getNext(OTHER_KEEPER));
     }
 
     private ManufactureProgress shownProgress(short playerId) {
