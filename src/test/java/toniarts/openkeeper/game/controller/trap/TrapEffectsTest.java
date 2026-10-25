@@ -22,7 +22,9 @@ import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Alarm;
@@ -33,6 +35,7 @@ import toniarts.openkeeper.game.component.Frozen;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Shot;
@@ -54,13 +57,21 @@ class TrapEffectsTest {
     private final EntityData entityData = new DefaultEntityData();
     private final Map<Short, Shot> shots = new HashMap<>();
     private final Map<Short, Creature> creatures = new HashMap<>();
+    private final List<String> messages = new ArrayList<>();
     private final TrapEffects trapEffects;
     private double gameTime = 5;
 
     TrapEffectsTest() {
         creatures.put(IMP, TrapFiringFixtures.creature(IMP, Creature.CreatureFlag.IS_WORKER));
         creatures.put(REAPER, TrapFiringFixtures.creature(REAPER, Creature.CreatureFlag.IS_HORNY));
-        trapEffects = new TrapEffects(entityData, kwdFile(), () -> gameTime);
+        trapEffects = new TrapEffects(entityData, kwdFile(), () -> gameTime,
+                (PlayerService) Proxy.newProxyInstance(PlayerService.class.getClassLoader(),
+                        new Class<?>[]{PlayerService.class}, (proxy, method, args) -> {
+                            if (method.getName().equals("showMentorMessage")) {
+                                messages.add(args[0] + "@" + args[1] + ">p" + args[2]);
+                            }
+                            return null;
+                        }));
     }
 
     @Test
@@ -203,6 +214,7 @@ class TrapEffectsTest {
         assertEquals(5, entityData.getComponent(alarmId, Decay.class).startTime);
         assertEquals(50, entityData.getComponent(alarmId, Decay.class).duration);
         assertEquals(0, damage(target));
+        assertEquals(List.of("1346@" + TRAP_POSITION + ">p" + KEEPER), messages);
     }
 
     @Test
@@ -217,6 +229,7 @@ class TrapEffectsTest {
         EntitySet alarms = entityData.getEntities(Alarm.class, Owner.class);
         assertEquals(1, alarms.size());
         assertEquals(TRAP_POSITION, entityData.getComponent(alarms.iterator().next().getId(), Position.class).position);
+        assertEquals(1, messages.size());
     }
 
     @Test
@@ -227,6 +240,7 @@ class TrapEffectsTest {
         trapEffects.fire(alarm, KEEPER, TRAP_POSITION, addCreature(ENEMY, 12, 10));
 
         assertEquals(2, entityData.getEntities(Alarm.class, Owner.class).size());
+        assertEquals(List.of("1346@" + TRAP_POSITION + ">p" + ENEMY, "1346@" + TRAP_POSITION + ">p" + KEEPER), messages);
     }
 
     private Trap trap(short trapId, Shot.ProcessType processType, Shot.DamageType damageType, int shotData1, int shotData2) {
