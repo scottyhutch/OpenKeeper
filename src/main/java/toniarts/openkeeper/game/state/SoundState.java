@@ -42,7 +42,6 @@ import toniarts.openkeeper.game.sound.SoundGroup;
 import toniarts.openkeeper.game.sound.SoundManager;
 import toniarts.openkeeper.game.sound.SoundSequencer;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
-import toniarts.openkeeper.tools.modelviewer.SoundsLoader;
 
 /**
  * This state plays different sounds
@@ -147,7 +146,7 @@ public final class SoundState extends AbstractPauseAwareState {
      * @param category the category
      */
     public void changeBackground(Background category) {
-        SoundCategory sc = SoundsLoader.load(category.getName());
+        SoundCategory sc = SoundCategory.load(category.getName(), true);
         if (sc == null) {
             logger.log(Level.WARNING, "Background category {0} not found", category.getName());
             return;
@@ -186,7 +185,7 @@ public final class SoundState extends AbstractPauseAwareState {
     }
 
     private void startBackground(String category, int groupId, boolean music) {
-        SoundCategory sc = SoundsLoader.load(category);
+        SoundCategory sc = SoundCategory.load(category, true);
         SoundGroup group = sc != null ? sc.getGroup(groupId) : null;
         if (group == null) {
             logger.log(Level.WARNING, "Background sound group {0} of category {1} not found", groupId, category);
@@ -257,7 +256,7 @@ public final class SoundState extends AbstractPauseAwareState {
             return;
         }
 
-        if (SoundsLoader.load(soundCategory, false) == null) {
+        if (SoundCategory.load(soundCategory, false) == null) {
             logger.log(Level.WARNING, "Sound category {0} not found", soundCategory);
             return;
         }
