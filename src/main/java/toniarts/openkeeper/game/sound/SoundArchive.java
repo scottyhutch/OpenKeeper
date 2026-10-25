@@ -45,25 +45,25 @@ public class SoundArchive {
     private static final Map<String, SoundArchive> CACHE = new ConcurrentHashMap<>();
 
     private final String name;
-    private final int kind;
+    private final int flags;
     private final Path sdtFile;
     private final List<String> clipNames;
     private final List<Integer> clipPcmBytes;
 
-    public SoundArchive(String name, int kind, Path sdtFile, List<String> clipNames) {
-        this(name, kind, sdtFile, clipNames, List.of());
+    public SoundArchive(String name, int flags, Path sdtFile, List<String> clipNames) {
+        this(name, flags, sdtFile, clipNames, List.of());
     }
 
     /**
      * @param name archive name
-     * @param kind archive kind byte
+     * @param flags archive flags
      * @param sdtFile the archive file
      * @param clipNames converted file names of the clips
      * @param clipPcmBytes decoded lengths of the clips as 16 bit PCM in bytes
      */
-    public SoundArchive(String name, int kind, Path sdtFile, List<String> clipNames, List<Integer> clipPcmBytes) {
+    public SoundArchive(String name, int flags, Path sdtFile, List<String> clipNames, List<Integer> clipPcmBytes) {
         this.name = name;
-        this.kind = kind;
+        this.flags = flags;
         this.sdtFile = sdtFile;
         this.clipNames = clipNames;
         this.clipPcmBytes = clipPcmBytes;
@@ -75,23 +75,23 @@ public class SoundArchive {
      *
      * @param archiveName name as stored in {@code BANK.map}, e.g.
      * {@code Global\MiscCreatures}
-     * @param kind archive kind byte
+     * @param flags archive flag byte, see {@code BankMapFileEntry.FLAG_*}
      */
-    public static SoundArchive load(String archiveName, int kind) {
+    public static SoundArchive load(String archiveName, int flags) {
         String normalized = stripTrailingSeparator(PathUtils.convertFileSeparators(archiveName));
-        return CACHE.computeIfAbsent(normalized.toLowerCase() + '/' + kind, key -> doLoad(normalized, kind));
+        return CACHE.computeIfAbsent(normalized.toLowerCase() + '/' + flags, key -> doLoad(normalized, flags));
     }
 
     public static void flush() {
         CACHE.clear();
     }
 
-    private static SoundArchive doLoad(String archiveName, int kind) {
+    private static SoundArchive doLoad(String archiveName, int flags) {
         List<String> clipNames = new ArrayList<>();
         List<Integer> clipPcmBytes = new ArrayList<>();
         Path sdt = findSdtFile(archiveName);
         if (sdt == null) {
-            return new SoundArchive(archiveName, kind, null, clipNames);
+            return new SoundArchive(archiveName, flags, null, clipNames);
         }
         try {
             SdtFile sdtFile = new SdtFile(sdt);
@@ -102,7 +102,7 @@ public class SoundArchive {
         } catch (Exception ex) {
             logger.log(Level.WARNING, () -> "Failed to read sound archive " + archiveName, ex);
         }
-        return new SoundArchive(archiveName, kind, sdt, clipNames, clipPcmBytes);
+        return new SoundArchive(archiveName, flags, sdt, clipNames, clipPcmBytes);
     }
 
     private static Path findSdtFile(String archiveName) {
@@ -127,8 +127,8 @@ public class SoundArchive {
         return name;
     }
 
-    public int getKind() {
-        return kind;
+    public int getFlags() {
+        return flags;
     }
 
     @Nullable
