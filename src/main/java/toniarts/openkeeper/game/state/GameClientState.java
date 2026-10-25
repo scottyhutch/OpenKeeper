@@ -42,12 +42,14 @@ import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.data.ResearchableType;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.view.fogofwar.IFogOfWarInformation;
+import toniarts.openkeeper.game.sound.MentorType;
 import toniarts.openkeeper.game.state.loading.IPlayerLoadingProgress;
 import toniarts.openkeeper.game.state.loading.MultiplayerLoadingState;
 import toniarts.openkeeper.game.state.loading.SingleBarLoadingState;
 import toniarts.openkeeper.game.state.lobby.ClientInfo;
 import toniarts.openkeeper.game.state.session.GameSessionClientService;
 import toniarts.openkeeper.game.state.session.GameSessionListener;
+import toniarts.openkeeper.gui.nifty.message.SystemMessageTarget;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
@@ -372,7 +374,8 @@ public final class GameClientState extends AbstractPauseAwareState {
                             app.enqueue(() -> {
                                 SystemMessageState systemMessageState = stateManager.getState(SystemMessageState.class);
                                 if (systemMessageState != null) {
-                                    systemMessageState.addMessage(SystemMessageState.MessageType.FIGHT, "Enemy creature sighted!");
+                                    systemMessageState.addMessage(SystemMessageState.MessageType.FIGHT, "Enemy creature sighted!",
+                                            SystemMessageTarget.ofEntity(entityId));
                                 }
                             });
                         }) {
@@ -597,6 +600,24 @@ public final class GameClientState extends AbstractPauseAwareState {
         }
 
         @Override
+        public void onShowMentorMessage(int speechId, Vector3f position) {
+            app.enqueue(() -> {
+                SystemMessageState systemMessageState = stateManager.getState(SystemMessageState.class);
+                if (systemMessageState == null || !systemMessageState.isEnabled()) {
+                    return;
+                }
+                systemMessageState.addMessage(SystemMessageState.MessageType.FIGHT, String.format("${speech.%d}", speechId - 1),
+                        SystemMessageTarget.ofPosition(position));
+                for (MentorType speech : MentorType.values()) {
+                    if (speech.getId() == speechId) {
+                        stateManager.getState(SoundState.class).attachMentorSpeech(speech, null);
+                        break;
+                    }
+                }
+            });
+        }
+
+        @Override
         public void onZoomViewToPoint(Vector3f point) {
             playerState.zoomToPoint(point);
         }
@@ -703,9 +724,21 @@ public final class GameClientState extends AbstractPauseAwareState {
 
         @Override
         public void setPossession(EntityId target) {
+            // Runs on the network thread; PlayerState applies the possession
+            // (including the fog-of-war bypass) on the render thread
             playerState.setPossession(target);
-            setPossessedCreature(target);
         }
+    }
+
+    /**
+     * Gets the entity view state of this game. Look this up instead of asking
+     * the state manager by class, the main menu's entity view state is a
+     * {@link PlayerEntityViewState} too and may be found first.
+     *
+     * @return the game's entity view state, {@code null} if not loaded
+     */
+    public PlayerEntityViewState getEntityViewState() {
+        return playerModelViewState;
     }
 
     public IMapInformation getMapClientService() {
@@ -734,7 +767,7 @@ public final class GameClientState extends AbstractPauseAwareState {
     /**
      * Tells the local fog-of-war module which creature (if any) the viewer is
      * currently possessing, so it can bypass fog for the first-person view
-     * and keep exploring the possessed creature's tile (§2/§6.9).
+     * and keep exploring the possessed creature's tile
      *
      * @param entityId the possessed creature, or {@code null} if possession has ended
      */
