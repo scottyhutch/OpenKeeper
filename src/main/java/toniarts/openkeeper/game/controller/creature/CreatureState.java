@@ -683,6 +683,7 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void update(ICreatureController entity) {
+            entity.releaseCastShot();
             if (entity.isStateTimeExceeded()) {
                 entity.getStateMachine().changeState(FIGHT);
             }
@@ -690,7 +691,7 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void exit(ICreatureController entity) {
-
+            entity.cancelCastShot();
         }
 
         @Override
