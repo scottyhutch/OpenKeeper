@@ -134,7 +134,7 @@ public final class ShotsController implements IShotsController {
                 mapController.revealSightOfEvil(WorldUtils.vectorToPoint(request.position()), request.shotData1(), request.shot().getHealth(), request.playerId());
             }
         });
-        result.put(LIGHTNING, new LightningShotProcessor(entityData, gameTimer, kwdFile, mapController));
+        result.put(LIGHTNING, new LightningShotProcessor(entityData, gameTimer, kwdFile, mapController, creaturesController));
         result.put(INFERNO, new InfernoShotProcessor(entityData, gameTimer, () -> kwdFile.getGameLevel().getTicksPerSec()));
 
         return result;
