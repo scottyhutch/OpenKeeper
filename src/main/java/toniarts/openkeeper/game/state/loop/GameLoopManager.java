@@ -92,6 +92,7 @@ public final class GameLoopManager {
                         levelInfo, playerControllers.values(), gameWorldController.getMapController()),
                 new RoomSoundSystem(gameWorldController.getMapController()),
                 new KnockdownSystem(entityData, gameWorldController.getCreaturesController()),
+                new InfernoSystem(entityData, positionSystem, levelInfo.getLevelData()),
                 new CreatureTorturingSystem(entityData, gameWorldController.getCreaturesController(),
                         gameWorldController.getMapController()),
                 new KeeperDefeatSystem(entityData, levelInfo, gameController, gameWorldController.getMapController(),
