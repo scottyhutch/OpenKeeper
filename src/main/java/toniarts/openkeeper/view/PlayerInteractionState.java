@@ -57,7 +57,6 @@ import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.controller.DoorPlacementValidator;
 import toniarts.openkeeper.game.controller.KeeperSpellCastValidator;
 import toniarts.openkeeper.game.controller.RoomPlacementValidator;
-import toniarts.openkeeper.game.controller.SellValue;
 import toniarts.openkeeper.game.controller.TrapPlacementValidator;
 import toniarts.openkeeper.game.controller.TrapSellRules;
 import toniarts.openkeeper.game.data.Settings;
@@ -1123,7 +1122,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
                     Point point = new Point(x, y);
                     if (gameClientState.getMapClientService().isSellable(point, player.getPlayerId())) {
                         IMapTileInformation tile = gameClientState.getMapClientService().getMapData().getTile(point);
-                        value += SellValue.ofRoomTile(kwdFile.getRoomByTerrain(tile.getTerrainId()), percentage);
+                        value += (int) (kwdFile.getRoomByTerrain(tile.getTerrainId()).getCost() * (percentage / 100));
                     }
                 }
             }
