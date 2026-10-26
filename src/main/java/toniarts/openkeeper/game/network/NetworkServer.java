@@ -63,6 +63,7 @@ import toniarts.openkeeper.game.component.DiggingTiles;
 import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.DropArea;
+import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Fearless;
 import toniarts.openkeeper.game.component.FetchPortalGem;
 import toniarts.openkeeper.game.component.FollowTarget;
@@ -208,6 +209,7 @@ public final class NetworkServer {
             Serializer.registerClass(DoorComponent.class, new FieldSerializer());
             Serializer.registerClass(DoorViewState.class, new FieldSerializer());
             Serializer.registerClass(DropArea.class, new FieldSerializer());
+            Serializer.registerClass(EffectTrigger.class, new FieldSerializer());
             Serializer.registerClass(Fearless.class, new FieldSerializer());
             Serializer.registerClass(FetchPortalGem.class, new FieldSerializer());
             Serializer.registerClass(FollowTarget.class, new FieldSerializer());
