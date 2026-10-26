@@ -1004,7 +1004,7 @@ public final class CreatureController extends EntityController implements ICreat
                 ? isWithinAttackDistance(attackTarget) : isInRange(creatureMeleeAttack.range, attackTarget)) {
             if (isAttackRecharged(creatureMeleeAttack)) {
                 stateMachine.changeState(CreatureState.MELEE_ATTACK);
-                hitWithMelee(attackTarget, creatureMeleeAttack);
+                hitWithMelee(attackTarget, creatureMeleeAttack, creatureMeleeAttack.damage);
             }
         } else {
             Optional<CreatureSpell> attack = getPreferredAttackSpell(attackTarget);
@@ -1035,14 +1035,31 @@ public final class CreatureController extends EntityController implements ICreat
      *
      * @param attackTarget the target we hit
      * @param creatureMeleeAttack our melee attack
+     * @param damage the damage to deal
      */
-    private void hitWithMelee(EntityId attackTarget, CreatureMeleeAttack creatureMeleeAttack) {
+    private void hitWithMelee(EntityId attackTarget, CreatureMeleeAttack creatureMeleeAttack, int damage) {
         entityData.setComponent(entityId, new CreatureMeleeAttack(creatureMeleeAttack, gameTimer.getGameTime()));
-        int damage = getMeleeDamageTaken(attackTarget, getCombatPitDamage(attackTarget, creatureMeleeAttack.damage));
-        if (damage > 0) {
-            setDamage(attackTarget, damage);
+        int damageTaken = getMeleeDamageTaken(attackTarget, getCombatPitDamage(attackTarget, damage));
+        if (damageTaken > 0) {
+            setDamage(attackTarget, damageTaken);
         }
         combatSounds.playMeleeHit(creature, attackTarget, getPosition());
+    }
+
+    private float getFirstPersonRechargeModifyPercentage() {
+        Variable.MiscVariable modify = gameSettings.get(Variable.MiscVariable.MiscType.FIRST_PERSON_RECHARGE_MODIFY_PERCENTAGE);
+        return modify != null ? modify.getValue() : 100;
+    }
+
+    /**
+     * Gets what a stat is in first person, as a percentage of the normal
+     *
+     * @param statType the stat
+     * @return 100 plus the stat increase, 100 if there is none
+     */
+    private int getFirstPersonPercentage(Variable.CreatureStats.StatType statType) {
+        Variable.CreatureFirstPerson stat = levelInfo.getLevelData().getCreatureFirstPersonStats().get(statType);
+        return 100 + (stat != null ? stat.getValue() : 0);
     }
 
     /**
@@ -2139,14 +2156,23 @@ public final class CreatureController extends EntityController implements ICreat
     public void executePossessedAttack() {
         CreatureMeleeAttack meleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
         Position position = entityData.getComponent(entityId, Position.class);
-        if (meleeAttack == null || position == null || !isAttackRecharged(meleeAttack)) {
+        if (meleeAttack == null || position == null) {
+            return;
+        }
+
+        // The creature fights differently in first person, see the first person stats
+        CreatureMeleeAttack firstPersonAttack = new CreatureMeleeAttack(meleeAttack);
+        firstPersonAttack.damage = firstPersonAttack.damage * getFirstPersonPercentage(Variable.CreatureStats.StatType.MELEE_DAMAGE) / 100;
+        firstPersonAttack.rechargeTime = firstPersonAttack.rechargeTime * getFirstPersonPercentage(Variable.CreatureStats.StatType.MELEE_RECHARGE_TIME_SECONDS) / 100
+                * getFirstPersonRechargeModifyPercentage() / 100;
+        if (!isAttackRecharged(firstPersonAttack)) {
             return;
         }
 
         // Nothing to hit, a worker digs but others don't swing at all
         EntityId target = getPossessedAttackTarget(position);
         if (target != null) {
-            hitWithMelee(target, meleeAttack);
+            hitWithMelee(target, meleeAttack, firstPersonAttack.damage);
         } else if (isWorker() && digTileInFront(position)) {
             entityData.setComponent(entityId, new CreatureMeleeAttack(meleeAttack, gameTimer.getGameTime()));
         } else {

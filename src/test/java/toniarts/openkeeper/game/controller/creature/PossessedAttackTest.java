@@ -48,9 +48,11 @@ import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
+import toniarts.openkeeper.tools.convert.map.PossessionFixtures;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.TerrainFixtures;
 import toniarts.openkeeper.tools.convert.map.TrapFiringFixtures;
+import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -77,6 +79,8 @@ class PossessedAttackTest {
     private EntityData entityData;
     private Map<Point, Terrain> terrain;
     private List<Point> dugTiles;
+    private Map<Variable.CreatureStats.StatType, Variable.CreatureFirstPerson> firstPersonStats;
+    private Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings;
     private double gameTime;
     private EntityId us;
 
@@ -85,6 +89,8 @@ class PossessedAttackTest {
         entityData = new DefaultEntityData();
         terrain = new HashMap<>();
         dugTiles = new ArrayList<>();
+        firstPersonStats = new HashMap<>();
+        gameSettings = new HashMap<>();
         gameTime = 10;
 
         // At the middle of tile (5, 5), facing +z
@@ -100,6 +106,50 @@ class PossessedAttackTest {
 
         assertEquals(DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
         assertEquals(Creature.AnimationType.MELEE_ATTACK, entityData.getComponent(us, CreatureViewState.class).state);
+    }
+
+    @Test
+    void firstPersonStatsRaiseTheDamage() {
+        firstPersonStats.put(Variable.CreatureStats.StatType.MELEE_DAMAGE,
+                PossessionFixtures.firstPersonStat(Variable.CreatureStats.StatType.MELEE_DAMAGE, 60));
+        EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 5.8f));
+
+        createController().executePossessedAttack();
+
+        assertEquals(DAMAGE * 160 / 100, entityData.getComponent(enemy, Damage.class).damage);
+        assertEquals(DAMAGE, entityData.getComponent(us, CreatureMeleeAttack.class).damage);
+    }
+
+    @Test
+    void firstPersonStatsSlowTheRecharge() {
+        firstPersonStats.put(Variable.CreatureStats.StatType.MELEE_RECHARGE_TIME_SECONDS,
+                PossessionFixtures.firstPersonStat(Variable.CreatureStats.StatType.MELEE_RECHARGE_TIME_SECONDS, 25));
+        EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 5.8f));
+        CreatureController controller = createController();
+
+        controller.executePossessedAttack();
+        gameTime += RECHARGE;
+        controller.executePossessedAttack();
+        assertEquals(DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
+
+        gameTime += RECHARGE / 4;
+        controller.executePossessedAttack();
+        assertEquals(2 * DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
+        assertEquals(RECHARGE, entityData.getComponent(us, CreatureMeleeAttack.class).rechargeTime);
+    }
+
+    @Test
+    void firstPersonRechargeModifyScalesTheRecharge() {
+        gameSettings.put(Variable.MiscVariable.MiscType.FIRST_PERSON_RECHARGE_MODIFY_PERCENTAGE,
+                PossessionFixtures.miscVariable(Variable.MiscVariable.MiscType.FIRST_PERSON_RECHARGE_MODIFY_PERCENTAGE, 50));
+        EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 5.8f));
+        CreatureController controller = createController();
+
+        controller.executePossessedAttack();
+        gameTime += RECHARGE / 2;
+        controller.executePossessedAttack();
+
+        assertEquals(2 * DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
     }
 
     @Test
@@ -300,10 +350,13 @@ class PossessedAttackTest {
         });
 
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData")
-                ? stub(IKwdFile.class, (kwdName, kwdArgs) -> kwdName.equals("getCreature")
-                ? TrapFiringFixtures.creature((short) kwdArgs[0]) : null) : null);
-        return new CreatureController(us, entityData, TrapFiringFixtures.creature((short) 1), null, null, gameTimer, Map.of(),
-                creaturesController, positionLookup, mapController, levelInfo, null, null);
+                ? stub(IKwdFile.class, (kwdName, kwdArgs) -> switch (kwdName) {
+                    case "getCreature" -> TrapFiringFixtures.creature((short) kwdArgs[0]);
+                    case "getCreatureFirstPersonStats" -> firstPersonStats;
+                    default -> null;
+                }) : null);
+        return new CreatureController(us, entityData, TrapFiringFixtures.creature((short) 1), null, null, gameTimer,
+                gameSettings, creaturesController, positionLookup, mapController, levelInfo, null, null);
     }
 
     @FunctionalInterface
