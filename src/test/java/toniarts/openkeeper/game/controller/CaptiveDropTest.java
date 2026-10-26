@@ -33,7 +33,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * What happens to a creature the keeper drops into a prison or a torture
  * chamber. Like in DK II, the torture chamber takes any creature, also the
- * keeper's own
+ * keeper's own, except the keeper's Imps
  */
 class CaptiveDropTest {
 
@@ -42,28 +42,38 @@ class CaptiveDropTest {
 
     @Test
     void enemyIsTortured() {
-        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), HERO_ID));
+        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), HERO_ID, false));
     }
 
     @Test
     void ownCreatureIsTortured() {
-        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), KEEPER_ID));
+        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), KEEPER_ID, false));
+    }
+
+    @Test
+    void ownImpIsNotTortured() {
+        assertNull(GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), KEEPER_ID, true));
+    }
+
+    @Test
+    void enemyImpIsTortured() {
+        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), HERO_ID, true));
     }
 
     @Test
     void enemyIsImprisoned() {
-        assertEquals(CreatureState.IMPRISONED, GameWorldController.getCaptiveState(room(ObjectType.PRISONER), HERO_ID));
+        assertEquals(CreatureState.IMPRISONED, GameWorldController.getCaptiveState(room(ObjectType.PRISONER), HERO_ID, false));
     }
 
     @Test
     void ownCreatureIsNotImprisoned() {
-        assertNull(GameWorldController.getCaptiveState(room(ObjectType.PRISONER), KEEPER_ID));
+        assertNull(GameWorldController.getCaptiveState(room(ObjectType.PRISONER), KEEPER_ID, false));
     }
 
     @Test
     void otherRoomsHoldNoCaptives() {
-        assertNull(GameWorldController.getCaptiveState(room(ObjectType.LAIR), HERO_ID));
-        assertNull(GameWorldController.getCaptiveState(null, HERO_ID));
+        assertNull(GameWorldController.getCaptiveState(room(ObjectType.LAIR), HERO_ID, false));
+        assertNull(GameWorldController.getCaptiveState(null, HERO_ID, false));
     }
 
     @Test
