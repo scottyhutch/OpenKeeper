@@ -142,6 +142,8 @@ public final class ShotsController implements IShotsController {
 
     @Override
     public void createShot(short shotTypeId, int shotData1, int shotData2, short playerId, Vector3f position, EntityId target, EntityId shooter) {
+        Shot shot = kwdFile.getShotById(shotTypeId);
+        ThingSounds.play(shot.getSoundCategory(), ThingSounds.SHOT_LAUNCH, position);
 
         // Creature attacks still apply their damage themselves, see CreatureController#executeAttack. Processing
         // their shots here too would hit twice (Mistress and Fairy lightning share the keeper's process type)
@@ -149,8 +151,6 @@ public final class ShotsController implements IShotsController {
             return;
         }
 
-        Shot shot = kwdFile.getShotById(shotTypeId);
-        ThingSounds.play(shot.getSoundCategory(), ThingSounds.SHOT_LAUNCH, position);
         IShotProcessor processor = processors.get(shot.getProcessType());
         if (processor == null) {
             logger.log(Logger.Level.WARNING, "Shot type {0} not implemented", shot.getProcessType());
@@ -169,6 +169,7 @@ public final class ShotsController implements IShotsController {
             return false;
         }
 
+        ThingSounds.play(shot.getSoundCategory(), ThingSounds.SHOT_LAUNCH, position);
         Vector3f velocity = ShotFlightRules.aim(position, targetPosition, shot.getSpeed());
         int ticksPerSecond = kwdFile.getGameLevel().getTicksPerSec();
         EntityId entity = entityData.createEntity();
