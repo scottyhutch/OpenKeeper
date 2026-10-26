@@ -531,7 +531,6 @@ public final class Creature implements Comparable<Creature>, ISoundable, IIndexa
     private JobPreference angryJobs[];
     private JobType hateJobs[];
     private JobAlternative alternativeJobs[];
-    private int unkea0; // ea0
     private float unkea8; // ea8
     private int unk3ab; // eac
     private int unkee0; // ee0
@@ -1097,14 +1096,6 @@ public final class Creature implements Comparable<Creature>, ISoundable, IIndexa
 
     protected void setAlternativeJobs(JobAlternative[] alternativeJobs) {
         this.alternativeJobs = alternativeJobs;
-    }
-
-    public int getUnkea0() {
-        return unkea0;
-    }
-
-    protected void setUnkea0(int unkea0) {
-        this.unkea0 = unkea0;
     }
 
     public float getUnkea8() {
@@ -1904,6 +1895,7 @@ public final class Creature implements Comparable<Creature>, ISoundable, IIndexa
         private int expPerSecondTraining; // f06
         private int researchPerSecond; // researchPointsPerSecond
         private int manufacturePerSecond; // manufacturePointsPerSecond
+        private float width; // Tiles
         private float height; // Tiles
         private float eyeHeight; // Tiles
         private int hp; // health
@@ -1960,6 +1952,14 @@ public final class Creature implements Comparable<Creature>, ISoundable, IIndexa
 
         protected void setShuffleSpeed(float shuffleSpeed) {
             this.shuffleSpeed = shuffleSpeed;
+        }
+
+        public float getWidth() {
+            return width;
+        }
+
+        protected void setWidth(float width) {
+            this.width = width;
         }
 
         public float getHeight() {
