@@ -46,6 +46,7 @@ public final class TrapFiringFixtures {
         trap.setTriggerData(triggerData);
         trap.setRechargeTime(rechargeTime);
         trap.setShotTypeId(shotTypeId);
+        trap.setShotOffset(0, 0, 0);
         trap.setFlags(EnumSet.noneOf(Trap.TrapFlag.class));
         return trap;
     }

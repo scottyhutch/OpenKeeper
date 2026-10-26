@@ -129,7 +129,7 @@ public final class GameLoopManager {
                 new TrapSystem(entityData, level, gameController.getGameTimer(),
                         solidTilesBlockSight(gameWorldController.getMapController()), playerControllers,
                         new TrapEffects(entityData, level, gameController.getGameTimer(), gameWorldController.getMapController(),
-                                gameService),
+                                gameService, gameWorldController.getShotsController()),
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.TRIGGER_TRAP_TRIGGER_SPEED_TILES_PER_SECOND)),
                 new FreezeSystem(entityData, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
                 new ShotSystem(entityData, level, gameController.getGameTimer(), gameWorldController.getShotsController(), positionSystem,

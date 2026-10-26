@@ -34,6 +34,7 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
+import toniarts.openkeeper.game.controller.IShotsController;
 import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.state.session.PlayerService;
@@ -47,10 +48,12 @@ import toniarts.openkeeper.utils.WorldUtils;
 /**
  * Applies the shots of the traps. A trap hands its own shot data to its shot,
  * so the trap decides how hard the shot hits.<br>
- * The shots hit at once, there are no flying shots or lingering clouds yet:
+ * Only the shots that fly are fired as shots, the others hit at once, there
+ * are no lingering clouds yet:
  * <ul>
- * <li>A shot that hits a thing (Sentry Trap) deals shot data 1 as damage to
- * the trap's target.</li>
+ * <li>A shot that hits a thing (Sentry Trap) flies to the trap's target from
+ * the trap's shot offset and deals shot data 1 as damage to what it hits. A
+ * shot that doesn't fly deals it to the target at once.</li>
  * <li>A shot with constant damage (Spike Trap) deals shot data 1 to the
  * creatures on the trap's tile.</li>
  * <li>A shot with damage from its origin (Fireburst Trap) or a gas shot (Gas
@@ -91,6 +94,7 @@ public final class TrapEffects implements ITrapEffects {
     private final IGameTimer gameTimer;
     private final IMapInformation mapInformation;
     private final PlayerService playerService;
+    private final IShotsController shotsController;
     private final EntitySet creatureEntities;
     private final EntitySet alarmEntities;
     private final Set<Shot.ProcessType> reportedProcessTypes = EnumSet.noneOf(Shot.ProcessType.class);
@@ -103,14 +107,16 @@ public final class TrapEffects implements ITrapEffects {
      * @param gameTimer the game time
      * @param mapInformation the map, for the water under a lightning strike
      * @param playerService tells the players about the alarm, may be null
+     * @param shotsController fires the shots that fly
      */
     public TrapEffects(EntityData entityData, IKwdFile kwdFile, IGameTimer gameTimer, IMapInformation mapInformation,
-            PlayerService playerService) {
+            PlayerService playerService, IShotsController shotsController) {
         this.entityData = entityData;
         this.kwdFile = kwdFile;
         this.gameTimer = gameTimer;
         this.mapInformation = mapInformation;
         this.playerService = playerService;
+        this.shotsController = shotsController;
 
         creatureEntities = entityData.getEntities(CreatureComponent.class, Owner.class, Position.class, Health.class);
         alarmEntities = entityData.getEntities(Alarm.class, Owner.class);
@@ -144,7 +150,8 @@ public final class TrapEffects implements ITrapEffects {
     private void damage(Shot shot, Trap trap, short ownerId, Vector3f origin, EntityId target) {
         switch (shot.getDamageType()) {
             case HIT_THING -> {
-                if (target != null) {
+                if (target != null && !shotsController.fireShot(trap.getShotTypeId(), trap.getShotData1(), trap.getShotData2(),
+                        ownerId, getShotStart(trap, origin, target), target, null, 0)) {
                     EntityController.setDamage(entityData, target, trap.getShotData1());
                 }
             }
@@ -165,6 +172,27 @@ public final class TrapEffects implements ITrapEffects {
             default ->
                 logger.log(Level.WARNING, "Trap shot damage type {0} not implemented", shot.getDamageType());
         }
+    }
+
+    /**
+     * Where the trap's shot starts. Like a creature's, the shot offset is in
+     * front of the trap, towards the target, and above the floor.
+     *
+     * @param trap the trap
+     * @param origin where the trap is
+     * @param target the target
+     * @return the start of the shot
+     */
+    private Vector3f getShotStart(Trap trap, Vector3f origin, EntityId target) {
+        Vector3f result = origin.clone();
+        Vector3f targetPosition = EntityController.getPosition(entityData, target);
+        Vector3f forward = targetPosition != null ? targetPosition.subtract(origin).setY(0) : Vector3f.ZERO;
+        if (forward.lengthSquared() > 0) {
+            result.addLocal(forward.normalizeLocal().multLocal(-trap.getShotOffset().y));
+        }
+        result.y += trap.getShotOffset().z;
+
+        return result;
     }
 
     private void damageCreatures(int damage, short ownerId, Predicate<Vector3f> inArea) {

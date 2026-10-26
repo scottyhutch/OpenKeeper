@@ -40,6 +40,7 @@ import toniarts.openkeeper.game.component.Frozen;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.controller.IShotsController;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -68,6 +69,8 @@ class TrapEffectsTest {
     private final Map<Short, Creature> creatures = new HashMap<>();
     private final Set<Point> waterTiles = new HashSet<>();
     private final List<String> messages = new ArrayList<>();
+    private final List<Object[]> firedShots = new ArrayList<>();
+    private boolean shotsFly;
     private final TrapEffects trapEffects;
     private double gameTime = 5;
 
@@ -82,7 +85,31 @@ class TrapEffectsTest {
                                 messages.add(args[0] + "@" + args[1] + ">p" + args[2]);
                             }
                             return null;
+                        }),
+                (IShotsController) Proxy.newProxyInstance(IShotsController.class.getClassLoader(),
+                        new Class<?>[]{IShotsController.class}, (proxy, method, args) -> {
+                            if (method.getName().equals("fireShot")) {
+                                firedShots.add(args);
+                                return shotsFly;
+                            }
+                            throw new UnsupportedOperationException(method.getName());
                         }));
+    }
+
+    @Test
+    void flyingCannonBallIsFiredAtTheTarget() {
+        shotsFly = true;
+        Trap sentry = trap((short) 3, Shot.ProcessType.NONE, Shot.DamageType.HIT_THING, 250, 0);
+        EntityId target = addCreature(ENEMY, 13, 10);
+
+        trapEffects.fire(sentry, KEEPER, TRAP_POSITION, target);
+
+        assertEquals(1, firedShots.size());
+        assertEquals(sentry.getShotTypeId(), firedShots.get(0)[0]);
+        assertEquals(250, firedShots.get(0)[1]);
+        assertEquals(KEEPER, firedShots.get(0)[3]);
+        assertEquals(target, firedShots.get(0)[5]);
+        assertEquals(0, damage(target));
     }
 
     @Test
