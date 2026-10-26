@@ -539,6 +539,31 @@ public final class CreatureController extends EntityController implements ICreat
         return entityPositionLookup.getBlockingDoor(tile.x, tile.y, getOwnerId());
     }
 
+    @Override
+    public boolean attackVisibleTrap() {
+        if (!TrapAttackTarget.attacksTraps(creature.getFightStyle(), getOwnerId())) {
+            return false;
+        }
+        EntityId trap = TrapAttackTarget.findNearest(entityPositionLookup.getSensedEntities(entityId), this::isTrapToAttack,
+                this::getDistanceToCreature, creature.getAttributes().getDistanceCanSee(), isWorker(),
+                target -> isWithinAttackDistance(target) || hasPathToEntity(target));
+        if (trap == null) {
+            return false;
+        }
+
+        if (isWithinAttackDistance(trap)) {
+            stopCreature();
+            executeAttack(trap);
+        } else {
+            navigateToAttackTarget(trap);
+        }
+        return true;
+    }
+
+    private boolean isTrapToAttack(EntityId entity) {
+        return TrapAttackTarget.isAttackable(entityData, entity) && isEnemy(entity);
+    }
+
     /**
      * Hits a door that is next to us with the melee attack, as often as the
      * attack recharges
