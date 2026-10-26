@@ -77,6 +77,7 @@ public final class GameLoopManager {
                 new SlapSystem(entityData, levelInfo.getLevelData(), playerControllers.values(), gameSettings),
                 new HealthSystem(entityData, positionSystem, gameSettings, gameWorldController.getCreaturesController(),
                         levelInfo, playerControllers.values(), gameWorldController.getMapController()),
+                new KnockdownSystem(entityData, gameWorldController.getCreaturesController()),
                 new CreatureTorturingSystem(entityData, gameWorldController.getCreaturesController(),
                         gameWorldController.getMapController()),
                 new DeathSystem(entityData, gameSettings, positionSystem),
@@ -96,6 +97,8 @@ public final class GameLoopManager {
                 new DoorViewSystem(entityData, positionSystem),
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),
                 new HaulingSystem(entityData),
+                new ShotSystem(entityData, level, gameController.getGameTimer(), gameWorldController.getShotsController(), positionSystem,
+                        gameWorldController.getMapController(), playerControllers),
                 (IGameLogicUpdatable) taskManager);
 
         loops.add(new GameLoop(gameLogicThread, 1_000_000_000 / levelInfo.getLevelData().getGameLevel().getTicksPerSec(), "Logic"));
