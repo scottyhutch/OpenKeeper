@@ -28,6 +28,7 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Tremor;
 import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.game.controller.shot.IShotProcessor;
+import toniarts.openkeeper.game.controller.shot.LightningShotProcessor;
 import toniarts.openkeeper.game.controller.shot.ShotRequest;
 import toniarts.openkeeper.game.sound.CombatSounds;
 import toniarts.openkeeper.game.sound.ThingSounds;
@@ -127,19 +128,20 @@ public final class ShotsController implements IShotsController {
                 mapController.revealSightOfEvil(WorldUtils.vectorToPoint(request.position()), request.shotData1(), request.shot().getHealth(), request.playerId());
             }
         });
-        result.put(LIGHTNING, request -> {
-
-            // Only the keeper's Thunderbolt for now, a creature's lightning still deals its damage in the attack
-            if (isKeeperSpellShot(request.shot().getShotId())) {
-                strikeWithLightning(request.target(), request.shotData1());
-            }
-        });
+        result.put(LIGHTNING, new LightningShotProcessor(entityData, gameTimer, kwdFile, mapController));
 
         return result;
     }
 
     @Override
-    public void createShot(short shotTypeId, int shotData1, int shotData2, short playerId, Vector3f position, EntityId target) {
+    public void createShot(short shotTypeId, int shotData1, int shotData2, short playerId, Vector3f position, EntityId target, EntityId shooter) {
+
+        // Creature attacks still apply their damage themselves, see CreatureController#executeAttack. Processing
+        // their shots here too would hit twice (Mistress and Fairy lightning share the keeper's process type)
+        if (shooter != null) {
+            return;
+        }
+
         Shot shot = kwdFile.getShotById(shotTypeId);
         ThingSounds.play(shot.getSoundCategory(), ThingSounds.SHOT_LAUNCH, position);
         IShotProcessor processor = processors.get(shot.getProcessType());

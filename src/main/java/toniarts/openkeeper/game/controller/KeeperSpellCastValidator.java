@@ -157,7 +157,7 @@ public final class KeeperSpellCastValidator {
                 }
             }
             case ENEMY_CREATURES -> {
-                if (owner == null || !checkTurncoatRule(keeperSpell, entityData, target)) {
+                if (creature == null || owner == null || !checkTurncoatRule(keeperSpell, entityData, target)) {
                     return false;
                 }
                 if (!player.isEnemy(owner)) {

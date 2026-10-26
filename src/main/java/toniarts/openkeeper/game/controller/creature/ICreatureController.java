@@ -250,11 +250,11 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public void sleep();
 
     /**
-     * Knocks the creature off its feet, as by a lightning strike. It falls
-     * over and gets up again like after being dropped from the hand, and
-     * drops whatever it was doing. A creature already down stays down longer.
-     * The Horned Reaper, prisoners, possessed creatures and creatures not on
-     * their own feet to begin with are not affected
+     * Knocks the creature off its feet, it falls back and gets up again like
+     * after being dropped from the hand. Whatever it was doing is dropped. A
+     * creature already down stays down longer. Does nothing to a creature
+     * that is not on its own feet to begin with, i.e. in hand, falling,
+     * possessed or out cold.
      */
     public void knockDown();
 
