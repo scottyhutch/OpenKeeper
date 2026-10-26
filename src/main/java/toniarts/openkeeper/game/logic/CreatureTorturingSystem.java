@@ -24,6 +24,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.InHand;
@@ -34,6 +35,7 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.utils.GameTimeCounter;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -80,6 +82,11 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
             Owner owner = entity.get(Owner.class);
             short playerId = chamber.getRoomInstance().getOwnerId();
 
+            // Like in DK II, the torture works once a second
+            if ((int) (creatureTortured.timeTortured + tpf) > (int) creatureTortured.timeTortured) {
+                tortureForASecond(entity.getId(), owner.ownerId == playerId);
+            }
+
             if (creatureTortured.timeTortured + tpf >= creatureComponent.tortureTimeToConvert) {
                 if (owner.ownerId != playerId) {
 
@@ -93,6 +100,24 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
 
             entity.set(new CreatureTortured(creatureTortured.timeTortured + tpf, timeElapsed, creatureTortured.healthCheckTime, creatureTortured.device));
         }
+    }
+
+    /**
+     * A second of torture. Like in DK II, the keeper's own victim gets its
+     * torture mood change, which a Mistress enjoys. The health change is done
+     * by the health system.
+     */
+    private void tortureForASecond(EntityId victim, boolean ownCreature) {
+        if (!ownCreature) {
+            return;
+        }
+        Creature creature = creaturesController.createController(victim).getCreature();
+        CreatureMood mood = entityData.getComponent(victim, CreatureMood.class);
+        if (creature == null || mood == null || creature.getAttributes().getTortureMoodChange() == 0
+                || (creature.getFlags2() != null && creature.getFlags2().contains(Creature.CreatureFlag2.IS_EMOTIONLESS))) {
+            return;
+        }
+        entityData.setComponent(victim, mood.add(CreatureMood.REASON_OTHER, creature.getAttributes().getTortureMoodChange()));
     }
 
     private IRoomController getChamber(Entity entity) {

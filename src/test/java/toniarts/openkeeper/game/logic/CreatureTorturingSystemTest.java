@@ -28,6 +28,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.InHand;
@@ -40,6 +41,8 @@ import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
+import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.CreatureFixtures;
 import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -55,13 +58,81 @@ class CreatureTorturingSystemTest {
     private static final short KEEPER_ID = 3;
     private static final short HERO_ID = 1;
     private static final Point CHAMBER_TILE = new Point(4, 4);
+    private static final short TROLL = 10;
+    private static final short MISTRESS = 39;
+    private static final short UNIQUE_MISTRESS = 38;
+    private static final short IMP = 1;
 
     private final EntityData entityData = new DefaultEntityData();
     private final List<EntityId> leftDevice = new ArrayList<>();
     private final Map<EntityId, Short> converted = new HashMap<>();
     private final Map<EntityId, CreatureState> states = new HashMap<>();
     private final RoomInstance chamberInstance = new RoomInstance(new Room());
+    private final Map<Short, Creature> creatures = Map.of(
+            TROLL, CreatureFixtures.creature(TROLL, (short) 1092, false),
+            UNIQUE_MISTRESS, CreatureFixtures.creature(UNIQUE_MISTRESS, (short) -1000, false),
+            MISTRESS, CreatureFixtures.creature(MISTRESS, (short) 0, false),
+            IMP, CreatureFixtures.creature(IMP, (short) 1092, true));
     private CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, creaturesController(), mapController());
+
+    @Test
+    void ownVictimGetsAngrierEverySecond() {
+        EntityId victim = victim(KEEPER_ID, 1000, TROLL);
+
+        tick(3);
+
+        assertEquals(3 * 1092, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
+
+    @Test
+    void ownUniqueMistressEnjoysItDownToZero() {
+        EntityId victim = victim(KEEPER_ID, 1000, UNIQUE_MISTRESS);
+        entityData.setComponent(victim, new CreatureMood(0, 0, 0, 0, 0, 1500));
+
+        tick(1);
+        assertEquals(500, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+
+        tick(2);
+        assertEquals(0, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
+
+    @Test
+    void ownMistressFeelsNothing() {
+        EntityId victim = victim(KEEPER_ID, 1000, MISTRESS);
+        entityData.setComponent(victim, new CreatureMood(0, 0, 0, 0, 0, 5000));
+
+        tick(3);
+
+        assertEquals(5000, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
+
+    @Test
+    void ownVictimsAngerStopsAtTheCap() {
+        EntityId victim = victim(KEEPER_ID, 1000, TROLL);
+        entityData.setComponent(victim, new CreatureMood(0, 0, 0, 0, 0, CreatureMood.MAX_ANGER - 1000));
+
+        tick(2);
+
+        assertEquals(CreatureMood.MAX_ANGER, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
+
+    @Test
+    void emotionlessVictimFeelsNothing() {
+        EntityId victim = victim(KEEPER_ID, 1000, IMP);
+
+        tick(3);
+
+        assertEquals(0, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
+
+    @Test
+    void enemyVictimsMoodIsNotChanged() {
+        EntityId victim = victim(HERO_ID, 1000, TROLL);
+
+        tick(3);
+
+        assertEquals(0, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
 
     @Test
     void convertedEnemyLeavesTheDevice() {
@@ -155,9 +226,15 @@ class CreatureTorturingSystemTest {
     }
 
     private EntityId victim(short ownerId, float tortureTimeToConvert) {
+        return victim(ownerId, tortureTimeToConvert, TROLL);
+    }
+
+    private EntityId victim(short ownerId, float tortureTimeToConvert, short creatureId) {
         EntityId victim = entityData.createEntity();
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.tortureTimeToConvert = tortureTimeToConvert;
+        creatureComponent.creatureId = creatureId;
+        entityData.setComponent(victim, new CreatureMood());
         entityData.setComponent(victim, creatureComponent);
         entityData.setComponent(victim, new Owner(ownerId, KEEPER_ID));
         entityData.setComponent(victim, new Position(0, WorldUtils.pointToVector3f(CHAMBER_TILE)));
@@ -181,6 +258,7 @@ class CreatureTorturingSystemTest {
                         yield null;
                     }
                     case "getStateMachine" -> stateMachine(entityId);
+                    case "getCreature" -> creatures.get(entityData.getComponent(entityId, CreatureComponent.class).creatureId);
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
     }
