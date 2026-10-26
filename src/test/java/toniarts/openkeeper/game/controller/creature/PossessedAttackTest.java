@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Damage;
+import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
@@ -47,6 +48,7 @@ import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.tools.convert.map.Material;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.PossessionFixtures;
 import toniarts.openkeeper.tools.convert.map.Terrain;
@@ -82,6 +84,7 @@ class PossessedAttackTest {
     private Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings;
     private double gameTime;
     private EntityId us;
+    private Material creatureMaterial = Material.FLESH;
 
     @BeforeEach
     void setUp() {
@@ -105,6 +108,38 @@ class PossessedAttackTest {
 
         assertEquals(DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
         assertEquals(Creature.AnimationType.MELEE_ATTACK, entityData.getComponent(us, CreatureViewState.class).state);
+    }
+
+    @Test
+    void bladeHitOnFleshMakesTheHitEffectAtTheTarget() {
+        EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 5.8f));
+        entityData.setComponent(us, new CreatureMeleeAttack(Creature.AttackType.MELEE_BLADE.ordinal(), DAMAGE, RECHARGE, RANGE));
+
+        createController().executePossessedAttack();
+
+        assertEquals(Map.of(237, new Vector3f(5, 0, 5.8f)), getTriggeredEffects());
+    }
+
+    @Test
+    void bladeHitOnMetalAlsoMakesSparks() {
+        creatureMaterial = Material.METAL1;
+        createCreature(HERO, new Vector3f(5, 0, 5.8f));
+        entityData.setComponent(us, new CreatureMeleeAttack(Creature.AttackType.MELEE_BLADE.ordinal(), DAMAGE, RECHARGE, RANGE));
+
+        createController().executePossessedAttack();
+
+        assertEquals(Map.of(237, new Vector3f(5, 0, 5.8f), 313, new Vector3f(5, 0, 5.8f)), getTriggeredEffects());
+    }
+
+    @Test
+    void bluntHitOnMetalMakesNoSparks() {
+        creatureMaterial = Material.METAL1;
+        createCreature(HERO, new Vector3f(5, 0, 5.8f));
+        entityData.setComponent(us, new CreatureMeleeAttack(Creature.AttackType.MELEE_BLUNT.ordinal(), DAMAGE, RECHARGE, RANGE));
+
+        createController().executePossessedAttack();
+
+        assertEquals(Map.of(237, new Vector3f(5, 0, 5.8f)), getTriggeredEffects());
     }
 
     @Test
@@ -284,6 +319,14 @@ class PossessedAttackTest {
         entityData.setComponents(us, worker, new Gold(0, 100));
     }
 
+    private Map<Integer, Vector3f> getTriggeredEffects() {
+        Map<Integer, Vector3f> effects = new HashMap<>();
+        for (Entity entity : entityData.getEntities(EffectTrigger.class, Position.class)) {
+            effects.put(entity.get(EffectTrigger.class).effectId, entity.get(Position.class).position);
+        }
+        return effects;
+    }
+
     private EntityId createCreature(short ownerId, Vector3f position) {
         EntityId entity = entityData.createEntity();
         entityData.setComponents(entity, new CreatureComponent(), new Owner(ownerId, ownerId), new Health(1000, 1000),
@@ -346,7 +389,11 @@ class PossessedAttackTest {
         });
 
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData")
-                ? stub(IKwdFile.class, (kwdName, kwdArgs) -> kwdName.equals("getCreatureFirstPersonStats") ? firstPersonStats : null) : null);
+                ? stub(IKwdFile.class, (kwdName, kwdArgs) -> switch (kwdName) {
+                    case "getCreatureFirstPersonStats" -> firstPersonStats;
+                    case "getCreature" -> PossessionFixtures.creature(creatureMaterial);
+                    default -> null;
+                }) : null);
         return new CreatureController(us, entityData, new Creature(), null, null, gameTimer, gameSettings, creaturesController,
                 positionLookup, mapController, levelInfo, null, null);
     }
