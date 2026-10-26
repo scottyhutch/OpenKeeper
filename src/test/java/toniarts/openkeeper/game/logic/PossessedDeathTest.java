@@ -99,7 +99,7 @@ class PossessedDeathTest {
                 MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND, TrapFiringFixtures.miscVariable(MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND, 0),
                 MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, TrapFiringFixtures.miscVariable(MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, 0),
                 MiscType.DEATH_WHEN_POSSESSING_MANA_REDUCTION, TrapFiringFixtures.miscVariable(MiscType.DEATH_WHEN_POSSESSING_MANA_REDUCTION, MANA_REDUCTION)),
-                creaturesController, levelInfo, List.of(player), null);
+                creaturesController, null, levelInfo, List.of(player), null);
         healthSystem.processTick(0.25f);
     }
 
