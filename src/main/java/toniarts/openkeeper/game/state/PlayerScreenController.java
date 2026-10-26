@@ -1248,6 +1248,16 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 reapplyIconEffects(hud.findElementById("spell_" + keeperSpell.getKeeperSpellId()), unaffordableSpells);
             }
         }
+        for (ResearchableEntity door : state.getAvailableDoors()) {
+            if (door.isDiscovered()) {
+                reapplyIconEffects(hud.findElementById("door_" + state.getKwdFile().getDoorById(door.getId()).getDoorId()), workshoplessIcons);
+            }
+        }
+        for (ResearchableEntity trap : state.getAvailableTraps()) {
+            if (trap.isDiscovered()) {
+                reapplyIconEffects(hud.findElementById("trap_" + state.getKwdFile().getTrapById(trap.getId()).getTrapId()), workshoplessIcons);
+            }
+        }
     }
 
     private void reapplyIconEffects(Element icon, Set<Element> unaffordableIcons) {
