@@ -33,6 +33,7 @@ import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.DoorComponent;
+import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.FollowTarget;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
@@ -50,6 +51,7 @@ import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.tools.convert.map.Material;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.PossessionFixtures;
 import toniarts.openkeeper.tools.convert.map.Terrain;
@@ -88,6 +90,7 @@ class PossessedAttackTest {
     private Map<EntityId, CreatureController> controllers;
     private double gameTime;
     private EntityId us;
+    private Material creatureMaterial = Material.FLESH;
 
     @BeforeEach
     void setUp() {
@@ -112,6 +115,38 @@ class PossessedAttackTest {
 
         assertEquals(DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
         assertEquals(Creature.AnimationType.MELEE_ATTACK, entityData.getComponent(us, CreatureViewState.class).state);
+    }
+
+    @Test
+    void bladeHitOnFleshMakesTheHitEffectAtTheTarget() {
+        EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 5.8f));
+        entityData.setComponent(us, new CreatureMeleeAttack(Creature.AttackType.MELEE_BLADE.ordinal(), DAMAGE, RECHARGE, RANGE));
+
+        createController().executePossessedAttack();
+
+        assertEquals(Map.of(237, new Vector3f(5, 0, 5.8f)), getTriggeredEffects());
+    }
+
+    @Test
+    void bladeHitOnMetalAlsoMakesSparks() {
+        creatureMaterial = Material.METAL1;
+        createCreature(HERO, new Vector3f(5, 0, 5.8f));
+        entityData.setComponent(us, new CreatureMeleeAttack(Creature.AttackType.MELEE_BLADE.ordinal(), DAMAGE, RECHARGE, RANGE));
+
+        createController().executePossessedAttack();
+
+        assertEquals(Map.of(237, new Vector3f(5, 0, 5.8f), 313, new Vector3f(5, 0, 5.8f)), getTriggeredEffects());
+    }
+
+    @Test
+    void bluntHitOnMetalMakesNoSparks() {
+        creatureMaterial = Material.METAL1;
+        createCreature(HERO, new Vector3f(5, 0, 5.8f));
+        entityData.setComponent(us, new CreatureMeleeAttack(Creature.AttackType.MELEE_BLUNT.ordinal(), DAMAGE, RECHARGE, RANGE));
+
+        createController().executePossessedAttack();
+
+        assertEquals(Map.of(237, new Vector3f(5, 0, 5.8f)), getTriggeredEffects());
     }
 
     @Test
@@ -445,6 +480,14 @@ class PossessedAttackTest {
         entityData.setComponents(us, worker, new Gold(0, 100));
     }
 
+    private Map<Integer, Vector3f> getTriggeredEffects() {
+        Map<Integer, Vector3f> effects = new HashMap<>();
+        for (Entity entity : entityData.getEntities(EffectTrigger.class, Position.class)) {
+            effects.put(entity.get(EffectTrigger.class).effectId, entity.get(Position.class).position);
+        }
+        return effects;
+    }
+
     private EntityId createCreature(short ownerId, Vector3f position) {
         EntityId entity = entityData.createEntity();
 
@@ -542,7 +585,7 @@ class PossessedAttackTest {
         IKwdFile kwdFile = stub(IKwdFile.class, (kwdName, kwdArgs) -> switch (kwdName) {
             case "getCreatureFirstPersonStats" -> firstPersonStats;
             case "getCreature" -> (Short) kwdArgs[0] == HORNY
-                    ? TrapFiringFixtures.creature(HORNY, Creature.CreatureFlag.IS_HORNY) : TrapFiringFixtures.creature((Short) kwdArgs[0]);
+                    ? TrapFiringFixtures.creature(HORNY, Creature.CreatureFlag.IS_HORNY) : PossessionFixtures.creature((Short) kwdArgs[0], creatureMaterial);
             default -> null;
         });
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData") ? kwdFile : null);
