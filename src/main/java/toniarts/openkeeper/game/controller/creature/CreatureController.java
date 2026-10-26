@@ -141,6 +141,12 @@ public final class CreatureController extends EntityController implements ICreat
      */
     private static final float POSSESSED_ATTACK_MIN_FACING = FastMath.cos(341 / 2048f * FastMath.TWO_PI);
 
+    /**
+     * A creature joins the group of the possessed creature from closer than
+     * this, in tiles
+     */
+    private static final int POSSESSED_GROUP_RANGE = 7;
+
     private final INavigationService navigationService;
     private final ITaskManager taskManager;
     private final IGameTimer gameTimer;
@@ -2143,7 +2149,7 @@ public final class CreatureController extends EntityController implements ICreat
         PossessedAttack possessedAttack = entityData.getComponent(entityId, PossessedAttack.class);
         if (attacking) {
             entityData.setComponent(entityId, new PossessedAttack(true, gameTimer.getGameTime()));
-        } else if (possessedAttack != null) {
+        } else if (possessedAttack != null && !possessedAttack.group) {
 
             // A click shorter than a logic tick still gets its one swing
             if (hasSwungSince(possessedAttack.pressTime)) {
@@ -2160,9 +2166,19 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
+    public void addPossessedFollower() {
+        entityData.setComponent(entityId, new PossessedAttack(false, gameTimer.getGameTime(), true));
+    }
+
+    @Override
     public void executePossessedAttack() {
         CreatureMeleeAttack meleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
         Position position = entityData.getComponent(entityId, Position.class);
+        PossessedAttack possessedAttack = entityData.getComponent(entityId, PossessedAttack.class);
+        if (position != null && possessedAttack != null && possessedAttack.group) {
+            addFollowerInView(position);
+            return;
+        }
         if (meleeAttack == null || position == null) {
             return;
         }
@@ -2214,10 +2230,10 @@ public final class CreatureController extends EntityController implements ICreat
 
     /**
      * Can the possessed creature hit the entity with its melee attack. Any
-     * creature but our own, also neutral and allied ones, and the doors that
-     * are not ours. Traps can be added here. The Dungeon Heart can't be hit, it
-     * is not among the objects the original game lets a possessed creature
-     * hit.
+     * creature but our own, also neutral and allied ones, and the doors and
+     * the traps that are not ours. A hidden trap is not hit until it shows.
+     * The Dungeon Heart can't be hit, it is not among the objects the original
+     * game lets a possessed creature hit.
      *
      * @param entity the entity in reach
      * @return true if the entity is something to hit
@@ -2228,20 +2244,30 @@ public final class CreatureController extends EntityController implements ICreat
             return false;
         }
         return DoorAttackTarget.isBreakable(entityData, entity)
+                || TrapAttackTarget.isAttackable(entityData, entity)
                 || (creaturesController.isValidEntity(entity) && !isIncapacitated(entity));
     }
 
     private boolean isInFront(Position position, EntityId entity) {
+        return getFacing(position, entity) >= POSSESSED_ATTACK_MIN_FACING;
+    }
+
+    /**
+     * How straight the creature looks at the entity
+     *
+     * @return the cosine of the angle between where the creature looks and
+     * where the entity is, 1 if it is right on the entity
+     */
+    private float getFacing(Position position, EntityId entity) {
         Vector3f targetPosition = getPosition(entityData, entity);
         float dx = targetPosition.x - position.position.x;
         float dz = targetPosition.z - position.position.z;
         float length = FastMath.sqrt(dx * dx + dz * dz);
         if (length == 0) {
-            return true;
+            return 1;
         }
 
-        float facing = (FastMath.sin(position.rotation) * dx + FastMath.cos(position.rotation) * dz) / length;
-        return facing >= POSSESSED_ATTACK_MIN_FACING;
+        return (FastMath.sin(position.rotation) * dx + FastMath.cos(position.rotation) * dz) / length;
     }
 
     /**
@@ -2272,6 +2298,79 @@ public final class CreatureController extends EntityController implements ICreat
 
         addGold(mapController.damageTile(tile, getOwnerId(), this));
         return true;
+    }
+
+    /**
+     * Our own creature that the possessed creature looks at joins its group
+     * and follows it. It is the one closest to where the creature looks, at
+     * most FIRST_PERSON_ACCURACY_ANGLE_DEGREES off in the way the original game
+     * measures it, and closer than 7 tiles. The group has room for
+     * MAXIMUM_GROUP_NUMBER_OF_FOLLOWERS creatures.
+     *
+     * @param position the position of the possessed creature
+     */
+    private void addFollowerInView(Position position) {
+        if (getPossessedFollowers().size() >= getMiscVariable(Variable.MiscVariable.MiscType.MAXIMUM_GROUP_NUMBER_OF_FOLLOWERS, 8)) {
+            return;
+        }
+
+        // The original compares the angle, in 2048ths of a circle, to one minus the cosine, in 4096ths
+        float bestFacing = 1 - getMiscVariable(Variable.MiscVariable.MiscType.FIRST_PERSON_ACCURACY_ANGLE_DEGREES, 45) / 720f;
+        EntityId follower = null;
+        Point tile = WorldUtils.vectorToPoint(position.position);
+        for (int x = tile.x - POSSESSED_GROUP_RANGE; x <= tile.x + POSSESSED_GROUP_RANGE; x++) {
+            for (int y = tile.y - POSSESSED_GROUP_RANGE; y <= tile.y + POSSESSED_GROUP_RANGE; y++) {
+                if (mapController.getMapData().getTile(x, y) == null) {
+                    continue;
+                }
+                for (EntityId entity : entityPositionLookup.getEntitiesInLocation(new Point(x, y))) {
+                    float facing = getFacing(position, entity);
+                    if (facing > bestFacing && canJoinPossessedGroup(entity) && getDistanceToCreature(entity) < POSSESSED_GROUP_RANGE) {
+                        bestFacing = facing;
+                        follower = entity;
+                    }
+                }
+            }
+        }
+        if (follower == null) {
+            return;
+        }
+
+        ICreatureController creatureController = creaturesController.createController(follower);
+        creatureController.unassingCurrentTask();
+        creatureController.setFollowTarget(entityId);
+        creatureController.getStateMachine().changeState(CreatureState.FOLLOW);
+    }
+
+    /**
+     * Can the creature join the group of the possessed creature. Our own
+     * creatures can, but not the ones already in a group, the imprisoned or
+     * tortured ones, the incapacitated ones or the Horny Reaper.
+     */
+    private boolean canJoinPossessedGroup(EntityId entity) {
+        Owner owner = entityData.getComponent(entity, Owner.class);
+        CreatureComponent creatureComponent = entityData.getComponent(entity, CreatureComponent.class);
+        return !entityId.equals(entity) && owner != null && owner.ownerId == getOwnerId() && creatureComponent != null
+                && creaturesController.isValidEntity(entity) && !isIncapacitated(entity)
+                && entityData.getComponent(entity, FollowTarget.class) == null
+                && entityData.getComponent(entity, CreatureImprisoned.class) == null
+                && entityData.getComponent(entity, CreatureTortured.class) == null
+                && !levelInfo.getLevelData().getCreature(creatureComponent.creatureId).getFlags().contains(Creature.CreatureFlag.IS_HORNY);
+    }
+
+    private Set<EntityId> getPossessedFollowers() {
+        return entityData.findEntities(new FieldFilter<>(FollowTarget.class, "entityId", entityId), FollowTarget.class);
+    }
+
+    private int getMiscVariable(Variable.MiscVariable.MiscType type, int defaultValue) {
+        Variable.MiscVariable variable = gameSettings.get(type);
+        return variable != null ? (int) variable.getValue() : defaultValue;
+    }
+
+    @Override
+    public boolean isInPossessedGroup() {
+        FollowTarget followTarget = entityData.getComponent(entityId, FollowTarget.class);
+        return followTarget != null && entityData.getComponent(followTarget.entityId, Possessed.class) != null;
     }
 
     private void startPossession() {
@@ -2307,6 +2406,11 @@ public final class CreatureController extends EntityController implements ICreat
         entityData.removeComponent(entityId, PossessedMovement.class);
         entityData.removeComponent(entityId, PossessedAttack.class);
         entityData.removeComponent(entityId, Possessed.class);
+
+        // The group follows us only while we are possessed
+        for (EntityId follower : getPossessedFollowers()) {
+            entityData.removeComponent(follower, FollowTarget.class);
+        }
         entityData.setComponent(entityId, new CreatureAi(gameTimer.getGameTime(), CreatureState.IDLE, getCreature().getCreatureId()));
     }
 

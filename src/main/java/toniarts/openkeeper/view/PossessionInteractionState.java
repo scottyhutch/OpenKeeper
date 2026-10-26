@@ -226,8 +226,10 @@ public abstract class PossessionInteractionState extends AbstractPauseAwareState
             public void onMouseButtonEvent(MouseButtonEvent evt) {
                 if (evt.getButtonIndex() == MouseInput.BUTTON_LEFT) {
 
-                    // Only the melee attack for now, but always let go of it
-                    if (action == Action.MELEE || evt.isReleased()) {
+                    // The melee attack and the group, but always let go of the attack
+                    if (action == Action.GROUP && evt.isPressed()) {
+                        stateManager.getState(GameClientState.class).getGameClientService().addPossessedFollower();
+                    } else if (action == Action.MELEE || evt.isReleased()) {
                         stateManager.getState(GameClientState.class).getGameClientService().setPossessedAttack(evt.isPressed());
                     }
                 } else if (evt.getButtonIndex() == MouseInput.BUTTON_RIGHT && evt.isReleased()) {

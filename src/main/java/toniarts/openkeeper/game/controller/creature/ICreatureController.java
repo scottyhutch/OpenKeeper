@@ -409,11 +409,26 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public void setPossessedAttack(boolean attacking);
 
     /**
+     * The keeper wants the creature the possessed creature looks at to join
+     * its group. It joins on the game logic thread, see
+     * {@link #executePossessedAttack()}.
+     */
+    public void addPossessedFollower();
+
+    /**
      * Swings the melee attack of a possessed creature, if it has recharged.
      * Hits the nearest creature in front of it on the tiles around it, or if
-     * there is none, a worker digs the tile it is facing.
+     * there is none, a worker digs the tile it is facing. When the keeper asked
+     * for a follower instead, our own creature it looks at joins its group.
      */
     public void executePossessedAttack();
+
+    /**
+     * Does the creature follow a creature its keeper possesses
+     *
+     * @return true if the creature is in the group of a possessed creature
+     */
+    public boolean isInPossessedGroup();
 
     /**
      * Converts creature to another player's bidding

@@ -30,14 +30,23 @@ public final class PossessedAttack implements EntityComponent {
      */
     public boolean held;
     public double pressTime;
+    /**
+     * The keeper picks a creature to join the group instead of swinging
+     */
+    public boolean group;
 
     public PossessedAttack() {
         // For serialization
     }
 
     public PossessedAttack(boolean held, double pressTime) {
+        this(held, pressTime, false);
+    }
+
+    public PossessedAttack(boolean held, double pressTime, boolean group) {
         this.held = held;
         this.pressTime = pressTime;
+        this.group = group;
     }
 
 }
