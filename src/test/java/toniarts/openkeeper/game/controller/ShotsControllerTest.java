@@ -39,7 +39,7 @@ class ShotsControllerTest {
 
     private static final short HEAL_ID = 1;
     private static final short CREATE_OBJECT_ID = 2;
-    private static final short SIGHT_OF_EVIL_ID = 33;
+    private static final short CONCEAL_ID = 33;
     private static final short PLAYER_ID = 3;
 
     private final EntityData entityData = new DefaultEntityData();
@@ -50,7 +50,7 @@ class ShotsControllerTest {
     ShotsControllerTest() {
         addShot(HEAL_ID, Shot.ProcessType.MODIFY_HEALTH);
         addShot(CREATE_OBJECT_ID, Shot.ProcessType.CREATE_OBJECT);
-        addShot(SIGHT_OF_EVIL_ID, Shot.ProcessType.SIGHT_OF_EVIL);
+        addShot(CONCEAL_ID, Shot.ProcessType.CONCEAL);
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (proxy, method, args) -> method.getName().equals("getShotById") ? shotsById.get((Short) args[0]) : null);
         IObjectsController objectsController = (IObjectsController) Proxy.newProxyInstance(IObjectsController.class.getClassLoader(), new Class<?>[]{IObjectsController.class},
@@ -88,7 +88,7 @@ class ShotsControllerTest {
 
     @Test
     void notImplementedProcessTypeDoesNothing() {
-        shotsController.createShot(SIGHT_OF_EVIL_ID, 5, 0, PLAYER_ID, new Vector3f(), null);
+        shotsController.createShot(CONCEAL_ID, 5, 0, PLAYER_ID, new Vector3f(), null);
 
         assertTrue(loadedObjects.isEmpty());
     }
