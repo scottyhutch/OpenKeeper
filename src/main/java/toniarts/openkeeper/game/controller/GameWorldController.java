@@ -19,6 +19,7 @@ package toniarts.openkeeper.game.controller;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.jme3.util.SafeArrayList;
+import com.simsilica.es.Entity;
 import com.simsilica.es.EntityComponent;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
@@ -634,8 +635,9 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
         // Only the entities on the tile, not every trap on the map
         for (EntityId entityId : entityPositionLookup.getEntitiesInLocation(tile)) {
-            TrapComponent trapComponent = entityData.getComponent(entityId, TrapComponent.class);
-            Owner owner = entityData.getComponent(entityId, Owner.class);
+            Entity entity = entityData.getEntity(entityId, TrapComponent.class, Owner.class);
+            TrapComponent trapComponent = entity.get(TrapComponent.class);
+            Owner owner = entity.get(Owner.class);
             if (trapComponent == null || owner == null || !TrapSellRules.isSellable(owner.ownerId, playerId)) {
                 continue;
             }
@@ -1753,8 +1755,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
      */
     private Set<Point> getTrapBlockingTiles(Point tile) {
         for (EntityId entityId : entityPositionLookup.getEntitiesInLocation(tile)) {
-            if (entityData.getComponent(entityId, TrapComponent.class) != null
-                    || entityData.getComponent(entityId, DoorComponent.class) != null) {
+            Entity entity = entityData.getEntity(entityId, TrapComponent.class, DoorComponent.class);
+            if (entity.get(TrapComponent.class) != null || entity.get(DoorComponent.class) != null) {
                 return Set.of(tile);
             }
         }
