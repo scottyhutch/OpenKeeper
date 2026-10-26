@@ -64,6 +64,40 @@ class PlayerManaControlTest {
         assertEquals(700, keeper.getMana());
     }
 
+    @Test
+    void spentManaIsTakenAtOnce() {
+        keeper.setMana(1000);
+
+        manaControl.spendMana(250);
+
+        assertEquals(750, keeper.getMana());
+    }
+
+    @Test
+    void spentManaShowsWithTheLossOfThatSecond() {
+        keeper.setMana(1000);
+        manaControl.spendMana(250);
+
+        manaControl.updateMana(20, 5, 0);
+
+        assertEquals(255, keeper.getManaLoose());
+        assertEquals(20, keeper.getManaGain());
+
+        // The spent mana isn't taken a second time
+        assertEquals(765, keeper.getMana());
+    }
+
+    @Test
+    void spentManaShowsOnlyOnce() {
+        keeper.setMana(1000);
+        manaControl.spendMana(250);
+        manaControl.updateMana(20, 5, 0);
+
+        manaControl.updateMana(20, 5, 0);
+
+        assertEquals(5, keeper.getManaLoose());
+    }
+
     private static Map<MiscType, MiscVariable> settings() {
         Map<MiscType, MiscVariable> settings = new EnumMap<>(MiscType.class);
         settings.put(MiscType.MAXIMUM_MANA_THRESHOLD, manaVariable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000));
