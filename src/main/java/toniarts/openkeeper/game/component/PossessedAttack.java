@@ -31,13 +31,20 @@ public final class PossessedAttack implements EntityComponent {
     public boolean held;
     public double pressTime;
 
+    /**
+     * 0 for the melee attack, 1 to 3 for the creature's spells in the order
+     * the creature has them
+     */
+    public int spell;
+
     public PossessedAttack() {
         // For serialization
     }
 
-    public PossessedAttack(boolean held, double pressTime) {
+    public PossessedAttack(boolean held, double pressTime, int spell) {
         this.held = held;
         this.pressTime = pressTime;
+        this.spell = spell;
     }
 
 }
