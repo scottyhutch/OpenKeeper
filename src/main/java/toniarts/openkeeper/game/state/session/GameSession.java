@@ -205,9 +205,10 @@ public interface GameSession {
      * attack is held, the creature swings whenever its attack has recharged.
      *
      * @param attacking whether the attack button is held down
+     * @param spell 0 for the melee attack, 1 to 3 for the creature's spells
      */
     @Asynchronous
-    public void setPossessedAttack(boolean attacking);
+    public void setPossessedAttack(boolean attacking, int spell);
 
     /**
      * Add the creature the possessed creature looks at to its group
