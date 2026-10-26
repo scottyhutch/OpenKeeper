@@ -596,9 +596,15 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
-    public ICreatureController getAttackTarget() {
+    public IEntityController getAttackTarget() {
         AttackTarget attackTarget = entityData.getComponent(entityId, AttackTarget.class);
-        ICreatureController attackTargetController = null;
+        if (attackTarget != null && DungeonHeartTarget.isDungeonHeart(entityData, attackTarget.entityId)) {
+            if (isHeartToAttack(attackTarget.entityId)) {
+                return objectsController.createController(attackTarget.entityId);
+            }
+            attackTarget = null;
+        }
+        IEntityController attackTargetController = null;
         if (attackTarget == null || isIncapacitated(attackTarget.entityId)
                 || isFleeing(attackTarget.entityId) || isCaptive(attackTarget.entityId)) {
 
@@ -619,7 +625,16 @@ public final class CreatureController extends EntityController implements ICreat
                     }
                 }
             }
-            if (nearestEnemy != null) {
+
+            // With no one but workers to fight, go for an enemy heart in sight
+            EntityId heart = null;
+            if (nearestEnemy == null || isWorker(nearestEnemy)) {
+                heart = getNearestEnemyHeart(nearestDistance);
+            }
+            if (heart != null) {
+                attackTargetController = objectsController.createController(heart);
+                setAttackTarget(heart);
+            } else if (nearestEnemy != null) {
                 attackTargetController = creaturesController.createController(nearestEnemy);
                 setAttackTarget(nearestEnemy);
             } else {
@@ -629,6 +644,51 @@ public final class CreatureController extends EntityController implements ICreat
             attackTargetController = creaturesController.createController(attackTarget.entityId);
         }
         return attackTargetController;
+    }
+
+    private boolean isWorker(EntityId entity) {
+        CreatureComponent otherCreature = entityData.getComponent(entity, CreatureComponent.class);
+        return otherCreature != null && levelInfo.getLevelData().getCreature(otherCreature.creatureId)
+                .getFlags().contains(Creature.CreatureFlag.IS_WORKER);
+    }
+
+    /**
+     * Finds the nearest enemy Dungeon Heart we sense and can get next to
+     *
+     * @param maxDistance the heart needs to be nearer than this
+     * @return the heart, or {@code null} if there is none
+     */
+    private EntityId getNearestEnemyHeart(float maxDistance) {
+        EntityId nearestHeart = null;
+        float nearestDistance = maxDistance;
+        for (EntityId entity : entityPositionLookup.getSensedEntities(entityId)) {
+            if (DungeonHeartTarget.isDungeonHeart(entityData, entity) && isHeartToAttack(entity)
+                    && getHeartAttackTile(entity) != null) {
+                float distance = getDistanceToCreature(entity);
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestHeart = entity;
+                }
+            }
+        }
+
+        return nearestHeart;
+    }
+
+    private boolean isHeartToAttack(EntityId heart) {
+        Health health = entityData.getComponent(heart, Health.class);
+        return health != null && health.health > 0 && isEnemy(heart)
+                && creature.getFightStyle() != Creature.FightStyle.NON_FIGHTER;
+    }
+
+    private Point getHeartTile(EntityId heart) {
+        return WorldUtils.vectorToPoint(getPosition(entityData, heart));
+    }
+
+    private Point getHeartAttackTile(EntityId heart) {
+        Point ourPosition = getCreatureCoordinates();
+        return DungeonHeartTarget.getAttackTile(ourPosition, getHeartTile(heart),
+                tile -> tile.equals(ourPosition) || navigationService.findPath(ourPosition, tile, this) != null);
     }
 
     private boolean hasPathToEntity(EntityId entity) {
@@ -648,6 +708,9 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public boolean isWithinAttackDistance(EntityId attackTarget) {
+        if (DungeonHeartTarget.isDungeonHeart(entityData, attackTarget)) {
+            return DungeonHeartTarget.isInReach(getCreatureCoordinates(), getHeartTile(attackTarget));
+        }
         float distanceNeeded = Math.max(getPreferredAttackDistance(), getPossibleAttackDistance());
 
         // TODO: currently we move only with a tile precision, so accept attack if on the same tile already
@@ -741,7 +804,8 @@ public final class CreatureController extends EntityController implements ICreat
         // TODO: how to apply the damage? Create a component for THIS creature that adds the damage to enemy after the countdown is finished?
         // Always prefer melee if in range
         CreatureMeleeAttack creatureMeleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
-        if (isInRange(creatureMeleeAttack.range, attackTarget)) {
+        if (DungeonHeartTarget.isDungeonHeart(entityData, attackTarget)
+                ? isWithinAttackDistance(attackTarget) : isInRange(creatureMeleeAttack.range, attackTarget)) {
             if (isAttackRecharged(creatureMeleeAttack)) {
                 stateMachine.changeState(CreatureState.MELEE_ATTACK);
                 hitWithMelee(attackTarget, creatureMeleeAttack, creatureMeleeAttack.damage);
@@ -825,6 +889,10 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public void navigateToAttackTarget(EntityId attackTarget) {
+        if (DungeonHeartTarget.isDungeonHeart(entityData, attackTarget)) {
+            navigateToHeart(attackTarget);
+            return;
+        }
         Vector3f targetPosition = getPosition(entityData, attackTarget);
         if (targetPosition != null) {
 
@@ -840,6 +908,19 @@ public final class CreatureController extends EntityController implements ICreat
             if (destination != null && !destination.equals(ourPosition)) {
                 createNavigation(ourPosition, destination, null);
             }
+        }
+    }
+
+    private void navigateToHeart(EntityId heart) {
+        Point heartTile = getHeartTile(heart);
+        Navigation currentNavigation = entityData.getComponent(entityId, Navigation.class);
+        if (currentNavigation != null && DungeonHeartTarget.isInReach(currentNavigation.target, heartTile)) {
+            return;
+        }
+
+        Point attackTile = getHeartAttackTile(heart);
+        if (attackTile != null && !attackTile.equals(getCreatureCoordinates())) {
+            createNavigation(getCreatureCoordinates(), attackTile, heartTile);
         }
     }
 
