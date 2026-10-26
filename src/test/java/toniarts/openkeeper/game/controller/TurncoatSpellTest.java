@@ -86,7 +86,7 @@ class TurncoatSpellTest {
     void enemyCreatureFightsForTheCasterForTheSpellDuration() {
         EntityId target = creature(CREATURE_ID, ENEMY);
 
-        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), target);
+        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), target, null);
 
         Turncoat turncoat = entityData.getComponent(target, Turncoat.class);
         assertNotNull(turncoat);
@@ -101,7 +101,7 @@ class TurncoatSpellTest {
     void immuneCreatureIsNotTurned() {
         EntityId target = creature(IMMUNE_CREATURE_ID, ENEMY);
 
-        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), target);
+        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), target, null);
 
         assertNull(entityData.getComponent(target, Turncoat.class));
     }
@@ -111,8 +111,8 @@ class TurncoatSpellTest {
         EntityId door = entityData.createEntity();
         entityData.setComponent(door, new Owner(ENEMY, ENEMY));
 
-        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), door);
-        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), null);
+        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), door, null);
+        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), null, null);
 
         assertNull(entityData.getComponent(door, Turncoat.class));
     }

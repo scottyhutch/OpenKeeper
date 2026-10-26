@@ -1659,24 +1659,6 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
-    public void knockDown() {
-
-        // Without the AI the creature is possessed or in hand
-        if (creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)
-                || entityData.getComponent(entityId, CreatureAi.class) == null
-                || isIncapacitated() || isCaptive(entityId)) {
-            return;
-        }
-
-        unassingCurrentTask();
-        stopCreature();
-        stateMachine.changeState(CreatureState.FALLEN);
-
-        // Restart the state time also when the creature was down already, a creature struck again stays down
-        entityData.setComponent(entityId, new CreatureAi(gameTimer.getGameTime(), CreatureState.FALLEN, creature.getId()));
-    }
-
-    @Override
     public int getLevel() {
         CreatureExperience creatureExperience = entityData.getComponent(entityId, CreatureExperience.class);
         return creatureExperience.level;

@@ -43,7 +43,7 @@ class CreateObjectShotTest {
 
         // Create Gold: object 1 (Gold), 1000 gold, 2000 when upgraded
         shotsController(CreateObjectShotFixtures.object(GOLD_ID, GameObject.ObjectFlag.OBJECT_TYPE_GOLD))
-                .createShot(SHOT_ID, GOLD_ID, 1000, PLAYER_ID, new Vector3f(4.2f, 0, 7.4f), null);
+                .createShot(SHOT_ID, GOLD_ID, 1000, PLAYER_ID, new Vector3f(4.2f, 0, 7.4f), null, null);
 
         assertEquals(1, loadedObjects.size());
         Object[] args = loadedObjects.get(0);
@@ -59,7 +59,7 @@ class CreateObjectShotTest {
         Vector3f position = new Vector3f(4.2f, 0, 7.6f);
 
         shotsController(CreateObjectShotFixtures.object(BANNER_ID))
-                .createShot(SHOT_ID, BANNER_ID, 0, PLAYER_ID, position, null);
+                .createShot(SHOT_ID, BANNER_ID, 0, PLAYER_ID, position, null, null);
 
         assertEquals(1, loadedObjects.size());
         Object[] args = loadedObjects.get(0);

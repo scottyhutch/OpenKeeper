@@ -22,8 +22,6 @@ import com.simsilica.es.EntityId;
 import java.lang.System.Logger;
 import java.util.EnumMap;
 import java.util.Map;
-import toniarts.openkeeper.game.component.CreatureComponent;
-import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Tremor;
 import toniarts.openkeeper.game.controller.entity.EntityController;
@@ -32,10 +30,8 @@ import toniarts.openkeeper.game.controller.shot.LightningShotProcessor;
 import toniarts.openkeeper.game.controller.shot.ShotRequest;
 import toniarts.openkeeper.game.sound.CombatSounds;
 import toniarts.openkeeper.game.sound.ThingSounds;
-import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
-import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.Shot;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CHICKEN;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_CREATURE;
@@ -169,45 +165,6 @@ public final class ShotsController implements IShotsController {
         Position targetPosition = target != null ? entityData.getComponent(target, Position.class) : null;
         if (targetPosition != null) {
             combatSounds.playShotHit(shot, target, targetPosition.position);
-        }
-    }
-
-    private boolean isKeeperSpellShot(short shotTypeId) {
-        for (KeeperSpell keeperSpell : kwdFile.getKeeperSpells()) {
-            if (keeperSpell.getShotTypeId() == shotTypeId || keeperSpell.getBonusShotTypeId() == shotTypeId) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    /**
-     * Strikes the target with lightning. Shot data 1 is the damage, twice that
-     * when the target stands in water. A creature is also knocked off its
-     * feet, unless it is immune to lightning, then nothing happens at all
-     *
-     * @param target the struck entity, can be null
-     * @param damage the damage
-     */
-    private void strikeWithLightning(EntityId target, int damage) {
-        Position position = target != null ? entityData.getComponent(target, Position.class) : null;
-        if (position == null || entityData.getComponent(target, Health.class) == null) {
-            return;
-        }
-
-        CreatureComponent creatureComponent = entityData.getComponent(target, CreatureComponent.class);
-        Creature creature = creatureComponent != null ? kwdFile.getCreature(creatureComponent.creatureId) : null;
-        if (creature != null && creature.getFlags3() != null
-                && creature.getFlags3().contains(Creature.CreatureFlag3.IS_IMMUNE_TO_LIGHTNING)) {
-            return;
-        }
-
-        boolean inWater = mapController.isWater(WorldUtils.vectorToPoint(position.position));
-        EntityController.setDamage(entityData, target, inWater ? damage * 2 : damage);
-
-        if (creature != null && creaturesController.isValidEntity(target)) {
-            creaturesController.createController(target).knockDown();
         }
     }
 

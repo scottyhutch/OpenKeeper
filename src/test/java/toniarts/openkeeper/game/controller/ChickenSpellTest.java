@@ -83,7 +83,7 @@ class ChickenSpellTest {
     void creatureTurnsIntoChickenForTheSpellDuration() {
         EntityId target = creature(CREATURE_ID, ENEMY);
 
-        shotsController.createShot(CHICKEN_SHOT_ID, 60, 0, CASTER, new Vector3f(), target);
+        shotsController.createShot(CHICKEN_SHOT_ID, 60, 0, CASTER, new Vector3f(), target, null);
 
         assertEquals(List.of(target.getId() + ":60.0"), chickenCalls);
     }
@@ -93,8 +93,8 @@ class ChickenSpellTest {
         EntityId door = entityData.createEntity();
         entityData.setComponent(door, new Owner(ENEMY, ENEMY));
 
-        shotsController.createShot(CHICKEN_SHOT_ID, 60, 0, CASTER, new Vector3f(), door);
-        shotsController.createShot(CHICKEN_SHOT_ID, 60, 0, CASTER, new Vector3f(), null);
+        shotsController.createShot(CHICKEN_SHOT_ID, 60, 0, CASTER, new Vector3f(), door, null);
+        shotsController.createShot(CHICKEN_SHOT_ID, 60, 0, CASTER, new Vector3f(), null, null);
 
         assertTrue(chickenCalls.isEmpty());
     }
