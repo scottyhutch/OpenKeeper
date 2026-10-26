@@ -40,6 +40,13 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public boolean shouldFleeOrAttack();
 
     /**
+     * An idle fighter hits an enemy door that is next to it, as DKII.EXE does
+     *
+     * @return true if there is such a door and we are on it
+     */
+    public boolean attackAdjacentDoor();
+
+    /**
      * Checks what the creature sees and hears
      */
     public void checkSurroundings();
@@ -131,6 +138,14 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public Point getCreatureCoordinates();
 
     public void setAssignedTask(Task task);
+
+    /**
+     * The assigned task moved on to its next step, with a new type and
+     * location. The creature keeps the task and heads for the new location.
+     *
+     * @param task the assigned task
+     */
+    public void updateAssignedTask(Task task);
 
     public void executeAssignedTask();
 
@@ -233,6 +248,13 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
      * @return research per second
      */
     public int getResearchPerSecond();
+
+    /**
+     * Get manufacture per second attribute
+     *
+     * @return manufacture per second
+     */
+    public int getManufacturePerSecond();
 
     /**
      * Gives object to creature
