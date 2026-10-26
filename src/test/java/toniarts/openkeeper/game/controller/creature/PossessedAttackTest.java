@@ -40,14 +40,17 @@ import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
+import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.TerrainFixtures;
+import toniarts.openkeeper.tools.convert.map.TrapFiringFixtures;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -234,8 +237,11 @@ class PossessedAttackTest {
 
     private EntityId createCreature(short ownerId, Vector3f position) {
         EntityId entity = entityData.createEntity();
+
+        // The others face us, so no rear attack bonus changes the damage
+        float rotation = ownerId == KEEPER ? 0 : (float) Math.PI;
         entityData.setComponents(entity, new CreatureComponent(), new Owner(ownerId, ownerId), new Health(1000, 1000),
-                new Position(0, position), new CreatureMeleeAttack(0, DAMAGE, RECHARGE, RANGE));
+                new Position(rotation, position), new CreatureMeleeAttack(0, DAMAGE, RECHARGE, RANGE));
         return entity;
     }
 
@@ -293,8 +299,11 @@ class PossessedAttackTest {
             default -> null;
         });
 
-        return new CreatureController(us, entityData, new Creature(), null, null, gameTimer, Map.of(), creaturesController,
-                positionLookup, mapController, null, null, null);
+        ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData")
+                ? stub(IKwdFile.class, (kwdName, kwdArgs) -> kwdName.equals("getCreature")
+                ? TrapFiringFixtures.creature((short) kwdArgs[0]) : null) : null);
+        return new CreatureController(us, entityData, TrapFiringFixtures.creature((short) 1), null, null, gameTimer, Map.of(),
+                creaturesController, positionLookup, mapController, levelInfo, null, null);
     }
 
     @FunctionalInterface
