@@ -38,6 +38,7 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
@@ -71,17 +72,21 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
     private final EntityData entityData;
     private final ICreaturesController creaturesController;
     private final IMapController mapController;
+    private final Map<Short, IPlayerController> playerControllers;
     private final EntitySet torturedEntities;
     private final Random random;
     private final Map<EntityId, IRoomController> chambersByVictim = new HashMap<>();
     private final Map<List<Short>, Set<Integer>> infoKnown = new HashMap<>();
     private final Map<Short, Set<RoomInstance>> roomsRevealed = new HashMap<>();
 
-    public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController) {
-        this(entityData, creaturesController, mapController, new Random());
+    public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController,
+            Map<Short, IPlayerController> playerControllers) {
+        this(entityData, creaturesController, mapController, playerControllers, new Random());
     }
 
-    CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController, Random random) {
+    CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController,
+            Map<Short, IPlayerController> playerControllers, Random random) {
+        this.playerControllers = playerControllers;
         this.random = random;
         this.entityData = entityData;
         this.creaturesController = creaturesController;
@@ -127,6 +132,7 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
                     entityData.removeComponent(entity.getId(), CreatureTortured.class);
                     leaveDevice(entity.getId());
                     creaturesController.createController(entity.getId()).convertCreature(playerId);
+                    playerControllers.get(playerId).getStatsControl().creatureConverted();
                     continue;
                 }
             }

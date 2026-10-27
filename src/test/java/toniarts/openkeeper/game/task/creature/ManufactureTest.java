@@ -26,7 +26,9 @@ import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.controller.WorkshopOrders;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.player.PlayerManufactureControl;
+import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -63,7 +65,7 @@ class ManufactureTest {
                     case "equals" -> proxy == args[0];
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
-        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, null, null, manufactureControl, workshopOrders, null);
+        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, null, null, manufactureControl, workshopOrders, null, null);
         task.assign(creature, false);
 
         // A minute of logic ticks
@@ -74,6 +76,50 @@ class ManufactureTest {
         }
 
         assertEquals(60 * TROLL, manufactureControl.getProgress());
+    }
+
+    @Test
+    void finishedItemCountsOnceForItsKeeper() {
+        Trap trap = TrapFixtures.trapToManufacture((short) 1, TROLL);
+        IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(
+                IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "getTrapById" -> trap;
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        EntityData entityData = new DefaultEntityData();
+        entityData.setComponents(entityData.createEntity(), new TrapComponent(trap.getTrapId()), new TrapViewState(trap.getTrapId(), true),
+                new Owner((short) 1, (short) 1));
+        IRoomObjectControl<?> crates = (IRoomObjectControl<?>) Proxy.newProxyInstance(
+                IRoomObjectControl.class.getClassLoader(), new Class<?>[]{IRoomObjectControl.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "addItem" -> null;
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        IRoomController workshop = (IRoomController) Proxy.newProxyInstance(
+                IRoomController.class.getClassLoader(), new Class<?>[]{IRoomController.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "getObjectControl" -> crates;
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        IObjectsController objectsController = (IObjectsController) Proxy.newProxyInstance(
+                IObjectsController.class.getClassLoader(), new Class<?>[]{IObjectsController.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "addRoomCrate" -> entityData.createEntity();
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        ICreatureController creature = (ICreatureController) Proxy.newProxyInstance(
+                ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "getManufacturePerSecond" -> TROLL;
+                    case "hashCode" -> System.identityHashCode(proxy);
+                    case "equals" -> proxy == args[0];
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        PlayerStatsControl stats = new PlayerStatsControl();
+        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, new PlayerManufactureControl(),
+                new WorkshopOrders(entityData, kwdFile), objectsController, stats);
+        task.assign(creature, false);
+
+        task.executeTask(creature, 1.0f);
+        task.executeTask(creature, 1.5f);
+
+        assertEquals(1, stats.getItemsManufactured());
     }
 
     @Test
@@ -112,7 +158,7 @@ class ManufactureTest {
         entityData.setComponents(entityData.createEntity(), new TrapComponent(trap.getTrapId()), new TrapViewState(trap.getTrapId(), true),
                 new Owner((short) 1, (short) 1));
         return new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, new PlayerManufactureControl(),
-                new WorkshopOrders(entityData, kwdFile), null);
+                new WorkshopOrders(entityData, kwdFile), null, null);
     }
 
 }

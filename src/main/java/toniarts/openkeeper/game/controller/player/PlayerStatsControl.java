@@ -39,6 +39,8 @@ public final class PlayerStatsControl {
     private int enemyCreaturesKilled = 0;
     private int heroesDestroyed = 0;
     private int specialsFound = 0;
+    private int itemsManufactured = 0;
+    private int creaturesConverted = 0;
 
     public boolean hasSlapped() {
         return !slapsMap.isEmpty();
@@ -146,6 +148,38 @@ public final class PlayerStatsControl {
      */
     public int getSpecialsFound() {
         return specialsFound;
+    }
+
+    /**
+     * A workshop has finished a trap or a door for the player
+     */
+    public void itemManufactured() {
+        itemsManufactured++;
+    }
+
+    /**
+     * Get the number of traps and doors the player's workshops have finished
+     *
+     * @return items manufactured
+     */
+    public int getItemsManufactured() {
+        return itemsManufactured;
+    }
+
+    /**
+     * A creature has been converted to the player's side in the torture chamber
+     */
+    public void creatureConverted() {
+        creaturesConverted++;
+    }
+
+    /**
+     * Get the number of creatures the player has converted by torturing
+     *
+     * @return creatures converted
+     */
+    public int getCreaturesConverted() {
+        return creaturesConverted;
     }
 
     /**

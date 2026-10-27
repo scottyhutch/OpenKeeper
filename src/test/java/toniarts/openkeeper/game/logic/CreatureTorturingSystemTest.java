@@ -37,8 +37,10 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
@@ -90,7 +92,13 @@ class CreatureTorturingSystemTest {
             TROLL, TortureVictimFixtures.victim(TROLL, (short) 1092, Creature.JobClass.ARTISAN, false),
             MISTRESS, TortureVictimFixtures.victim(MISTRESS, (short) -1000, Creature.JobClass.FIGHTER, false),
             IMP, TortureVictimFixtures.victim(IMP, (short) 1092, Creature.JobClass.ARTISAN, true));
-    private CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), lastChoice);
+    private final PlayerStatsControl stats = new PlayerStatsControl();
+    private final Map<Short, IPlayerController> players = Map.of(KEEPER_ID, (IPlayerController) Proxy.newProxyInstance(
+            IPlayerController.class.getClassLoader(), new Class<?>[]{IPlayerController.class}, (proxy, method, args) -> switch (method.getName()) {
+                case "getStatsControl" -> stats;
+                default -> throw new UnsupportedOperationException(method.getName());
+            }));
+    private CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, lastChoice);
 
     @Test
     void enemyTorturedToDeathRevealsOneOfItsKeepersRooms() {
@@ -112,7 +120,7 @@ class CreatureTorturingSystemTest {
     void victimTellsWhatTheKeeperDoesNotKnowYet() {
 
         // An artisan has two things to tell about its keeper, every victim one more thing
-        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), firstChoice);
+        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, firstChoice);
         torturedToDeath(HERO_ID);
         torturedToDeath(HERO_ID);
         torturedToDeath(HERO_ID);
@@ -177,6 +185,15 @@ class CreatureTorturingSystemTest {
     }
 
     @Test
+    void conversionCountsOnceForTheTorturersKeeper() {
+        victim(HERO_ID, 2);
+
+        tick(6);
+
+        assertEquals(1, stats.getCreaturesConverted());
+    }
+
+    @Test
     void deadVictimLeavesTheDevice() {
         EntityId victim = victim(HERO_ID, 100);
         tick(1);
@@ -235,6 +252,7 @@ class CreatureTorturingSystemTest {
         tick(3);
 
         assertTrue(converted.isEmpty());
+        assertEquals(0, stats.getCreaturesConverted());
         assertTrue(leftDevice.isEmpty());
     }
 
