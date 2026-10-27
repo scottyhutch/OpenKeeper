@@ -1358,10 +1358,6 @@ public final class MainMenuScreenController implements IMainMenuScreenController
             mainObjectiveImage.hide();
         }
 
-        Label totalEvilRating = deScreen.findNiftyControl("totalEvilRating", Label.class);
-        Label overallTotalEvilRating = deScreen.findNiftyControl("overallTotalEvilRating", Label.class);
-        Label specialsFound = deScreen.findNiftyControl("specialsFound", Label.class);
-
         subObjectiveImage.hide();
         if (campaign && state.selectedLevel instanceof CampaignLevel lvl && lvl.getType().equals(LevelType.Level)) {
             objectiveImage = AssetUtils.getCanonicalAssetKey(String.format(OBJECTIVE_IMAGE_URL, gameLevel.getName(), 1));
@@ -1375,11 +1371,41 @@ public final class MainMenuScreenController implements IMainMenuScreenController
             }
         }
 
-        // FIXME: GameResult has no other data yet and also get it from the client state directly
+        // The statistics, "?" for the ones we don't have
+        GameResult result = state.getDebriefingResult() != null ? state.getDebriefingResult() : new GameResult();
+        Boolean won = result.getData(GameResult.ResultType.LEVEL_WON);
         boolean levelWon = state.isDebriefingLevelWon();
-        deScreen.findNiftyControl("levelWon", Label.class).setText(levelWon ? "${menu.21}" : "${menu.22}");
-        int timeTaken = 0; //Math.round(result.getData(GameResult.ResultType.TIME_TAKEN));
-        deScreen.findNiftyControl("timeTaken", Label.class).setText(Utils.timeToString(timeTaken));
+        setDebriefingValue(deScreen, "levelWon", won == null ? null : (levelWon ? "${menu.21}" : "${menu.22}"));
+        Number timeTaken = result.getData(GameResult.ResultType.TIME_TAKEN);
+        setDebriefingValue(deScreen, "timeTaken", timeTaken == null ? null : Utils.timeToString((int) Math.round(timeTaken.doubleValue())));
+        Number training = result.getData(GameResult.ResultType.CREATURE_TRAINING);
+        setDebriefingValue(deScreen, "creatureTraining", training == null ? null
+                : String.format("%d.%02d", (int) training.floatValue(), (int) ((training.floatValue() - (int) training.floatValue()) * 100)));
+        Number specialsFound = result.getData(GameResult.ResultType.SPECIALS_FOUND);
+        Number specialsMax = result.getData(GameResult.ResultType.SPECIALS_MAX);
+        setDebriefingValue(deScreen, "specialsFound", specialsFound == null || specialsMax == null ? "?/?" : specialsFound + " / " + specialsMax);
+        setDebriefingValue(deScreen, "totalEvilRating", result.getData(GameResult.ResultType.TOTAL_RATING));
+        setDebriefingValue(deScreen, "enemyCreaturesKilled", result.getData(GameResult.ResultType.ENEMY_CREATURES_KILLED));
+        setDebriefingValue(deScreen, "heroesDestroyed", result.getData(GameResult.ResultType.HEROES_DESTROYED));
+        setDebriefingValue(deScreen, "roomsCaptured", result.getData(GameResult.ResultType.ROOMS_CAPTURED));
+        setDebriefingValue(deScreen, "landOwned", result.getData(GameResult.ResultType.LAND_OWNED));
+        setDebriefingValue(deScreen, "goldMined", result.getData(GameResult.ResultType.GOLD_MINED));
+        setDebriefingValue(deScreen, "manaStored", result.getData(GameResult.ResultType.MANA_STORED));
+        setDebriefingValue(deScreen, "itemsManufactured", result.getData(GameResult.ResultType.ITEMS_MANUFACTURED));
+        setDebriefingValue(deScreen, "creaturesCommanded", result.getData(GameResult.ResultType.CREATURES_COMMANDED));
+        setDebriefingValue(deScreen, "creaturesConverted", result.getData(GameResult.ResultType.CREATURES_CONVERTED));
+
+        // The overall Evil Rating and the attempts are kept with the campaign progress, a won game is an attempt too
+        Object overallEvilRating = null;
+        Object attempts = null;
+        if (campaign && state.selectedLevel instanceof CampaignLevel lvl && won != null) {
+            attempts = Main.getUserSettings().getLevelAttempts(lvl) + (levelWon ? 1 : 0);
+            if (lvl.getType() == LevelType.Level) {
+                overallEvilRating = Main.getUserSettings().getOverallEvilRating();
+            }
+        }
+        setDebriefingValue(deScreen, "overallTotalEvilRating", overallEvilRating);
+        setDebriefingValue(deScreen, "attemptsAtLevel", attempts);
 
         // Play debriefing narration
         if (campaign && state.selectedLevel instanceof CampaignLevel lvl) {
@@ -1395,5 +1421,9 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         }
 
         goToScreen(SCREEN_DEBRIEFING_ID);
+    }
+
+    private static void setDebriefingValue(Screen screen, String id, Object value) {
+        screen.findNiftyControl(id, Label.class).setText(value != null ? value.toString() : "?");
     }
 }
