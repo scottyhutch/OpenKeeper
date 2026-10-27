@@ -44,6 +44,7 @@ import toniarts.openkeeper.game.component.CreatureSpells;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.DroppedJob;
 import toniarts.openkeeper.game.component.CreatureViewState;
+import toniarts.openkeeper.game.component.Disguised;
 import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.Fearless;
 import toniarts.openkeeper.game.component.FollowTarget;
@@ -66,6 +67,7 @@ import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAbility;
 import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.component.PossessedMovement;
+import toniarts.openkeeper.game.component.Senses;
 import toniarts.openkeeper.game.component.Slapped;
 import toniarts.openkeeper.game.component.SpeedUp;
 import toniarts.openkeeper.game.component.StolenLoot;
@@ -1957,6 +1959,12 @@ public final class CreatureController extends EntityController implements ICreat
     private boolean isEnemy(EntityId entity) {
         Owner otherOwner = entityData.getComponent(entity, Owner.class);
         if (otherOwner != null) {
+
+            // We take a creature disguised as one of ours for one of ours (0x45B140)
+            Disguised disguised = entityData.getComponent(entity, Disguised.class);
+            if (disguised != null && disguised.ownerId == getSideId(entityId, getOwnerId())) {
+                return false;
+            }
             Keeper keeper = levelInfo.getPlayer(getSideId(entityId, getOwnerId()));
             if (keeper != null) {
                 return keeper.isEnemy(getSideId(entity, otherOwner.ownerId));
@@ -2371,6 +2379,7 @@ public final class CreatureController extends EntityController implements ICreat
         EntityId target = getPossessedAttackTarget(position);
         if (target != null) {
             hitWithMelee(target, meleeAttack, firstPersonAttack.damage);
+            revealTo(target);
 
             // The creature we have hypnotised attacks what we hit (0x514830)
             EntityId hypnotised = getHypnotised();
@@ -2398,6 +2407,52 @@ public final class CreatureController extends EntityController implements ICreat
             pickUpOrThrowWorker();
         } else if (specialAbility == Creature.SpecialAbility.HYPNOTISE) {
             hypnotiseOrRelease();
+        } else if (specialAbility == Creature.SpecialAbility.DISGUISE_N_STEAL) {
+            disguiseOrReveal();
+        }
+    }
+
+    /**
+     * Disguises us as a creature of the keeper whose land we stand on, or
+     * drops the disguise (0x517270, 0x48EE90). It can't be done on our own or
+     * neutral land, or while a creature of that keeper or of their allies sees
+     * us: we are within its sight distance and no solid tile is in between.
+     */
+    private void disguiseOrReveal() {
+        if (entityData.getComponent(entityId, Disguised.class) != null) {
+            entityData.removeComponent(entityId, Disguised.class);
+            return;
+        }
+
+        Vector3f position = getPosition();
+        IMapTileInformation tile = mapController.getMapData().getTile(WorldUtils.vectorToPoint(position));
+        Keeper keeper = tile != null ? levelInfo.getPlayer(tile.getOwnerId()) : null;
+        if (keeper == null || keeper.getId() == getOwnerId() || keeper.getId() == Player.NEUTRAL_PLAYER_ID) {
+            return;
+        }
+        for (EntityId entity : entityData.findEntities(null, CreatureComponent.class, Owner.class, Senses.class)) {
+            if (keeper.isAlly(entityData.getComponent(entity, Owner.class).ownerId)
+                    && getDistanceToCreature(entity) < entityData.getComponent(entity, Senses.class).distanceCanSee
+                    && isInSight(position, entity)) {
+                return;
+            }
+        }
+
+        entityData.setComponent(entityId, new Disguised(keeper.getId()));
+    }
+
+    /**
+     * Drops our disguise when we hit or cast at a creature of the keeper we
+     * look like, or of their allies (0x514830)
+     *
+     * @param target what we hit or cast at
+     */
+    private void revealTo(EntityId target) {
+        Disguised disguised = entityData.getComponent(entityId, Disguised.class);
+        Owner owner = entityData.getComponent(target, Owner.class);
+        Keeper keeper = owner != null ? levelInfo.getPlayer(owner.ownerId) : null;
+        if (disguised != null && keeper != null && keeper.isAlly(disguised.ownerId)) {
+            entityData.removeComponent(entityId, Disguised.class);
         }
     }
 
@@ -2644,6 +2699,7 @@ public final class CreatureController extends EntityController implements ICreat
             entityData.setComponent(entityId, new CastShot(attack.creatureSpellId, target, attack.range,
                     gameTimer.getGameTime() + getShotDelay(attack.creatureSpellId)));
             releaseCastShot();
+            revealTo(target);
         } else {
             PossessedMovement movement = entityData.getComponent(entityId, PossessedMovement.class);
             float pitch = movement != null ? movement.pitch : 0;
@@ -3030,6 +3086,8 @@ public final class CreatureController extends EntityController implements ICreat
             releaseHypnotised(hypnotised);
         }
 
+        // The disguise drops (0x4BE090)
+        entityData.removeComponent(entityId, Disguised.class);
         entityData.removeComponent(entityId, PossessedMovement.class);
         entityData.removeComponent(entityId, PossessedAttack.class);
         entityData.removeComponent(entityId, Possessed.class);
