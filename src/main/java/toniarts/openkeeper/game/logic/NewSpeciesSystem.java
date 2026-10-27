@@ -42,13 +42,17 @@ import toniarts.openkeeper.game.state.session.PlayerService;
  * hands (0x48D050).<br>
  * We follow the creatures in the entity data: a creature that is new and
  * entering the dungeon is an arrival, any other creature a player has just
- * come to own is only marked as seen. The per level introduction texts that
- * the original raises as message 0xe for some creature types are not handled.
+ * come to own is only marked as seen.<br>
+ * The creature types in the level's introduction override table get message
+ * 0xe instead, which plays the level's own introduction speech and text
+ * (a level speech, same as the Play Speech trigger action) rather than the
+ * generic one.
  */
 public final class NewSpeciesSystem implements IGameLogicUpdatable {
 
     private final PlayerService playerService;
     private final EntitySet creatures;
+    private final Map<Short, Integer> introductionOverrideTextIds;
     private final Map<Short, Set<Short>> seenTypesByPlayer = new HashMap<>();
 
     /**
@@ -56,9 +60,13 @@ public final class NewSpeciesSystem implements IGameLogicUpdatable {
      *
      * @param entityData the entity data
      * @param playerService the players to tell
+     * @param introductionOverrideTextIds the level speech to play for the
+     * creature types that have their own introduction, by creature ID
      */
-    public NewSpeciesSystem(EntityData entityData, PlayerService playerService) {
+    public NewSpeciesSystem(EntityData entityData, PlayerService playerService,
+            Map<Short, Integer> introductionOverrideTextIds) {
         this.playerService = playerService;
+        this.introductionOverrideTextIds = introductionOverrideTextIds;
         this.creatures = entityData.getEntities(CreatureAi.class, Owner.class, Position.class);
     }
 
@@ -81,8 +89,13 @@ public final class NewSpeciesSystem implements IGameLogicUpdatable {
             CreatureAi ai = entity.get(CreatureAi.class);
             short ownerId = entity.get(Owner.class).ownerId;
             if (markSeen(ownerId, ai.creatureId) && ai.getCreatureState() == CreatureState.ENTERING_DUNGEON) {
-                Vector3f position = entity.get(Position.class).position;
-                playerService.showMentorMessage(MentorType.SPECIES_CREATURE_ENTERED.getId(), position, ownerId);
+                Integer introductionId = introductionOverrideTextIds.get(ai.creatureId);
+                if (introductionId != null) {
+                    playerService.playSpeech(introductionId, true, false, 0, ownerId);
+                } else {
+                    Vector3f position = entity.get(Position.class).position;
+                    playerService.showMentorMessage(MentorType.SPECIES_CREATURE_ENTERED.getId(), position, ownerId);
+                }
             }
         }
 

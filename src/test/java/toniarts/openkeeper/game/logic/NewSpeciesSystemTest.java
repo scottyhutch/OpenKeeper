@@ -23,6 +23,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.Owner;
@@ -44,6 +45,7 @@ class NewSpeciesSystemTest {
     private static final short KEEPER = 1;
     private static final short WARLOCK = 3;
     private static final short DARK_ELF = 6;
+    private static final short INTRODUCED = 5; // Has its own introduction on the level
     private static final int SPEECH = MentorType.SPECIES_CREATURE_ENTERED.getId();
 
     private final List<String> messages = new ArrayList<>();
@@ -52,10 +54,12 @@ class NewSpeciesSystemTest {
             new Class<?>[]{PlayerService.class}, (proxy, method, args) -> {
                 if (method.getName().equals("showMentorMessage")) {
                     messages.add(args[0] + "@" + args[1] + ">p" + args[2]);
+                } else if (method.getName().equals("playSpeech")) {
+                    messages.add("level speech " + args[0] + ">p" + args[4]);
                 }
                 return null;
             });
-    private final NewSpeciesSystem system = new NewSpeciesSystem(entityData, playerService);
+    private final NewSpeciesSystem system = new NewSpeciesSystem(entityData, playerService, Map.of(INTRODUCED, 9));
 
     @Test
     void firstArrivalOfATypeIsAnnouncedAtTheCreature() {
@@ -63,6 +67,18 @@ class NewSpeciesSystemTest {
         system.processTick(0.25f);
 
         assertEquals(List.of(SPEECH + "@" + new Vector3f(3, 0, 4) + ">p1"), messages);
+    }
+
+    @Test
+    void typeWithAnIntroductionPlaysTheLevelSpeechOncePerType() {
+        creature(KEEPER, INTRODUCED, CreatureState.ENTERING_DUNGEON, new Vector3f(3, 0, 4));
+        system.processTick(0.25f);
+        assertEquals(List.of("level speech 9>p1"), messages);
+        messages.clear();
+
+        creature(KEEPER, INTRODUCED, CreatureState.ENTERING_DUNGEON, new Vector3f(3, 0, 4));
+        system.processTick(0.25f);
+        assertTrue(messages.isEmpty());
     }
 
     @Test
