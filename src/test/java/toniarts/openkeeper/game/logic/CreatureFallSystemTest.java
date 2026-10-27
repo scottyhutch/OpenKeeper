@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
+import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.map.FakeMapData;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -122,6 +123,40 @@ class CreatureFallSystemTest {
 
         assertEquals(50, entityData.getComponent(creature, Damage.class).damage);
         assertEquals(117, entityData.getEntities(EffectTrigger.class).iterator().next().get(EffectTrigger.class).effectId);
+    }
+
+    @Test
+    void droppedCreatureLandsStunned() {
+        EntityId creature = fall(new CreatureFall(), 3f);
+
+        assertEquals(CreatureState.FALLEN, entityData.getComponent(creature, CreatureAi.class).getCreatureState());
+        assertNull(entityData.getComponent(creature, CreatureFall.class));
+    }
+
+    @Test
+    void conjuredCreatureIsNotStunned() {
+        EntityId creature = fall(new CreatureFall(true), 3f);
+
+        assertEquals(CreatureState.IDLE, entityData.getComponent(creature, CreatureAi.class).getCreatureState());
+    }
+
+    @Test
+    void droppedCreatureWithoutStunDurationIsNotStunned() {
+        EntityId creature = fall(new CreatureFall(), 0f);
+
+        assertEquals(CreatureState.IDLE, entityData.getComponent(creature, CreatureAi.class).getCreatureState());
+    }
+
+    private EntityId fall(CreatureFall creatureFall, float stunDuration) {
+        CreatureComponent creatureComponent = new CreatureComponent();
+        creatureComponent.stunDuration = stunDuration;
+
+        EntityId creature = entityData.createEntity();
+        entityData.setComponents(creature, creatureComponent, creatureFall,
+                new Position(0, new Vector3f(1, WorldUtils.DROP_HEIGHT, 1)));
+        fallSystem.processTick(10f);
+
+        return creature;
     }
 
     private EntityId createThrownCreature(Vector3f velocity) {
