@@ -26,6 +26,7 @@ import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.player.PlayerManaControl;
 import toniarts.openkeeper.game.data.Keeper;
@@ -68,6 +69,22 @@ class ManaCalculatorLogicTest {
         logic.processTick(1f);
 
         assertEquals(500, keeper.getManaGain());
+    }
+
+    @Test
+    void possessedCreatureCostsOnlyWhatGoesOverTheGainLimit() {
+        keeper.setMana(1000);
+        addManaSource(200, 0); // Claimed tiles
+        addManaSource(30, 0); // Dungeon heart
+        EntityId vampire = addManaSource(-600, 0);
+        entityData.setComponent(vampire, new Possessed(600, 0));
+
+        ManaCalculatorLogic logic = new ManaCalculatorLogic(List.of(playerController()), entityData);
+        logic.processTick(1f);
+
+        assertEquals(500, keeper.getManaGain());
+        assertEquals(600, keeper.getManaLoose());
+        assertEquals(900, keeper.getMana());
     }
 
     private EntityId addManaSource(int manaGeneration, int maxManaGeneration) {

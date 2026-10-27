@@ -25,6 +25,8 @@ import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static toniarts.openkeeper.tools.convert.map.ManaRulesFixtures.manaVariable;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class PlayerManaControlTest {
 
@@ -33,7 +35,7 @@ class PlayerManaControlTest {
 
     @Test
     void gainUnderTheLimitIsKept() {
-        manaControl.updateMana(130, 7, 0);
+        manaControl.updateMana(130, 7, 0, 0);
 
         assertEquals(130, keeper.getManaGain());
         assertEquals(7, keeper.getManaLoose());
@@ -42,7 +44,7 @@ class PlayerManaControlTest {
 
     @Test
     void gainIsCappedAtTheMaximumManaGain() {
-        manaControl.updateMana(800, 0, 0);
+        manaControl.updateMana(800, 0, 0, 0);
 
         assertEquals(500, keeper.getManaGain());
         assertEquals(500, keeper.getMana());
@@ -50,7 +52,7 @@ class PlayerManaControlTest {
 
     @Test
     void upkeepIsPaidAfterTheCap() {
-        manaControl.updateMana(800, 70, 0);
+        manaControl.updateMana(800, 70, 0, 0);
 
         assertEquals(500, keeper.getManaGain());
         assertEquals(430, keeper.getMana());
@@ -58,7 +60,7 @@ class PlayerManaControlTest {
 
     @Test
     void ownedTilesRaiseTheCap() {
-        manaControl.updateMana(800, 0, 200);
+        manaControl.updateMana(800, 0, 200, 0);
 
         assertEquals(700, keeper.getManaGain());
         assertEquals(700, keeper.getMana());
@@ -78,7 +80,7 @@ class PlayerManaControlTest {
         keeper.setMana(1000);
         manaControl.spendMana(250);
 
-        manaControl.updateMana(20, 5, 0);
+        manaControl.updateMana(20, 5, 0, 0);
 
         assertEquals(255, keeper.getManaLoose());
         assertEquals(20, keeper.getManaGain());
@@ -91,11 +93,44 @@ class PlayerManaControlTest {
     void spentManaShowsOnlyOnce() {
         keeper.setMana(1000);
         manaControl.spendMana(250);
-        manaControl.updateMana(20, 5, 0);
+        manaControl.updateMana(20, 5, 0, 0);
 
-        manaControl.updateMana(20, 5, 0);
+        manaControl.updateMana(20, 5, 0, 0);
 
         assertEquals(5, keeper.getManaLoose());
+    }
+
+    @Test
+    void possessionUnderTheGainLimitCostsNothing() {
+        keeper.setMana(1000);
+
+        // A Bile Demon costs 300 a second, it is in the loss too
+        manaControl.updateMana(130, 300, 0, 300);
+
+        assertEquals(430, keeper.getManaGain());
+        assertEquals(300, keeper.getManaLoose());
+        assertEquals(1130, keeper.getMana());
+    }
+
+    @Test
+    void possessionCostsWhatGoesOverTheGainLimit() {
+        keeper.setMana(1000);
+
+        // A Vampire costs 600 a second, plus an imp's 7
+        manaControl.updateMana(230, 607, 0, 600);
+
+        assertEquals(500, keeper.getManaGain());
+        assertEquals(607, keeper.getManaLoose());
+        assertEquals(893, keeper.getMana());
+    }
+
+    @Test
+    void possessionEndsWhenTheManaIsBelowTheCost() {
+        keeper.setMana(600);
+        assertTrue(manaControl.hasEnoughMana(600));
+
+        keeper.setMana(599);
+        assertFalse(manaControl.hasEnoughMana(600));
     }
 
     private static Map<MiscType, MiscVariable> settings() {
