@@ -16,7 +16,9 @@
  */
 package toniarts.openkeeper.game.logic;
 
+import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.EnumSet;
 import java.util.HashSet;
@@ -89,7 +91,8 @@ class PortalCreatureChoiceTest {
             EnumSet.noneOf(CreatureFlag2.class), attraction(ROOM, 2, 0));
 
     private final Set<EntityId> creaturesWithoutLair = new HashSet<>();
-    private final PortalCreatureChoice choice = new PortalCreatureChoice(new Random(7));
+    private final EntityData entityData = new DefaultEntityData();
+    private final PortalCreatureChoice choice = new PortalCreatureChoice(entityData, new Random(7));
     private PlayerRoomControl rooms;
     private PlayerCreatureControl creatures;
     private IPlayerController player;
@@ -231,6 +234,18 @@ class PortalCreatureChoiceTest {
             assertEquals(1.0, weights.get(firefly));
             assertNotNull(choice.chooseCreature(player, portalRoom, creaturesController, ALL));
         }
+    }
+
+    @Test
+    void favourIsKeptInTheEntityData() {
+        setAvailable(salamander);
+        build(trainingRoom, 9, 2, 0, 0);
+        assertNotNull(choice.chooseCreature(player, portalRoom, creaturesController, ALL));
+
+        // A loaded game starts with a new choice on the same entities
+        PortalCreatureChoice loaded = new PortalCreatureChoice(entityData, new Random(7));
+
+        assertEquals(27.0, loaded.getCandidateWeights(player, portalRoom, creaturesController, ALL).get(salamander));
     }
 
     @Test

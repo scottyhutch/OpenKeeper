@@ -74,7 +74,7 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
     private final Map<Short, IPlayerController> playerControllersById;
     private final SafeArrayList<ICreatureEntrance> entrances = new SafeArrayList<>(ICreatureEntrance.class);
     private final IKwdFile kwdFile;
-    private final PortalCreatureChoice creatureChoice = new PortalCreatureChoice(Utils.getRandom());
+    private final PortalCreatureChoice creatureChoice;
     private boolean uniqueLayouts = false;
 
     public CreatureSpawnSystem(EntityData entityData, ICreaturesController creaturesController, Collection<IPlayerController> playerControllers,
@@ -82,6 +82,7 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
             IMapController mapController) {
         this.entityData = entityData;
         this.creaturesController = creaturesController;
+        this.creatureChoice = new PortalCreatureChoice(entityData, Utils.getRandom());
 
         // We need the game state just for the variables
         entranceCooldownTime = (int) gameSettings.get(Variable.MiscVariable.MiscType.ENTRANCE_GENERATION_SPEED_SECONDS).getValue();

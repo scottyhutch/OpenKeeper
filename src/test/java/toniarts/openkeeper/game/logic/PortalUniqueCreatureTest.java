@@ -17,6 +17,7 @@
 package toniarts.openkeeper.game.logic;
 
 import com.simsilica.es.EntityId;
+import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.EnumSet;
@@ -69,7 +70,7 @@ class PortalUniqueCreatureTest {
 
     private final Map<Short, Creature> uniques = new HashMap<>();
     private final List<EntityId> creaturesWithoutLair = new ArrayList<>();
-    private final PortalCreatureChoice choice = new PortalCreatureChoice(new Random(3));
+    private final PortalCreatureChoice choice = new PortalCreatureChoice(new DefaultEntityData(), new Random(3));
     private PlayerRoomControl rooms;
     private PlayerRoomControl enemyRooms;
     private PlayerCreatureControl creatures;
