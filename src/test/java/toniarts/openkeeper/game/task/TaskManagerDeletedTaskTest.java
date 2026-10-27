@@ -40,6 +40,8 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
+import toniarts.openkeeper.tools.convert.map.DestroyRoomsFixtures;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -114,10 +116,12 @@ class TaskManagerDeletedTaskTest {
             }
             return defaultValue(proxy, method);
         });
+        IKwdFile levelData = stub(IKwdFile.class, (proxy, method, args) -> method.getName().equals("getGameLevel")
+                ? DestroyRoomsFixtures.destroyRoomsGameLevel(4) : defaultValue(proxy, method));
         TaskManager manager = new TaskManager(entityData, stub(IGameWorldController.class, TaskManagerDeletedTaskTest::defaultHandler),
                 mapController, stub(IObjectsController.class, TaskManagerDeletedTaskTest::defaultHandler), creaturesController,
                 stub(INavigationService.class, TaskManagerDeletedTaskTest::defaultHandler), List.of(player),
-                stub(ILevelInfo.class, TaskManagerDeletedTaskTest::defaultHandler),
+                stub(ILevelInfo.class, (proxy, method, args) -> method.getName().equals("getLevelData") ? levelData : defaultValue(proxy, method)),
                 stub(IEntityPositionLookup.class, TaskManagerDeletedTaskTest::defaultHandler), Map.of());
         manager.addTask(PLAYER_ID, recordingTask(TASK_ID));
         manager.addTask(PLAYER_ID, recordingTask(OTHER_TASK_ID));

@@ -136,7 +136,7 @@ class CreatureTorturingSystemTest {
         torturedToDeath(HERO_ID);
 
         // A loaded game starts with a new system on the same entities
-        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), lastChoice);
+        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, lastChoice);
         torturedToDeath(HERO_ID);
 
         assertEquals(List.of(heroGate.getCoordinates(), heroLair.getCoordinates()), revealed);
