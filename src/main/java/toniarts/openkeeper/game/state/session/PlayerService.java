@@ -18,6 +18,7 @@ package toniarts.openkeeper.game.state.session;
 
 import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityId;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 
 /**
@@ -156,9 +157,9 @@ public interface PlayerService {
     /**
      * End the game for a player
      *
-     * @param win if true, the player won the game, if not, lost
+     * @param result the result and statistics of the game for the player
      * @param playerId the player whose game ends
      */
-    public void endGame(boolean win, short playerId);
+    public void endGame(GameResult result, short playerId);
 
 }

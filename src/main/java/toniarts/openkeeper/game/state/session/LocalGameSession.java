@@ -29,6 +29,7 @@ import java.util.List;
 import javax.annotation.Nullable;
 import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.data.CampaignLevel;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.state.CheatState;
@@ -586,10 +587,10 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     }
 
     @Override
-    public void endGame(boolean win, short playerId) {
+    public void endGame(GameResult result, short playerId) {
         if (playerId == PLAYER_ID) {
             for (GameSessionListener listener : listeners.getArray()) {
-                listener.onGameEnded(win);
+                listener.onGameEnded(result);
             }
         }
     }

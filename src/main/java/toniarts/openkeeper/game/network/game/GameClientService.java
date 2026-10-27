@@ -33,6 +33,7 @@ import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.Collection;
 import java.util.List;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.network.NetworkConstants;
@@ -382,9 +383,9 @@ public final class GameClientService extends AbstractClientService
         }
 
         @Override
-        public void onGameEnded(boolean win) {
+        public void onGameEnded(GameResult result) {
             for (GameSessionListener l : listeners.getArray()) {
-                l.onGameEnded(win);
+                l.onGameEnded(result);
             }
         }
 

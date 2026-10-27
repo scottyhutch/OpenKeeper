@@ -20,6 +20,7 @@ import com.jme3.math.Vector3f;
 import com.jme3.network.service.rmi.Asynchronous;
 import com.simsilica.es.EntityId;
 import java.util.Collection;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.listener.MapListener;
 import toniarts.openkeeper.game.listener.PlayerListener;
@@ -94,10 +95,10 @@ public interface GameSessionListener extends MapListener, PlayerListener {
     /**
      * The game has ended for the client
      *
-     * @param win if true, the client won the game, if not, lost
+     * @param result the result and statistics of the game for the client
      */
     @Asynchronous
-    public void onGameEnded(boolean win);
+    public void onGameEnded(GameResult result);
 
     /**
      * The client should play a speech

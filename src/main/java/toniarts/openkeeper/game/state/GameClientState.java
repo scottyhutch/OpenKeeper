@@ -37,6 +37,7 @@ import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.PlayerController;
 import toniarts.openkeeper.game.data.CampaignLevel;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.data.ResearchableType;
@@ -601,8 +602,8 @@ public final class GameClientState extends AbstractPauseAwareState {
         }
 
         @Override
-        public void onGameEnded(boolean win) {
-            app.enqueue(() -> playerState.endGame(win));
+        public void onGameEnded(GameResult result) {
+            app.enqueue(() -> playerState.endGame(result));
         }
 
         @Override

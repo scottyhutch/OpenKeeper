@@ -196,6 +196,7 @@ public final class HealthSystem extends GameTimeCounter {
     }
 
     private void processHealthDepleted(EntityId entityId, Health health) {
+        countKill(entityId);
 
         // A possessed creature is never knocked out, it dies. The possession
         // ends and its keeper loses mana for it
@@ -259,6 +260,27 @@ public final class HealthSystem extends GameTimeCounter {
             }
         }
         roomAttackMessages.heartDestroyed(owner.ownerId, destroyerId);
+    }
+
+    /**
+     * Counts a killed or knocked out creature to the statistics of its owner's enemies. FIXME: DK II
+     * counts it only to the player who hit it last, we don't track the attacker yet
+     *
+     * @param entityId the creature
+     */
+    private void countKill(EntityId entityId) {
+        CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        Owner owner = entityData.getComponent(entityId, Owner.class);
+        if (creatureComponent == null || owner == null) {
+            return;
+        }
+
+        Creature creature = levelInfo.getLevelData().getCreature(creatureComponent.creatureId);
+        for (IPlayerController player : playerControllersById.values()) {
+            if (player.getKeeper().isEnemy(owner.ownerId)) {
+                player.getStatsControl().creatureKilled(creature);
+            }
+        }
     }
 
     private boolean isDiesInstantly(EntityId entityId) {

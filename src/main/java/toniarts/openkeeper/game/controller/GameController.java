@@ -32,13 +32,17 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import toniarts.openkeeper.Main;
+import toniarts.openkeeper.game.component.CreatureExperience;
+import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.controller.player.PlayerResearchControl;
+import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.data.ActionPoint;
 import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.GameTimer;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.logic.*;
+import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.navigation.NavigationService;
 import toniarts.openkeeper.game.state.session.PlayerService;
@@ -52,6 +56,7 @@ import toniarts.openkeeper.game.trigger.object.ObjectTriggerLogicController;
 import toniarts.openkeeper.game.trigger.party.PartyTriggerLogicController;
 import toniarts.openkeeper.game.trigger.player.PlayerTriggerLogicController;
 import toniarts.openkeeper.tools.convert.map.GameLevel;
+import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
@@ -350,6 +355,7 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         gameResult = new GameResult();
         gameResult.setData(GameResult.ResultType.LEVEL_WON, win);
         gameResult.setData(GameResult.ResultType.TIME_TAKEN, gameTimer.getGameTime());
+        addPlayerStatistics(playerId);
 
         // Mark the achievement if campaign level
         if (levelObject != null) {
@@ -371,7 +377,64 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         }
 
         // Enable the end game state on the player (client)
-        playerService.endGame(win, playerId);
+        playerService.endGame(gameResult, playerId);
+    }
+
+    /**
+     * Adds the player's statistics and the Evil Rating to the game result
+     *
+     * @param playerId the player whose game ends
+     */
+    private void addPlayerStatistics(short playerId) {
+        IPlayerController player = playerControllers.get(playerId);
+        if (player == null) {
+            return;
+        }
+        PlayerStatsControl stats = player.getStatsControl();
+        gameResult.setData(GameResult.ResultType.ENEMY_CREATURES_KILLED, stats.getEnemyCreaturesKilled());
+        gameResult.setData(GameResult.ResultType.HEROES_DESTROYED, stats.getHeroesDestroyed());
+        gameResult.setData(GameResult.ResultType.ROOMS_CAPTURED, player.getRoomControl().getRoomsCaptured());
+        gameResult.setData(GameResult.ResultType.GOLD_MINED, player.getKeeper().getGoldMined());
+        gameResult.setData(GameResult.ResultType.MANA_STORED, player.getKeeper().getMana());
+
+        int landOwned = 0;
+        for (IMapTileController tile : gameWorldController.getMapController().getMapData()) {
+            if (tile.getOwnerId() == playerId) {
+                landOwned++;
+            }
+        }
+        gameResult.setData(GameResult.ResultType.LAND_OWNED, landOwned);
+
+        // The creatures at the end, imps included, and their average experience level
+        int creatures = 0;
+        int levels = 0;
+        for (Set<EntityId> entities : player.getCreatureControl().getAllCreatures().values()) {
+            for (EntityId entity : entities) {
+                CreatureExperience experience = entityData.getComponent(entity, CreatureExperience.class);
+                if (experience != null) {
+                    creatures++;
+                    levels += experience.level;
+                }
+            }
+        }
+        gameResult.setData(GameResult.ResultType.CREATURES_COMMANDED, creatures);
+        gameResult.setData(GameResult.ResultType.CREATURE_TRAINING, creatures > 0 ? (float) levels / creatures : 0f);
+
+        // All the specials there were are the ones found by anyone and the ones still left
+        int specials = 0;
+        for (IPlayerController playerController : playerControllers.values()) {
+            specials += playerController.getStatsControl().getSpecialsFound();
+        }
+        for (EntityId entity : entityData.findEntities(null, ObjectComponent.class)) {
+            ObjectComponent object = entityData.getComponent(entity, ObjectComponent.class);
+            if (levelInfo.kwdFile.getObject(object.objectId).getFlags().contains(GameObject.ObjectFlag.OBJECT_TYPE_SPECIAL)) {
+                specials++;
+            }
+        }
+        gameResult.setData(GameResult.ResultType.SPECIALS_FOUND, stats.getSpecialsFound());
+        gameResult.setData(GameResult.ResultType.SPECIALS_MAX, specials);
+
+        gameResult.setData(GameResult.ResultType.TOTAL_RATING, gameResult.calculateEvilRating());
     }
 
     @Override
