@@ -30,6 +30,9 @@ public final class PlayerStatsControl {
     private final Map<Creature, Integer> slapsMap = new HashMap<>();
     private final Map<Creature, Integer> pickUpsMap = new HashMap<>();
     private final Map<Creature, Integer> dropsMap = new HashMap<>();
+    private int enemyCreaturesKilled = 0;
+    private int heroesDestroyed = 0;
+    private int specialsFound = 0;
 
     public boolean hasSlapped() {
         return !slapsMap.isEmpty();
@@ -74,6 +77,53 @@ public final class PlayerStatsControl {
 
     public void creatureDropped(Creature creature) {
         increaseMapCount(creature, dropsMap);
+    }
+
+    /**
+     * An enemy creature has been killed or knocked out. Heroes are counted separately.
+     *
+     * @param creature the creature that was killed
+     */
+    public void creatureKilled(Creature creature) {
+        if (creature.getFlags().contains(Creature.CreatureFlag.IS_GOOD)) {
+            heroesDestroyed++;
+        } else {
+            enemyCreaturesKilled++;
+        }
+    }
+
+    /**
+     * Get the number of enemy creatures, not heroes, killed
+     *
+     * @return enemy creatures killed
+     */
+    public int getEnemyCreaturesKilled() {
+        return enemyCreaturesKilled;
+    }
+
+    /**
+     * Get the number of heroes killed
+     *
+     * @return heroes destroyed
+     */
+    public int getHeroesDestroyed() {
+        return heroesDestroyed;
+    }
+
+    /**
+     * The player has activated a special
+     */
+    public void specialFound() {
+        specialsFound++;
+    }
+
+    /**
+     * Get the number of specials the player has activated
+     *
+     * @return specials found
+     */
+    public int getSpecialsFound() {
+        return specialsFound;
     }
 
 }
