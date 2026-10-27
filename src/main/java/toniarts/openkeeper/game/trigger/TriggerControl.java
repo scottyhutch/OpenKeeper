@@ -621,7 +621,10 @@ public class TriggerControl extends Control {
 
     protected void zoomToAP(short playerId, short actionPointId) {
         ActionPoint ap = levelInfo.getActionPoint(actionPointId);
-        if (ap != null) {
+
+        // DK II ignores the zoom while the keeper is possessing a creature (0x442650)
+        Keeper keeper = getPlayer(playerId);
+        if (ap != null && (keeper == null || !keeper.isPossession())) {
             playerService.zoomViewToPoint(WorldUtils.ActionPointToVector3f(ap), playerId);
         }
     }
