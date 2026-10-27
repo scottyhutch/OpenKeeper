@@ -397,6 +397,9 @@ public class PlayerTriggerControl extends TriggerControl {
     }
 
     private void followCameraPath(TriggerActionData trigger) { // gui part. Only for keeper x
+        if (isPossessing(getAudienceId())) {
+            return;
+        }
         ActionPoint ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
         playerService.doTransition(trigger.getUserData("pathId", short.class), WorldUtils.ActionPointToVector3f(ap), getAudienceId());
     }
@@ -437,6 +440,9 @@ public class PlayerTriggerControl extends TriggerControl {
     }
 
     private void setWidescreenMode(TriggerActionData trigger) { // Info part
+        if (isPossessing(getAudienceId())) {
+            return;
+        }
         boolean available = trigger.getUserData("available", short.class) != 0;
         playerService.setWidescreen(available, getAudienceId());
     }
@@ -453,6 +459,18 @@ public class PlayerTriggerControl extends TriggerControl {
 
     protected Keeper getPlayer() {
         return super.getPlayer(playerId);
+    }
+
+    /**
+     * DK II doesn't play the level's camera paths or widescreen while the
+     * keeper possesses a creature, the keeper just stays in the creature
+     *
+     * @param keeperId the keeper who would see the camera path
+     * @return true if the keeper is possessing a creature
+     */
+    private boolean isPossessing(short keeperId) {
+        Keeper keeper = getPlayer(keeperId);
+        return keeper != null && keeper.isPossession();
     }
 
     private int getCreaturesCount(short playerId, short creatureId) {
