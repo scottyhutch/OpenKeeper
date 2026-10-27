@@ -107,7 +107,9 @@ public final class GameLoopManager {
                 new DungeonHeartConstruction(
                         entityData,
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.TIME_BEFORE_DUNGEON_HEART_CONSTRUCTION_BEGINS)),
-                new CreatureFallSystem(entityData, gameController.getGameTimer()));
+                new CreatureFallSystem(entityData, gameController.getGameTimer(), gameWorldController.getMapController(),
+                        levelInfo.getLevelData().getGameLevel().getTicksPerSec(),
+                        gameController.getLevelVariable(Variable.MiscVariable.MiscType.GRAVITY_CONSTANT)));
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));
 
         // Steering
