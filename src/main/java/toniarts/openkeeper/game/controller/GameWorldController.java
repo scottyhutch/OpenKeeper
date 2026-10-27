@@ -855,6 +855,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             return false;
         }
 
+        playerControllers.get(playerId).getStatsControl().specialFound();
         entityData.removeEntity(entity);
         return true;
     }

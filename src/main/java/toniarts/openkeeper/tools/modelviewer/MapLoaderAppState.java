@@ -28,6 +28,7 @@ import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.util.Collections;
 import toniarts.openkeeper.game.controller.GameController;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
@@ -198,7 +199,7 @@ public final class MapLoaderAppState extends AbstractAppState {
         }
 
         @Override
-        public void endGame(boolean win, short playerId) {
+        public void endGame(GameResult result, short playerId) {
             throw new UnsupportedOperationException("Not supported yet.");
         }
     }
