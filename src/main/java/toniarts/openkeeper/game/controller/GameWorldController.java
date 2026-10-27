@@ -1390,6 +1390,11 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         int shotData1 = spellUpgraded ? keeperSpell.getBonusShotData1() : keeperSpell.getShotData1();
         int shotData2 = spellUpgraded ? keeperSpell.getBonusShotData2() : keeperSpell.getShotData2();
         shotsController.createShot(keeperSpell.getShotTypeId(), shotData1, shotData2, playerId, WorldUtils.vector2fToVector3(position), target, null);
+
+        // The Talisman's free Reaper comes only once per level
+        if (keeperSpell.getId() == ReaperSummoner.ONE_SHOT_REAPER_SPELL_ID) {
+            playerControllers.get(playerId).getSpellControl().setTypeAvailable(keeperSpell, false);
+        }
     }
 
     @Override

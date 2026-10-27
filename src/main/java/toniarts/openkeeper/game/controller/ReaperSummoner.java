@@ -39,6 +39,18 @@ public final class ReaperSummoner {
      */
     public static final int SPELL_REAPER_LEVEL = 10;
 
+    /**
+     * The Summon Reaper spell, Summon Horny in the level data. The Reaper
+     * Talisman casts it once it is researched.
+     */
+    public static final short SUMMON_REAPER_SPELL_ID = 5;
+
+    /**
+     * The Reaper Talisman's free Reaper, OneShotReaper in the level data. It
+     * can be cast once on the campaign levels that have it.
+     */
+    public static final short ONE_SHOT_REAPER_SPELL_ID = 14;
+
     private static final Logger logger = System.getLogger(ReaperSummoner.class.getName());
 
     private final IKwdFile kwdFile;

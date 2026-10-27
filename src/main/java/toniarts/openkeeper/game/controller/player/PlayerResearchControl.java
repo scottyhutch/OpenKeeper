@@ -140,7 +140,9 @@ public final class PlayerResearchControl {
         for (ResearchableEntity researchableEntity : researchables) {
             if (!isEntityDiscovered(researchableEntity) && nextToReseach == null) {
                 nextToReseach = researchableEntity;
-            } else if (researchableEntity.isUpgradedable() && isEntityDiscovered(researchableEntity) && !isEntityUpgraded(researchableEntity) && nextToUpgrade == null) {
+            } else if (researchableEntity.isUpgradedable() && isEntityDiscovered(researchableEntity) && !isEntityUpgraded(researchableEntity) && nextToUpgrade == null
+                    // Not the spells without upgrade research, the Talisman's one shot Reaper
+                    && kwdFile.getKeeperSpellById(researchableEntity.getId()).getBonusRTime() != 0) {
                 nextToUpgrade = researchableEntity;
             }
 
