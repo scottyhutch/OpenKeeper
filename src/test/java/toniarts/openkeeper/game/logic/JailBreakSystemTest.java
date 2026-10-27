@@ -64,13 +64,15 @@ class JailBreakSystemTest {
     private IRoomController room;
     private short prisonOwner;
     private JailBreakSystem system;
+    private double gameTime;
 
     @BeforeEach
     void setUp() {
         entityData = new DefaultEntityData();
         prisonOwner = KEEPER;
         createPrison();
-        system = new JailBreakSystem(entityData, levelInfo(), mapController());
+        gameTime = 0;
+        system = new JailBreakSystem(entityData, () -> gameTime, levelInfo(), mapController());
     }
 
     @Test
@@ -79,7 +81,7 @@ class JailBreakSystemTest {
         EntityId first = imprison(GOOD);
         EntityId second = imprison(GOOD);
 
-        system.processTick(0.25f);
+        tick(0.25f);
 
         assertNull(entityData.getComponent(first, Stored.class));
         assertNull(entityData.getComponent(first, CreatureImprisoned.class));
@@ -93,7 +95,7 @@ class JailBreakSystemTest {
         createHero(GOOD, TILE);
         EntityId prisoner = imprison(OTHER_KEEPER);
 
-        system.processTick(0.25f);
+        tick(0.25f);
 
         assertNotNull(entityData.getComponent(prisoner, Stored.class));
     }
@@ -104,7 +106,7 @@ class JailBreakSystemTest {
         entityData.removeComponent(hero, JailBreaker.class);
         EntityId prisoner = imprison(GOOD);
 
-        system.processTick(0.25f);
+        tick(0.25f);
 
         assertNotNull(entityData.getComponent(prisoner, Stored.class));
     }
@@ -117,7 +119,7 @@ class JailBreakSystemTest {
         entityData.setComponent(hero, worker);
         EntityId prisoner = imprison(GOOD);
 
-        system.processTick(0.25f);
+        tick(0.25f);
 
         assertNotNull(entityData.getComponent(prisoner, Stored.class));
     }
@@ -127,7 +129,7 @@ class JailBreakSystemTest {
         createHero(GOOD, new Point(9, 9));
         EntityId prisoner = imprison(GOOD);
 
-        system.processTick(0.25f);
+        tick(0.25f);
 
         assertNotNull(entityData.getComponent(prisoner, Stored.class));
     }
@@ -138,7 +140,7 @@ class JailBreakSystemTest {
         createHero(GOOD, TILE);
         EntityId prisoner = imprison(GOOD);
 
-        system.processTick(0.25f);
+        tick(0.25f);
 
         assertNotNull(entityData.getComponent(prisoner, Stored.class));
     }
@@ -149,7 +151,7 @@ class JailBreakSystemTest {
         entityData.setComponent(hero, new CreatureImprisoned(0, 0));
         EntityId prisoner = imprison(GOOD);
 
-        system.processTick(0.25f);
+        tick(0.25f);
 
         assertNotNull(entityData.getComponent(prisoner, Stored.class));
     }
@@ -160,7 +162,7 @@ class JailBreakSystemTest {
         entityData.setComponent(hero, new CreatureTortured(0, 0, 0));
         EntityId prisoner = imprison(GOOD);
 
-        system.processTick(0.25f);
+        tick(0.25f);
 
         assertNotNull(entityData.getComponent(prisoner, Stored.class));
     }
@@ -171,16 +173,31 @@ class JailBreakSystemTest {
         EntityId first = imprison(GOOD);
         EntityId second = imprison(GOOD);
 
-        system.processTick(0.25f);
-        system.processTick(0.25f);
+        tick(0.25f);
+        tick(0.25f);
 
         assertNull(entityData.getComponent(first, Stored.class));
         assertNotNull(entityData.getComponent(second, Stored.class));
 
-        system.processTick(0.5f);
-        system.processTick(0.25f);
+        tick(0.5f);
+        tick(0.25f);
 
         assertNull(entityData.getComponent(second, Stored.class));
+    }
+
+    @Test
+    void theNextFreeTimeIsKeptOnTheHero() {
+        EntityId hero = createHero(GOOD, TILE);
+        imprison(GOOD);
+
+        tick(0.25f);
+
+        assertEquals(1.25, entityData.getComponent(hero, JailBreaker.class).nextFreeTime, 0.0001);
+    }
+
+    private void tick(float tpf) {
+        gameTime += tpf;
+        system.processTick(tpf);
     }
 
     private EntityId createHero(short owner, Point tile) {

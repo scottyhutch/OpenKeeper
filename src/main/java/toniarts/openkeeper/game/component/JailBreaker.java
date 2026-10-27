@@ -21,13 +21,20 @@ import com.simsilica.es.EntityComponent;
 /**
  * Marks a hero that frees its imprisoned friends when it gets to an enemy
  * Prison (the party flag FREE_FRIENDS_ON_JAIL_BREAK)
- *
- * @author Toni Helenius <helenius.toni@gmail.com>
  */
 public final class JailBreaker implements EntityComponent {
 
+    /**
+     * The game time the hero may free the next prisoner
+     */
+    public double nextFreeTime;
+
     public JailBreaker() {
         // For serialization
+    }
+
+    public JailBreaker(double nextFreeTime) {
+        this.nextFreeTime = nextFreeTime;
     }
 
 }

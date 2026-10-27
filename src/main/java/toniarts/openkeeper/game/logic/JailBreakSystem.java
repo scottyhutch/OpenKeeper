@@ -20,8 +20,6 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
-import java.util.HashMap;
-import java.util.Map;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureTortured;
@@ -29,6 +27,7 @@ import toniarts.openkeeper.game.component.JailBreaker;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
@@ -56,14 +55,14 @@ public final class JailBreakSystem implements IGameLogicUpdatable {
     private static final double FREE_INTERVAL = 1.0;
 
     private final EntityData entityData;
+    private final IGameTimer gameTimer;
     private final ILevelInfo levelInfo;
     private final IMapController mapController;
     private final EntitySet heroes;
-    private final Map<EntityId, Double> nextFreeTimes = new HashMap<>();
-    private double timeElapsed = 0;
 
-    public JailBreakSystem(EntityData entityData, ILevelInfo levelInfo, IMapController mapController) {
+    public JailBreakSystem(EntityData entityData, IGameTimer gameTimer, ILevelInfo levelInfo, IMapController mapController) {
         this.entityData = entityData;
+        this.gameTimer = gameTimer;
         this.levelInfo = levelInfo;
         this.mapController = mapController;
         heroes = entityData.getEntities(JailBreaker.class, Position.class, Owner.class, CreatureComponent.class,
@@ -72,13 +71,12 @@ public final class JailBreakSystem implements IGameLogicUpdatable {
 
     @Override
     public void processTick(float tpf) {
-        timeElapsed += tpf;
+        double gameTime = gameTimer.getGameTime();
         heroes.applyChanges();
-        nextFreeTimes.keySet().removeIf(id -> !heroes.containsId(id));
         for (Entity hero : heroes) {
-            if (canBreakOut(hero) && nextFreeTimes.getOrDefault(hero.getId(), 0.0) <= timeElapsed
+            if (canBreakOut(hero) && hero.get(JailBreaker.class).nextFreeTime <= gameTime
                     && freeFriend(hero)) {
-                nextFreeTimes.put(hero.getId(), timeElapsed + FREE_INTERVAL);
+                hero.set(new JailBreaker(gameTime + FREE_INTERVAL));
             }
         }
     }
@@ -115,6 +113,5 @@ public final class JailBreakSystem implements IGameLogicUpdatable {
     @Override
     public void stop() {
         heroes.release();
-        nextFreeTimes.clear();
     }
 }
