@@ -16,12 +16,13 @@
  */
 package toniarts.openkeeper.game.logic;
 
+import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.filter.FieldFilter;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -29,6 +30,7 @@ import java.util.Map.Entry;
 import java.util.Set;
 import java.util.function.Predicate;
 import java.util.random.RandomGenerator;
+import toniarts.openkeeper.game.component.CreatureTypeAttraction;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
@@ -55,8 +57,8 @@ import toniarts.openkeeper.utils.Point;
  * In skirmish and multiplayer games a secret room layout calls in its unique
  * creature, once per level, before an ordinary creature is chosen.
  * <br>
- * The favour and the unique creatures called in are runtime state per keeper,
- * they are not saved.
+ * The creature types a keeper has been able to attract, their favour and the
+ * unique creatures called in are kept in CreatureTypeAttraction entities.
  */
 public final class PortalCreatureChoice {
 
@@ -106,12 +108,11 @@ public final class PortalCreatureChoice {
                 {1, 13, 13, 13, 13, 13, 7},
                 {1, 12, 12, 12, 12, 12, 7}}));
 
+    private final EntityData entityData;
     private final RandomGenerator random;
-    private final Map<Short, Set<Short>> attractableTypesByPlayer = new HashMap<>();
-    private final Map<Short, Map<Short, Integer>> favourByPlayer = new HashMap<>();
-    private final Map<Short, Set<Short>> uniquesCalledByPlayer = new HashMap<>();
 
-    public PortalCreatureChoice(RandomGenerator random) {
+    public PortalCreatureChoice(EntityData entityData, RandomGenerator random) {
+        this.entityData = entityData;
         this.random = random;
     }
 
@@ -162,17 +163,17 @@ public final class PortalCreatureChoice {
             return null;
         }
 
-        Set<Short> called = uniquesCalledByPlayer.computeIfAbsent(player.getKeeper().getId(), id -> new HashSet<>());
+        short playerId = player.getKeeper().getId();
         Map<Point, Integer> roomTypes = null;
         for (UniqueLayout layout : UNIQUE_LAYOUTS) {
-            if (called.contains(layout.creatureId())) {
+            if (getAttraction(playerId, layout.creatureId()) != null) {
                 continue;
             }
             if (roomTypes == null) {
                 roomTypes = getRoomTypes(players);
             }
             if (isLayoutBuilt(layout, player, roomTypes)) {
-                called.add(layout.creatureId());
+                addAttraction(playerId, layout.creatureId(), 0);
                 return kwdFile.getCreature(layout.creatureId());
             }
         }
@@ -277,8 +278,12 @@ public final class PortalCreatureChoice {
         }
 
         // Every generation lessens the favour
-        Map<Short, Integer> favour = getFavour(player);
-        favour.replaceAll((creatureId, generations) -> Math.max(0, generations - 1));
+        for (EntityId entityId : findAttractions(player.getKeeper().getId())) {
+            CreatureTypeAttraction attraction = entityData.getComponent(entityId, CreatureTypeAttraction.class);
+            if (attraction.favour > 0) {
+                entityData.setComponent(entityId, new CreatureTypeAttraction(attraction.playerId, attraction.creatureId, attraction.favour - 1));
+            }
+        }
 
         double total = 0;
         for (double weight : weights.values()) {
@@ -301,13 +306,13 @@ public final class PortalCreatureChoice {
             ICreaturesController creaturesController, Predicate<Creature> available) {
         updateAttractableTypes(player, available, true);
 
-        Map<Short, Integer> favour = getFavour(player);
         Map<Creature, Double> weights = new LinkedHashMap<>();
         for (Creature creature : player.getCreatureControl().getTypesAvailable()) {
             if (!isAvailableVia(creature, entrance.getRoom()) || !isAttractable(creature, player, available)) {
                 continue;
             }
-            int generations = favour.getOrDefault(creature.getCreatureId(), 0);
+            EntityId attraction = getAttraction(player.getKeeper().getId(), creature.getCreatureId());
+            int generations = attraction != null ? entityData.getComponent(attraction, CreatureTypeAttraction.class).favour : 0;
             double multiplier = generations == FAVOURED_GENERATIONS ? FIRST_GENERATION_FAVOUR : Math.max(1, generations);
             weights.put(creature, getWeight(creature, player) * multiplier);
         }
@@ -319,21 +324,32 @@ public final class PortalCreatureChoice {
      * become attractable after the start of the level are favoured
      */
     private void updateAttractableTypes(IPlayerController player, Predicate<Creature> available, boolean favourNew) {
-        Set<Short> attractableTypes = attractableTypesByPlayer.computeIfAbsent(player.getKeeper().getId(), id -> new HashSet<>());
-        Map<Short, Integer> favour = getFavour(player);
+        short playerId = player.getKeeper().getId();
         for (Creature creature : player.getCreatureControl().getTypesAvailable()) {
-            if (attractableTypes.contains(creature.getCreatureId()) || !isAttractable(creature, player, available)) {
+            if (getAttraction(playerId, creature.getCreatureId()) != null || !isAttractable(creature, player, available)) {
                 continue;
             }
-            attractableTypes.add(creature.getCreatureId());
-            if (favourNew && getFirstAttractionRoomId(creature) != LAIR_ROOM_ID) {
-                favour.put(creature.getCreatureId(), FAVOURED_GENERATIONS);
-            }
+            boolean favoured = favourNew && getFirstAttractionRoomId(creature) != LAIR_ROOM_ID;
+            addAttraction(playerId, creature.getCreatureId(), favoured ? FAVOURED_GENERATIONS : 0);
         }
     }
 
-    private Map<Short, Integer> getFavour(IPlayerController player) {
-        return favourByPlayer.computeIfAbsent(player.getKeeper().getId(), id -> new HashMap<>());
+    private EntityId getAttraction(short playerId, short creatureId) {
+        for (EntityId entityId : findAttractions(playerId)) {
+            if (entityData.getComponent(entityId, CreatureTypeAttraction.class).creatureId == creatureId) {
+                return entityId;
+            }
+        }
+        return null;
+    }
+
+    private Set<EntityId> findAttractions(short playerId) {
+        return entityData.findEntities(new FieldFilter<>(CreatureTypeAttraction.class, "playerId", playerId),
+                CreatureTypeAttraction.class);
+    }
+
+    private void addAttraction(short playerId, short creatureId, int favour) {
+        entityData.setComponent(entityData.createEntity(), new CreatureTypeAttraction(playerId, creatureId, favour));
     }
 
     private static boolean isAttractable(Creature creature, IPlayerController player, Predicate<Creature> available) {
