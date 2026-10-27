@@ -74,6 +74,7 @@ import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.HauledBy;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.HealthGain;
+import toniarts.openkeeper.game.component.Hypnotised;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Interaction;
 import toniarts.openkeeper.game.component.InfernoArea;
@@ -95,6 +96,7 @@ import toniarts.openkeeper.game.component.PortalAttracted;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
+import toniarts.openkeeper.game.component.PossessedAbility;
 import toniarts.openkeeper.game.component.PossessedMovement;
 import toniarts.openkeeper.game.component.Regeneration;
 import toniarts.openkeeper.game.component.RoomComponent;
@@ -133,6 +135,7 @@ import toniarts.openkeeper.game.network.session.AccountHostedService;
 import toniarts.openkeeper.game.network.streaming.StreamingHostedService;
 import toniarts.openkeeper.game.state.lobby.ClientInfo;
 import toniarts.openkeeper.game.task.TaskType;
+import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Thing;
 import toniarts.openkeeper.tools.convert.map.Tile;
 
@@ -181,6 +184,7 @@ public final class NetworkServer {
             Serializer.registerClass(ResearchableEntity.class, new FieldSerializer());
             Serializer.registerClass(PlayerSpell.class, new FieldSerializer());
             Serializer.registerClass(ResearchableType.class, new EnumSerializer());
+            Serializer.registerClass(Creature.SpecialAbility.class, new EnumSerializer());
             Serializer.registerClass(GameResult.class, new FieldSerializer());
             Serializer.registerClass(GameResult.ResultType.class, new EnumSerializer());
 
@@ -225,6 +229,7 @@ public final class NetworkServer {
             Serializer.registerClass(HauledBy.class, new FieldSerializer());
             Serializer.registerClass(Health.class, new FieldSerializer());
             Serializer.registerClass(HealthGain.class, new FieldSerializer());
+            Serializer.registerClass(Hypnotised.class, new FieldSerializer());
             Serializer.registerClass(InHand.class, new FieldSerializer());
             Serializer.registerClass(Interaction.class, new FieldSerializer());
             Serializer.registerClass(JailBreaker.class, new FieldSerializer());
@@ -246,6 +251,7 @@ public final class NetworkServer {
             Serializer.registerClass(PortalGem.class, new FieldSerializer());
             Serializer.registerClass(Position.class, new FieldSerializer());
             Serializer.registerClass(Possessed.class, new FieldSerializer());
+            Serializer.registerClass(PossessedAbility.class, new FieldSerializer());
             Serializer.registerClass(PossessedMovement.class, new FieldSerializer());
             Serializer.registerClass(Regeneration.class, new FieldSerializer());
             Serializer.registerClass(RoomComponent.class, new FieldSerializer());
