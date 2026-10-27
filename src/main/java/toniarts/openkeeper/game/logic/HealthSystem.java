@@ -37,6 +37,7 @@ import toniarts.openkeeper.game.component.CreatureRecuperating;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.Death;
+import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Hypnotised;
 import toniarts.openkeeper.game.component.HealthGain;
@@ -53,6 +54,7 @@ import toniarts.openkeeper.game.sound.SoundEngine;
 import toniarts.openkeeper.game.sound.SoundManager;
 import toniarts.openkeeper.game.sound.ThingSounds;
 import toniarts.openkeeper.game.component.Regeneration;
+import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
@@ -224,6 +226,7 @@ public final class HealthSystem extends GameTimeCounter {
 
         // No body, just vanish from the world
         if (!isLeaveDeadBody(entityId)) {
+            triggerDestroyedEffect(entityId);
             entityPositionLookup.getEntityController(entityId).remove();
             return;
         }
@@ -351,6 +354,32 @@ public final class HealthSystem extends GameTimeCounter {
             player.getManaControl().addMana(-deathWhenPossessingManaReduction);
         }
         creaturesController.createController(entityId).setPossession(false);
+    }
+
+    /**
+     * A destroyed trap or door blows up with its death effect, like the Trap
+     * Explosion or the Wooden Door Group Explosion
+     *
+     * @param entityId the destroyed entity
+     */
+    private void triggerDestroyedEffect(EntityId entityId) {
+        Position position = entityData.getComponent(entityId, Position.class);
+        if (position != null) {
+            EffectTriggers.trigger(entityData, getDestroyedEffectId(entityId), position.position, timeElapsed);
+        }
+    }
+
+    private int getDestroyedEffectId(EntityId entityId) {
+        TrapComponent trapComponent = entityData.getComponent(entityId, TrapComponent.class);
+        if (trapComponent != null) {
+            return levelInfo.getLevelData().getTrapById(trapComponent.trapId).getDeathEffectId();
+        }
+        DoorComponent doorComponent = entityData.getComponent(entityId, DoorComponent.class);
+        if (doorComponent != null) {
+            return levelInfo.getLevelData().getDoorById(doorComponent.doorId).getDeathEffectId();
+        }
+
+        return 0;
     }
 
     private boolean isLeaveDeadBody(EntityId entityId) {
