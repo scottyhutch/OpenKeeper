@@ -216,6 +216,39 @@ public abstract class PossessionInteractionState extends AbstractPauseAwareState
         stateManager.getState(PossessionCameraState.class).setTarget(target);
     }
 
+    /**
+     * The attack key, the left mouse button or the configured use/attack key
+     * (Space), does the selected action: the melee attack, a spell, the group
+     * or an ability that is used with the attack. In the original both go to
+     * the same function (0x4100F0).
+     *
+     * @param pressed whether the key went down or up
+     */
+    private void useAttack(boolean pressed) {
+        // The melee attack, the spells and the group, but always let go of the attack
+        int spell = switch (action) {
+            case SPELL_1 -> 1;
+            case SPELL_2 -> 2;
+            case SPELL_3 -> 3;
+            default -> 0;
+        };
+        if (action == Action.GROUP && pressed) {
+            stateManager.getState(GameClientState.class).getGameClientService().addPossessedFollower();
+        } else if (action == Action.MELEE || spell > 0 || !pressed) {
+            stateManager.getState(GameClientState.class).getGameClientService().setPossessedAttack(pressed, spell);
+        }
+
+        // Or the selected ability
+        int ability = switch (action) {
+            case ABILITY_1 -> 1;
+            case ABILITY_2 -> 2;
+            default -> 0;
+        };
+        if (ability > 0 && pressed && isUsedWithAttack(ability)) {
+            stateManager.getState(GameClientState.class).getGameClientService().usePossessedAbility(ability);
+        }
+    }
+
     private void initializeInput() {
         inputListener = new RawInputListener() {
             @Override
@@ -243,29 +276,7 @@ public abstract class PossessionInteractionState extends AbstractPauseAwareState
             @Override
             public void onMouseButtonEvent(MouseButtonEvent evt) {
                 if (evt.getButtonIndex() == MouseInput.BUTTON_LEFT) {
-
-                    // The melee attack, the spells and the group, but always let go of the attack
-                    int spell = switch (action) {
-                        case SPELL_1 -> 1;
-                        case SPELL_2 -> 2;
-                        case SPELL_3 -> 3;
-                        default -> 0;
-                    };
-                    if (action == Action.GROUP && evt.isPressed()) {
-                        stateManager.getState(GameClientState.class).getGameClientService().addPossessedFollower();
-                    } else if (action == Action.MELEE || spell > 0 || evt.isReleased()) {
-                        stateManager.getState(GameClientState.class).getGameClientService().setPossessedAttack(evt.isPressed(), spell);
-                    }
-
-                    // Or the selected ability
-                    int ability = switch (action) {
-                        case ABILITY_1 -> 1;
-                        case ABILITY_2 -> 2;
-                        default -> 0;
-                    };
-                    if (ability > 0 && evt.isPressed() && isUsedWithAttack(ability)) {
-                        stateManager.getState(GameClientState.class).getGameClientService().usePossessedAbility(ability);
-                    }
+                    useAttack(evt.isPressed());
                 } else if (evt.getButtonIndex() == MouseInput.BUTTON_RIGHT && evt.isReleased()) {
 
                     // The server tells us when the possession has ended
@@ -283,6 +294,11 @@ public abstract class PossessionInteractionState extends AbstractPauseAwareState
                     } else if (evt.getKeyCode() == (int) Settings.Setting.POSSESSED_SELECT_ABILITY_2.getDefaultValue() && !isUsedWithAttack(2)) {
                         stateManager.getState(GameClientState.class).getGameClientService().usePossessedAbility(2);
                     }
+                }
+
+                // Same as the left mouse button, holding the key is not repeated here
+                if (evt.getKeyCode() == (int) Settings.Setting.USE_ATTACK.getDefaultValue() && !evt.isRepeating()) {
+                    useAttack(evt.isPressed());
                 }
 
                 if (evt.getKeyCode() == (int) Settings.Setting.POSSESSED_SELECT_MELEE.getDefaultValue() && evt.isReleased()) {
