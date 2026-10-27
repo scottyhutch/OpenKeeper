@@ -126,6 +126,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private String reaperTalismanState;
     private EntitySet keeperCreatures;
     private boolean reaperOwned;
+    private EntitySet summonedReapers;
+    private int reaperSecondsLeft;
     private PossessionInteractionState.Action possessionAction = PossessionInteractionState.Action.MELEE;
 
     private final TrapIconTextParser trapIconTextParser = new TrapIconTextParser();
@@ -145,7 +147,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
         if (lastUpdate >= SCREEN_UPDATE_INTERVAL) {
             if (creatureCardManager != null) {
                 creatureCardManager.update(tpf);
-                if (keeperCreatures != null && isReaperOwned() != reaperOwned) {
+                if (keeperCreatures != null && (isReaperOwned() != reaperOwned || getReaperSecondsLeft() != reaperSecondsLeft)) {
                     updateReaperTalisman();
                 }
             }
@@ -172,6 +174,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
         if (keeperCreatures != null) {
             keeperCreatures.release();
             keeperCreatures = null;
+            summonedReapers.release();
+            summonedReapers = null;
         }
     }
 
@@ -1106,7 +1110,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
      */
     private void updateReaperTalisman() {
         if (keeperCreatures == null) {
-            keeperCreatures = entityData.getEntities(new FieldFilter<>(Owner.class, "ownerId", state.getPlayer().getId()), Owner.class, CreatureComponent.class);
+            FieldFilter<Owner> keeper = new FieldFilter<>(Owner.class, "ownerId", state.getPlayer().getId());
+            keeperCreatures = entityData.getEntities(keeper, Owner.class, CreatureComponent.class);
+            summonedReapers = entityData.getEntities(keeper, Owner.class, SummonedReaper.class);
         }
         reaperOwned = isReaperOwned();
         KeeperSpell keeperSpell = KeeperSpellCastValidator.getReaperTalismanSpell(state.getKwdFile(), state.getPlayer(), reaperOwned);
@@ -1127,7 +1133,13 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
         String tooltipId = summonReaperResearched ? "2238" : keeperSpell != null ? "2239" : "2244";
 
-        String talismanState = image + "_" + tooltipId + "_" + (keeperSpell != null ? keeperSpell.getId() : "");
+        int secondsLeft = getReaperSecondsLeft();
+        String talismanState = image + "_" + tooltipId + "_" + (keeperSpell != null ? keeperSpell.getId() : "") + "_" + (secondsLeft > 0);
+        boolean countdownOnly = talismanState.equals(reaperTalismanState) && secondsLeft > 0 && reaperSecondsLeft > 0;
+        if (countdownOnly) {
+            nifty.getScreen(SCREEN_HUD_ID).findNiftyControl("reaper-seconds", Label.class).setText(Integer.toString(secondsLeft));
+        }
+        reaperSecondsLeft = secondsLeft;
         if (talismanState.equals(reaperTalismanState)) {
             return;
         }
@@ -1148,6 +1160,34 @@ public final class PlayerScreenController implements IPlayerScreenController {
         if (keeperSpell == null) {
             element.startEffect(EffectEventId.onCustom, null, "unaffordable");
         }
+
+        // The Reaper of the Talisman leaves when the time is up
+        if (secondsLeft > 0) {
+            new LabelBuilder("reaper-seconds", Integer.toString(secondsLeft)) {
+                {
+                    style("text");
+                    color("#27d067");
+                    valignBottom();
+                    alignCenter();
+                }
+            }.build(panel);
+        }
+    }
+
+    /**
+     * Gets the seconds the keeper's timed Reaper has left
+     *
+     * @return the seconds, 0 if the keeper has no timed Reaper
+     */
+    private int getReaperSecondsLeft() {
+        summonedReapers.applyChanges();
+        for (Entity entity : summonedReapers) {
+            SummonedReaper reaper = entity.get(SummonedReaper.class);
+            if (reaper.lifetime > 0 && !reaper.isLeaving()) {
+                return reaper.secondsLeft;
+            }
+        }
+        return 0;
     }
 
     /**

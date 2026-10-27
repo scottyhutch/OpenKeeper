@@ -125,6 +125,9 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
             EntityId entityId = entity.getId();
             SummonedReaper summonedReaper = entity.get(SummonedReaper.class);
             short ownerId = entity.get(Owner.class).ownerId;
+            if (summonedReaper.lifetime > 0 && !summonedReaper.isLeaving()) {
+                summonedReaper = updateSecondsLeft(entityId, summonedReaper, gameTime);
+            }
 
             if (summonedReaper.isLeaving()) {
                 if (gameTime >= summonedReaper.leaveTime + LEAVE_DURATION_SECONDS) {
@@ -156,6 +159,24 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
         }
 
         return false;
+    }
+
+    /**
+     * Counts the seconds down for the client
+     *
+     * @return the Reaper with the seconds left
+     */
+    private SummonedReaper updateSecondsLeft(EntityId entityId, SummonedReaper summonedReaper, double gameTime) {
+        // Rounded down, as DK II divides its tick timer by the ticks per second
+        int secondsLeft = Math.max(0, (int) (summonedReaper.summonTime + summonedReaper.lifetime - gameTime));
+        if (secondsLeft == summonedReaper.secondsLeft) {
+            return summonedReaper;
+        }
+        SummonedReaper counted = new SummonedReaper(summonedReaper.summonTime, summonedReaper.lifetime,
+                summonedReaper.manaDrain, summonedReaper.manaCheckTime, summonedReaper.leaveTime, secondsLeft);
+        entityData.setComponent(entityId, counted);
+
+        return counted;
     }
 
     /**
@@ -197,7 +218,7 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
 
     private void setSummonedReaper(EntityId entityId, SummonedReaper summonedReaper, double manaCheckTime, double leaveTime) {
         entityData.setComponent(entityId, new SummonedReaper(summonedReaper.summonTime, summonedReaper.lifetime,
-                summonedReaper.manaDrain, manaCheckTime, leaveTime));
+                summonedReaper.manaDrain, manaCheckTime, leaveTime, summonedReaper.secondsLeft));
     }
 
     private void addManaGeneration(EntityId entityId, int amount) {

@@ -53,15 +53,22 @@ public final class SummonedReaper implements EntityComponent {
      */
     public double leaveTime;
 
+    /**
+     * Whole seconds left until a timed Reaper leaves, 0 if he isn't timed.
+     * The client shows them on the Reaper Talisman.
+     */
+    public int secondsLeft;
+
     public SummonedReaper() {
         // For serialization
     }
 
     public SummonedReaper(double summonTime, double lifetime, int manaDrain) {
-        this(summonTime, lifetime, manaDrain, NOT_YET, NOT_YET);
+        this(summonTime, lifetime, manaDrain, NOT_YET, NOT_YET, (int) lifetime);
     }
 
-    public SummonedReaper(double summonTime, double lifetime, int manaDrain, double manaCheckTime, double leaveTime) {
+    public SummonedReaper(double summonTime, double lifetime, int manaDrain, double manaCheckTime, double leaveTime, int secondsLeft) {
+        this.secondsLeft = secondsLeft;
         this.summonTime = summonTime;
         this.lifetime = lifetime;
         this.manaDrain = manaDrain;
