@@ -81,4 +81,9 @@ public final class PossessionFixtures {
         return creatureSpell;
     }
 
+    public static void setShotData(CreatureSpell creatureSpell, int shotData1, int shotData2) {
+        creatureSpell.setShotData1(shotData1);
+        creatureSpell.setShotData2(shotData2);
+    }
+
 }

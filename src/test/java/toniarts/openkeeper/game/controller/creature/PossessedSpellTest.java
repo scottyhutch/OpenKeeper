@@ -45,11 +45,13 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.component.PossessedMovement;
+import toniarts.openkeeper.game.component.SpeedUp;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IShotsController;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -78,6 +80,8 @@ class PossessedSpellTest {
     private static final short FIREBALL = 1;
     private static final short HEAL = 2;
     private static final short LIGHTNING = 3;
+    private static final short TELEPORT = 4;
+    private static final short HASTE = 5;
     private static final short SHOT = 5;
     private static final float RECHARGE = 2f;
     private static final float RANGE = 8f;
@@ -90,6 +94,7 @@ class PossessedSpellTest {
     private List<Object> shotTargets;
     private Set<Point> walls;
     private double gameTime;
+    private Keeper keeper;
     private EntityId us;
 
     @BeforeEach
@@ -101,6 +106,7 @@ class PossessedSpellTest {
         shotTargets = new ArrayList<>();
         walls = new HashSet<>();
         gameTime = 10;
+        keeper = new Keeper(false, KEEPER);
 
         // A level 1 creature that gets Lightning only at level 4
         creature = new Creature();
@@ -112,6 +118,11 @@ class PossessedSpellTest {
                 EnumSet.of(toniarts.openkeeper.tools.convert.map.CreatureSpell.CreatureSpellFlag.CREATURE)));
         levelSpells.put(LIGHTNING, PossessionFixtures.creatureSpell(LIGHTNING, SHOT, RECHARGE, RANGE,
                 EnumSet.of(toniarts.openkeeper.tools.convert.map.CreatureSpell.CreatureSpellFlag.IS_ATTACKING)));
+        levelSpells.put(TELEPORT, PossessionFixtures.creatureSpell(TELEPORT, (short) 0, RECHARGE, 0,
+                EnumSet.of(toniarts.openkeeper.tools.convert.map.CreatureSpell.CreatureSpellFlag.IMP_TELEPORT)));
+        levelSpells.put(HASTE, PossessionFixtures.creatureSpell(HASTE, (short) 0, RECHARGE, 0,
+                EnumSet.of(toniarts.openkeeper.tools.convert.map.CreatureSpell.CreatureSpellFlag.IMP_HASTE)));
+        PossessionFixtures.setShotData(levelSpells.get(HASTE), 150, 15);
 
         // In the middle of tile (10, 2), facing +z
         us = createCreature(KEEPER, new Vector3f(10, 0, 2));
@@ -283,6 +294,75 @@ class PossessedSpellTest {
         assertEquals(1, possessedAttack.spell);
     }
 
+    @Test
+    void impTeleportsToTheMiddleOfTheHeart() {
+        keeper.setDungeonHeartLocation(new Point(5, 15));
+        possessImp();
+
+        cast(createController(), 1);
+
+        assertEquals(WorldUtils.pointToVector3f(5, 15), entityData.getComponent(us, Position.class).position);
+        assertEquals(gameTime, getSpell(TELEPORT).attactStartTime);
+        assertTrue(shotTargets.isEmpty());
+        assertNull(entityData.getComponent(us, CreatureViewState.class));
+    }
+
+    @Test
+    void impTeleportRechargesEvenWithNoHeart() {
+        possessImp();
+        CreatureController controller = createController();
+
+        cast(controller, 1);
+        keeper.setDungeonHeartLocation(new Point(5, 15));
+        gameTime += RECHARGE / 2;
+        cast(controller, 1);
+
+        assertEquals(new Vector3f(10, 0, 2), entityData.getComponent(us, Position.class).position);
+        assertEquals(gameTime - RECHARGE / 2, getSpell(TELEPORT).attactStartTime);
+    }
+
+    @Test
+    void impHasteSpeedsItUpForTheSecondsOfTheSpell() {
+        possessImp();
+
+        cast(createController(), 2);
+
+        SpeedUp speedUp = entityData.getComponent(us, SpeedUp.class);
+        assertEquals(150, speedUp.percentage);
+        assertEquals(gameTime + 15, speedUp.endTime);
+        assertEquals(gameTime, getSpell(HASTE).attactStartTime);
+        assertTrue(shotTargets.isEmpty());
+        assertNull(entityData.getComponent(us, CreatureViewState.class));
+    }
+
+    @Test
+    void impHasteDoesNotLengthenARunningSpeedUpButRecharges() {
+        possessImp();
+        CreatureController controller = createController();
+
+        cast(controller, 2);
+        double firstEnd = entityData.getComponent(us, SpeedUp.class).endTime;
+        gameTime += RECHARGE + 0.1;
+        cast(controller, 2);
+
+        assertEquals(firstEnd, entityData.getComponent(us, SpeedUp.class).endTime);
+        assertEquals(gameTime, getSpell(HASTE).attactStartTime);
+
+        // Once it has run out, the haste speeds up again
+        gameTime = firstEnd;
+        cast(controller, 2);
+        assertEquals(gameTime + 15, entityData.getComponent(us, SpeedUp.class).endTime);
+    }
+
+    /**
+     * We are an Imp with its teleport and haste
+     */
+    private void possessImp() {
+        PossessionFixtures.setSpells(creature, List.of(PossessionFixtures.spell(TELEPORT, 1, 0),
+                PossessionFixtures.spell(HASTE, 1, 0)));
+        entityData.setComponent(us, new CreatureSpells(List.of(createSpell(TELEPORT), createSpell(HASTE))));
+    }
+
     private void cast(CreatureController controller, int spell) {
         entityData.setComponent(us, new PossessedAttack(true, gameTime, false, spell));
         controller.executePossessedAttack();
@@ -361,7 +441,11 @@ class PossessedSpellTest {
             case "getCreatureSpellById" -> levelSpells.get((Short) args[0]);
             default -> null;
         });
-        ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData") ? kwdFile : null);
+        ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> switch (name) {
+            case "getLevelData" -> kwdFile;
+            case "getPlayer" -> keeper;
+            default -> null;
+        });
 
         return new CreatureController(us, entityData, creature, null, null, gameTimer, gameSettings, creaturesController,
                 positionLookup, mapController, levelInfo, null, shotsController);
