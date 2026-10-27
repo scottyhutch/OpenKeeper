@@ -28,6 +28,7 @@ import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.SeenCreatureType;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.sound.MentorType;
 import toniarts.openkeeper.game.state.session.PlayerService;
@@ -139,6 +140,21 @@ class NewSpeciesSystemTest {
 
         creature(KEEPER, DARK_ELF, CreatureState.ENTERING_DUNGEON, new Vector3f(3, 0, 4));
         system.processTick(0.25f);
+        assertTrue(messages.isEmpty());
+    }
+
+    @Test
+    void typesSeenAreKeptInTheEntityData() {
+        creature(KEEPER, DARK_ELF, CreatureState.ENTERING_DUNGEON, new Vector3f(3, 0, 4));
+        system.processTick(0.25f);
+        messages.clear();
+        assertEquals(1, entityData.getEntities(SeenCreatureType.class).size());
+
+        // A loaded game starts with a new system on the same entities
+        NewSpeciesSystem loaded = new NewSpeciesSystem(entityData, playerService, Map.of(INTRODUCED, 9));
+        creature(KEEPER, DARK_ELF, CreatureState.ENTERING_DUNGEON, new Vector3f(3, 0, 4));
+        loaded.processTick(0.25f);
+
         assertTrue(messages.isEmpty());
     }
 

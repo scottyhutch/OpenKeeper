@@ -19,14 +19,13 @@ package toniarts.openkeeper.game.logic;
 import com.jme3.math.Vector3f;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
+import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
-import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.SeenCreatureType;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.sound.MentorType;
 import toniarts.openkeeper.game.state.session.PlayerService;
@@ -42,7 +41,8 @@ import toniarts.openkeeper.game.state.session.PlayerService;
  * hands (0x48D050).<br>
  * We follow the creatures in the entity data: a creature that is new and
  * entering the dungeon is an arrival, any other creature a player has just
- * come to own is only marked as seen.<br>
+ * come to own is only marked as seen. The types seen are kept in the entity
+ * data, an entity per player and type.<br>
  * The creature types in the level's introduction override table get message
  * 0xe instead, which plays the level's own introduction speech and text
  * (a level speech, same as the Play Speech trigger action) rather than the
@@ -50,10 +50,11 @@ import toniarts.openkeeper.game.state.session.PlayerService;
  */
 public final class NewSpeciesSystem implements IGameLogicUpdatable {
 
+    private final EntityData entityData;
     private final PlayerService playerService;
     private final EntitySet creatures;
+    private final EntitySet seenTypes;
     private final Map<Short, Integer> introductionOverrideTextIds;
-    private final Map<Short, Set<Short>> seenTypesByPlayer = new HashMap<>();
 
     /**
      * Create the system
@@ -65,9 +66,11 @@ public final class NewSpeciesSystem implements IGameLogicUpdatable {
      */
     public NewSpeciesSystem(EntityData entityData, PlayerService playerService,
             Map<Short, Integer> introductionOverrideTextIds) {
+        this.entityData = entityData;
         this.playerService = playerService;
         this.introductionOverrideTextIds = introductionOverrideTextIds;
         this.creatures = entityData.getEntities(CreatureAi.class, Owner.class, Position.class);
+        this.seenTypes = entityData.getEntities(SeenCreatureType.class);
     }
 
     @Override
@@ -78,6 +81,7 @@ public final class NewSpeciesSystem implements IGameLogicUpdatable {
     @Override
     public void stop() {
         creatures.release();
+        seenTypes.release();
     }
 
     @Override
@@ -109,7 +113,17 @@ public final class NewSpeciesSystem implements IGameLogicUpdatable {
      * @return {@code true} if the player had not seen the type before
      */
     private boolean markSeen(short ownerId, short creatureId) {
-        return seenTypesByPlayer.computeIfAbsent(ownerId, key -> new HashSet<>()).add(creatureId);
+        seenTypes.applyChanges();
+        for (Entity entity : seenTypes) {
+            SeenCreatureType seen = entity.get(SeenCreatureType.class);
+            if (seen.playerId == ownerId && seen.creatureId == creatureId) {
+                return false;
+            }
+        }
+
+        EntityId entityId = entityData.createEntity();
+        entityData.setComponent(entityId, new SeenCreatureType(ownerId, creatureId));
+        return true;
     }
 
 }
