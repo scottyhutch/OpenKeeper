@@ -223,6 +223,11 @@ public final class GameClientService extends AbstractClientService
     }
 
     @Override
+    public void usePossessedAbility(int ability) {
+        getDelegate().usePossessedAbility(ability);
+    }
+
+    @Override
     public void endPossession() {
         getDelegate().endPossession();
     }
