@@ -307,11 +307,19 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     /**
      * Uses a first person ability of a possessed creature, as its keeper
      * presses the ability's key. The Vampire turns into a bat or back, the
-     * Monk and the Fairy start or stop praying.
+     * Monk and the Fairy start or stop praying. A sniper turns sniper mode on
+     * or off with its own key.
      *
-     * @param ability 1 or 2, the creature's first or second ability
+     * @param ability 1 or 2, the creature's first or second ability, or
+     * {@link #POSSESSED_SNIPER_MODE_KEY}
      */
     public void usePossessedAbility(int ability);
+
+    /**
+     * The key of sniper mode, as the ability to use. It has a key of its own
+     * rather than one of the two ability keys.
+     */
+    public static final int POSSESSED_SNIPER_MODE_KEY = 3;
 
     /**
      * Converts creature to another player's bidding

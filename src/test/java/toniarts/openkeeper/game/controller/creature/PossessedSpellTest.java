@@ -40,6 +40,7 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
+import toniarts.openkeeper.game.component.PossessedAbility;
 import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
@@ -53,6 +54,7 @@ import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.PossessionFixtures;
+import toniarts.openkeeper.tools.convert.map.ShotFixtures;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -84,6 +86,7 @@ class PossessedSpellTest {
     private Map<Variable.CreatureStats.StatType, Variable.CreatureFirstPerson> firstPersonStats;
     private Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings;
     private List<Object> shotTargets;
+    private List<Integer> shotDamages;
     private double gameTime;
     private EntityId us;
 
@@ -94,6 +97,7 @@ class PossessedSpellTest {
         firstPersonStats = new HashMap<>();
         gameSettings = new HashMap<>();
         shotTargets = new ArrayList<>();
+        shotDamages = new ArrayList<>();
         gameTime = 10;
 
         // A level 1 creature that gets Lightning only at level 4
@@ -132,6 +136,22 @@ class PossessedSpellTest {
 
         assertEquals(1, shotTargets.size());
         assertNull(entityData.getComponent(us, CastShot.class));
+    }
+
+    @Test
+    void shotsDoDoubleDamageOnlyInSniperMode() {
+        createCreature(HERO, new Vector3f(10, 0, 7));
+        CreatureController controller = createController();
+
+        cast(controller, 1);
+        entityData.setComponent(us, new PossessedAbility(Creature.SpecialAbility.SNIPER_MODE, gameTime));
+        gameTime += RECHARGE;
+        cast(controller, 1);
+        entityData.removeComponent(us, PossessedAbility.class);
+        gameTime += RECHARGE;
+        cast(controller, 1);
+
+        assertEquals(List.of(PossessionFixtures.SHOT_DAMAGE, PossessionFixtures.SHOT_DAMAGE * 2, PossessionFixtures.SHOT_DAMAGE), shotDamages);
     }
 
     @Test
@@ -300,6 +320,7 @@ class PossessedSpellTest {
         IShotsController shotsController = stub(IShotsController.class, (name, args) -> {
             if ("fireShot".equals(name)) {
                 shotTargets.add(args[5]);
+                shotDamages.add((Integer) args[1]);
                 return true;
             }
             return null;
@@ -307,6 +328,7 @@ class PossessedSpellTest {
         IKwdFile kwdFile = stub(IKwdFile.class, (name, args) -> switch (name) {
             case "getCreatureFirstPersonStats" -> firstPersonStats;
             case "getCreatureSpellById" -> levelSpells.get((Short) args[0]);
+            case "getShotById" -> ShotFixtures.fireball();
             default -> null;
         });
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData") ? kwdFile : null);

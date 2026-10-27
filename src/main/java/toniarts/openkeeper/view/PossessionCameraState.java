@@ -32,6 +32,7 @@ import com.jme3.scene.Spatial;
 import com.simsilica.es.EntityId;
 import java.lang.System.Logger;
 import toniarts.openkeeper.Main;
+import toniarts.openkeeper.game.component.PossessedAbility;
 import toniarts.openkeeper.game.component.PossessedMovement;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.state.AbstractPauseAwareState;
@@ -68,6 +69,12 @@ public final class PossessionCameraState extends AbstractPauseAwareState impleme
      * unit of mouse analog input adds, the roll is clamped by the walk cycle
      */
     private static final float TURN_ROLL_DEGREES_PER_ANALOG = 60f;
+    /**
+     * The field of view, in degrees, normally and in sniper mode. The zoom
+     * isn't in the data, the sniper one is tunable.
+     */
+    private static final float FIELD_OF_VIEW = 45f;
+    private static final float SNIPER_FIELD_OF_VIEW = 20f;
 
     private Main app;
     private AppStateManager stateManager;
@@ -80,6 +87,7 @@ public final class PossessionCameraState extends AbstractPauseAwareState impleme
     private PossessionCamera camera;
     private PossessionWalkCycle walkCycle;
     private boolean inputRegistered = false;
+    private float fieldOfView = FIELD_OF_VIEW;
 
     private boolean moveForward;
     private boolean moveBackward;
@@ -169,7 +177,8 @@ public final class PossessionCameraState extends AbstractPauseAwareState impleme
      */
     private void loadCameraStartLocation() {
         Camera cam = app.getCamera();
-        cam.setFrustumPerspective(45, (float) cam.getWidth() / cam.getHeight(), 0.01f, VIEW_DISTANCE_TILES * WorldUtils.TILE_WIDTH);
+        fieldOfView = FIELD_OF_VIEW;
+        cam.setFrustumPerspective(fieldOfView, (float) cam.getWidth() / cam.getHeight(), 0.01f, VIEW_DISTANCE_TILES * WorldUtils.TILE_WIDTH);
         if (targetSpatial != null) {
             updateCameraLocation();
             Vector3f facing = targetSpatial.getWorldRotation().mult(Vector3f.UNIT_Z);
@@ -287,11 +296,28 @@ public final class PossessionCameraState extends AbstractPauseAwareState impleme
             updateCameraLocation();
             camera.setRoll(walkCycle.getRollDegrees());
             sendMovement(tpf);
+            updateZoom();
         }
 
         // Update audio listener position
         app.getListener().setLocation(app.getCamera().getLocation());
         app.getListener().setRotation(app.getCamera().getRotation());
+    }
+
+    /**
+     * Zooms the view in while the creature is in sniper mode, the server tells
+     * whether it is
+     */
+    private void updateZoom() {
+        PossessedAbility possessedAbility = stateManager.getState(GameClientState.class).getGameClientService().getEntityData()
+                .getComponent(target, PossessedAbility.class);
+        float wanted = possessedAbility != null && possessedAbility.ability == Creature.SpecialAbility.SNIPER_MODE
+                ? SNIPER_FIELD_OF_VIEW : FIELD_OF_VIEW;
+        if (wanted != fieldOfView) {
+            fieldOfView = wanted;
+            Camera cam = app.getCamera();
+            cam.setFrustumPerspective(fieldOfView, (float) cam.getWidth() / cam.getHeight(), cam.getFrustumNear(), cam.getFrustumFar());
+        }
     }
 
     /**
