@@ -74,7 +74,9 @@ import javax.imageio.ImageIO;
  * walls and floors and {@code --gui-test-batch} the HUD's windows, tabs and room
  * icons; up to date ones are skipped ({@code --force} redoes them).
  * {@code --small} writes smaller PNGs (about 40% less disk, about 4 times
- * longer to write). Other options: {@code --model}, {@code --tile}, {@code --gpu} ({@code -1} for the
+ * longer to write). {@code --jni} upscales in this process with {@link RealEsrgan}, whose
+ * native library is read from the tools dir, and {@code --fp32} makes it keep
+ * fp32 on the GPU. Other options: {@code --model}, {@code --tile}, {@code --gpu} ({@code -1} for the
  * CPU), {@code --source}, {@code --dest} and {@code --tools-dir}.
  * {@code clean} deletes only the files this tool wrote, which the manifest in
  * the destination lists. Files listed by the old Python script's manifest
@@ -124,7 +126,7 @@ public class HdTextures {
     private static final int PRECISION_BITS = 32 - 8 - 2;
 
     private static final Set<String> VALUE_OPTIONS = Set.of("--tools-dir", "--source", "--dest", "--model", "--gpu", "--tile");
-    private static final Set<String> FLAGS = Set.of("--test-batch", "--gui-test-batch", "--force", "--small");
+    private static final Set<String> FLAGS = Set.of("--test-batch", "--gui-test-batch", "--force", "--small", "--jni", "--fp32");
 
     /** An image as one array per channel (red, green, blue, maybe alpha), 0-255 */
     record Planes(int width, int height, float[][] bands) {
@@ -252,7 +254,7 @@ public class HdTextures {
             throw new IllegalStateException("No converted textures in " + source + ". Run the game once to convert DK II's assets.");
         }
         String model = options.getOrDefault("--model", DEFAULT_MODEL);
-        String settings = model + " pad=" + PAD;
+        String settings = model + " pad=" + PAD + (options.containsKey("--fp32") ? " fp32" : "");
         List<String> all = listTextures(source);
         List<String> textures = select(all, options.containsKey("--test-batch") ? TEST_BATCH
                 : options.containsKey("--gui-test-batch") ? GUI_TEST_BATCH : null);
@@ -280,12 +282,12 @@ public class HdTextures {
         long started = System.nanoTime();
         Path work = Files.createTempDirectory("hd-textures-");
         List<String> failed = new ArrayList<>();
-        try {
+        try (RealEsrgan realEsrgan = options.containsKey("--jni") ? openRealEsrgan(toolsDir, executable, model, options) : null) {
             Path workIn = Files.createDirectories(work.resolve("in"));
             Path workOut = Files.createDirectories(work.resolve("out"));
             System.out.println("Preparing");
             for (int i = 0; i < todo.size(); i++) {
-                if (weights.get(todo.get(i)) > 0) {
+                if (weights.get(todo.get(i)) > 0 && realEsrgan == null) {
                     Planes[] padded = prepare(read(source.resolve(todo.get(i))));
                     write(padded[0], workIn.resolve(String.format("%05d_c.png", i)), false);
                     if (padded[1] != null) {
@@ -310,7 +312,10 @@ public class HdTextures {
                     Planes original = read(source.resolve(rel));
                     Planes[] padded = prepare(original);
                     Planes[] detailed = null;
-                    if (weight > 0) {
+                    if (weight > 0 && realEsrgan != null) {
+                        detailed = new Planes[]{upscale(realEsrgan, padded[0]),
+                            padded[1] != null ? upscale(realEsrgan, padded[1]) : null};
+                    } else if (weight > 0) {
                         Path colour = workOut.resolve(String.format("%05d_c.png", i));
                         Path alpha = workOut.resolve(String.format("%05d_a.png", i));
                         if (!Files.exists(colour) || (padded[1] != null && !Files.exists(alpha))) {
@@ -358,6 +363,38 @@ public class HdTextures {
             throw new IllegalStateException("Real-ESRGAN failed (" + exitCode + "):\n"
                     + errors.substring(Math.max(0, errors.length() - 2000)));
         }
+    }
+
+    private static RealEsrgan openRealEsrgan(Path toolsDir, Path executable, String model, Map<String, String> options) {
+        if (System.getProperty(RealEsrgan.LIBRARY_PROPERTY) == null) {
+            Path library = toolsDir.resolve(System.mapLibraryName("realesrgan_jni"));
+            if (!Files.isRegularFile(library)) {
+                throw new IllegalStateException("--jni needs " + library + ", see src/main/native/realesrgan_jni");
+            }
+            System.setProperty(RealEsrgan.LIBRARY_PROPERTY, library.toString());
+        }
+        Path models = executable.resolveSibling("models");
+        return new RealEsrgan(models.resolve(model + ".param").toString(), models.resolve(model + ".bin").toString(),
+                Integer.parseInt(options.getOrDefault("--gpu", "-1")), Integer.parseInt(options.getOrDefault("--tile", "0")),
+                !options.containsKey("--fp32"));
+    }
+
+    /**
+     * Real-ESRGAN's output for an image, as the program gives it for the same
+     * image written as an RGB PNG (one band is written as grey)
+     */
+    static Planes upscale(RealEsrgan realEsrgan, Planes image) {
+        int bands = image.bands().length;
+        byte[] pixels = new byte[image.width() * image.height() * 3];
+        for (int i = 0; i < pixels.length; i++) {
+            pixels[i] = (byte) Math.clamp(Math.rint(image.bands()[i % 3 % bands][i / 3]), 0, 255);
+        }
+        byte[] upscaled = realEsrgan.upscale(pixels, image.width(), image.height());
+        float[][] result = new float[3][upscaled.length / 3];
+        for (int i = 0; i < upscaled.length; i++) {
+            result[i % 3][i / 3] = upscaled[i] & 0xFF;
+        }
+        return new Planes(image.width() * SCALE, image.height() * SCALE, result);
     }
 
     static List<String> listTextures(Path source) throws IOException {

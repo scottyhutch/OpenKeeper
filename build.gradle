@@ -45,6 +45,7 @@ tasks.register("hdTextures", JavaExec) {
     description = 'Upscales the converted textures with Real-ESRGAN, e.g. --args="upscale --test-batch"'
     classpath = sourceSets.main.output
     mainClass = 'toniarts.openkeeper.tools.hdtextures.HdTextures'
+    jvmArgs '--enable-native-access=ALL-UNNAMED' // For --jni
 }
 
 configurations.configureEach {

@@ -62,10 +62,11 @@ class HdTexturesTest {
 
     @Test
     void parseOptionsRejectsUnknownOptions() {
-        Map<String, String> options = HdTextures.parseOptions(new String[]{"upscale", "--gpu", "-1", "--force"});
+        Map<String, String> options = HdTextures.parseOptions(new String[]{"upscale", "--gpu", "-1", "--force", "--jni", "--fp32"});
         assertEquals("upscale", options.get("command"));
         assertEquals("-1", options.get("--gpu"));
         assertTrue(options.containsKey("--force"));
+        assertTrue(options.containsKey("--jni") && options.containsKey("--fp32"));
         assertThrows(IllegalArgumentException.class, () -> HdTextures.parseOptions(new String[]{"upscale", "--nope"}));
     }
 
