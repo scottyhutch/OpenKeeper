@@ -39,6 +39,7 @@ import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.CreatureSpell;
 import toniarts.openkeeper.game.component.CreatureSpells;
 import toniarts.openkeeper.game.component.CreatureViewState;
+import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
@@ -303,6 +304,8 @@ class PossessedSpellTest {
 
         assertEquals(WorldUtils.pointToVector3f(5, 15), entityData.getComponent(us, Position.class).position);
         assertEquals(gameTime, getSpell(TELEPORT).attactStartTime);
+        assertEquals(Set.of(new Vector3f(10, 0, 2)), effectPositions(321));
+        assertEquals(Set.of(WorldUtils.pointToVector3f(5, 15)), effectPositions(322));
         assertTrue(shotTargets.isEmpty());
         assertNull(entityData.getComponent(us, CreatureViewState.class));
     }
@@ -318,7 +321,18 @@ class PossessedSpellTest {
         cast(controller, 1);
 
         assertEquals(new Vector3f(10, 0, 2), entityData.getComponent(us, Position.class).position);
+        assertTrue(effectPositions(321).isEmpty());
         assertEquals(gameTime - RECHARGE / 2, getSpell(TELEPORT).attactStartTime);
+    }
+
+    private Set<Vector3f> effectPositions(int effectId) {
+        Set<Vector3f> positions = new HashSet<>();
+        for (EntityId id : entityData.findEntities(null, EffectTrigger.class)) {
+            if (entityData.getComponent(id, EffectTrigger.class).effectId == effectId) {
+                positions.add(entityData.getComponent(id, Position.class).position);
+            }
+        }
+        return positions;
     }
 
     @Test
