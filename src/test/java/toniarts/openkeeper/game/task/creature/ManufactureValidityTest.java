@@ -92,7 +92,7 @@ class ManufactureValidityTest {
             default -> null;
         });
 
-        return new Manufacture(null, null, new Point(5, 5), PLAYER_ID, workshop, null, null, new WorkshopOrders(entityData, kwdFile), null);
+        return new Manufacture(null, null, new Point(5, 5), PLAYER_ID, workshop, null, null, new WorkshopOrders(entityData, kwdFile), null, null);
     }
 
     private interface Answer {

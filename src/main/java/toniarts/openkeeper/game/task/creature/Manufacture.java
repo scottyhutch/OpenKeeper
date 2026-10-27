@@ -23,6 +23,7 @@ import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.WorkshopOrders;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.player.PlayerManufactureControl;
+import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.navigation.INavigationService;
@@ -41,15 +42,18 @@ public final class Manufacture extends AbstractCapacityCriticalRoomTask {
     private final PlayerManufactureControl manufactureControl;
     private final WorkshopOrders workshopOrders;
     private final IObjectsController objectsController;
+    private final PlayerStatsControl statsControl;
     private Vector2f workPlace;
 
     public Manufacture(final INavigationService navigationService, final IMapController mapController, Point p, short playerId, IRoomController room,
-            TaskManager taskManager, PlayerManufactureControl manufactureControl, WorkshopOrders workshopOrders, IObjectsController objectsController) {
+            TaskManager taskManager, PlayerManufactureControl manufactureControl, WorkshopOrders workshopOrders, IObjectsController objectsController,
+            PlayerStatsControl statsControl) {
         super(navigationService, mapController, p, playerId, room, taskManager);
 
         this.manufactureControl = manufactureControl;
         this.workshopOrders = workshopOrders;
         this.objectsController = objectsController;
+        this.statsControl = statsControl;
     }
 
     @Override
@@ -116,6 +120,8 @@ public final class Manufacture extends AbstractCapacityCriticalRoomTask {
 
             // No room for it after all
             objectsController.createController(crate).remove();
+        } else {
+            statsControl.itemManufactured();
         }
     }
 

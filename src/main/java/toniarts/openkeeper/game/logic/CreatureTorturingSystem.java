@@ -19,11 +19,13 @@ package toniarts.openkeeper.game.logic;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntitySet;
+import java.util.Map;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.ICreaturesController;
+import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.utils.GameTimeCounter;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -38,9 +40,12 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
     private final EntityData entityData;
     private final ICreaturesController creaturesController;
     private final IMapInformation mapInformation;
+    private final Map<Short, IPlayerController> playerControllers;
     private final EntitySet torturedEntities;
 
-    public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapInformation mapInformation) {
+    public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapInformation mapInformation,
+            Map<Short, IPlayerController> playerControllers) {
+        this.playerControllers = playerControllers;
         this.entityData = entityData;
         this.creaturesController = creaturesController;
         this.mapInformation = mapInformation;
@@ -72,6 +77,7 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
                     // Convert!
                     entityData.removeComponent(entity.getId(), CreatureTortured.class);
                     creaturesController.createController(entity.getId()).convertCreature(playerId);
+                    playerControllers.get(playerId).getStatsControl().creatureConverted();
                     continue;
                 }
             }
