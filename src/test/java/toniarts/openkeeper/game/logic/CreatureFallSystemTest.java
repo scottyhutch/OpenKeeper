@@ -29,6 +29,7 @@ import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.Damage;
+import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.map.FakeMapData;
@@ -114,12 +115,13 @@ class CreatureFallSystemTest {
     }
 
     @Test
-    void thrownCreatureTakesTheDamageAsItLands() {
+    void thrownCreatureTakesTheDamageAndRaisesDustAsItLands() {
         EntityId creature = createThrownCreature(new Vector3f(0, 0, 0));
 
         fallSystem.processTick(TURN);
 
         assertEquals(50, entityData.getComponent(creature, Damage.class).damage);
+        assertEquals(117, entityData.getEntities(EffectTrigger.class).iterator().next().get(EffectTrigger.class).effectId);
     }
 
     private EntityId createThrownCreature(Vector3f velocity) {

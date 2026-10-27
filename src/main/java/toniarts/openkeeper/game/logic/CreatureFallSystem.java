@@ -51,6 +51,11 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
      */
     private static final float GRAVITY_CONSTANT_SCALE = 1 / 256f;
 
+    /**
+     * A thrown creature raises dust as it lands (0x4833C0)
+     */
+    private static final int FOOT_DUST_EFFECT_ID = 117;
+
     private final EntityData entityData;
     private final IGameTimer gameTimer;
     private final IMapInformation<?> mapInformation;
@@ -103,6 +108,9 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
                 entityData.removeComponent(entity.getId(), CreatureFall.class);
                 if (creatureFall.damage > 0) {
                     EntityController.setDamage(entityData, entity.getId(), creatureFall.damage);
+                }
+                if (creatureFall.velocity != null) {
+                    EffectTriggers.trigger(entityData, FOOT_DUST_EFFECT_ID, newPosition.position, gameTimer.getGameTime());
                 }
 
                 // The landing thud, on touchdown (hand drops and conjured creatures alike)
