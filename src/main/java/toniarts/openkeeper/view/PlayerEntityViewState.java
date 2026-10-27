@@ -53,8 +53,10 @@ import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Shot;
 import toniarts.openkeeper.tools.convert.map.Trap;
+import toniarts.openkeeper.utils.AssetUtils;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
+import toniarts.openkeeper.view.animation.AnimationLoader;
 import toniarts.openkeeper.view.control.CreatureFlowerControl;
 import toniarts.openkeeper.view.control.CreatureViewControl;
 import toniarts.openkeeper.view.control.DoorFlowerControl;
@@ -85,6 +87,16 @@ import toniarts.openkeeper.view.text.TextParser;
 public class PlayerEntityViewState extends AbstractAppState {
 
     private static final Logger logger = System.getLogger(PlayerEntityViewState.class.getName());
+
+    /**
+     * "Creature Dazed Effect", the stars over a creature lying stunned after it was dropped
+     */
+    private static final int DAZED_EFFECT_ID = 101;
+    private static final String DAZED_NODE_NAME = "Dazed";
+    /**
+     * The control point of the creature animations at the head
+     */
+    private static final int HEAD_CONTROL_POINT = 5000;
 
     /**
      * Used where no fog of war applies: everything is simply always visible.
@@ -518,6 +530,8 @@ public class PlayerEntityViewState extends AbstractAppState {
         boolean wasAlreadyDead = control.getCurrentState() == Creature.AnimationType.DEATH_POSE;
         control.setTargetState(viewState.state);
 
+        updateDazedEffect(object, viewState, e.get(Position.class));
+
         // Trigger the death effect once, when the creature actually dies
         if (!wasAlreadyDead && viewState.state == Creature.AnimationType.DEATH_POSE) {
             int deathEffectId = control.getDeathEffectId();
@@ -558,6 +572,46 @@ public class PlayerEntityViewState extends AbstractAppState {
             return 0;
         }
         return creature.getEntranceEffectId();
+    }
+
+    /**
+     * A creature that lands stunned from the hand gets the dazed stars over its head, once per landing. The
+     * creature gets a new model when it is dropped, so whether the stars were already played is remembered on the
+     * model until the creature gets up.
+     */
+    private void updateDazedEffect(Spatial object, CreatureViewState viewState, Position position) {
+        if (viewState.state != Creature.AnimationType.FALLBACK) {
+            object.setUserData(DAZED_NODE_NAME, null);
+            return;
+        }
+        Creature creature = kwdFile.getCreature(viewState.creatureId);
+        if (position.position.y > WorldUtils.FLOOR_HEIGHT || creature.getAttributes().getStunDuration() == 0
+                || object.getUserData(DAZED_NODE_NAME) != null || !(object instanceof Node creatureNode)) {
+            return;
+        }
+        object.setUserData(DAZED_NODE_NAME, true);
+
+        // Like the original, at the head's control point where the head is when the creature lands
+        Vector3f head = AnimationLoader.getControlPoint(creatureNode, HEAD_CONTROL_POINT);
+        if (head == null) {
+            head = new Vector3f(0, creature.getAttributes().getHeight(), 0);
+        }
+        stateManager.getState(EffectManagerState.class).load(getDazedEffectNode(creatureNode, head), null, DAZED_EFFECT_ID, false);
+    }
+
+    /**
+     * The node at the creature's head that holds its dazed stars. Changing the animation removes all the
+     * creature's children that aren't marked as kept, so the stars get a kept node of their own.
+     */
+    private static Node getDazedEffectNode(Node creatureNode, Vector3f head) {
+        Node dazedNode = (Node) creatureNode.getChild(DAZED_NODE_NAME);
+        if (dazedNode == null) {
+            dazedNode = new Node(DAZED_NODE_NAME);
+            dazedNode.setUserData(AssetUtils.USER_DATA_KEY_REMOVABLE, false);
+            creatureNode.attachChild(dazedNode);
+        }
+        dazedNode.setLocalTranslation(head);
+        return dazedNode;
     }
 
     private void updateDoorModelState(Spatial object, Entity e) {
