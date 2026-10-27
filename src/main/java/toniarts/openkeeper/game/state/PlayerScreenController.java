@@ -33,6 +33,7 @@ import de.lessvoid.nifty.builder.ControlBuilder;
 import de.lessvoid.nifty.builder.ControlDefinitionBuilder;
 import de.lessvoid.nifty.builder.EffectBuilder;
 import de.lessvoid.nifty.builder.ImageBuilder;
+import de.lessvoid.nifty.builder.PanelBuilder;
 import de.lessvoid.nifty.controls.Console;
 import de.lessvoid.nifty.controls.Label;
 import de.lessvoid.nifty.controls.Tab;
@@ -132,6 +133,13 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private CreatureCardManager creatureCardManager;
     private int lastImpCount = -1;
     private String reaperTalismanState;
+    /**
+     * The quarters of the Talisman's pieces sheet in the order the pieces are
+     * added: x, y of the quarter on the sheet. The pie grows counter-clockwise
+     * from the top, like in DK II.
+     */
+    private static final int[][] TALISMAN_PIECE_QUARTERS = {{0, 0}, {0, 64}, {64, 64}, {64, 0}};
+    private static final int TALISMAN_BLINK_MS = 500;
     private PossessionInteractionState.Action possessionAction = PossessionInteractionState.Action.MELEE;
 
     private final TrapIconTextParser trapIconTextParser = new TrapIconTextParser();
@@ -1401,8 +1409,10 @@ public final class PlayerScreenController implements IPlayerScreenController {
     /**
      * Shows the Reaper Talisman: the whole Talisman once Summon Reaper is
      * researched, otherwise its pieces on the levels that have them. Clicking
-     * it picks the spell it casts, as a spell icon does. It is dimmed while it
-     * can't be used.
+     * it picks the spell it casts, as a spell icon does. The pieces are drawn as
+     * a pie of quarters, the last one blinking while the free Reaper is unused,
+     * and dimmed while the Talisman can't be used. The whole Talisman is greyed
+     * with its own texture while it can't be used.
      */
     private void updateReaperTalisman() {
         KeeperSpell keeperSpell = KeeperSpellCastValidator.getReaperTalismanSpell(state.getKwdFile(), state.getPlayer(), entityData);
@@ -1414,17 +1424,16 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
         String image = "reaper_talisman-00";
         String activeImage = image;
-        if (summonReaperResearched) {
+        if (summonReaperResearched && keeperSpell != null) {
             image = "reaper_talisman-02";
             activeImage = "reaper_talisman-03";
-        } else if (state.getKwdFile().getGameLevel().getTalismanPieces() > 0) {
-            image = "reaper_talisman-01";
-            activeImage = "reaper_talisman-04";
         }
+        int pieces = summonReaperResearched ? 0 : Math.min(state.getKwdFile().getGameLevel().getTalismanPieces(), TALISMAN_PIECE_QUARTERS.length);
+        boolean blink = pieces > 0 && keeperSpell != null && System.currentTimeMillis() / TALISMAN_BLINK_MS % 2 == 1;
         String tooltipId = summonReaperResearched ? "2238" : keeperSpell != null ? "2239" : "2244";
 
         int secondsLeft = getReaperSecondsLeft();
-        String talismanState = image + "_" + tooltipId + "_" + (keeperSpell != null ? keeperSpell.getId() : "") + "_" + secondsLeft;
+        String talismanState = image + "_" + tooltipId + "_" + (keeperSpell != null ? keeperSpell.getId() : "") + "_" + secondsLeft + "_" + pieces + "_" + blink;
         if (talismanState.equals(reaperTalismanState)) {
             return;
         }
@@ -1442,8 +1451,42 @@ public final class PlayerScreenController implements IPlayerScreenController {
         cb.width("64px");
         cb.height("64px");
         Element element = cb.build(panel);
-        if (keeperSpell == null) {
+        if (keeperSpell == null && image.equals("reaper_talisman-02")) {
             element.startEffect(EffectEventId.onCustom, null, "unaffordable");
+        }
+
+        // The pieces of the Talisman, 60% while it can't be used
+        if (pieces > 0) {
+            PanelBuilder piecePanel = new PanelBuilder("reaper-talisman-pieces");
+            piecePanel.width("64px");
+            piecePanel.height("64px");
+            piecePanel.childLayoutAbsolute();
+            for (int i = 0; i < pieces; i++) {
+                int[] quarter = TALISMAN_PIECE_QUARTERS[i];
+
+                // The blinking piece is the last one, drawn with the highlighted sheet
+                String sheet = blink && i == pieces - 1 ? "reaper_talisman-04" : "reaper_talisman-01";
+                piecePanel.image(new ImageBuilder() {
+                    {
+                        filename(AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER + File.separator + "GUI/Spells/" + sheet + ".png"));
+                        imageMode("subImage:" + quarter[0] + "," + quarter[1] + ",64,64");
+                        x(quarter[0] / 2 + "px");
+                        y(quarter[1] / 2 + "px");
+                        width("32px");
+                        height("32px");
+                        if (keeperSpell == null) {
+                            onActiveEffect(new EffectBuilder("fade") {
+                                {
+                                    effectParameter("start", "99");
+                                    effectParameter("end", "99");
+                                    effectParameter("neverStopRendering", "true");
+                                }
+                            });
+                        }
+                    }
+                });
+            }
+            piecePanel.build(panel);
         }
 
         // The Reaper of the Talisman leaves when the time is up
