@@ -232,7 +232,7 @@ class PossessedAbilityTest {
     }
 
     @Test
-    void bileDemonThrowsTheWorkerAhead() {
+    void bileDemonThrowsTheWorkerForwardAndUp() {
         PossessionFixtures.setAbilities(creature, Creature.SpecialAbility.PICK_UP_WORKERS, Creature.SpecialAbility.NONE);
         ShotFixtures.setSize(creature, 1, 0.65f);
         EntityId worker = createWorker(KEEPER, new Vector3f(10, 0, 2.6f));
@@ -242,22 +242,11 @@ class PossessedAbilityTest {
         controller.usePossessedAbility(1);
 
         assertNull(entityData.getComponent(us, PossessedAbility.class));
-        assertEquals(new Vector3f(10, 0.65f, 4.5f), entityData.getComponent(worker, Position.class).position);
-        assertNotNull(entityData.getComponent(worker, CreatureFall.class));
-        assertEquals(50, entityData.getComponent(worker, Damage.class).damage);
-    }
-
-    @Test
-    void thrownWorkerStopsShortOfAWall() {
-        PossessionFixtures.setAbilities(creature, Creature.SpecialAbility.PICK_UP_WORKERS, Creature.SpecialAbility.NONE);
-        EntityId worker = createWorker(KEEPER, new Vector3f(10, 0, 2.6f));
-        solidTiles.add(new Point(10, 4));
-        CreatureController controller = createController();
-        controller.usePossessedAbility(1);
-
-        controller.usePossessedAbility(1);
-
-        assertEquals(3.25f, entityData.getComponent(worker, Position.class).position.z);
+        assertEquals(new Vector3f(10, 0.65f, 2.5f), entityData.getComponent(worker, Position.class).position);
+        CreatureFall fall = entityData.getComponent(worker, CreatureFall.class);
+        assertEquals(new Vector3f(0, 0.25f, 2), fall.velocity);
+        assertEquals(50, fall.damage);
+        assertNull(entityData.getComponent(worker, Damage.class));
     }
 
     @Test
@@ -271,8 +260,9 @@ class PossessedAbilityTest {
 
         assertNull(entityData.getComponent(us, PossessedAbility.class));
         assertEquals(2.5f, entityData.getComponent(worker, Position.class).position.z);
-        assertNotNull(entityData.getComponent(worker, CreatureFall.class));
-        assertEquals(50, entityData.getComponent(worker, Damage.class).damage);
+        CreatureFall fall = entityData.getComponent(worker, CreatureFall.class);
+        assertEquals(Vector3f.ZERO, fall.velocity);
+        assertEquals(50, fall.damage);
     }
 
     @Test

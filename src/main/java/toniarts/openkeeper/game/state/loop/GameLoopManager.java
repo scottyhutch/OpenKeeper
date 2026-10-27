@@ -147,7 +147,9 @@ public final class GameLoopManager {
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.TIME_BEFORE_DUNGEON_HEART_CONSTRUCTION_BEGINS),
                         levelInfo.getLevelData().getObject(FiveByFiveRotatedController.OBJECT_PLUG_ID).getMiscEffectId(),
                         levelInfo.getLevelData().getGameLevel().getTicksPerSec()),
-                new CreatureFallSystem(entityData, gameController.getGameTimer(), levelInfo.getLevelData()));
+                new CreatureFallSystem(entityData, gameController.getGameTimer(), levelInfo.getLevelData(),
+                        gameWorldController.getMapController(), levelInfo.getLevelData().getGameLevel().getTicksPerSec(),
+                        gameController.getLevelVariable(Variable.MiscVariable.MiscType.GRAVITY_CONSTANT)));
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));
 
         // Steering, the hauled things move right along with their haulers
