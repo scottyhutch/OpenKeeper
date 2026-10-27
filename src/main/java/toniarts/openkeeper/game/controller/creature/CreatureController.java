@@ -58,6 +58,7 @@ import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.component.PossessedMovement;
 import toniarts.openkeeper.game.component.Slapped;
+import toniarts.openkeeper.game.component.SpeedUp;
 import toniarts.openkeeper.game.component.Stored;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Threat;
@@ -1657,13 +1658,17 @@ public final class CreatureController extends EntityController implements ICreat
         firstPersonAttack.attactStartTime = attack.attactStartTime;
         toniarts.openkeeper.tools.convert.map.CreatureSpell creatureSpell = levelInfo.getLevelData().getCreatureSpellById(attack.creatureSpellId);
         Set<CreatureSpellFlag> flags = creatureSpell.getFlags();
-        if (!isAttackRecharged(firstPersonAttack) || flags.contains(CreatureSpellFlag.IMP_HASTE)) {
+        if (!isAttackRecharged(firstPersonAttack)) {
             return;
         }
 
-        // The Imp's teleport is no cast, and it recharges even with no heart to go to
-        if (flags.contains(CreatureSpellFlag.IMP_TELEPORT)) {
-            teleportToDungeonHeart(position);
+        // The Imp's teleport and haste are no casts, and they recharge even when they do nothing
+        if (flags.contains(CreatureSpellFlag.IMP_TELEPORT) || flags.contains(CreatureSpellFlag.IMP_HASTE)) {
+            if (flags.contains(CreatureSpellFlag.IMP_TELEPORT)) {
+                teleportToDungeonHeart(position);
+            } else {
+                speedUp(creatureSpell);
+            }
             entityData.setComponent(spellEntity, new CreatureSpell(attack, gameTimer.getGameTime()));
             return;
         }
@@ -1700,6 +1705,21 @@ public final class CreatureController extends EntityController implements ICreat
         Point heart = keeper != null ? keeper.getDungeonHeartLocation() : null;
         if (heart != null) {
             entityData.setComponent(entityId, new Position(position.rotation, WorldUtils.pointToVector3f(heart)));
+        }
+    }
+
+    /**
+     * Speeds the possessed Imp up with its haste (0x48CAD0). The spell's first
+     * shot data is the speed as a percentage and the second how many seconds
+     * it lasts. A speed up that is still running is left as it is.
+     *
+     * @param creatureSpell the haste
+     */
+    private void speedUp(toniarts.openkeeper.tools.convert.map.CreatureSpell creatureSpell) {
+        SpeedUp speedUp = entityData.getComponent(entityId, SpeedUp.class);
+        double now = gameTimer.getGameTime();
+        if (speedUp == null || speedUp.endTime <= now) {
+            entityData.setComponent(entityId, new SpeedUp(creatureSpell.getShotData1(), now + creatureSpell.getShotData2()));
         }
     }
 

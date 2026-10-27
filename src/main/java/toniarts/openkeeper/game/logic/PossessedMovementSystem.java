@@ -24,7 +24,9 @@ import com.simsilica.es.EntitySet;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedMovement;
+import toniarts.openkeeper.game.component.SpeedUp;
 import toniarts.openkeeper.game.controller.ICreaturesController;
+import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.pathfinding.INavigable;
@@ -50,11 +52,13 @@ public final class PossessedMovementSystem implements IGameLogicUpdatable {
     private final IMapController mapController;
     private final IEntityPositionLookup entityPositionLookup;
     private final ICreaturesController creaturesController;
+    private final IGameTimer gameTimer;
     private final EntitySet possessedEntities;
 
     public PossessedMovementSystem(EntityData entityData, IMapController mapController,
-            IEntityPositionLookup entityPositionLookup, ICreaturesController creaturesController) {
+            IEntityPositionLookup entityPositionLookup, ICreaturesController creaturesController, IGameTimer gameTimer) {
         this.entityData = entityData;
+        this.gameTimer = gameTimer;
         this.mapController = mapController;
         this.entityPositionLookup = entityPositionLookup;
         this.creaturesController = creaturesController;
@@ -71,8 +75,13 @@ public final class PossessedMovementSystem implements IGameLogicUpdatable {
             Vector3f newPosition = position.position.clone();
             if (!movement.direction.equals(Vector2f.ZERO)) {
                 INavigable navigable = creaturesController.createController(entity.getId());
-                float x = newPosition.x + movement.direction.x * movement.speed * tpf;
-                float z = newPosition.z + movement.direction.y * movement.speed * tpf;
+                float speed = movement.speed;
+                SpeedUp speedUp = entityData.getComponent(entity.getId(), SpeedUp.class);
+                if (speedUp != null && speedUp.endTime > gameTimer.getGameTime()) {
+                    speed *= speedUp.percentage / 100f;
+                }
+                float x = newPosition.x + movement.direction.x * speed * tpf;
+                float z = newPosition.z + movement.direction.y * speed * tpf;
 
                 // Slide along walls by trying the axes separately, this way we
                 // only ever cross into an orthogonally adjacent tile

@@ -113,7 +113,8 @@ public final class GameLoopManager {
         // Steering
         loops.add(new GameLoop(new GameLogicManager(new MovementSystem(entityData),
                 new PossessedMovementSystem(entityData, gameWorldController.getMapController(),
-                        positionSystem, gameWorldController.getCreaturesController())), GameLoop.INTERVAL_FPS_60, "Steering"));
+                        positionSystem, gameWorldController.getCreaturesController(), gameController.getGameTimer())),
+                GameLoop.INTERVAL_FPS_60, "Steering"));
     }
 
     public void pause() {

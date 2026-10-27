@@ -45,6 +45,7 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.component.PossessedMovement;
+import toniarts.openkeeper.game.component.SpeedUp;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
@@ -80,6 +81,7 @@ class PossessedSpellTest {
     private static final short HEAL = 2;
     private static final short LIGHTNING = 3;
     private static final short TELEPORT = 4;
+    private static final short HASTE = 5;
     private static final short SHOT = 5;
     private static final float RECHARGE = 2f;
     private static final float RANGE = 8f;
@@ -118,6 +120,9 @@ class PossessedSpellTest {
                 EnumSet.of(toniarts.openkeeper.tools.convert.map.CreatureSpell.CreatureSpellFlag.IS_ATTACKING)));
         levelSpells.put(TELEPORT, PossessionFixtures.creatureSpell(TELEPORT, (short) 0, RECHARGE, 0,
                 EnumSet.of(toniarts.openkeeper.tools.convert.map.CreatureSpell.CreatureSpellFlag.IMP_TELEPORT)));
+        levelSpells.put(HASTE, PossessionFixtures.creatureSpell(HASTE, (short) 0, RECHARGE, 0,
+                EnumSet.of(toniarts.openkeeper.tools.convert.map.CreatureSpell.CreatureSpellFlag.IMP_HASTE)));
+        PossessionFixtures.setShotData(levelSpells.get(HASTE), 150, 15);
 
         // In the middle of tile (10, 2), facing +z
         us = createCreature(KEEPER, new Vector3f(10, 0, 2));
@@ -316,12 +321,46 @@ class PossessedSpellTest {
         assertEquals(gameTime - RECHARGE / 2, getSpell(TELEPORT).attactStartTime);
     }
 
+    @Test
+    void impHasteSpeedsItUpForTheSecondsOfTheSpell() {
+        possessImp();
+
+        cast(createController(), 2);
+
+        SpeedUp speedUp = entityData.getComponent(us, SpeedUp.class);
+        assertEquals(150, speedUp.percentage);
+        assertEquals(gameTime + 15, speedUp.endTime);
+        assertEquals(gameTime, getSpell(HASTE).attactStartTime);
+        assertTrue(shotTargets.isEmpty());
+        assertNull(entityData.getComponent(us, CreatureViewState.class));
+    }
+
+    @Test
+    void impHasteDoesNotLengthenARunningSpeedUpButRecharges() {
+        possessImp();
+        CreatureController controller = createController();
+
+        cast(controller, 2);
+        double firstEnd = entityData.getComponent(us, SpeedUp.class).endTime;
+        gameTime += RECHARGE + 0.1;
+        cast(controller, 2);
+
+        assertEquals(firstEnd, entityData.getComponent(us, SpeedUp.class).endTime);
+        assertEquals(gameTime, getSpell(HASTE).attactStartTime);
+
+        // Once it has run out, the haste speeds up again
+        gameTime = firstEnd;
+        cast(controller, 2);
+        assertEquals(gameTime + 15, entityData.getComponent(us, SpeedUp.class).endTime);
+    }
+
     /**
-     * We are an Imp with its teleport
+     * We are an Imp with its teleport and haste
      */
     private void possessImp() {
-        PossessionFixtures.setSpells(creature, List.of(PossessionFixtures.spell(TELEPORT, 1, 0)));
-        entityData.setComponent(us, new CreatureSpells(List.of(createSpell(TELEPORT))));
+        PossessionFixtures.setSpells(creature, List.of(PossessionFixtures.spell(TELEPORT, 1, 0),
+                PossessionFixtures.spell(HASTE, 1, 0)));
+        entityData.setComponent(us, new CreatureSpells(List.of(createSpell(TELEPORT), createSpell(HASTE))));
     }
 
     private void cast(CreatureController controller, int spell) {
