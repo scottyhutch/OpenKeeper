@@ -50,10 +50,8 @@ import toniarts.openkeeper.utils.WorldUtils;
 
 /**
  * Handles creatures spawning, from Portals, Dungeon Hearts...<br>
- * It is confirmed behavior in the original game that multiple portals that have the same counter value will
- * spawn creatures at the same time. Even one could think that since the creature count goes up, we wouldn't
- * be able to spawn more than one creature at the time as the cooldown requirement increases. We replicate
- * this behavior 100% since we actually count the creatures once per tick.
+ * Each Portal keeps its own generation clock and generated-since-capture count.
+ * Portals with equal clocks can therefore attract creatures on the same tick.
  *
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
@@ -149,8 +147,13 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
                 // The cast sound is not gated by the free flag
                 ThingSounds.playCreateImp(kwdFile, WorldUtils.vector2fToVector3(spot));
             }
-        } else if (timeSinceLastSpawn >= getGenerationInterval(entrance)
-                && player.getRoomControl().isPortalsOpen() && !isCreatureLimitReached(player)) {
+        } else if (!entrance.isDungeonHeart() && timeSinceLastSpawn >= getGenerationInterval(entrance)) {
+
+            // As in the original, the Portal's clock restarts on every check, also when no creature came in
+            entrance.onGenerationCycle(timeElapsed);
+            if (!player.getRoomControl().isPortalsOpen() || isCreatureLimitReached(player)) {
+                return;
+            }
 
             // Evaluate what creature can we spawn
             // A unique creature called in by a secret room layout comes first
@@ -176,7 +179,14 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
                     // Only the attracted creatures count towards the limit
                     entityData.setComponent(entityId, new PortalAttracted());
                 }
-                spawned = true;
+                spawned = entityId != null;
+            }
+        } else if (!entrance.isDungeonHeart()) {
+
+            // The Portal builds up three seconds before its next generation check
+            double preparationTime = entrance.getLastSpawnTime() + getGenerationInterval(entrance) - 3;
+            if (timeElapsed >= preparationTime && !isCreatureLimitReached(player) && hasPossibleCreature(player)) {
+                entrance.onPrepareSpawn(preparationTime);
             }
         }
 
@@ -184,10 +194,6 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
 
             // Reset spawn time
             entrance.onSpawn(timeElapsed, entityId);
-        } else if (!entrance.isDungeonHeart() && timeSinceLastSpawn >= getGenerationInterval(entrance)) {
-
-            // As in the original, the Portal's clock restarts on every check, also when no creature came in
-            entrance.onGenerationSkipped(timeElapsed);
         }
     }
 
@@ -200,8 +206,18 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
      * @return the generation interval, in seconds
      */
     private double getGenerationInterval(ICreatureEntrance entrance) {
-        int creaturesEntered = entrance.getCreaturesEntered();
-        return entranceCooldownTime + creaturesEntered * creaturesEntered;
+        int generatedCount = entrance.getGeneratedCount();
+        return entranceCooldownTime + generatedCount * generatedCount;
+    }
+
+    private boolean hasPossibleCreature(IPlayerController player) {
+        Map<Integer, CreaturePool> pool = kwdFile.getCreaturePool(player.getKeeper().getId());
+        for (Creature creature : player.getCreatureControl().getTypesAvailable()) {
+            if (isCreatureAvailableFromPool(creature, player, pool) && isCreatureRequirementsSatisfied(creature, player)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isCreatureLimitReached(IPlayerController player) {

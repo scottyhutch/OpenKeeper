@@ -162,7 +162,7 @@ class PortalGenerationClockTest {
         double first = arrivals.get(0);
 
         // A level script brings in a creature through the Portal
-        portal.onCreatureEntered(entities.createEntity());
+        portal.onSpawn(portal.getLastSpawnTime(), entities.createEntity());
 
         advanceTo(200);
         assertEquals(BASE_INTERVAL + 4, arrivals.get(1) - first, 0.001);

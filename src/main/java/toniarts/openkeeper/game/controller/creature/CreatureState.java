@@ -396,6 +396,7 @@ public enum CreatureState implements State<ICreatureController> {
         @Override
         public void update(ICreatureController entity) {
             if (entity.isStateTimeExceeded()) {
+                entity.completeDungeonEntrance();
                 entity.getStateMachine().changeState(IDLE);
             }
         }

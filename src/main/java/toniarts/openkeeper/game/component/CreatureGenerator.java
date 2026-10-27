@@ -37,7 +37,7 @@ public final class CreatureGenerator implements EntityComponent {
     /**
      * Creatures that came in through the Portal since it was built or claimed
      */
-    public int creaturesEntered;
+    public int generatedCount;
 
     public CreatureGenerator() {
         // For serialization
@@ -47,9 +47,9 @@ public final class CreatureGenerator implements EntityComponent {
         this(entrance, lastSpawnTime, 0);
     }
 
-    public CreatureGenerator(Point entrance, double lastSpawnTime, int creaturesEntered) {
+    public CreatureGenerator(Point entrance, double lastSpawnTime, int generatedCount) {
         this.entrance = entrance;
         this.lastSpawnTime = lastSpawnTime;
-        this.creaturesEntered = creaturesEntered;
+        this.generatedCount = generatedCount;
     }
 }

@@ -386,7 +386,7 @@ public class PlayerTriggerControl extends TriggerControl {
         if (entityId != null) {
 
             // The creature counts as one that came in through the Portal, but the Portal's clock is not touched
-            room.onCreatureEntered(entityId);
+            room.onSpawn(room.getLastSpawnTime(), entityId);
         }
         return true;
     }
