@@ -305,7 +305,7 @@ public class PlayerTriggerControl extends TriggerControl {
         result.put(TriggerGeneric.TargetType.PLAYER_SLAPS, (pid, trigger) -> getSlapCount(pid));
         result.put(TriggerGeneric.TargetType.PLAYER_DOORS, this::getDoorCount);
         result.put(TriggerGeneric.TargetType.PLAYER_TRAPS, this::getTrapCount);
-        result.put(TriggerGeneric.TargetType.PLAYER_GOLD, (pid, trigger) -> getPlayer(pid).getGold());
+        result.put(TriggerGeneric.TargetType.PLAYER_GOLD, (pid, trigger) -> getPlayerController(pid).getGoldControl().getGold());
         result.put(TriggerGeneric.TargetType.PLAYER_GOLD_MINED, (pid, trigger) -> getPlayer(pid).getGoldMined());
         result.put(TriggerGeneric.TargetType.PLAYER_MANA, (pid, trigger) -> getPlayer(pid).getMana());
         result.put(TriggerGeneric.TargetType.PLAYER_CREATURES_AT_LEVEL, this::getCreaturesAtLevelCount);

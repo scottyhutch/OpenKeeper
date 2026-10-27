@@ -16,12 +16,17 @@
  */
 package toniarts.openkeeper.game.logic;
 
+import com.simsilica.es.EntityId;
+import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.Gold;
+import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
@@ -52,6 +57,8 @@ class CreatureAttractionTest {
     private final Room hatchery = room((short) 4);
     private final Room lair = room((short) 2);
     private Keeper keeper;
+    private DefaultEntityData entityData;
+    private EntityId keeperEntity;
     private PlayerRoomControl rooms;
     private IPlayerController player;
     private IKwdFile level;
@@ -60,11 +67,17 @@ class CreatureAttractionTest {
     void setUp() {
         keeper = new Keeper(false, PLAYER_ID);
         rooms = new PlayerRoomControl(keeper, List.of(hatchery, lair));
+        entityData = new DefaultEntityData();
+        keeperEntity = entityData.createEntity();
+        entityData.setComponents(keeperEntity, new KeeperComponent(PLAYER_ID), new Gold(0, Integer.MAX_VALUE));
+        PlayerGoldControl gold = new PlayerGoldControl(keeper, entityData);
         player = stub(IPlayerController.class, (method, args) -> switch (method) {
             case "getKeeper" ->
                 keeper;
             case "getRoomControl" ->
                 rooms;
+            case "getGoldControl" ->
+                gold;
             default ->
                 throw new AssertionError(method);
         });
@@ -108,10 +121,10 @@ class CreatureAttractionTest {
 
         // The amount is the low byte of the first value and the low byte of the second as the high byte
         Creature creature = creature((short) 5, attraction(GOLD, 0x88, 0x13));
-        keeper.setGold(0x1387);
+        entityData.setComponent(keeperEntity, new Gold(0x1387, Integer.MAX_VALUE));
         assertFalse(CreatureAttraction.isSatisfied(creature, player, level));
 
-        keeper.setGold(0x1388);
+        entityData.setComponent(keeperEntity, new Gold(0x1388, Integer.MAX_VALUE));
         assertTrue(CreatureAttraction.isSatisfied(creature, player, level));
     }
 

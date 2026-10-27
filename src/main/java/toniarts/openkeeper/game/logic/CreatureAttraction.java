@@ -66,7 +66,7 @@ public final class CreatureAttraction {
                     }
                 }
                 case GOLD -> {
-                    if (player.getKeeper().getGold() < getAmount(attraction)) {
+                    if (player.getGoldControl().getGold() < getAmount(attraction)) {
                         return false;
                     }
                 }
