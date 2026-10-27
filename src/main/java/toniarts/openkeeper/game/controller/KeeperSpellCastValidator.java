@@ -78,10 +78,10 @@ public final class KeeperSpellCastValidator {
      *
      * @param kwdFile the level
      * @param player the keeper
-     * @param entityData the entities
+     * @param hasReaper whether the keeper has a Horned Reaper
      * @return the spell, {@code null} if the Talisman can't be used now
      */
-    public static KeeperSpell getReaperTalismanSpell(IKwdFile kwdFile, Keeper player, EntityData entityData) {
+    public static KeeperSpell getReaperTalismanSpell(IKwdFile kwdFile, Keeper player, boolean hasReaper) {
         KeeperSpell keeperSpell = null;
         for (ResearchableEntity spell : player.getAvailableSpells()) {
             if (spell.isDiscovered() && (spell.getId() == ReaperSummoner.ONE_SHOT_REAPER_SPELL_ID
@@ -89,11 +89,9 @@ public final class KeeperSpellCastValidator {
                 keeperSpell = kwdFile.getKeeperSpellById(spell.getId());
             }
         }
-        if (keeperSpell == null || !checkReaperRule(keeperSpell, kwdFile, player, entityData)) {
-            return null;
-        }
 
-        return keeperSpell;
+        // Both spells are Summon Reaper spells, see checkReaperRule
+        return hasReaper ? null : keeperSpell;
     }
 
     /**
@@ -114,17 +112,28 @@ public final class KeeperSpellCastValidator {
 
         EntitySet creatures = entityData.getEntities(new FieldFilter<>(Owner.class, "ownerId", player.getId()), Owner.class, CreatureComponent.class);
         try {
-            for (Entity entity : creatures) {
-                Creature creature = kwdFile.getCreature(entity.get(CreatureComponent.class).creatureId);
-                if (creature != null && creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)) {
-                    return false;
-                }
-            }
+            return !hasReaper(kwdFile, creatures);
         } finally {
             creatures.release();
         }
+    }
 
-        return true;
+    /**
+     * Is there a Horned Reaper among the creatures
+     *
+     * @param kwdFile the level
+     * @param creatures the creatures of a keeper, with the creature component
+     * @return true if one of them is a Horned Reaper
+     */
+    public static boolean hasReaper(IKwdFile kwdFile, Iterable<Entity> creatures) {
+        for (Entity entity : creatures) {
+            Creature creature = kwdFile.getCreature(entity.get(CreatureComponent.class).creatureId);
+            if (creature != null && creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static boolean checkPlayerMana(KeeperSpell keeperSpell, Keeper player) {

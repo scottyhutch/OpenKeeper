@@ -105,6 +105,14 @@ class SummonReaperCastTest {
     }
 
     @Test
+    void talismanCastsTheOneShotReaperFirstWhateverTheOrder() {
+        keeper.getAvailableSpells().add(new PlayerSpell((short) 14, true));
+        keeper.getAvailableSpells().add(new PlayerSpell((short) 5, true));
+
+        assertEquals(oneShotReaper, talismanSpell());
+    }
+
+    @Test
     void talismanCastsSummonReaperOnceResearched() {
         keeper.getAvailableSpells().add(new PlayerSpell((short) 5, false));
 
@@ -134,11 +142,15 @@ class SummonReaperCastTest {
         keeper.getAvailableSpells().add(new PlayerSpell((short) 14, true));
         addCreature(REAPER_ID, PLAYER_ID);
 
-        assertNull(talismanSpell());
+        assertNull(KeeperSpellCastValidator.getReaperTalismanSpell(kwdFile(), keeper, hasReaper()));
     }
 
     private KeeperSpell talismanSpell() {
-        return KeeperSpellCastValidator.getReaperTalismanSpell(kwdFile(), keeper, entityData);
+        return KeeperSpellCastValidator.getReaperTalismanSpell(kwdFile(), keeper, hasReaper());
+    }
+
+    private boolean hasReaper() {
+        return !allowedByReaperRule(summonReaper);
     }
 
     private boolean allowedByReaperRule(KeeperSpell keeperSpell) {
