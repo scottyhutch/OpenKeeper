@@ -74,6 +74,7 @@ class CreatureTorturingSystemTest {
     private final RoomInstance heroGate = heroRoom(new Point(20, 20));
     private final RoomInstance heroLair = heroRoom(new Point(30, 30));
     private final List<List<Point>> revealed = new ArrayList<>();
+    private final Map<RoomInstance, EntityId> roomEntities = new HashMap<>();
     private final Random firstChoice = new Random() {
 
         @Override
@@ -128,6 +129,17 @@ class CreatureTorturingSystemTest {
 
         torturedToDeath(HERO_ID);
         assertEquals(List.of(heroGate.getCoordinates()), revealed);
+    }
+
+    @Test
+    void roomsRevealedAreKeptInTheEntityData() {
+        torturedToDeath(HERO_ID);
+
+        // A loaded game starts with a new system on the same entities
+        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), lastChoice);
+        torturedToDeath(HERO_ID);
+
+        assertEquals(List.of(heroGate.getCoordinates(), heroLair.getCoordinates()), revealed);
     }
 
     @Test
@@ -272,10 +284,11 @@ class CreatureTorturingSystemTest {
         return room;
     }
 
-    private static IRoomController roomController(RoomInstance roomInstance) {
+    private IRoomController roomController(RoomInstance roomInstance) {
         return (IRoomController) Proxy.newProxyInstance(IRoomController.class.getClassLoader(),
                 new Class<?>[]{IRoomController.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "getRoomInstance" -> roomInstance;
+                    case "getEntityId" -> roomEntities.computeIfAbsent(roomInstance, room -> entityData.createEntity());
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
     }

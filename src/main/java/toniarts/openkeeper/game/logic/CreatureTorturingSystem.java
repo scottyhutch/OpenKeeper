@@ -33,6 +33,7 @@ import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.InHand;
+import toniarts.openkeeper.game.component.KeeperInformation;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
@@ -74,10 +75,9 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
     private final IMapController mapController;
     private final Map<Short, IPlayerController> playerControllers;
     private final EntitySet torturedEntities;
+    private final EntitySet keeperInformation;
     private final Random random;
     private final Map<EntityId, IRoomController> chambersByVictim = new HashMap<>();
-    private final Map<List<Short>, Set<Integer>> infoKnown = new HashMap<>();
-    private final Map<Short, Set<RoomInstance>> roomsRevealed = new HashMap<>();
 
     public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController,
             Map<Short, IPlayerController> playerControllers) {
@@ -94,6 +94,7 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
 
         // Have the position also here, since the player may move tortured entities between torture rooms, kinda still tortured but not counting towards death at the time
         torturedEntities = entityData.getEntities(CreatureTortured.class, CreatureComponent.class, Position.class, Owner.class);
+        keeperInformation = entityData.getEntities(KeeperInformation.class);
     }
 
     @Override
@@ -230,17 +231,19 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
      * know yet, picked at random. Depending on its job, a creature knows two
      * things about its keeper, any creature one more, and it can always tell
      * where one of the keeper's rooms is. OpenKeeper reveals the room, a
-     * room not revealed this way yet.
+     * room not revealed this way yet. What the torturer knows is kept in a
+     * KeeperInformation entity.
      *
      * @param playerId the torturer
      * @param victimOwnerId the keeper of the victim
      * @param creature the victim
      */
     private void revealInformation(short playerId, short victimOwnerId, Creature creature) {
-        Set<Integer> known = infoKnown.computeIfAbsent(List.of(playerId, victimOwnerId), key -> new HashSet<>());
+        Entity entity = getKeeperInformation(playerId, victimOwnerId);
+        KeeperInformation known = entity.get(KeeperInformation.class);
         List<Integer> info = new ArrayList<>(4);
         for (int item : getInformation(creature)) {
-            if (!known.contains(item)) {
+            if (!known.told.contains(item)) {
                 info.add(item);
             }
         }
@@ -248,18 +251,38 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
 
         int item = info.get(random.nextInt(info.size()));
         if (item != INFO_ROOM) {
-            known.add(item);
+            Set<Integer> told = new HashSet<>(known.told);
+            told.add(item);
+            entity.set(new KeeperInformation(playerId, victimOwnerId, told, known.roomsRevealed));
             return;
         }
 
-        Set<RoomInstance> revealed = roomsRevealed.computeIfAbsent(playerId, key -> new HashSet<>());
         for (IRoomController room : mapController.getRoomControllers()) {
             RoomInstance roomInstance = room.getRoomInstance();
-            if (roomInstance.getOwnerId() == victimOwnerId && !roomInstance.isDestroyed() && revealed.add(roomInstance)) {
+            if (roomInstance.getOwnerId() == victimOwnerId && !roomInstance.isDestroyed()
+                    && !known.roomsRevealed.contains(room.getEntityId())) {
+                Set<EntityId> roomsRevealed = new HashSet<>(known.roomsRevealed);
+                roomsRevealed.add(room.getEntityId());
+                entity.set(new KeeperInformation(playerId, victimOwnerId, known.told, roomsRevealed));
                 mapController.revealTiles(new ArrayList<Point>(roomInstance.getCoordinates()), playerId);
                 return;
             }
         }
+    }
+
+    private Entity getKeeperInformation(short playerId, short keeperId) {
+        keeperInformation.applyChanges();
+        for (Entity entity : keeperInformation) {
+            KeeperInformation known = entity.get(KeeperInformation.class);
+            if (known.playerId == playerId && known.keeperId == keeperId) {
+                return entity;
+            }
+        }
+
+        EntityId entityId = entityData.createEntity();
+        entityData.setComponent(entityId, new KeeperInformation(playerId, keeperId, Set.of(), Set.of()));
+        keeperInformation.applyChanges();
+        return keeperInformation.getEntity(entityId);
     }
 
     private static int[] getInformation(Creature creature) {
@@ -294,9 +317,8 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
     @Override
     public void stop() {
         torturedEntities.release();
+        keeperInformation.release();
         chambersByVictim.clear();
-        infoKnown.clear();
-        roomsRevealed.clear();
     }
 
 }
