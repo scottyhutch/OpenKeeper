@@ -111,7 +111,6 @@ import toniarts.openkeeper.utils.WorldUtils;
 public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     private static final Logger logger = System.getLogger(TaskManager.class.getName());
-    private static final int REPAIR_SCAN_INTERVAL_TICKS = 4;
 
     private final IMapController mapController;
     private final IGameWorldController gameWorldController;
@@ -221,12 +220,12 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     }
 
     /**
-     * Every few ticks, about once a second, look for damaged rooms of the
+     * Once a second, at the level's ticks per second, look for damaged rooms of the
      * players and give their imps the work of repairing them. Whoever damaged
      * the room, the claiming enemy imps or a hero, the repair is the same.
      */
     private void scanRepairRoomTasks() {
-        if (++ticksSinceRepairScan < REPAIR_SCAN_INTERVAL_TICKS) {
+        if (++ticksSinceRepairScan < levelInfo.getLevelData().getGameLevel().getTicksPerSec()) {
             return;
         }
         ticksSinceRepairScan = 0;
