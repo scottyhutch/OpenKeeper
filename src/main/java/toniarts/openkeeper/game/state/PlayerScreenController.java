@@ -1423,7 +1423,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
         String tooltipId = summonReaperResearched ? "2238" : keeperSpell != null ? "2239" : "2244";
 
-        String talismanState = image + "_" + tooltipId + "_" + (keeperSpell != null ? keeperSpell.getId() : "");
+        int secondsLeft = getReaperSecondsLeft();
+        String talismanState = image + "_" + tooltipId + "_" + (keeperSpell != null ? keeperSpell.getId() : "") + "_" + secondsLeft;
         if (talismanState.equals(reaperTalismanState)) {
             return;
         }
@@ -1444,6 +1445,38 @@ public final class PlayerScreenController implements IPlayerScreenController {
         if (keeperSpell == null) {
             element.startEffect(EffectEventId.onCustom, null, "unaffordable");
         }
+
+        // The Reaper of the Talisman leaves when the time is up
+        if (secondsLeft > 0) {
+            new LabelBuilder("reaper-seconds", Integer.toString(secondsLeft)) {
+                {
+                    style("text");
+                    color("#27d067");
+                    valignBottom();
+                    alignCenter();
+                }
+            }.build(panel);
+        }
+    }
+
+    /**
+     * Gets the seconds the keeper's timed Reaper has left
+     *
+     * @return the seconds, 0 if the keeper has no timed Reaper
+     */
+    private int getReaperSecondsLeft() {
+        EntitySet reapers = entityData.getEntities(new FieldFilter<>(Owner.class, "ownerId", state.getPlayer().getId()), Owner.class, SummonedReaper.class);
+        try {
+            for (Entity entity : reapers) {
+                SummonedReaper reaper = entity.get(SummonedReaper.class);
+                if (reaper.lifetime > 0 && !reaper.isLeaving()) {
+                    return reaper.secondsLeft;
+                }
+            }
+        } finally {
+            reapers.release();
+        }
+        return 0;
     }
 
     /**

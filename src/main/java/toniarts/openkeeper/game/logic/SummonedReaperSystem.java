@@ -136,6 +136,9 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
             EntityId entityId = entity.getId();
             SummonedReaper summonedReaper = entity.get(SummonedReaper.class);
             short ownerId = entity.get(Owner.class).ownerId;
+            if (summonedReaper.lifetime > 0 && !summonedReaper.isLeaving()) {
+                updateSecondsLeft(entityId, summonedReaper, gameTime);
+            }
 
             FetchPortalGem fetchPortalGem = entityData.getComponent(entityId, FetchPortalGem.class);
             if (fetchPortalGem != null) {
@@ -177,6 +180,17 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
     }
 
     /**
+     * Counts the seconds down for the client
+     */
+    private void updateSecondsLeft(EntityId entityId, SummonedReaper summonedReaper, double gameTime) {
+        int secondsLeft = (int) Math.ceil(summonedReaper.summonTime + summonedReaper.lifetime - gameTime);
+        if (secondsLeft != summonedReaper.secondsLeft) {
+            entityData.setComponent(entityId, new SummonedReaper(summonedReaper.summonTime, summonedReaper.lifetime,
+                    summonedReaper.manaDrain, summonedReaper.manaCheckTime, summonedReaper.leaveTime, secondsLeft));
+        }
+    }
+
+    /**
      * Charges the upkeep
      *
      * @return {@code false} if the keeper can't pay
@@ -215,7 +229,7 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
 
     private void setSummonedReaper(EntityId entityId, SummonedReaper summonedReaper, double manaCheckTime, double leaveTime) {
         entityData.setComponent(entityId, new SummonedReaper(summonedReaper.summonTime, summonedReaper.lifetime,
-                summonedReaper.manaDrain, manaCheckTime, leaveTime));
+                summonedReaper.manaDrain, manaCheckTime, leaveTime, summonedReaper.secondsLeft));
     }
 
     private void addManaGeneration(EntityId entityId, int amount) {
