@@ -359,7 +359,6 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
 
         // Mark the achievement if campaign level
         if (levelObject != null) {
-            Main.getUserSettings().increaseLevelAttempts(levelObject);
             if (win) {
                 Main.getUserSettings().setLevelStatus(levelObject, Settings.LevelStatus.COMPLETED);
             }
