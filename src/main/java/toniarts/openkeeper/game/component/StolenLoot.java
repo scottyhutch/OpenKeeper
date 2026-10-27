@@ -21,8 +21,6 @@ import com.simsilica.es.EntityComponent;
 /**
  * Tagging component for a creature that has stolen something (a thief that has
  * taken the gold of a keeper)
- *
- * @author Toni Helenius <helenius.toni@gmail.com>
  */
 public final class StolenLoot implements EntityComponent {
 
