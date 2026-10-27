@@ -25,6 +25,7 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Morphed;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -82,6 +83,32 @@ public final class KeeperSpellCastValidator {
                 && checkCastRule(mapInformation, mapTile, keeperSpell, player)
                 && checkTargetRule(target, entityData, kwdFile, keeperSpell, player)
                 && checkReaperRule(keeperSpell, kwdFile, player, entityData);
+    }
+
+    /**
+     * The spell the Reaper Talisman casts: the free one shot Reaper while the
+     * keeper still has it, otherwise the Summon Reaper spell once it is
+     * researched. The Talisman can't be used while the keeper has a Horned
+     * Reaper.
+     *
+     * @param kwdFile the level
+     * @param player the keeper
+     * @param entityData the entities
+     * @return the spell, {@code null} if the Talisman can't be used now
+     */
+    public static KeeperSpell getReaperTalismanSpell(IKwdFile kwdFile, Keeper player, EntityData entityData) {
+        KeeperSpell keeperSpell = null;
+        for (ResearchableEntity spell : player.getAvailableSpells()) {
+            if (spell.isDiscovered() && (spell.getId() == ReaperSummoner.ONE_SHOT_REAPER_SPELL_ID
+                    || (spell.getId() == ReaperSummoner.SUMMON_REAPER_SPELL_ID && keeperSpell == null))) {
+                keeperSpell = kwdFile.getKeeperSpellById(spell.getId());
+            }
+        }
+        if (keeperSpell == null || !checkReaperRule(keeperSpell, kwdFile, player, entityData)) {
+            return null;
+        }
+
+        return keeperSpell;
     }
 
     /**
