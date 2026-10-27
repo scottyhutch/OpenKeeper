@@ -39,6 +39,7 @@ import toniarts.openkeeper.game.controller.entity.IEntityController;
 import toniarts.openkeeper.game.controller.room.FiveByFiveRotatedController;
 import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.tools.convert.map.DestroyRoomsFixtures;
+import toniarts.openkeeper.tools.convert.map.DestroyedFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
@@ -151,7 +152,7 @@ class HealthSystemTest {
                         MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND,
                         DestroyRoomsFixtures.destroyRoomsVariable(MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, 1)),
                 stub(ICreaturesController.class, null), new RoomAttackMessages(playerService, gameTimer),
-                stub(ILevelInfo.class, stub(IKwdFile.class, null)), List.of(), stub(IMapController.class, null));
+                stub(ILevelInfo.class, stub(IKwdFile.class, DestroyedFixtures.object((short) 0, 0))), List.of(), stub(IMapController.class, null));
     }
 
     private static <T> T stub(Class<T> type, Object answer) {
