@@ -196,11 +196,28 @@ public final class AnimationLoader {
      *
      * @param root the creature root
      * @param controlPointId the control point id
+     * @param store where to put the point
      * @return the point in the root's local space, or {@code null} if the
      * shown animation doesn't have the point
      */
-    public static Vector3f getControlPoint(Node root, int controlPointId) {
-        String key = KmfModelLoader.ANIM_CONTROL_POINT + controlPointId;
+    public static Vector3f getControlPoint(Node root, int controlPointId, Vector3f store) {
+        return getAnimationPoint(root, KmfModelLoader.ANIM_CONTROL_POINT + controlPointId, store);
+    }
+
+    /**
+     * Get where the vertex at the front of the shown animation's last frame is
+     * right now, after a fall the head
+     *
+     * @param root the creature root
+     * @param store where to put the point
+     * @return the point in the root's local space, or {@code null} if the
+     * shown animation doesn't have the point
+     */
+    public static Vector3f getFrontPoint(Node root, Vector3f store) {
+        return getAnimationPoint(root, KmfModelLoader.ANIM_FRONT_POINT, store);
+    }
+
+    private static Vector3f getAnimationPoint(Node root, String key, Vector3f store) {
         for (Spatial child : root.getChildren()) {
             String point = child.getUserData(key);
             if (point == null || child.getCullHint() == Spatial.CullHint.Always || !(child instanceof Node animNode)) {
@@ -208,13 +225,13 @@ public final class AnimationLoader {
             }
 
             // "geometry index, vertex index", the animation keeps the position buffer up to date
-            String[] indices = point.split(" ");
-            Geometry geometry = (Geometry) animNode.getChild(Integer.parseInt(indices[0]));
+            int separator = point.indexOf(' ');
+            Geometry geometry = (Geometry) animNode.getChild(Integer.parseInt(point, 0, separator, 10));
             FloatBuffer positions = geometry.getMesh().getFloatBuffer(VertexBuffer.Type.Position);
-            int vertex = Integer.parseInt(indices[1]) * 3;
-            Vector3f location = new Vector3f(positions.get(vertex), positions.get(vertex + 1), positions.get(vertex + 2));
-            geometry.localToWorld(location, location);
-            return root.worldToLocal(location, location);
+            int vertex = Integer.parseInt(point, separator + 1, point.length(), 10) * 3;
+            store.set(positions.get(vertex), positions.get(vertex + 1), positions.get(vertex + 2));
+            geometry.localToWorld(store, store);
+            return root.worldToLocal(store, store);
         }
         return null;
     }
