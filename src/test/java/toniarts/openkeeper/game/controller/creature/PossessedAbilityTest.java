@@ -120,14 +120,14 @@ class PossessedAbilityTest {
         CreatureController controller = createController();
 
         controller.usePossessedAbility(1);
-        controller.setPossessedMovement(new Vector2f(0, 1), 1, PossessedMovement.SPEED_WALK);
+        controller.setPossessedMovement(new Vector2f(0, 1), 1, 0, PossessedMovement.SPEED_WALK);
 
         assertEquals(Creature.SpecialAbility.PRAY, entityData.getComponent(us, PossessedAbility.class).ability);
         assertEquals(Vector2f.ZERO, entityData.getComponent(us, PossessedMovement.class).direction);
         assertEquals(1, entityData.getComponent(us, PossessedMovement.class).rotation);
 
         controller.usePossessedAbility(1);
-        controller.setPossessedMovement(new Vector2f(0, 1), 1, PossessedMovement.SPEED_WALK);
+        controller.setPossessedMovement(new Vector2f(0, 1), 1, 0, PossessedMovement.SPEED_WALK);
 
         assertNull(entityData.getComponent(us, PossessedAbility.class));
         assertEquals(new Vector2f(0, 1), entityData.getComponent(us, PossessedMovement.class).direction);
