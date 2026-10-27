@@ -62,6 +62,7 @@ import toniarts.openkeeper.game.component.PlayerObjective;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
+import toniarts.openkeeper.game.component.PossessedAbility;
 import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.component.PossessedMovement;
 import toniarts.openkeeper.game.component.Slapped;
@@ -2266,7 +2267,10 @@ public final class CreatureController extends EntityController implements ICreat
             case PossessedMovement.SPEED_CREEP -> attributes.getShuffleSpeed();
             default -> walkSpeed;
         };
-        Vector2f normalizedDirection = direction.lengthSquared() > 0 ? direction.normalize() : new Vector2f();
+        // A praying creature doesn't move, but still turns
+        PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
+        boolean praying = possessedAbility != null && possessedAbility.ability == Creature.SpecialAbility.PRAY;
+        Vector2f normalizedDirection = direction.lengthSquared() > 0 && !praying ? direction.normalize() : new Vector2f();
         if (normalizedDirection.lengthSquared() > 0) {
 
             // Backing up and strafing are slower than walking forward, relative to the facing
@@ -2313,6 +2317,13 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public void executePossessedAttack() {
+
+        // A bat can't attack or cast (DK II stops it at the keys, 0x4100F0)
+        PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
+        if (possessedAbility != null && possessedAbility.ability == Creature.SpecialAbility.TURN_TO_BAT) {
+            return;
+        }
+
         PossessedAttack possessedAttack = entityData.getComponent(entityId, PossessedAttack.class);
         if (possessedAttack != null && possessedAttack.spell > 0) {
             castPossessedSpell(possessedAttack.spell);
@@ -2348,6 +2359,41 @@ public final class CreatureController extends EntityController implements ICreat
             return;
         }
         entityData.setComponent(entityId, new CreatureViewState(creature.getCreatureId(), gameTimer.getGameTime(), Creature.AnimationType.MELEE_ATTACK));
+    }
+
+    @Override
+    public void usePossessedAbility(int ability) {
+        Creature.SpecialAbility specialAbility = switch (ability) {
+            case 1 -> creature.getFirstPersonSpecialAbility1();
+            case 2 -> creature.getFirstPersonSpecialAbility2();
+            default -> Creature.SpecialAbility.NONE;
+        };
+        if (specialAbility == Creature.SpecialAbility.TURN_TO_BAT || specialAbility == Creature.SpecialAbility.PRAY) {
+            togglePossessedAbility(specialAbility);
+        }
+    }
+
+    /**
+     * Turns an ability that stays on, such as the Vampire's bat form, on or
+     * off. A bat flies (0x517190, 0x48ED40). A praying creature stays still
+     * and heals (0x517220).
+     *
+     * @param ability the ability to turn on or off
+     */
+    private void togglePossessedAbility(Creature.SpecialAbility ability) {
+        PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
+        boolean on = possessedAbility == null || possessedAbility.ability != ability;
+        if (on) {
+            entityData.setComponent(entityId, new PossessedAbility(ability, gameTimer.getGameTime()));
+        } else {
+            entityData.removeComponent(entityId, PossessedAbility.class);
+        }
+
+        Mobile mobile = entityData.getComponent(entityId, Mobile.class);
+        if (ability == Creature.SpecialAbility.TURN_TO_BAT && mobile != null) {
+            entityData.setComponent(entityId, new Mobile(on || creature.getFlags().contains(Creature.CreatureFlag.CAN_FLY),
+                    mobile.canWalkOnWater, mobile.canWalkOnLava, mobile.maxSpeed));
+        }
     }
 
     /**
@@ -2672,6 +2718,12 @@ public final class CreatureController extends EntityController implements ICreat
             entityData.removeComponent(entityId, Mana.class);
         } else {
             entityData.setComponent(entityId, new Mana(manaGeneration));
+        }
+
+        // The abilities only last the possession
+        PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
+        if (possessedAbility != null) {
+            togglePossessedAbility(possessedAbility.ability);
         }
 
         entityData.removeComponent(entityId, PossessedMovement.class);
