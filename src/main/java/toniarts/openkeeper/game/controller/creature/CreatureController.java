@@ -76,6 +76,7 @@ import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ObjectiveType;
+import toniarts.openkeeper.game.logic.EffectTriggers;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
@@ -110,6 +111,8 @@ public final class CreatureController extends EntityController implements ICreat
     /**
      * Possessed movement speed relative to walking forward
      */
+    private static final int IMP_TELEPORT_OUT_EFFECT = 321;
+    private static final int IMP_TELEPORT_IN_EFFECT = 322;
     private static final float POSSESSED_BACKWARD_SPEED_FACTOR = 0.5f;
     private static final float POSSESSED_STRAFE_SPEED_FACTOR = 0.667f;
     private static final float SPEED_MULTIPLIER = 2f;
@@ -1704,7 +1707,10 @@ public final class CreatureController extends EntityController implements ICreat
         Keeper keeper = levelInfo.getPlayer(getOwnerId());
         Point heart = keeper != null ? keeper.getDungeonHeartLocation() : null;
         if (heart != null) {
-            entityData.setComponent(entityId, new Position(position.rotation, WorldUtils.pointToVector3f(heart)));
+            Vector3f destination = WorldUtils.pointToVector3f(heart);
+            EffectTriggers.trigger(entityData, IMP_TELEPORT_OUT_EFFECT, position.position, gameTimer.getGameTime());
+            EffectTriggers.trigger(entityData, IMP_TELEPORT_IN_EFFECT, destination, gameTimer.getGameTime());
+            entityData.setComponent(entityId, new Position(position.rotation, destination));
         }
     }
 
