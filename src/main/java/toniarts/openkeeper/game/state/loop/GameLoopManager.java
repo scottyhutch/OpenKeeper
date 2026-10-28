@@ -45,6 +45,7 @@ import toniarts.openkeeper.game.logic.IGameLogicUpdatable;
 import toniarts.openkeeper.game.logic.LooseObjectSystem;
 import toniarts.openkeeper.game.logic.ManaCalculatorLogic;
 import toniarts.openkeeper.game.logic.MovementSystem;
+import toniarts.openkeeper.game.logic.NewSpeciesSystem;
 import toniarts.openkeeper.game.logic.PlayerCreatureSystem;
 import toniarts.openkeeper.game.logic.PlayerSpellbookSystem;
 import toniarts.openkeeper.game.logic.PossessedMovementSystem;
