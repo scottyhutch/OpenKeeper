@@ -36,6 +36,7 @@ import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.CreatureSpell;
 import toniarts.openkeeper.game.component.CreatureSpells;
 import toniarts.openkeeper.game.component.CreatureViewState;
+import toniarts.openkeeper.game.component.Disguised;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
@@ -46,6 +47,7 @@ import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IShotsController;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
@@ -225,6 +227,17 @@ class PossessedSpellTest {
     }
 
     @Test
+    void castingAtACreatureOfTheKeeperItLooksLikeDropsTheDisguise() {
+        createCreature(Player.KEEPER2_ID, new Vector3f(10, 0, 7));
+        entityData.setComponent(us, new Disguised(Player.KEEPER2_ID));
+
+        cast(createController(), 1);
+
+        assertEquals(1, shotTargets.size());
+        assertNull(entityData.getComponent(us, Disguised.class));
+    }
+
+    @Test
     void quickClickIsKeptUntilTheSpellIsCast() {
         CreatureController controller = createController();
 
@@ -310,7 +323,11 @@ class PossessedSpellTest {
             case "getCreatureSpellById" -> levelSpells.get((Short) args[0]);
             default -> null;
         });
-        ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData") ? kwdFile : null);
+        ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> switch (name) {
+            case "getLevelData" -> kwdFile;
+            case "getPlayer" -> new Keeper(false, (Short) args[0]);
+            default -> null;
+        });
 
         return new CreatureController(us, entityData, creature, null, null, gameTimer, gameSettings, creaturesController,
                 positionLookup, mapController, levelInfo, null, shotsController,
