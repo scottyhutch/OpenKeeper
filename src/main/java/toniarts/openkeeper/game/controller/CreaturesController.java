@@ -160,7 +160,7 @@ public final class CreaturesController implements ICreaturesController {
     private void loadCreatures() {
         for (Thing.GoodCreature creature : kwdFile.getThings(Thing.GoodCreature.class)) {
             try {
-                markJailBreaker(spawnCreature(creature, new Vector2f(creature.getPosX(), creature.getPosY())), creature);
+                spawnCreature(creature, new Vector2f(creature.getPosX(), creature.getPosY()));
             } catch (Exception ex) {
                 logger.log(Level.WARNING, "Could not load Thing " + creature + "!", ex);
             }
@@ -202,16 +202,6 @@ public final class CreaturesController implements ICreaturesController {
         }
     }
 
-    /**
-     * Marks the hero to free its imprisoned friends if it has the party flag
-     * for that
-     */
-    private void markJailBreaker(EntityId entity, Thing.GoodCreature hero) {
-        if (hero.getFlags() != null && hero.getFlags().contains(Thing.Creature.CreatureFlag.FREE_FRIENDS_ON_JAIL_BREAK)) {
-            entityData.setComponent(entity, new JailBreaker());
-        }
-    }
-
     @Override
     public EntityId spawnCreature(Thing.Creature creature, Vector2f position) {
         Integer triggerId = null;
@@ -222,6 +212,7 @@ public final class CreaturesController implements ICreaturesController {
         short objectiveTargetPlayerId = 0;
         int objectiveTargetActionPointId = 0;
         boolean diesInstantly = false;
+        boolean jailBreaker = false;
         if (creature instanceof Thing.GoodCreature goodCreature) {
             triggerId = goodCreature.getTriggerId();
             healthPercentage = goodCreature.getInitialHealth();
@@ -232,6 +223,8 @@ public final class CreaturesController implements ICreaturesController {
             objectiveTargetActionPointId = goodCreature.getObjectiveTargetActionPointId();
             diesInstantly = goodCreature.getFlags2() != null
                     && goodCreature.getFlags2().contains(Thing.Creature.CreatureFlag2.DIES_INSTANTLY);
+            jailBreaker = goodCreature.getFlags() != null
+                    && goodCreature.getFlags().contains(Thing.Creature.CreatureFlag.FREE_FRIENDS_ON_JAIL_BREAK);
         } else if (creature instanceof Thing.NeutralCreature neutralCreature) {
             triggerId = neutralCreature.getTriggerId();
             healthPercentage = neutralCreature.getInitialHealth();
@@ -251,6 +244,9 @@ public final class CreaturesController implements ICreaturesController {
             CreatureComponent creatureComponent = new CreatureComponent(entityData.getComponent(entity, CreatureComponent.class));
             creatureComponent.destroysRooms = true;
             entityData.setComponent(entity, creatureComponent);
+        }
+        if (jailBreaker) {
+            entityData.setComponent(entity, new JailBreaker());
         }
         return entity;
     }
@@ -665,7 +661,6 @@ public final class CreaturesController implements ICreaturesController {
         for (Thing.GoodCreature creature : partyController.getMembers()) {
             EntityId entityId = spawnCreature(creature, position);
             entityData.setComponent(entityId, new Party(partyController.getId()));
-            markJailBreaker(entityId, creature);
 
             partyController.addMemberInstance(creature, createController(entityId));
         }

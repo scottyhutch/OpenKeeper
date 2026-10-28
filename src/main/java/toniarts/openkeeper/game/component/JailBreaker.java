@@ -24,17 +24,4 @@ import com.simsilica.es.EntityComponent;
  */
 public final class JailBreaker implements EntityComponent {
 
-    /**
-     * The game time the hero may free the next prisoner
-     */
-    public double nextFreeTime;
-
-    public JailBreaker() {
-        // For serialization
-    }
-
-    public JailBreaker(double nextFreeTime) {
-        this.nextFreeTime = nextFreeTime;
-    }
-
 }

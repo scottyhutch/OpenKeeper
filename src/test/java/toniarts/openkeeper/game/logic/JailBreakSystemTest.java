@@ -34,6 +34,7 @@ import toniarts.openkeeper.game.component.JailBreaker;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Stored;
+import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
@@ -49,7 +50,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
- * A hero that frees its friends on a jail break frees one friendly prisoner
+ * A hero that frees its friends on a jail break frees the friendly prisoners
  * when it stands in an enemy Prison.
  */
 class JailBreakSystemTest {
@@ -57,6 +58,7 @@ class JailBreakSystemTest {
     private static final short GOOD = 1;
     private static final short KEEPER = 4;
     private static final short OTHER_KEEPER = 5;
+    private static final short ALLY = 6;
     private static final Point TILE = new Point(4, 4);
 
     private EntityData entityData;
@@ -64,19 +66,17 @@ class JailBreakSystemTest {
     private IRoomController room;
     private short prisonOwner;
     private JailBreakSystem system;
-    private double gameTime;
 
     @BeforeEach
     void setUp() {
         entityData = new DefaultEntityData();
         prisonOwner = KEEPER;
         createPrison();
-        gameTime = 0;
-        system = new JailBreakSystem(entityData, () -> gameTime, levelInfo(), mapController());
+        system = new JailBreakSystem(entityData, levelInfo(), mapController());
     }
 
     @Test
-    void heroInEnemyPrisonFreesFirstFriendlyPrisoner() {
+    void heroInEnemyPrisonFreesFriendlyPrisoners() {
         EntityId hero = createHero(GOOD, TILE);
         EntityId first = imprison(GOOD);
         EntityId second = imprison(GOOD);
@@ -86,7 +86,7 @@ class JailBreakSystemTest {
         assertNull(entityData.getComponent(first, Stored.class));
         assertNull(entityData.getComponent(first, CreatureImprisoned.class));
         assertEquals(GOOD, entityData.getComponent(first, Owner.class).controlId);
-        assertNotNull(entityData.getComponent(second, Stored.class));
+        assertNull(entityData.getComponent(second, Stored.class));
         assertNotNull(entityData.getComponent(hero, JailBreaker.class));
     }
 
@@ -168,35 +168,67 @@ class JailBreakSystemTest {
     }
 
     @Test
-    void onePrisonerIsFreedPerSecond() {
-        createHero(GOOD, TILE);
-        EntityId first = imprison(GOOD);
-        EntityId second = imprison(GOOD);
+    void unconsciousHeroDoesNothing() {
+        EntityId hero = createHero(GOOD, TILE);
+        entityData.setComponent(hero, new Unconscious(0));
+        EntityId prisoner = imprison(GOOD);
 
         tick(0.25f);
-        tick(0.25f);
 
-        assertNull(entityData.getComponent(first, Stored.class));
-        assertNotNull(entityData.getComponent(second, Stored.class));
-
-        tick(0.5f);
-        tick(0.25f);
-
-        assertNull(entityData.getComponent(second, Stored.class));
+        assertNotNull(entityData.getComponent(prisoner, Stored.class));
     }
 
     @Test
-    void theNextFreeTimeIsKeptOnTheHero() {
-        EntityId hero = createHero(GOOD, TILE);
-        imprison(GOOD);
+    void friendBehindAnEnemyPrisonerIsFreed() {
+        createHero(GOOD, TILE);
+        EntityId enemy = imprison(OTHER_KEEPER);
+        EntityId friend = imprison(GOOD);
 
         tick(0.25f);
 
-        assertEquals(1.25, entityData.getComponent(hero, JailBreaker.class).nextFreeTime, 0.0001);
+        assertNotNull(entityData.getComponent(enemy, Stored.class));
+        assertNull(entityData.getComponent(friend, Stored.class));
     }
 
+    @Test
+    void prisonerOfAnAllyIsFreed() {
+        createHero(GOOD, TILE);
+        EntityId prisoner = imprison(ALLY);
+
+        tick(0.25f);
+
+        assertNull(entityData.getComponent(prisoner, Stored.class));
+    }
+
+    @Test
+    void prisonerThatIsNoLongerImprisonedIsSkipped() {
+        createHero(GOOD, TILE);
+        EntityId released = imprison(GOOD);
+        entityData.removeComponent(released, CreatureImprisoned.class);
+        EntityId prisoner = imprison(GOOD);
+
+        tick(0.25f);
+
+        assertNotNull(entityData.getComponent(released, Stored.class));
+        assertNull(entityData.getComponent(prisoner, Stored.class));
+    }
+
+    @Test
+    void allFriendlyPrisonersAreFreedOnTheSameTick() {
+        createHero(GOOD, TILE);
+        EntityId first = imprison(GOOD);
+        EntityId enemy = imprison(OTHER_KEEPER);
+        EntityId second = imprison(GOOD);
+
+        tick(0.25f);
+
+        assertNull(entityData.getComponent(first, Stored.class));
+        assertNotNull(entityData.getComponent(enemy, Stored.class));
+        assertNull(entityData.getComponent(second, Stored.class));
+    }
+
+
     private void tick(float tpf) {
-        gameTime += tpf;
         system.processTick(tpf);
     }
 
@@ -259,12 +291,14 @@ class JailBreakSystemTest {
         Keeper good = new Keeper(false, GOOD);
         Keeper keeper = new Keeper(false, KEEPER);
         Keeper other = new Keeper(false, OTHER_KEEPER);
+        Keeper ally = new Keeper(false, ALLY);
         keeper.createAlliance(OTHER_KEEPER);
+        good.createAlliance(ALLY);
         return (ILevelInfo) Proxy.newProxyInstance(
                 ILevelInfo.class.getClassLoader(), new Class<?>[]{ILevelInfo.class}, (proxy, method, args) -> {
                     if (method.getName().equals("getPlayer")) {
                         short id = (short) args[0];
-                        return id == GOOD ? good : id == KEEPER ? keeper : other;
+                        return id == GOOD ? good : id == KEEPER ? keeper : id == ALLY ? ally : other;
                     }
                     throw new UnsupportedOperationException(method.getName());
                 });
