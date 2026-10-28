@@ -164,7 +164,7 @@ class PossessedAbilityTest {
         gameSettings.put(Variable.MiscVariable.MiscType.MODIFY_CREATURE_HEALTH_WHILE_PRAYING_PER_SECOND,
                 PossessionFixtures.miscVariable(Variable.MiscVariable.MiscType.MODIFY_CREATURE_HEALTH_WHILE_PRAYING_PER_SECOND, 33));
         entityData.setComponents(us, new Health(100, 1000), new PossessedAbility(Creature.SpecialAbility.PRAY, 0));
-        HealthSystem healthSystem = new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null);
+        HealthSystem healthSystem = new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null, null);
 
         healthSystem.processTick(0.5f);
         assertEquals(100, entityData.getComponent(us, Health.class).health);
@@ -264,7 +264,7 @@ class PossessedAbilityTest {
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> "getLevelData".equals(name) ? kwdFile : null);
 
         return new CreatureController(us, entityData, creature, null, null, gameTimer, new HashMap<>(), createCreaturesController(),
-                createPositionLookup(), createMapController(), levelInfo, null, null);
+                createPositionLookup(), createMapController(), levelInfo, null, null, null);
     }
 
     private ICreaturesController createCreaturesController() {
