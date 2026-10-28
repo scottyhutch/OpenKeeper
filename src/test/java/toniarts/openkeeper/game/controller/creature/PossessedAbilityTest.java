@@ -232,12 +232,16 @@ class PossessedAbilityTest {
         entityData.setComponents(us, new Health(100, 1000), new PossessedAbility(Creature.SpecialAbility.PRAY, 0));
         IKwdFile kwdFile = stub(IKwdFile.class, (name, args) -> null);
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> "getLevelData".equals(name) ? kwdFile : null);
-        HealthSystem healthSystem = new HealthSystem(entityData, null, gameSettings, null, null, levelInfo, List.of(), null, () -> 0.0, noEvents());
+        double[] time = {0};
+        HealthSystem healthSystem = new HealthSystem(entityData, null, gameSettings, null, null, levelInfo, List.of(), null, () -> time[0], noEvents());
 
+        time[0] += 0.5;
         healthSystem.processTick(0.5f);
         assertEquals(100, entityData.getComponent(us, Health.class).health);
 
+        time[0] += 0.5;
         healthSystem.processTick(0.5f);
+        time[0] += 0.5;
         healthSystem.processTick(0.5f);
         assertEquals(133, entityData.getComponent(us, Health.class).health);
     }
