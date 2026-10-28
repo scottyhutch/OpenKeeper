@@ -29,6 +29,7 @@ import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Trigger;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 import toniarts.openkeeper.tools.convert.map.TriggerGeneric;
@@ -45,6 +46,8 @@ class CreatureTriggerControlTest {
     private final int[] flags = new int[128];
     private boolean afraid = false;
     private Boolean running = null;
+    private boolean dead = false;
+    private boolean objectiveSet = false;
 
     private CreatureTriggerControl control(int rootId) {
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{IKwdFile.class},
@@ -73,7 +76,19 @@ class CreatureTriggerControlTest {
                         running = (Boolean) args[0];
                         yield null;
                     }
-                    case "isDead", "isHungry", "isSlapped", "isAttacked", "isImprisoned", "isTortured", "isClaimed",
+                    case "isDead" ->
+                        dead;
+                    case "getOwnerId" -> {
+                        if (dead) {
+                            throw new NullPointerException("owner is null");
+                        }
+                        yield Player.GOOD_PLAYER_ID;
+                    }
+                    case "setObjective" -> {
+                        objectiveSet = true;
+                        yield null;
+                    }
+                    case "isHungry", "isSlapped", "isAttacked", "isImprisoned", "isTortured", "isClaimed",
                             "isStunned", "isUnconscious", "isPortalGemInPosession", "isPickedUp" ->
                         false;
                     default ->
@@ -115,6 +130,15 @@ class CreatureTriggerControlTest {
         base(trigger, id, 0, 0, 0);
         invoke(TriggerAction.class, trigger, "setType", TriggerAction.ActionType.class, TriggerAction.ActionType.ALTER_SPEED);
         data(trigger, "available", (short) available);
+    }
+
+    private void setObjectiveAction(int id) {
+        TriggerAction trigger = new TriggerAction(null);
+        base(trigger, id, 0, 0, 0);
+        invoke(TriggerAction.class, trigger, "setType", TriggerAction.ActionType.class, TriggerAction.ActionType.SET_OBJECTIVE);
+        data(trigger, "playerId", (short) 0);
+        data(trigger, "type", (short) 1);
+        data(trigger, "actionPointId", 0);
     }
 
     private void base(Trigger trigger, int id, int next, int child, int repeat) {
@@ -193,5 +217,28 @@ class CreatureTriggerControlTest {
         control(1).update(0.25f);
 
         assertFalse(running);
+    }
+
+    @Test
+    void setObjectiveOnAHeroGivesTheObjective() {
+        flagIs(1, 2, 0, 0);
+        setObjectiveAction(2);
+
+        control(1).update(0.25f);
+
+        assertTrue(objectiveSet);
+    }
+
+    @Test
+    void setObjectiveIgnoresACreatureThatIsGone() {
+
+        // A dead or removed creature has no Owner component, asking for its owner would throw
+        flagIs(1, 2, 0, 0);
+        setObjectiveAction(2);
+        dead = true;
+
+        control(1).update(0.25f);
+
+        assertFalse(objectiveSet);
     }
 }

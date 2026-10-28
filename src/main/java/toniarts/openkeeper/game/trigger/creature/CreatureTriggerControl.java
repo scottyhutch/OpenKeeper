@@ -90,7 +90,7 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
         eventStates.put(TriggerGeneric.TargetType.CREATURE_ATTACKED, ICreatureController::isAttacked);
         eventStates.put(TriggerGeneric.TargetType.CREATURE_IMPRISONED, ICreatureController::isImprisoned);
         eventStates.put(TriggerGeneric.TargetType.CREATURE_TORTURED, ICreatureController::isTortured);
-        eventStates.put(TriggerGeneric.TargetType.CREATURE_CONVERTED, creature -> creature.getOwnerId() != getPlayerId());
+        eventStates.put(TriggerGeneric.TargetType.CREATURE_CONVERTED, creature -> !creature.isDead() && creature.getOwnerId() != getPlayerId());
         eventStates.put(TriggerGeneric.TargetType.CREATURE_CLAIMED, ICreatureController::isClaimed);
         eventStates.put(TriggerGeneric.TargetType.CREATURE_STUNNED, ICreatureController::isStunned);
         eventStates.put(TriggerGeneric.TargetType.CREATURE_DYING, ICreatureController::isUnconscious);
@@ -293,8 +293,9 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
         Thing.HeroParty.Objective jobType = ConversionUtils.parseEnum(trigger.getUserData("type", short.class), Thing.HeroParty.Objective.class);
         int apId = trigger.getUserData("actionPointId", int.class);
 
-        // Heroes only, and not the ones that are prisoners or out cold
-        if (instanceControl.getOwnerId() == Player.GOOD_PLAYER_ID
+        // Heroes only, and not the ones that are prisoners or out cold. A creature that has died or been
+        // removed has no owner left to ask
+        if (!instanceControl.isDead() && instanceControl.getOwnerId() == Player.GOOD_PLAYER_ID
                 && !instanceControl.isImprisoned() && !instanceControl.isUnconscious()) {
             if (apId != 0) {
                 instanceControl.setObjectiveTargetActionPointId(apId);

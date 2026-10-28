@@ -318,11 +318,22 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
             timer.update(tpf);
         }
 
+        // One failing script trigger or controller must not stop the rest of the tick
         if (triggerControl != null) {
-            triggerControl.update(tpf);
+            try {
+                triggerControl.update(tpf);
+            } catch (RuntimeException ex) {
+                logger.log(Level.ERROR, "Level script failed on this tick!", ex);
+            }
         }
 
-        controllers.stream().forEach(controller -> controller.processTick(tpf));
+        controllers.stream().forEach(controller -> {
+            try {
+                controller.processTick(tpf);
+            } catch (RuntimeException ex) {
+                logger.log(Level.ERROR, "Controller " + controller.getClass().getSimpleName() + " failed on this tick!", ex);
+            }
+        });
 
         // The Horned Reaper comes for the Portal Gem of a won campaign level, on the logic loop. The Reaper
         // stays marked with FetchPortalGem, so he is only sent once
