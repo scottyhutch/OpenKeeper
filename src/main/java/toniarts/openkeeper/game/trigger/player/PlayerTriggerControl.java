@@ -16,12 +16,17 @@
  */
 package toniarts.openkeeper.game.trigger.player;
 
+import com.simsilica.es.EntityData;
+import com.simsilica.es.EntityId;
+import com.simsilica.es.filter.FieldFilter;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.EnumMap;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Consumer;
+import toniarts.openkeeper.game.component.NextRoomHint;
+import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameController;
 import toniarts.openkeeper.game.controller.IGameTimer;
@@ -53,14 +58,16 @@ public class PlayerTriggerControl extends TriggerControl {
 
     private final short playerId;
     private final PlayerService playerService;
+    private final EntityData entityData;
     private final Map<TriggerAction.ActionType, Consumer<TriggerActionData>> actionHandlers = createActionHandlers();
 
     public PlayerTriggerControl(final IGameController gameController, final ILevelInfo levelInfo, final IGameTimer gameTimer, final IMapController mapController,
             final ICreaturesController creaturesController, final int triggerId, final short playerId,
-            final PlayerService playerService) {
+            final PlayerService playerService, final EntityData entityData) {
         super(gameController, levelInfo, gameTimer, mapController, creaturesController, triggerId);
         this.playerId = playerId;
         this.playerService = playerService;
+        this.entityData = entityData;
     }
 
     private Map<TriggerAction.ActionType, Consumer<TriggerActionData>> createActionHandlers() {
@@ -439,10 +446,13 @@ public class PlayerTriggerControl extends TriggerControl {
     }
 
     private void displayNextRoomType(TriggerActionData trigger) { // Info part
-//        if (playerId == playerState.getPlayerId()) {
-//            // TODO this
-//            targetId = trigger.getUserData("targetId", short.class); // 0 = Off or roomId
-//        }
+        short roomId = trigger.getUserData("targetId", short.class); // 0 = Off or roomId
+        EntityId hint = entityData.findEntity(new FieldFilter(Owner.class, "ownerId", playerId), NextRoomHint.class, Owner.class);
+        if (hint == null) {
+            hint = entityData.createEntity();
+            entityData.setComponent(hint, new Owner(playerId, playerId));
+        }
+        entityData.setComponent(hint, new NextRoomHint(roomId));
     }
 
     protected Keeper getPlayer() {
