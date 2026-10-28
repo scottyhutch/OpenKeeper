@@ -30,17 +30,11 @@ import com.jme3.util.SafeArrayList;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.server.EntityDataHostedService;
-import toniarts.openkeeper.utils.Point;
-import java.lang.System.Logger;
-import java.lang.System.Logger.Level;
-import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
+import toniarts.openkeeper.game.event.GameEvent;
 import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.network.NetworkConstants;
 import toniarts.openkeeper.game.network.message.GameLoadProgressData;
 import toniarts.openkeeper.game.state.CheatState;
@@ -51,6 +45,18 @@ import toniarts.openkeeper.game.state.session.GameSessionServerService;
 import toniarts.openkeeper.game.state.session.GameSessionServiceListener;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 import toniarts.openkeeper.utils.GameLoop;
+import toniarts.openkeeper.utils.Point;
+
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Game server hosts lobby service for the game clients.
@@ -427,6 +433,16 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         }
     }
 
+    @Override
+    public void sendEvent(GameEventType type, GameEvent.ThingFlag subjectKind, int subjectId, GameEvent.ThingFlag targetKind, int targetId, EntityId entity, Point position, Short playerId) {
+        for (Map.Entry<ClientInfo, GameSessionImpl> gameSession : players.entrySet()) {
+            if (playerId == null || gameSession.getKey().getKeeper().getId() == playerId) {
+                gameSession.getValue().onEvent(type, subjectKind, subjectId, targetKind, targetId, entity, position);
+                break;
+            }
+        }
+    }
+
     private final class ServerMessageListener implements MessageListener<HostedConnection> {
 
         public ServerMessageListener() {
@@ -793,6 +809,11 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         @Override
         public void onGameEnded(GameResult result) {
             getCallback().onGameEnded(result);
+        }
+
+        @Override
+        public void onEvent(GameEventType type, GameEvent.ThingFlag subjectKind, int subjectId, GameEvent.ThingFlag targetKind, int targetId, EntityId entity, Point position) {
+            getCallback().onEvent(type, subjectKind, subjectId, targetKind, targetId, entity, position);
         }
 
     }
