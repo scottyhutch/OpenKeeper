@@ -182,7 +182,7 @@ public final class GameServerState extends AbstractAppState {
             mapController = gameWorldController.getMapController();
             gameWorldController.addListener(playerActionListener);
             gameWorldController.addSpecialListener(specialListener);
-            cheatController = multiplayer ? new NoopCheatController() : new CheatController(kwdFile, game.getGameController(), gameService.getEntityData());
+            cheatController = multiplayer ? new NoopCheatController() : new CheatController(kwdFile, game.getGameController(), gameService.getEntityData(), game.getPayDaySystem());
 
             // Send the the initial game data
             gameService.sendGameData(game.getGameController().getLevelInfo().getPlayers().values());
