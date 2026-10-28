@@ -23,11 +23,10 @@ import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
-import toniarts.openkeeper.game.sound.EntitySounds;
-import toniarts.openkeeper.game.sound.ThingSounds;
-import toniarts.openkeeper.tools.convert.map.IKwdFile;
-import toniarts.openkeeper.utils.GameTimeCounter;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.utils.WorldUtils;
 
 /**
@@ -36,24 +35,25 @@ import toniarts.openkeeper.utils.WorldUtils;
  *
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
-public final class CreatureFallSystem extends GameTimeCounter {
+public final class CreatureFallSystem implements IGameLogicUpdatable {
 
     private static final float GRAVITY = 2.0f;
 
     private final EntityData entityData;
+    private final IGameTimer gameTimer;
+    private final GameEventService gameEventService;
     private final EntitySet fallEntities;
-    private final EntitySounds entitySounds;
 
-    public CreatureFallSystem(EntityData entityData, IKwdFile kwdFile) {
+    public CreatureFallSystem(EntityData entityData, IGameTimer gameTimer, GameEventService gameEventService) {
         this.entityData = entityData;
-        this.entitySounds = new EntitySounds(entityData, kwdFile);
+        this.gameTimer = gameTimer;
+        this.gameEventService = gameEventService;
 
         fallEntities = entityData.getEntities(CreatureFall.class, Position.class, CreatureComponent.class);
     }
 
     @Override
     public void processTick(float tpf) {
-        super.processTick(tpf);
         // Add new & remove old
         fallEntities.applyChanges();
 
@@ -68,12 +68,12 @@ public final class CreatureFallSystem extends GameTimeCounter {
                 // We'll just remove this and add the AI
                 entityData.removeComponent(entity.getId(), CreatureFall.class);
 
-                // The landing thud, on touchdown (hand drops and conjured creatures alike)
-                entitySounds.play(entity.getId(), ThingSounds.CREATURE_LAND, newPosition.position);
+                // The landing, on touchdown (hand drops and conjured creatures alike)
+                gameEventService.emit(GameEventType.CREATURE_LAND, entity.getId(), newPosition.position);
 
                 // The state, depending on the landing
                 CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
-                entityData.setComponent(entity.getId(), new CreatureAi(timeElapsed, creatureComponent.stunDuration > 0f ? CreatureState.FALLEN : CreatureState.IDLE, creatureComponent.creatureId));
+                entityData.setComponent(entity.getId(), new CreatureAi(gameTimer.getGameTime(), creatureComponent.stunDuration > 0f ? CreatureState.FALLEN : CreatureState.IDLE, creatureComponent.creatureId));
             }
         }
     }

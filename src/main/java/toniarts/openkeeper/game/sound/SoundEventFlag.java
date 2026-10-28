@@ -16,15 +16,30 @@
  */
 package toniarts.openkeeper.game.sound;
 
-/**
- * Playback strategy of a single voice, derived from the event flags.
- */
-public enum SoundVoiceBehaviour {
+import toniarts.openkeeper.tools.convert.IFlagEnum;
 
-    ONE_SHOT,
-    PLAY_ONCE_SEGMENTED,
-    REPEAT,
-    REPEAT_LOOP_EACH,
-    LINEAR_SEQUENCE,
-    BACKEND_EVENT
+/**
+ * Event flag bits as stored in {@code SFX.map}.
+ */
+public enum SoundEventFlag implements IFlagEnum {
+
+    DEFERRED(0x0001),
+    SEGMENTED(0x0002),
+    REPEATING(0x0004),
+    LOOP_EACH(0x0008),
+    LINEAR_SEQUENCE(0x0010),
+    BACKEND_EVENT(0x0020),
+    HEAD_RELATIVE(0x0200),
+    PROPERTY_LINKS(0x0400);
+
+    private final long flagValue;
+
+    SoundEventFlag(long flagValue) {
+        this.flagValue = flagValue;
+    }
+
+    @Override
+    public long getFlagValue() {
+        return flagValue;
+    }
 }

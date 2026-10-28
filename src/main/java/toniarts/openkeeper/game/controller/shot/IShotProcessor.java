@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2025 OpenKeeper
+ * Copyright (C) 2014-2026 OpenKeeper
  *
  * OpenKeeper is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,19 +14,22 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenKeeper.  If not, see <http://www.gnu.org/licenses/>.
  */
-package toniarts.openkeeper.game.sound;
+package toniarts.openkeeper.game.controller.shot;
 
 /**
- * The volume channels a category can be affected by, taken from the channel
- * mask of the category's {@code SFX.map} entry.
+ * Applies what one kind of shot does to the world. The shot data says what a
+ * shot does through its {@link toniarts.openkeeper.tools.convert.map.Shot.ProcessType},
+ * so there is one processor per process type, and adding a new spell is
+ * mostly adding a processor for its process type.
  */
-public final class SoundChannels {
+@FunctionalInterface
+public interface IShotProcessor {
 
-    public static final int MASTER = 0;
-    public static final int MUSIC = 1;
-    public static final int SPEECH = 2;
-    public static final int EFFECTS = 3;
+    /**
+     * Fire the shot
+     *
+     * @param request the shot and where, and at whom, it was fired
+     */
+    void process(ShotRequest request);
 
-    private SoundChannels() {
-    }
 }

@@ -30,6 +30,9 @@ import java.util.Collection;
 import java.util.Objects;
 import java.util.function.Predicate;
 import toniarts.openkeeper.game.component.CreatureAi;
+import toniarts.openkeeper.game.component.CreatureImprisoned;
+import toniarts.openkeeper.game.component.Interaction;
+import toniarts.openkeeper.game.controller.SlapRules;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.sound.FootstepSounds;
 import toniarts.openkeeper.game.sound.SoundEngine;
@@ -51,9 +54,12 @@ import toniarts.openkeeper.view.text.EntityTextParser;
 public final class CreatureViewControl extends EntityViewControl<Creature, Creature.AnimationType> {
 
     private static final long IN_HAND_SOUND_INTERVAL_MS = 8000;
+    private static final long DIG_SOUND_RETRY_MS = 250;
 
     private long nextInHandSound;
     private int researchSound = SoundEngine.NO_HANDLE;
+    private int digSound = SoundEngine.NO_HANDLE;
+    private long nextDigSound;
     private static final Logger LOGGER = System.getLogger(CreatureViewControl.class.getName());
 
     private float previousStepTime = -1;
@@ -69,7 +75,19 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     protected Collection<Class<? extends EntityComponent>> getWatchedComponents() {
         Collection<Class<? extends EntityComponent>> components = super.getWatchedComponents();
         components.add(CreatureAi.class);
+        components.add(CreatureImprisoned.class);
         return components;
+    }
+
+    @Override
+    public boolean isSlappable(short playerId) {
+        Interaction interaction = getEntity().get(Interaction.class);
+        if (interaction == null || !interaction.slappable) {
+            return false;
+        }
+
+        boolean imprisoned = getEntity().get(CreatureImprisoned.class) != null;
+        return SlapRules.canSlapCreature(playerId, getOwnerId(), getControlId(), imprisoned);
     }
 
     @Override
@@ -85,6 +103,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     @Override
     public void cleanup() {
         playResearchSound(null);
+        digSound = SoundEngine.NO_HANDLE;
         super.cleanup();
     }
 
@@ -134,7 +153,25 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
             nextInHandSound = 0;
         }
 
+        playDigSound();
         playFootsteps();
+    }
+
+    /**
+     * The digging sound is restarted when it ends so that it lasts as long as the work
+     */
+    private void playDigSound() {
+        if (currentState != Creature.AnimationType.DIG || spatial == null
+                || spatial.getCullHint() == Spatial.CullHint.Always) {
+            digSound = SoundEngine.NO_HANDLE;
+            return;
+        }
+        // A dig that has no sound is not asked again on every frame
+        long now = System.currentTimeMillis();
+        if (now >= nextDigSound && (digSound == SoundEngine.NO_HANDLE || !SoundManager.isPlaying(digSound))) {
+            digSound = ThingSounds.playCreature(getDataObject(), currentState, spatial.getWorldTranslation());
+            nextDigSound = now + DIG_SOUND_RETRY_MS;
+        }
     }
 
     /**
@@ -209,7 +246,9 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         if (!Objects.equals(currentState, targetState)) {
             playAnimation(state);
             if (spatial != null && spatial.getCullHint() != Spatial.CullHint.Always) {
-                ThingSounds.playCreature(getDataObject(), state, spatial.getWorldTranslation());
+                int handle = ThingSounds.playCreature(getDataObject(), state, spatial.getWorldTranslation());
+                digSound = state == Creature.AnimationType.DIG ? handle : SoundEngine.NO_HANDLE;
+                nextDigSound = System.currentTimeMillis() + DIG_SOUND_RETRY_MS;
                 playResearchSound(state);
             }
         }

@@ -72,11 +72,13 @@ import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ObjectiveType;
+import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.navigation.steering.SteeringUtils;
-import toniarts.openkeeper.game.sound.CombatSounds;
 import toniarts.openkeeper.game.task.ITaskManager;
 import toniarts.openkeeper.game.task.Task;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
@@ -90,7 +92,13 @@ import toniarts.openkeeper.utils.WorldUtils;
 
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.function.Consumer;
 
 /**
@@ -118,16 +126,16 @@ public final class CreatureController extends EntityController implements ICreat
     private final IEntityPositionLookup entityPositionLookup;
     private final ILevelInfo levelInfo;
     private final IShotsController shotsController;
+    private final GameEventService gameEventService;
     // TODO: All the data is not supposed to be on entities as they become too big, but I don't want these here either
     private final Creature creature;
-    private final CombatSounds combatSounds;
     private final StateMachine<ICreatureController, CreatureState> stateMachine;
     private float motionless = 0;
 
     public CreatureController(EntityId entityId, EntityData entityData, Creature creature, INavigationService navigationService,
             ITaskManager taskManager, IGameTimer gameTimer, Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
             ICreaturesController creaturesController, IEntityPositionLookup entityPositionLookup, IMapController mapController,
-            ILevelInfo levelInfo, IObjectsController objectsController, IShotsController shotsController) {
+            ILevelInfo levelInfo, IObjectsController objectsController, IShotsController shotsController, GameEventService gameEventService) {
         super(entityId, entityData, objectsController, mapController);
         this.navigationService = navigationService;
         this.taskManager = taskManager;
@@ -138,7 +146,7 @@ public final class CreatureController extends EntityController implements ICreat
         this.entityPositionLookup = entityPositionLookup;
         this.levelInfo = levelInfo;
         this.shotsController = shotsController;
-        this.combatSounds = new CombatSounds(entityData, levelInfo.getLevelData());
+        this.gameEventService = gameEventService;
         this.stateMachine = new DefaultStateMachine<>(this);
     }
 
@@ -657,7 +665,7 @@ public final class CreatureController extends EntityController implements ICreat
 
                 // Set the damage
                 setDamage(attackTarget, creatureMeleeAttack.damage);
-                combatSounds.playMeleeHit(creature, attackTarget, getPosition());
+                gameEventService.emitAt(GameEventType.MELEE_HIT, ThingFlag.CREATURE, creature.getCreatureId(), attackTarget, getPosition());
             }
         } else {
             Optional<CreatureSpell> attack = getPreferredAttackSpell(attackTarget);
@@ -674,7 +682,7 @@ public final class CreatureController extends EntityController implements ICreat
 
                 // TODO: What is the alternative shot all about?
                 toniarts.openkeeper.tools.convert.map.CreatureSpell creatureSpell = levelInfo.getLevelData().getCreatureSpellById(attack.get().creatureSpellId);
-                shotsController.createShot(creatureSpell.getShotTypeId(), creatureSpell.getShotData1(), creatureSpell.getShotData2(), getOwnerId(), getPosition(), attackTarget);
+                shotsController.createShot(creatureSpell.getShotTypeId(), creatureSpell.getShotData1(), creatureSpell.getShotData2(), getOwnerId(), getPosition(), attackTarget, entityId);
 
                 // TODO: Of course not like that, the shot is created and it does what it does
                 // Set the damage
@@ -1054,6 +1062,11 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
+    public void fireEvent(GameEventType type, Point location) {
+        gameEventService.emit(type, ThingFlag.CREATURE, creature.getCreatureId(), location);
+    }
+
+    @Override
     public void stopCreature() {
         entityData.removeComponent(entityId, Navigation.class);
     }
@@ -1186,6 +1199,23 @@ public final class CreatureController extends EntityController implements ICreat
         }
     }
 
+    @Override
+    public void knockDown() {
+
+        // Without the AI component the creature is in hand, falling or possessed, nothing for us to knock down
+        if (entityData.getComponent(entityId, CreatureAi.class) == null || isIncapacitated()) {
+            return;
+        }
+
+        unassingCurrentTask();
+        stopCreature();
+        stateMachine.changeState(CreatureState.FALLEN);
+
+        // Written here and not at the end of the tick, so that the state time restarts also when the creature
+        // was down already. That keeps a creature that is struck over and over down
+        entityData.setComponent(entityId, new CreatureAi(gameTimer.getGameTime(), CreatureState.FALLEN, creature.getId()));
+    }
+
     private boolean isAlly(EntityId entity) {
         Owner otherOwner = entityData.getComponent(entity, Owner.class);
         if (otherOwner != null) {
@@ -1270,7 +1300,10 @@ public final class CreatureController extends EntityController implements ICreat
                 stateTargetTime = entityData.getComponent(entityId, CreatureComponent.class).stunDuration;
             }
             case FALLEN -> {
-                stateTargetTime = entityData.getComponent(entityId, CreatureComponent.class).stunDuration;
+
+                // Never shorter than the fall itself, imps for example have no stun duration at all
+                stateTargetTime = Math.max(entityData.getComponent(entityId, CreatureComponent.class).stunDuration,
+                        getAnimationTime(creature, Creature.AnimationType.FALLBACK));
             }
             case GETTING_UP -> {
                 stateTargetTime = getAnimationTime(creature, Creature.AnimationType.GET_UP);
