@@ -518,8 +518,8 @@ public class TriggerControl extends Control {
         short playerId = trigger.getUserData("playerId", short.class);
         short level = trigger.getUserData("level", short.class);
         EnumSet<Creature.CreatureFlag> flags = ConversionUtils.parseFlagValue(trigger.getUserData("flag", short.class), Creature.CreatureFlag.class);
-        Point p = new Point(trigger.getUserData("posX", int.class) - 1,
-                trigger.getUserData("posY", int.class) - 1);
+        Point p = new Point(trigger.getUserData("posX", int.class),
+                trigger.getUserData("posY", int.class));
         // STUB: the creature flags (will fight, dies instantly, will be attacked, return to
         // lair, free friends on jailbreak, act as dropped, start dying). ICreaturesController
         // hands back only an entity ID and the creature controller has no setters for these
