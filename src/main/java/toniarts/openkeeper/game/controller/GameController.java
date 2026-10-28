@@ -360,7 +360,8 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
     public void endGame(short playerId, boolean win) {
 
         // A player's game ends only once, the first result stands
-        if (!playersWithResult.add(playerId)) {
+        Keeper keeper = levelInfo.getPlayer(playerId);
+        if (keeper != null && !keeper.claimResult()) {
             return;
         }
 
