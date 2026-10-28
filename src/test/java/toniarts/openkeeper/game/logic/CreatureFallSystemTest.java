@@ -31,6 +31,7 @@ import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.map.FakeMapData;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.utils.Point;
@@ -69,7 +70,10 @@ class CreatureFallSystemTest {
             default -> throw new UnsupportedOperationException(method.getName());
         });
 
-        fallSystem = new CreatureFallSystem(entityData, gameTimer, mapInformation, TICKS_PER_SECOND, GRAVITY_CONSTANT);
+        GameEventService gameEventService = (GameEventService) Proxy.newProxyInstance(GameEventService.class.getClassLoader(),
+                new Class<?>[]{GameEventService.class}, (proxy, method, args) -> null);
+
+        fallSystem = new CreatureFallSystem(entityData, gameTimer, gameEventService, mapInformation, TICKS_PER_SECOND, GRAVITY_CONSTANT);
     }
 
     @AfterEach

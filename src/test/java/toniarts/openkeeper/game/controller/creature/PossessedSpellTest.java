@@ -46,6 +46,7 @@ import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IShotsController;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -312,7 +313,8 @@ class PossessedSpellTest {
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData") ? kwdFile : null);
 
         return new CreatureController(us, entityData, creature, null, null, gameTimer, gameSettings, creaturesController,
-                positionLookup, mapController, levelInfo, null, shotsController);
+                positionLookup, mapController, levelInfo, null, shotsController,
+                stub(GameEventService.class, (name, args) -> null));
     }
 
     @FunctionalInterface
