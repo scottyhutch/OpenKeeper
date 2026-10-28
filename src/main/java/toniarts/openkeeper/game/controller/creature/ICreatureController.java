@@ -133,6 +133,14 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
 
     public void setAssignedTask(Task task);
 
+    /**
+     * The assigned task moved on to its next step, with a new type and
+     * location. The creature keeps the task and heads for the new location.
+     *
+     * @param task the assigned task
+     */
+    public void updateAssignedTask(Task task);
+
     public void executeAssignedTask();
 
     public Creature getCreature();
@@ -251,6 +259,13 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
      * @return research per second
      */
     public int getResearchPerSecond();
+
+    /**
+     * Get manufacture per second attribute
+     *
+     * @return manufacture per second
+     */
+    public int getManufacturePerSecond();
 
     /**
      * Gives object to creature
