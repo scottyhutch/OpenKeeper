@@ -20,8 +20,10 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
+import com.simsilica.es.filter.AndFilter;
 import com.simsilica.es.filter.FieldFilter;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.KeeperSpellCast;
 import toniarts.openkeeper.game.component.Morphed;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.data.Keeper;
@@ -165,6 +167,37 @@ public final class KeeperSpellCastValidator {
 
     static boolean checkPlayerMana(KeeperSpell keeperSpell, Keeper player) {
         return checkPlayerMana(keeperSpell.getManaCost(), player);
+    }
+
+    /**
+     * Finds the entity that holds when the keeper last cast the spell
+     *
+     * @param entityData the entity data
+     * @param keeperId the keeper
+     * @param keeperSpellId the spell
+     * @return the entity, or {@code null} if the keeper has never cast the
+     * spell
+     */
+    public static EntityId findLastCast(EntityData entityData, short keeperId, short keeperSpellId) {
+        return entityData.findEntity(AndFilter.create(KeeperSpellCast.class,
+                new FieldFilter<>(KeeperSpellCast.class, "keeperId", keeperId),
+                new FieldFilter<>(KeeperSpellCast.class, "keeperSpellId", keeperSpellId)), KeeperSpellCast.class);
+    }
+
+    /**
+     * The spell can be cast again once its recharge time has passed since the
+     * last cast (DKII.EXE 0x4BBA40)
+     *
+     * @param keeperSpell the spell
+     * @param entityData the entity data
+     * @param keeperId the keeper casting
+     * @param gameTime the current game time
+     * @return true if the spell has recharged
+     */
+    public static boolean isRecharged(KeeperSpell keeperSpell, EntityData entityData, short keeperId, double gameTime) {
+        EntityId lastCast = findLastCast(entityData, keeperId, keeperSpell.getId());
+        return lastCast == null
+                || gameTime - entityData.getComponent(lastCast, KeeperSpellCast.class).castTime >= keeperSpell.getRechargeTime();
     }
 
     private static boolean checkTargetRule(EntityId target, EntityData entityData, IKwdFile kwdFile, KeeperSpell keeperSpell, Keeper player) {
