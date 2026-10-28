@@ -107,6 +107,7 @@ public final class GameClientState extends AbstractPauseAwareState {
     private PlayerMapViewState playerMapViewState;
     private AmbienceState ambienceState;
     private volatile EntityId possessedCreature;
+    private CasinoDiscoState casinoDiscoState;
     private PlayerEntityViewState playerModelViewState;
     private MinimapPanelState minimapPanelState;
     private FullscreenMapState fullscreenMapState;
@@ -193,6 +194,10 @@ public final class GameClientState extends AbstractPauseAwareState {
             ambienceState = null;
         }
         stateManager.detach(effectManagerState);
+        if (casinoDiscoState != null) {
+            stateManager.detach(casinoDiscoState);
+            casinoDiscoState = null;
+        }
         stateManager.detach(playerModelViewState);
         stateManager.detach(playerMapViewState);
         stateManager.detach(playerState);
@@ -505,6 +510,8 @@ public final class GameClientState extends AbstractPauseAwareState {
                 if (playerMapViewState != null) {
                     ambienceState = new AmbienceState(kwdFile, playerMapViewState);
                     stateManager.attach(ambienceState);
+                    casinoDiscoState = new CasinoDiscoState(gameClientService.getEntityData(), players.get(playerId), kwdFile, playerMapViewState);
+                    stateManager.attach(casinoDiscoState);
                 }
 
                 // Release the lock and enter to the game phase
