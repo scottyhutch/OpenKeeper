@@ -122,7 +122,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private static final int[][] TALISMAN_PIECE_QUARTERS = {{0, 0}, {0, 64}, {64, 64}, {64, 0}};
     private static final int TALISMAN_BLINK_MS = 500;
     private static final java.awt.Color RESEARCH_COLOR = new java.awt.Color(0.569f, 0.106f, 0.31f, 0.6f);
-    
+    private static final java.awt.Color RECHARGE_COLOR = new java.awt.Color(1f, 1f, 1f, 0.7f);
+
     public float lastUpdate = 0;
 
     private PlayerState state;
@@ -149,6 +150,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private EntitySet summonedReapers;
     private int reaperSecondsLeft;
     private Element talismanBlink;
+    private EntitySet spellCasts;
+    private final Map<Short, Float> spellRechargeLeft = new HashMap<>();
     private PossessionInteractionState.Action possessionAction = PossessionInteractionState.Action.MELEE;
 
     private final TrapIconTextParser trapIconTextParser = new TrapIconTextParser();
@@ -166,6 +169,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
     @Override
     public void update(float tpf) {
         buttonFlasher.update(tpf);
+        updateSpellRecharge(tpf);
         lastUpdate += tpf;
 
         if (lastUpdate >= SCREEN_UPDATE_INTERVAL) {
@@ -272,6 +276,11 @@ public final class PlayerScreenController implements IPlayerScreenController {
 
     @Override
     public void cleanup() {
+        if (spellCasts != null) {
+            spellCasts.release();
+            spellCasts = null;
+        }
+        spellRechargeLeft.clear();
         if (creatureCardManager != null) {
             creatureCardManager.cleanup();
             creatureCardManager = null;
@@ -1205,6 +1214,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 workerAmountControl, hud, state.getPlayer().getId());
         battles = entityData.getEntities(Battle.class);
         showBattleButton();
+
+        // Keeper spell recharge, a cast that is already in the set is not tracked, the changes are
+        spellCasts = entityData.getEntities(new FieldFilter(KeeperSpellCast.class, "keeperId", state.getPlayer().getId()), KeeperSpellCast.class);
         // Rooms, and the room the level script wants built next
         if (nextRoomHints != null) {
             nextRoomHints.release();
@@ -1389,6 +1401,39 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
     }
 
+    /**
+     * Shows the recharge of the keeper spells the same way DK II does: a
+     * translucent white pie over the icon that shrinks as the spell recharges.
+     * The client has no game timer, so the time left is counted down from the
+     * moment a changed {@link KeeperSpellCast} arrives, not while paused.
+     *
+     * @param tpf time per frame
+     */
+    private void updateSpellRecharge(float tpf) {
+        if (spellCasts == null) {
+            return;
+        }
+        if (spellCasts.applyChanges()) {
+            for (Set<Entity> entities : List.of(spellCasts.getAddedEntities(), spellCasts.getChangedEntities())) {
+                for (Entity entity : entities) {
+                    short spellId = entity.get(KeeperSpellCast.class).keeperSpellId;
+                    spellRechargeLeft.put(spellId, state.getKwdFile().getKeeperSpellById(spellId).getRechargeTime());
+                }
+            }
+        }
+        boolean paused = state.isPaused();
+        for (Iterator<Map.Entry<Short, Float>> it = spellRechargeLeft.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<Short, Float> entry = it.next();
+            float left = paused ? entry.getValue() : entry.getValue() - tpf;
+            setSpellRecharge(entry.getKey(), left);
+            if (left <= 0) {
+                it.remove();
+            } else {
+                entry.setValue(left);
+            }
+        }
+    }
+
     private void reapplyIconEffects(Element icon, Set<Element> unaffordableIcons) {
         if (icon == null) {
             return;
@@ -1398,6 +1443,13 @@ public final class PlayerScreenController implements IPlayerScreenController {
             icon.startEffect(EffectEventId.onCustom, null, "unaffordable");
         } else if (icon == selectedButton) {
             icon.startEffect(EffectEventId.onCustom, null, "select");
+        }
+    }
+
+    private void setSpellRecharge(short spellId, float secondsLeft) {
+        Element recharge = nifty.getScreen(SCREEN_HUD_ID).findElementById("recharge_" + spellId);
+        if (recharge != null) {
+            recharge.getControl(ResearchEffectControl.class).setResearch(Math.max(0, secondsLeft) / state.getKwdFile().getKeeperSpellById(spellId).getRechargeTime());
         }
     }
 
@@ -1492,6 +1544,20 @@ public final class PlayerScreenController implements IPlayerScreenController {
                     }
                 }.build(element).getControl(ResearchEffectControl.class);
                 researchControl.initJme(state.app);
+            }
+            KeeperSpell keeperSpell = state.getKwdFile().getKeeperSpellById(spell.getId());
+            if (spell.isDiscovered() && keeperSpell.getRechargeTime() > 0) {
+                new ControlBuilder(ResearchEffectControl.CONTROL_NAME) {
+                    {
+                        id("recharge_" + keeperSpell.getKeeperSpellId());
+                        parameter("color", Integer.toString(RECHARGE_COLOR.getRGB()));
+                        parameter("image", "");
+                    }
+                }.build(element).getControl(ResearchEffectControl.class).initJme(state.app);
+                Float left = spellRechargeLeft.get(keeperSpell.getKeeperSpellId());
+                if (left != null) {
+                    setSpellRecharge(keeperSpell.getKeeperSpellId(), left);
+                }
             }
         }
         unaffordableSpells.clear();
