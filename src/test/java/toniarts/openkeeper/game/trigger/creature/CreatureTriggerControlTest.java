@@ -80,7 +80,7 @@ class CreatureTriggerControlTest {
                         null;
                 });
 
-        CreatureTriggerControl control = new CreatureTriggerControl(gameController, levelInfo, gameTimer, null, null, rootId, (short) 4, null, false);
+        CreatureTriggerControl control = new CreatureTriggerControl(gameController, levelInfo, gameTimer, null, null, rootId, (short) 4, null, null, false);
         control.setThing(creature);
         return control;
     }

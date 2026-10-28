@@ -16,7 +16,9 @@
  */
 package toniarts.openkeeper.game.trigger.player;
 
+import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.filter.FieldFilter;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.ArrayList;
@@ -28,6 +30,8 @@ import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.ToIntBiFunction;
+import toniarts.openkeeper.game.component.NextRoomHint;
+import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameController;
 import toniarts.openkeeper.game.controller.IGameTimer;
@@ -68,6 +72,7 @@ public class PlayerTriggerControl extends TriggerControl {
     private static final Map<TriggerGeneric.TargetType, String> STUB_REASONS = createStubReasons();
 
     private final short playerId;
+    private final EntityData entityData;
     private int seenPayDays;
     private final Map<TriggerAction.ActionType, Predicate<TriggerActionData>> actionHandlers = createActionHandlers();
     private final Map<TriggerGeneric.TargetType, ToIntBiFunction<Short, TriggerGenericData>> measures = createMeasures();
@@ -80,9 +85,10 @@ public class PlayerTriggerControl extends TriggerControl {
 
     public PlayerTriggerControl(final IGameController gameController, final ILevelInfo levelInfo, final IGameTimer gameTimer, final IMapController mapController,
             final ICreaturesController creaturesController, final int triggerId, final short playerId,
-            final PlayerService playerService) {
+            final PlayerService playerService, final EntityData entityData) {
         super(gameController, levelInfo, gameTimer, mapController, creaturesController, playerService, triggerId);
         this.playerId = playerId;
+        this.entityData = entityData;
     }
 
     private Map<TriggerAction.ActionType, Predicate<TriggerActionData>> createActionHandlers() {
@@ -100,6 +106,7 @@ public class PlayerTriggerControl extends TriggerControl {
         handlers.put(TriggerAction.ActionType.SET_WIDESCREEN_MODE, handled(this::setWidescreenMode));
         handlers.put(TriggerAction.ActionType.SET_MUSIC_LEVEL, handled(this::setMusicLevel));
         handlers.put(TriggerAction.ActionType.SET_SLAPS_LIMIT, handled(this::setSlapsLimit));
+        handlers.put(TriggerAction.ActionType.DISPLAY_NEXT_ROOM_TYPE, handled(this::displayNextRoomType));
         return handlers;
     }
 
@@ -458,6 +465,16 @@ public class PlayerTriggerControl extends TriggerControl {
         // STUB: limit the number of slaps of the player (value 0 = off). The slap system does not
         // have a limit to set, the player can slap without any restrictions
         logStub(trigger, "The slap system does not have a limit to set, the player can slap without any restrictions");
+    }
+
+    private void displayNextRoomType(TriggerActionData trigger) { // Info part
+        short roomId = trigger.getUserData("targetId", short.class); // 0 = Off or roomId
+        EntityId hint = entityData.findEntity(new FieldFilter(Owner.class, "ownerId", playerId), NextRoomHint.class, Owner.class);
+        if (hint == null) {
+            hint = entityData.createEntity();
+            entityData.setComponent(hint, new Owner(playerId, playerId));
+        }
+        entityData.setComponent(hint, new NextRoomHint(roomId));
     }
 
     protected Keeper getPlayer() {

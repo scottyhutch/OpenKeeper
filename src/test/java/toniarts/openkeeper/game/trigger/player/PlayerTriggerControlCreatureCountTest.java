@@ -161,7 +161,7 @@ class PlayerTriggerControlCreatureCountTest {
 
         return new PlayerTriggerControl(gameController, levelInfo, stub(IGameTimer.class, (m, a) -> null),
                 stub(IMapController.class, (m, a) -> null), stub(ICreaturesController.class, (m, a) -> null),
-                ROOT_TRIGGER_ID, PLAYER_ID, stub(PlayerService.class, (m, a) -> null));
+                ROOT_TRIGGER_ID, PLAYER_ID, stub(PlayerService.class, (m, a) -> null), null);
     }
 
     private interface Answer {

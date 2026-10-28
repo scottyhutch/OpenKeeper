@@ -100,7 +100,7 @@ class PlayerTriggerControlAudienceTest {
         });
         PlayerTriggerControl control = new PlayerTriggerControl(stub(IGameController.class, (m, a) -> null), levelInfo,
                 stub(IGameTimer.class, (m, a) -> null), stub(IMapController.class, (m, a) -> null),
-                stub(ICreaturesController.class, (m, a) -> null), TRIGGER_ID, treeOwner, playerService);
+                stub(ICreaturesController.class, (m, a) -> null), TRIGGER_ID, treeOwner, playerService, null);
 
         control.doAction((TriggerActionData) new TriggerLoader(kwdFile).load(TRIGGER_ID).getChild(0));
     }

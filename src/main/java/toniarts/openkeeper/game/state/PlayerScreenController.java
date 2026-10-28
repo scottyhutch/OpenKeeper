@@ -130,6 +130,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private Screen screen;
 
     private Element selectedButton;
+    private Element hintedRoomButton;
+    private EntitySet nextRoomHints;
     private final Set<Element> unaffordableSpells = new HashSet<>();
     private final Set<Element> unaffordableRooms = new HashSet<>();
     private final Set<Element> workshoplessIcons = new HashSet<>();
@@ -194,6 +196,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
             if (screen != null && SCREEN_POSSESSION_ID.equals(screen.getScreenId())) {
                 updatePossessionHealth();
                 updatePossessionActiveAbilities();
+            }
+            if (nextRoomHints != null && nextRoomHints.applyChanges()) {
+                showNextRoomHint();
             }
             lastUpdate = 0;
         }
@@ -274,6 +279,10 @@ public final class PlayerScreenController implements IPlayerScreenController {
         if (battles != null) {
             battles.release();
             battles = null;
+        }
+        if (nextRoomHints != null) {
+            nextRoomHints.release();
+            nextRoomHints = null;
         }
 
         // The screen controller might sometimes stay in memory
@@ -1196,7 +1205,11 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 workerAmountControl, hud, state.getPlayer().getId());
         battles = entityData.getEntities(Battle.class);
         showBattleButton();
-        // Rooms
+        // Rooms, and the room the level script wants built next
+        if (nextRoomHints != null) {
+            nextRoomHints.release();
+        }
+        nextRoomHints = entityData.getEntities(new FieldFilter(Owner.class, "ownerId", state.getPlayer().getId()), NextRoomHint.class, Owner.class);
 //        state.getRoomControl().addRoomAvailabilityListener(new PlayerRoomControl.IRoomAvailabilityListener() {
 //
 //            @Override
@@ -1634,9 +1647,39 @@ public final class PlayerScreenController implements IPlayerScreenController {
         Screen hud = nifty.getScreen(SCREEN_HUD_ID);
         FlowLayoutControl contentPanel = hud.findElementById("tab-room-content").getControl(FlowLayoutControl.class);
         contentPanel.removeAll();
+        hintedRoomButton = null; // The old buttons are going away
         for (final ResearchableEntity room : state.getAvailableRoomsToBuild()) {
             Element element = contentPanel.addElement(createRoomIcon(room));
             setResearchEffect(room, element);
+            if (nextRoomHints != null) {
+                for (Entity hint : nextRoomHints) {
+                    if (hint.get(NextRoomHint.class).roomId == room.getId()) {
+                        pulseRoomButton(element);
+                    }
+                }
+            }
+        }
+    }
+
+    private void pulseRoomButton(Element button) {
+        hintedRoomButton = button;
+        button.startEffect(EffectEventId.onCustom, null, "hint");
+    }
+
+    /**
+     * Pulses the button of the room the server hints at, and stops pulsing the
+     * previous one. Room id 0 means no hint.
+     */
+    private void showNextRoomHint() {
+        if (hintedRoomButton != null) {
+            hintedRoomButton.resetSingleEffect(EffectEventId.onCustom, "hint");
+            hintedRoomButton = null;
+        }
+        for (Entity hint : nextRoomHints) {
+            Element button = nifty.getScreen(SCREEN_HUD_ID).findElementById("room_" + hint.get(NextRoomHint.class).roomId);
+            if (button != null) {
+                pulseRoomButton(button);
+            }
         }
         unaffordableRooms.clear();
         updateRoomAffordability(state.getGold());
@@ -1799,6 +1842,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
             if (unaffordableSpells.contains(selectedButton) || unaffordableRooms.contains(selectedButton)
                     || workshoplessIcons.contains(selectedButton)) {
                 selectedButton.startEffect(EffectEventId.onCustom, null, "unaffordable");
+            }
+            if (selectedButton == hintedRoomButton) {
+                selectedButton.startEffect(EffectEventId.onCustom, null, "hint");
             }
         }
 

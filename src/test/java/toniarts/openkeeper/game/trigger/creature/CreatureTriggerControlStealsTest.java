@@ -116,7 +116,7 @@ class CreatureTriggerControlStealsTest {
         CreatureTriggerControl control = new CreatureTriggerControl(stub(IGameController.class, (m, a) -> null), levelInfo,
                 stub(IGameTimer.class, (m, a) -> null), stub(IMapController.class, (m, a) -> null),
                 stub(ICreaturesController.class, (m, a) -> null), ROOT_TRIGGER_ID, PLAYER_ID,
-                stub(PlayerService.class, (m, a) -> null), false);
+                stub(PlayerService.class, (m, a) -> null), null, false);
         control.setThing(thief);
         return control;
     }

@@ -149,7 +149,7 @@ class PlayerTriggerControlBreachTest {
 
         return new PlayerTriggerControl(gameController, levelInfo, stub(IGameTimer.class, (m, a) -> null),
                 mapController, stub(ICreaturesController.class, (m, a) -> null),
-                ROOT_TRIGGER_ID, PLAYER_ID, stub(PlayerService.class, (m, a) -> null));
+                ROOT_TRIGGER_ID, PLAYER_ID, stub(PlayerService.class, (m, a) -> null), null);
     }
 
     private interface Answer {

@@ -71,7 +71,7 @@ class ObjectClaimedTriggerTest {
         IGameTimer gameTimer = () -> 0;
 
         ObjectTriggerControl control = new ObjectTriggerControl(gameController, levelInfo, gameTimer, null, null, rootId,
-                Player.NEUTRAL_PLAYER_ID, null);
+                Player.NEUTRAL_PLAYER_ID, null, null);
         control.setThing((IObjectController) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{IObjectController.class},
                 (proxy, method, args) -> switch (method.getName()) {
                     case "getOwnerId" ->
