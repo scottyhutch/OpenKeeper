@@ -45,8 +45,8 @@ import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectTyp
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.CreatureFixtures;
 import toniarts.openkeeper.tools.convert.map.Room;
-import toniarts.openkeeper.tools.convert.map.TortureVictimFixtures;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -63,7 +63,8 @@ class CreatureTorturingSystemTest {
     private static final short HERO_ID = 1;
     private static final Point CHAMBER_TILE = new Point(4, 4);
     private static final short TROLL = 10;
-    private static final short MISTRESS = 38;
+    private static final short MISTRESS = 39;
+    private static final short UNIQUE_MISTRESS = 38;
     private static final short IMP = 1;
 
     private final EntityData entityData = new DefaultEntityData();
@@ -90,9 +91,10 @@ class CreatureTorturingSystemTest {
         }
     };
     private final Map<Short, Creature> creatures = Map.of(
-            TROLL, TortureVictimFixtures.victim(TROLL, (short) 1092, Creature.JobClass.ARTISAN, false),
-            MISTRESS, TortureVictimFixtures.victim(MISTRESS, (short) -1000, Creature.JobClass.FIGHTER, false),
-            IMP, TortureVictimFixtures.victim(IMP, (short) 1092, Creature.JobClass.ARTISAN, true));
+            TROLL, CreatureFixtures.creature(TROLL, (short) 1092, Creature.JobClass.ARTISAN, false),
+            UNIQUE_MISTRESS, CreatureFixtures.creature(UNIQUE_MISTRESS, (short) -1000, Creature.JobClass.FIGHTER, false),
+            MISTRESS, CreatureFixtures.creature(MISTRESS, (short) 0, Creature.JobClass.FIGHTER, false),
+            IMP, CreatureFixtures.creature(IMP, (short) 1092, Creature.JobClass.ARTISAN, true));
     private final PlayerStatsControl stats = new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
     private final Map<Short, IPlayerController> players = Map.of(KEEPER_ID, (IPlayerController) Proxy.newProxyInstance(
             IPlayerController.class.getClassLoader(), new Class<?>[]{IPlayerController.class}, (proxy, method, args) -> switch (method.getName()) {
@@ -159,13 +161,35 @@ class CreatureTorturingSystemTest {
     }
 
     @Test
-    void ownMistressEnjoysIt() {
+    void ownUniqueMistressEnjoysItDownToZero() {
+        EntityId victim = victim(KEEPER_ID, 1000, UNIQUE_MISTRESS);
+        entityData.setComponent(victim, new CreatureMood(0, 0, 0, 0, 0, 1500));
+
+        tick(1);
+        assertEquals(500, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+
+        tick(2);
+        assertEquals(0, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
+
+    @Test
+    void ownMistressFeelsNothing() {
         EntityId victim = victim(KEEPER_ID, 1000, MISTRESS);
         entityData.setComponent(victim, new CreatureMood(0, 0, 0, 0, 0, 5000));
 
+        tick(3);
+
+        assertEquals(5000, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+    }
+
+    @Test
+    void ownVictimsAngerStopsAtTheCap() {
+        EntityId victim = victim(KEEPER_ID, 1000, TROLL);
+        entityData.setComponent(victim, new CreatureMood(0, 0, 0, 0, 0, CreatureMood.MAX_ANGER - 1000));
+
         tick(2);
 
-        assertEquals(3000, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
+        assertEquals(CreatureMood.MAX_ANGER, entityData.getComponent(victim, CreatureMood.class).get(CreatureMood.REASON_OTHER));
     }
 
     @Test
@@ -243,6 +267,19 @@ class CreatureTorturingSystemTest {
 
         assertEquals(CreatureState.IDLE, states.get(victim));
         assertEquals(HERO_ID, entityData.getComponent(victim, Owner.class).controlId);
+    }
+
+    @Test
+    void victimOfAChamberDestroyedBeforeItsFirstCheckIsSetFree() {
+        EntityId victim = victim(HERO_ID, 100);
+        entityData.setComponent(victim, new CreatureTortured(0, 100, 0));
+        tick(1);
+
+        chamberInstance.setDestroyed(true);
+        entityData.removeComponent(victim, CreatureTortured.class);
+        tick(1);
+
+        assertEquals(CreatureState.IDLE, states.get(victim));
     }
 
     @Test

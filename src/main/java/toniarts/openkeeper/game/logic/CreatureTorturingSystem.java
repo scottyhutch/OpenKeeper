@@ -34,7 +34,6 @@ import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.KeeperInformation;
-import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.ICreaturesController;
@@ -44,8 +43,8 @@ import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.tools.convert.map.Creature;
-import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.GameTimeCounter;
+import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
 /**
@@ -68,7 +67,6 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
     private static final int INFO_THINKER_2 = 9;
     private static final int INFO_ANY = 10;
     private static final int INFO_ROOM = 11;
-    private static final short ELECTRIC_CHAIR_OBJECT_ID = 61;
 
     private final EntityData entityData;
     private final ICreaturesController creaturesController;
@@ -107,13 +105,10 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
 
         // Process ticks
         for (Entity entity : torturedEntities) {
-            CreatureTortured creatureTortured = entity.get(CreatureTortured.class);
-            if (creatureTortured.tortureCheckTime >= timeElapsed) {
-                continue;
-            }
-
+            // Keep track of the chamber on every tick, the room may be gone before the next check
             IRoomController chamber = getChamber(entity);
-            if (chamber == null) {
+            CreatureTortured creatureTortured = entity.get(CreatureTortured.class);
+            if (creatureTortured.tortureCheckTime >= timeElapsed || chamber == null) {
                 continue;
             }
 
@@ -160,34 +155,12 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
         entityData.setComponent(victim, mood.add(CreatureMood.REASON_OTHER, creature.getAttributes().getTortureMoodChange()));
     }
 
-    /**
-     * Get the animation of a torture victim. A victim on the Electric Chair
-     * sits in the chair, the others are on the Torture Wheel
-     *
-     * @param entityData the entity data
-     * @param entityId the victim
-     * @return the animation
-     */
-    static Creature.AnimationType getTortureAnimation(EntityData entityData, EntityId entityId) {
-        CreatureTortured tortured = entityData.getComponent(entityId, CreatureTortured.class);
-        if (tortured != null && tortured.device != null) {
-            ObjectComponent device = entityData.getComponent(tortured.device, ObjectComponent.class);
-            if (device != null && device.objectId == ELECTRIC_CHAIR_OBJECT_ID) {
-                return Creature.AnimationType.TORTURED_CHAIR;
-            }
-        }
-        return Creature.AnimationType.TORTURED_WHEEL;
-    }
-
     private IRoomController getChamber(Entity entity) {
-        IRoomController chamber = chambersByVictim.get(entity.getId());
-        if (chamber == null) {
-            chamber = mapController.getRoomControllerByCoordinates(WorldUtils.vectorToPoint(entity.get(Position.class).position));
-            if (chamber == null || !chamber.hasObjectControl(AbstractRoomController.ObjectType.TORTUREE)) {
-                return null;
-            }
-            chambersByVictim.put(entity.getId(), chamber);
+        IRoomController chamber = mapController.getRoomControllerByCoordinates(WorldUtils.vectorToPoint(entity.get(Position.class).position));
+        if (chamber == null || !chamber.hasObjectControl(AbstractRoomController.ObjectType.TORTUREE)) {
+            return null;
         }
+        chambersByVictim.put(entity.getId(), chamber);
         return chamber;
     }
 

@@ -78,6 +78,7 @@ import toniarts.openkeeper.game.controller.creature.PartyType;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.controller.room.storage.RoomTortureeControl;
 import toniarts.openkeeper.game.sound.EntitySounds;
 import toniarts.openkeeper.game.sound.ThingSounds;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -490,7 +491,8 @@ public final class CreaturesController implements ICreaturesController {
                 return CreatureState.IMPRISONED;
             }
             if (room.hasObjectControl(AbstractRoomController.ObjectType.TORTUREE)) {
-                EntityId device = (EntityId) room.getObjectControl(AbstractRoomController.ObjectType.TORTUREE).addItem(entityId, location);
+                RoomTortureeControl torturees = room.getObjectControl(AbstractRoomController.ObjectType.TORTUREE);
+                EntityId device = torturees.addItem(entityId, location);
                 if (device != null) {
                     Position devicePosition = entityData.getComponent(device, Position.class);
                     entityData.setComponent(entityId, new Position(devicePosition.rotation,

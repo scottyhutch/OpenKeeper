@@ -1360,7 +1360,10 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         // Maybe in the future the physics deal with this and we just need to detect that we are airborne
         Vector3f pos = new Vector3f(coordinates.x, (tortureOrImprisonment ? WorldUtils.FLOOR_HEIGHT : WorldUtils.DROP_HEIGHT), coordinates.y);
         if (devicePosition != null) {
-            entityData.setComponent(entity, getVictimPosition(devicePosition));
+
+            // The victim is on the device and faces the way the device does
+            entityData.setComponent(entity, new Position(devicePosition.rotation,
+                    new Vector3f(devicePosition.position.x, WorldUtils.FLOOR_HEIGHT, devicePosition.position.z)));
         } else {
             entityData.setComponent(entity, new Position(0, pos));
         }
@@ -1408,18 +1411,6 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
         // Like in DK II, the creature takes on the job of the room it lands in
         DroppedJobs.rememberDroppedJob(entityData, kwdFile, tortureOrImprisonment ? null : roomController, entity);
-    }
-
-    /**
-     * Get the position of a torture victim. The victim is on the device and
-     * faces the way the device does.
-     *
-     * @param devicePosition the position of the torture device
-     * @return the position of the victim
-     */
-    static Position getVictimPosition(Position devicePosition) {
-        return new Position(devicePosition.rotation,
-                new Vector3f(devicePosition.position.x, WorldUtils.FLOOR_HEIGHT, devicePosition.position.z));
     }
 
     /**

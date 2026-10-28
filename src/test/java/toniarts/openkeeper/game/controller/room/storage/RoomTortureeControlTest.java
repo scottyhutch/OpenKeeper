@@ -105,6 +105,18 @@ class RoomTortureeControlTest {
         assertNull(entityData.getComponent(victim, CreatureTortured.class));
     }
 
+    @Test
+    void victimGetsTheNewDeviceWhenTheFurnitureIsBuiltAgain() {
+        EntityId victim = entityData.createEntity();
+        entityData.setComponent(victim, new CreatureTortured(5, 0, 0, control.addItem(victim, new Point(3, 3))));
+
+        devices.remove(wheel);
+        EntityId newWheel = device(new Point(3, 3));
+        control.refreshDevices();
+
+        assertEquals(newWheel, entityData.getComponent(victim, CreatureTortured.class).device);
+    }
+
     private EntityId device(Point p) {
         EntityId device = entityData.createEntity();
         entityData.setComponent(device, new Position(0, WorldUtils.pointToVector3f(p)));

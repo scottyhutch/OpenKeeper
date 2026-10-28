@@ -71,6 +71,27 @@ public abstract class RoomTortureeControl extends AbstractRoomObjectControl<Enti
         return device;
     }
 
+    /**
+     * Puts the victims on the devices again after the room has been constructed
+     * again (e.g. extended), as the old devices are gone. A victim stays on the
+     * tile it was on.
+     */
+    public void refreshDevices() {
+        for (EntityId device : getDevices()) {
+            Collection<EntityId> victims = objectsByCoordinate.get(getDevicePoint(device));
+            if (victims == null) {
+                continue;
+            }
+            for (EntityId victim : victims) {
+                CreatureTortured tortured = entityData.getComponent(victim, CreatureTortured.class);
+                if (tortured != null) {
+                    entityData.setComponent(victim, new CreatureTortured(tortured.timeTortured,
+                            tortured.tortureCheckTime, tortured.healthCheckTime, device));
+                }
+            }
+        }
+    }
+
     @Override
     public void removeItem(EntityId object) {
         if (!isVictim(object)) {
@@ -79,22 +100,6 @@ public abstract class RoomTortureeControl extends AbstractRoomObjectControl<Enti
         super.removeItem(object);
 
         addCurrentCapacity(-1);
-    }
-
-    /**
-     * Get the torture device a victim is on
-     *
-     * @param torturee the victim
-     * @return the device, {@code null} if the creature is not tortured here
-     */
-    public EntityId getDevice(EntityId torturee) {
-        for (EntityId device : getDevices()) {
-            Collection<EntityId> victims = objectsByCoordinate.get(getDevicePoint(device));
-            if (victims != null && victims.contains(torturee)) {
-                return device;
-            }
-        }
-        return null;
     }
 
     @Override

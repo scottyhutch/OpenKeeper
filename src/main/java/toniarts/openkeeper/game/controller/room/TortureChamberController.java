@@ -44,12 +44,15 @@ public final class TortureChamberController extends NormalRoomController {
     public void construct() {
         super.construct();
 
-        addObjectControl(new RoomTortureeControl(kwdFile, this, entityData, gameTimer) {
+        RoomTortureeControl control = addObjectControl(new RoomTortureeControl(kwdFile, this, entityData, gameTimer) {
 
             @Override
             protected int getNumberOfAccessibleTiles() {
                 return getFurnitureCount();
             }
         });
+
+        // Extending the room builds the furniture again, the victims need the new devices
+        control.refreshDevices();
     }
 }
