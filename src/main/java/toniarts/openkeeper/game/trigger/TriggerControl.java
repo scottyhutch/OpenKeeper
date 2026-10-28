@@ -384,6 +384,12 @@ public class TriggerControl extends Control {
             case INFORMATION:
                 return true; // No-op in the original game as well
 
+            case CREATE_PORTAL_GEM:
+                gameController.getGameWorldController().getObjectsController().loadObject(
+                        trigger.getUserData("objectId", short.class), trigger.getUserData("playerId", short.class),
+                        trigger.getUserData("posX", int.class) - 1, trigger.getUserData("posY", int.class) - 1);
+                break;
+
             case MAKE:
                 makeAvailable(trigger);
                 return true;
