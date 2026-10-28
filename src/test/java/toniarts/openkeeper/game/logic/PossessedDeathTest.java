@@ -73,7 +73,8 @@ class PossessedDeathTest {
 
         keeper = new Keeper(false, KEEPER);
         PlayerManaControl manaControl = new PlayerManaControl(keeper,
-                Map.of(MiscType.MAXIMUM_MANA_THRESHOLD, TrapFiringFixtures.miscVariable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000)));
+                Map.of(MiscType.MAXIMUM_MANA_THRESHOLD, TrapFiringFixtures.miscVariable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000),
+                        MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, TrapFiringFixtures.miscVariable(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, 500)));
         keeper.setMana(1000);
         IPlayerController player = stub(IPlayerController.class, (name, args) -> switch (name) {
             case "getKeeper" -> keeper;
