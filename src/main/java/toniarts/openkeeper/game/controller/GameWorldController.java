@@ -395,7 +395,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
         // Notify the build
         notifyOnBuild(playerId, buildTiles);
-        playBuildSounds(room, placement.plots(), buildTiles);
+        notifyBuildEvents(room, placement.plots(), buildTiles);
     }
 
     private void buildRoomInstance(List<Point> instancePlots, Room room, short playerId, List<Point> buildTiles) {
@@ -418,10 +418,6 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             addGoldCapacityToPlayer(instance.getEntityId());
             //notifyOnBuild(instance.getOwnerId(), mapController.getRoomActuals().get(instance));
         }
-
-        // Notify the build
-        notifyOnBuild(playerId, buildTiles);
-        notifyBuildEvents(room, instancePlots, buildTiles);
     }
 
     /**
@@ -473,18 +469,6 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         Point plot = new Point(x, y);
         if (remaining.remove(plot)) {
             open.addLast(plot);
-        }
-    }
-
-    /**
-     * One click for the whole placement, at its top left tile, and the sound of each tile that appears
-     */
-    private void playBuildSounds(Room room, List<Point> plots, List<Point> buildTiles) {
-        int minX = Integer.MAX_VALUE;
-        int minY = Integer.MAX_VALUE;
-        for (Point plot : plots) {
-            minX = Math.min(minX, plot.x);
-            minY = Math.min(minY, plot.y);
         }
     }
 
