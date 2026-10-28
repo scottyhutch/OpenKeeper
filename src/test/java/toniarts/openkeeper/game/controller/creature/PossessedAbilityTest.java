@@ -56,6 +56,7 @@ import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.logic.HealthSystem;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.logic.PossessedMovementSystem;
@@ -187,7 +188,8 @@ class PossessedAbilityTest {
         gameSettings.put(Variable.MiscVariable.MiscType.MODIFY_CREATURE_HEALTH_WHILE_PRAYING_PER_SECOND,
                 PossessionFixtures.miscVariable(Variable.MiscVariable.MiscType.MODIFY_CREATURE_HEALTH_WHILE_PRAYING_PER_SECOND, 33));
         entityData.setComponents(us, new Health(100, 1000), new PossessedAbility(Creature.SpecialAbility.PRAY, 0));
-        HealthSystem healthSystem = new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null, null);
+        HealthSystem healthSystem = new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null,
+                stub(GameEventService.class, (name, args) -> null));
 
         healthSystem.processTick(0.5f);
         assertEquals(100, entityData.getComponent(us, Health.class).health);
@@ -358,7 +360,8 @@ class PossessedAbilityTest {
         controller.usePossessedAbility(2);
 
         entityData.setComponent(knight, new Unconscious(0));
-        new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null).processTick(0.25f);
+        new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null,
+                stub(GameEventService.class, (name, args) -> null)).processTick(0.25f);
 
         assertNull(entityData.getComponent(knight, Hypnotised.class));
         assertNull(entityData.getComponent(knight, Mana.class));
@@ -419,7 +422,8 @@ class PossessedAbilityTest {
         });
 
         return new CreatureController(us, entityData, creature, null, null, gameTimer, gameSettings, createCreaturesController(),
-                createPositionLookup(), createMapController(), levelInfo, null, null, null);
+                createPositionLookup(), createMapController(), levelInfo, null, null,
+                stub(GameEventService.class, (name, args) -> null));
     }
 
     private ICreaturesController createCreaturesController() {
