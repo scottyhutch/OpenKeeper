@@ -69,8 +69,13 @@ public final class NewSpeciesSystem implements IGameLogicUpdatable {
         this.entityData = entityData;
         this.playerService = playerService;
         this.introductionOverrideTextIds = introductionOverrideTextIds;
-        this.creatures = entityData.getEntities(CreatureAi.class, Owner.class, Position.class);
+        this.creatures = entityData.getEntities(CreatureAi.class, Owner.class);
         this.seenTypes = entityData.getEntities(SeenCreatureType.class);
+
+        // The creatures a player starts with are not reported as added
+        for (Entity entity : creatures) {
+            markSeen(entity.get(Owner.class).ownerId, entity.get(CreatureAi.class).creatureId);
+        }
     }
 
     @Override
@@ -97,7 +102,7 @@ public final class NewSpeciesSystem implements IGameLogicUpdatable {
                 if (introductionId != null) {
                     playerService.playSpeech(introductionId, true, false, 0, ownerId);
                 } else {
-                    Vector3f position = entity.get(Position.class).position;
+                    Vector3f position = entityData.getComponent(entity.getId(), Position.class).position;
                     playerService.showMentorMessage(MentorType.SPECIES_CREATURE_ENTERED.getId(), position, ownerId);
                 }
             }

@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.component.SeenCreatureType;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.sound.MentorType;
 import toniarts.openkeeper.game.state.session.PlayerService;
+import toniarts.openkeeper.tools.convert.map.Player;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -43,7 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class NewSpeciesSystemTest {
 
-    private static final short KEEPER = 1;
+    private static final short KEEPER = Player.KEEPER1_ID;
     private static final short WARLOCK = 3;
     private static final short DARK_ELF = 6;
     private static final short INTRODUCED = 5; // Has its own introduction on the level
@@ -60,21 +61,21 @@ class NewSpeciesSystemTest {
                 }
                 return null;
             });
-    private final NewSpeciesSystem system = new NewSpeciesSystem(entityData, playerService, Map.of(INTRODUCED, 9));
+    private NewSpeciesSystem system =new NewSpeciesSystem(entityData, playerService, Map.of(INTRODUCED, 9));
 
     @Test
     void firstArrivalOfATypeIsAnnouncedAtTheCreature() {
         creature(KEEPER, DARK_ELF, CreatureState.ENTERING_DUNGEON, new Vector3f(3, 0, 4));
         system.processTick(0.25f);
 
-        assertEquals(List.of(SPEECH + "@" + new Vector3f(3, 0, 4) + ">p1"), messages);
+        assertEquals(List.of(SPEECH + "@" + new Vector3f(3, 0, 4) + ">p" + KEEPER), messages);
     }
 
     @Test
     void typeWithAnIntroductionPlaysTheLevelSpeechOncePerType() {
         creature(KEEPER, INTRODUCED, CreatureState.ENTERING_DUNGEON, new Vector3f(3, 0, 4));
         system.processTick(0.25f);
-        assertEquals(List.of("level speech 9>p1"), messages);
+        assertEquals(List.of("level speech 9>p" + KEEPER), messages);
         messages.clear();
 
         creature(KEEPER, INTRODUCED, CreatureState.ENTERING_DUNGEON, new Vector3f(3, 0, 4));
@@ -118,20 +119,31 @@ class NewSpeciesSystemTest {
     }
 
     @Test
+    void creaturesThatExistWhenTheSystemIsBuiltAreAlreadySeen() {
+        creature(KEEPER, DARK_ELF, CreatureState.IDLE, new Vector3f(1, 0, 1));
+        system = new NewSpeciesSystem(entityData, playerService, Map.of(INTRODUCED, 9));
+
+        creature(KEEPER, DARK_ELF, CreatureState.ENTERING_DUNGEON, new Vector3f(3, 0, 4));
+        system.processTick(0.25f);
+
+        assertTrue(messages.isEmpty());
+    }
+
+    @Test
     void typesSeenAreKeptPerKeeper() {
         creature(KEEPER, DARK_ELF, CreatureState.ENTERING_DUNGEON, new Vector3f(3, 0, 4));
         system.processTick(0.25f);
         messages.clear();
 
-        creature((short) 2, DARK_ELF, CreatureState.ENTERING_DUNGEON, new Vector3f(8, 0, 8));
+        creature(Player.KEEPER2_ID, DARK_ELF, CreatureState.ENTERING_DUNGEON, new Vector3f(8, 0, 8));
         system.processTick(0.25f);
 
-        assertEquals(List.of(SPEECH + "@" + new Vector3f(8, 0, 8) + ">p2"), messages);
+        assertEquals(List.of(SPEECH + "@" + new Vector3f(8, 0, 8) + ">p" + Player.KEEPER2_ID), messages);
     }
 
     @Test
     void creatureTakenOverCountsAsSeenWithoutAMessage() {
-        EntityId stolen = creature((short) 2, DARK_ELF, CreatureState.IDLE, new Vector3f(1, 0, 1));
+        EntityId stolen = creature(Player.KEEPER2_ID, DARK_ELF, CreatureState.IDLE, new Vector3f(1, 0, 1));
         system.processTick(0.25f);
 
         entityData.setComponent(stolen, new Owner(KEEPER, KEEPER));
