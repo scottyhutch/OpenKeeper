@@ -35,6 +35,7 @@ import toniarts.openkeeper.game.controller.player.PlayerCreatureControl;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
 import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.listener.RoomListener;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -123,7 +124,8 @@ class PortalGenerationClockTest {
         settings.put(MiscType.CREATURES_SUPPORTED_PER_ADDITIONAL_PORTAL, miscVariable(MiscType.CREATURES_SUPPORTED_PER_ADDITIONAL_PORTAL, 5));
         settings.put(MiscType.TIME_BEFORE_FREE_IMP_GENERATED_SECONDS, miscVariable(MiscType.TIME_BEFORE_FREE_IMP_GENERATED_SECONDS, 1000));
         system = new CreatureSpawnSystem(entities, spawner, List.of(player), settings,
-                stub(ILevelInfo.class, (method, args) -> level), map);
+                stub(ILevelInfo.class, (method, args) -> level), map,
+                stub(GameEventService.class, (method, args) -> null));
 
         RoomInstance roomInstance = new RoomInstance(portalDefinition);
         roomInstance.setOwnerId(PLAYER_ID);
