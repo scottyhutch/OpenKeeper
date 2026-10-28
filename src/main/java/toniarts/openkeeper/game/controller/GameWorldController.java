@@ -530,7 +530,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
      * @param tile the tile
      * @param terrain its new terrain
      */
-    static void setHealthFromTerrain(IMapTileController tile, Terrain terrain) {
+    private void setHealthFromTerrain(IMapTileController tile, Terrain terrain) {
         tile.setMaxHealth(terrain.getMaxHealth());
         tile.setHealth(terrain.getStartingHealth());
     }
@@ -661,19 +661,11 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         if (tile == null) {
             return;
         }
-        entityData.removeComponent(tile.getEntityId(), WoodenBridgeDecay.class);
         sale.soldTiles.add(tile.getLocation());
 
-        Terrain terrain = kwdFile.getTerrain(tile.getTerrainId());
         Room room = kwdFile.getRoomByTerrain(tile.getTerrainId());
         ThingSounds.play(room.getSoundCategory(), ThingSounds.ROOM_SELL, p);
-        if (room.getFlags().contains(Room.RoomFlag.PLACEABLE_ON_LAND)) {
-            tile.setTerrainId(terrain.getDestroyedTypeTerrainId());
-        } else if (tile.getBridgeTerrainType() == Tile.BridgeTerrainType.LAVA) {
-            tile.setTerrainId(kwdFile.getMap().getLava().getTerrainId());
-        } else {
-            tile.setTerrainId(kwdFile.getMap().getWater().getTerrainId());
-        }
+        removeRoomFromTile(tile, room);
 
         int saleValue = (int) (room.getCost()
                 * (gameSettings.get(Variable.MiscVariable.MiscType.ROOM_SELL_VALUE_PERCENTAGE_OF_COST).getValue() / 100));
@@ -787,17 +779,28 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         }
         destroyedTilesByOwner.computeIfAbsent(tile.getOwnerId(), ignored -> new ArrayList<>()).add(tile.getLocation());
         destroyedInstances.add(tile.getRoomId());
-        entityData.removeComponent(tile.getEntityId(), WoodenBridgeDecay.class);
+        removeRoomFromTile(tile, room);
+        updatableTiles.addAll(Arrays.asList(
+                WorldUtils.getSurroundingTiles(mapController.getMapData(), point, true)));
+    }
 
+    /**
+     * Turn a sold or destroyed room tile into the terrain it becomes, with the
+     * health of that terrain
+     *
+     * @param tile the tile
+     * @param room the room the tile belongs to
+     */
+    private void removeRoomFromTile(IMapTileController tile, Room room) {
+        entityData.removeComponent(tile.getEntityId(), WoodenBridgeDecay.class);
         if (room.getFlags().contains(Room.RoomFlag.PLACEABLE_ON_LAND)) {
-            tile.setTerrainId(terrain.getDestroyedTypeTerrainId());
+            tile.setTerrainId(kwdFile.getTerrain(tile.getTerrainId()).getDestroyedTypeTerrainId());
         } else if (tile.getBridgeTerrainType() == Tile.BridgeTerrainType.LAVA) {
             tile.setTerrainId(kwdFile.getMap().getLava().getTerrainId());
         } else {
             tile.setTerrainId(kwdFile.getMap().getWater().getTerrainId());
         }
-        updatableTiles.addAll(Arrays.asList(
-                WorldUtils.getSurroundingTiles(mapController.getMapData(), point, true)));
+        setHealthFromTerrain(tile, kwdFile.getTerrain(tile.getTerrainId()));
     }
 
     private List<Point> removeDestroyedRoomInstances(Set<EntityId> destroyedInstances,
