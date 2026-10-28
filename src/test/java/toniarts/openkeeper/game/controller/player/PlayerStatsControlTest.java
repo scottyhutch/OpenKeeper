@@ -18,6 +18,7 @@ package toniarts.openkeeper.game.controller.player;
 
 import java.util.EnumSet;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.ShotFixtures;
 
@@ -25,7 +26,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class PlayerStatsControlTest {
 
-    private final PlayerStatsControl stats = new PlayerStatsControl();
+    private final Keeper keeper = new Keeper(false, (short) 3);
+    private final PlayerStatsControl stats = new PlayerStatsControl(keeper);
 
     @Test
     void countsHeroesSeparatelyFromOtherEnemies() {
@@ -38,6 +40,8 @@ class PlayerStatsControlTest {
 
         assertEquals(1, stats.getHeroesDestroyed());
         assertEquals(2, stats.getEnemyCreaturesKilled());
+        assertEquals(1, keeper.getHeroesDestroyed());
+        assertEquals(2, keeper.getEnemyCreaturesKilled());
     }
 
     @Test

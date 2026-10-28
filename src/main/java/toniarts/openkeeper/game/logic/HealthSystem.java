@@ -211,7 +211,6 @@ public final class HealthSystem extends GameTimeCounter {
     }
 
     private void processHealthDepleted(EntityId entityId, Health health) {
-        countKill(entityId);
 
         // A possessed creature is never knocked out, it dies. The possession
         // ends and its keeper loses mana for it
@@ -228,6 +227,7 @@ public final class HealthSystem extends GameTimeCounter {
         // No body, just vanish from the world
         if (!isLeaveDeadBody(entityId)) {
             triggerDestroyedEffect(entityId);
+            countKill(entityId);
             entityPositionLookup.getEntityController(entityId).remove();
             return;
         }
@@ -249,6 +249,7 @@ public final class HealthSystem extends GameTimeCounter {
             Owner owner = entityData.getComponent(entityId, Owner.class);
             Short creatureId = getRoomCreatureId(entityId);
             if (creatureId != null && !damageEntities.containsId(entityId) && canRiseAsSkeleton(owner, creatureId)) {
+                countKill(entityId);
                 creaturesController.turnCreatureIntoAnother(entityId, owner.controlId, creatureId);
                 return;
             }
@@ -279,8 +280,10 @@ public final class HealthSystem extends GameTimeCounter {
     }
 
     /**
-     * Counts a killed or knocked out creature to the statistics of its owner's enemies. FIXME: DK II
-     * counts it only to the player who hit it last, we don't track the attacker yet
+     * Counts a creature that has died or been destroyed to the statistics of its owner's enemies. A
+     * knocked out creature is not counted yet, it may still be rescued or taken prisoner, and it
+     * is counted once when it finally dies. FIXME: DK II counts it only to the player who hit it
+     * last, we don't track the attacker yet
      *
      * @param entityId the creature
      */
@@ -529,6 +532,7 @@ public final class HealthSystem extends GameTimeCounter {
     }
 
     private void processDeath(EntityId entityId) {
+        countKill(entityId);
         if (entityData.getComponent(entityId, Death.class) == null && entitySounds.isCreature(entityId)) {
             entitySounds.play(entityId, ThingSounds.CREATURE_DIE);
         }

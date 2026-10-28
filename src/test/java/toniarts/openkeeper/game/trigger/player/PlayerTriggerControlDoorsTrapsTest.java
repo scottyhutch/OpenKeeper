@@ -215,7 +215,7 @@ class PlayerTriggerControlDoorsTrapsTest {
             case "getTrapControl" ->
                 traps;
             case "getStatsControl" ->
-                new PlayerStatsControl();
+                new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
             default ->
                 null;
         });

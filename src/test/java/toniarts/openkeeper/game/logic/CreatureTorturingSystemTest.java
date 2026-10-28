@@ -93,7 +93,7 @@ class CreatureTorturingSystemTest {
             TROLL, TortureVictimFixtures.victim(TROLL, (short) 1092, Creature.JobClass.ARTISAN, false),
             MISTRESS, TortureVictimFixtures.victim(MISTRESS, (short) -1000, Creature.JobClass.FIGHTER, false),
             IMP, TortureVictimFixtures.victim(IMP, (short) 1092, Creature.JobClass.ARTISAN, true));
-    private final PlayerStatsControl stats = new PlayerStatsControl();
+    private final PlayerStatsControl stats = new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
     private final Map<Short, IPlayerController> players = Map.of(KEEPER_ID, (IPlayerController) Proxy.newProxyInstance(
             IPlayerController.class.getClassLoader(), new Class<?>[]{IPlayerController.class}, (proxy, method, args) -> switch (method.getName()) {
                 case "getStatsControl" -> stats;

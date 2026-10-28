@@ -135,7 +135,7 @@ class PlayerTriggerControlBreachTest {
                 null;
         });
         IPlayerController playerController = stub(IPlayerController.class,
-                (method, args) -> method.getName().equals("getStatsControl") ? new PlayerStatsControl() : null);
+                (method, args) -> method.getName().equals("getStatsControl") ? new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0)) : null);
         IGameController gameController = stub(IGameController.class,
                 (method, args) -> method.getName().equals("getPlayerController") ? playerController : null);
         IMapController mapController = stub(IMapController.class, (method, args) -> switch (method.getName()) {

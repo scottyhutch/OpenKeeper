@@ -61,7 +61,7 @@ class PayDaySystemTest {
 
     private final EntityData entityData = new DefaultEntityData();
     private final Map<Short, Creature> creatures = new HashMap<>();
-    private final PlayerStatsControl keeperStats = new PlayerStatsControl();
+    private final PlayerStatsControl keeperStats = new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
     private final PayDaySystem payDaySystem;
     private double gameTime;
     private int treasury = 1000;
@@ -70,7 +70,7 @@ class PayDaySystemTest {
         creatures.put(GOBLIN, PayDayFixtures.creature(GOBLIN, ANGER_NO_PAY));
         creatures.put(IMP, PayDayFixtures.creature(IMP, 0));
         payDaySystem = new PayDaySystem(entityData, kwdFile(), () -> gameTime,
-                List.of(playerController(Player.GOOD_PLAYER_ID, new PlayerStatsControl()), playerController(KEEPER, keeperStats)),
+                List.of(playerController(Player.GOOD_PLAYER_ID, new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0))), playerController(KEEPER, keeperStats)),
                 gameWorldController(), gameSettings());
     }
 

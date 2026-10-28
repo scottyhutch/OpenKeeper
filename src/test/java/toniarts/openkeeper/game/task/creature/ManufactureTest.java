@@ -111,7 +111,7 @@ class ManufactureTest {
                     case "equals" -> proxy == args[0];
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
-        PlayerStatsControl stats = new PlayerStatsControl();
+        PlayerStatsControl stats = new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
         Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, new PlayerManufactureControl(),
                 new WorkshopOrders(entityData, kwdFile), objectsController, stats);
         task.assign(creature, false);

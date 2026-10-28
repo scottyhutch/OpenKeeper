@@ -29,12 +29,12 @@ class PlayerStatsControlButtonTest {
 
     @Test
     void noButtonIsPressedAtTheStart() {
-        assertTrue(new PlayerStatsControl().getButtonPresses().isEmpty());
+        assertTrue(new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0)).getButtonPresses().isEmpty());
     }
 
     @Test
     void countsThePressesOfEachButton() {
-        PlayerStatsControl stats = new PlayerStatsControl();
+        PlayerStatsControl stats = new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
 
         stats.buttonPressed(MakeType.ROOM, (short) 2);
         stats.buttonPressed(MakeType.ROOM, (short) 2);

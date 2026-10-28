@@ -39,7 +39,6 @@ import toniarts.openkeeper.tools.convert.map.Room;
 public final class PlayerRoomControl extends AbstractResearchablePlayerControl<Room, ResearchableEntity, PlayerRoomListener> implements RoomListener {
 
     private int roomCount = 0;
-    private int roomsCaptured = 0;
     private boolean portalsOpen = true;
     private final Map<Room, Set<IRoomController>> roomControllers = new HashMap<>();
     private IRoomController dungeonHeart;
@@ -125,7 +124,7 @@ public final class PlayerRoomControl extends AbstractResearchablePlayerControl<R
         // Bridges don't count
         Set<Room.RoomFlag> flags = room.getRoom().getFlags();
         if (!flags.contains(Room.RoomFlag.PLACEABLE_ON_WATER) && !flags.contains(Room.RoomFlag.PLACEABLE_ON_LAVA)) {
-            roomsCaptured++;
+            keeper.setRoomsCaptured(keeper.getRoomsCaptured() + 1);
         }
     }
 
@@ -135,7 +134,7 @@ public final class PlayerRoomControl extends AbstractResearchablePlayerControl<R
      * @return rooms captured
      */
     public int getRoomsCaptured() {
-        return roomsCaptured;
+        return keeper.getRoomsCaptured();
     }
 
     @Override

@@ -66,7 +66,7 @@ public final class PlayerController implements IPlayerController {
         creatureControl = new PlayerCreatureControl(keeper, imp, kwdFile.getCreatureList(), entityData);
         roomControl = new PlayerRoomControl(keeper, kwdFile.getRooms());
         spellControl = new PlayerSpellControl(keeper, kwdFile.getKeeperSpells());
-        statsControl = new PlayerStatsControl();
+        statsControl = new PlayerStatsControl(keeper);
         doorControl = new PlayerDoorControl(keeper, kwdFile.getDoors(), entityData);
         trapControl = new PlayerTrapControl(keeper, kwdFile.getTraps(), entityData);
 

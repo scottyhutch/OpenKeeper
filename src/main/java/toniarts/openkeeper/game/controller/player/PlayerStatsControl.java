@@ -21,6 +21,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import toniarts.openkeeper.tools.convert.ConversionUtils;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 
@@ -36,11 +37,13 @@ public final class PlayerStatsControl {
     private final Map<Creature, Integer> pickUpsMap = new HashMap<>();
     private final Map<Creature, Integer> dropsMap = new HashMap<>();
     private final Map<PressedButton, Integer> buttonPressesMap = new ConcurrentHashMap<>();
-    private int enemyCreaturesKilled = 0;
-    private int heroesDestroyed = 0;
-    private int specialsFound = 0;
     private int itemsManufactured = 0;
     private int creaturesConverted = 0;
+    private final Keeper keeper;
+
+    public PlayerStatsControl(Keeper keeper) {
+        this.keeper = keeper;
+    }
 
     public boolean hasSlapped() {
         return !slapsMap.isEmpty();
@@ -110,9 +113,9 @@ public final class PlayerStatsControl {
      */
     public void creatureKilled(Creature creature) {
         if (creature.getFlags().contains(Creature.CreatureFlag.IS_GOOD)) {
-            heroesDestroyed++;
+            keeper.setHeroesDestroyed(keeper.getHeroesDestroyed() + 1);
         } else {
-            enemyCreaturesKilled++;
+            keeper.setEnemyCreaturesKilled(keeper.getEnemyCreaturesKilled() + 1);
         }
     }
 
@@ -122,7 +125,7 @@ public final class PlayerStatsControl {
      * @return enemy creatures killed
      */
     public int getEnemyCreaturesKilled() {
-        return enemyCreaturesKilled;
+        return keeper.getEnemyCreaturesKilled();
     }
 
     /**
@@ -131,14 +134,14 @@ public final class PlayerStatsControl {
      * @return heroes destroyed
      */
     public int getHeroesDestroyed() {
-        return heroesDestroyed;
+        return keeper.getHeroesDestroyed();
     }
 
     /**
      * The player has activated a special
      */
     public void specialFound() {
-        specialsFound++;
+        keeper.setSpecialsFound(keeper.getSpecialsFound() + 1);
     }
 
     /**
@@ -147,7 +150,7 @@ public final class PlayerStatsControl {
      * @return specials found
      */
     public int getSpecialsFound() {
-        return specialsFound;
+        return keeper.getSpecialsFound();
     }
 
     /**

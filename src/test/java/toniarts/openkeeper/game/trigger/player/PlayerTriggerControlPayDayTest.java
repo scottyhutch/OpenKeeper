@@ -46,7 +46,7 @@ class PlayerTriggerControlPayDayTest {
     private static final int ACTION_TRIGGER_ID = 346;
     private static final int FLAG_ID = 5;
 
-    private final PlayerStatsControl stats = new PlayerStatsControl();
+    private final PlayerStatsControl stats = new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
     private final int[] flags = new int[16];
 
     @Test

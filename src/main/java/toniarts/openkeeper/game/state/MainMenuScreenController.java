@@ -1402,12 +1402,13 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         GameResult result = state.getDebriefingResult() != null ? state.getDebriefingResult() : new GameResult();
         Boolean won = result.getData(GameResult.ResultType.LEVEL_WON);
         boolean levelWon = state.isDebriefingLevelWon();
-        setDebriefingValue(deScreen, "levelWon", won == null ? null : (levelWon ? "${menu.21}" : "${menu.22}"));
+        setDebriefingValue(deScreen, "levelWon", levelWon ? "${menu.21}" : "${menu.22}");
         Number timeTaken = result.getData(GameResult.ResultType.TIME_TAKEN);
         setDebriefingValue(deScreen, "timeTaken", timeTaken == null ? null : Utils.timeToString((int) Math.round(timeTaken.doubleValue())));
         Number training = result.getData(GameResult.ResultType.CREATURE_TRAINING);
+        int trainingHundredths = training == null ? 0 : Math.round(training.floatValue() * 100);
         setDebriefingValue(deScreen, "creatureTraining", training == null ? null
-                : String.format("%d.%02d", (int) training.floatValue(), (int) ((training.floatValue() - (int) training.floatValue()) * 100)));
+                : String.format("%d.%02d", trainingHundredths / 100, trainingHundredths % 100));
         Number specialsFound = result.getData(GameResult.ResultType.SPECIALS_FOUND);
         Number specialsMax = result.getData(GameResult.ResultType.SPECIALS_MAX);
         setDebriefingValue(deScreen, "specialsFound", specialsFound == null || specialsMax == null ? "?/?" : specialsFound + " / " + specialsMax);

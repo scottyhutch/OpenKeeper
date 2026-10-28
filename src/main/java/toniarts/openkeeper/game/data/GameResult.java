@@ -99,8 +99,8 @@ public final class GameResult {
     /**
      * Calculates the Evil Rating of the level from the statistics. It is a weighted sum of the
      * statistics, the won or lost status and the time taken don't count. The creature training
-     * (the average experience level) counts with two decimals. Statistics that are not set count
-     * as zero.
+     * (the average experience level) counts with two decimals, cut off rather than rounded, as DK II
+     * does. Statistics that are not set count as zero.
      *
      * @return the Evil Rating of the level
      */
