@@ -22,7 +22,6 @@ import com.jme3.anim.tween.action.BaseAction;
 import com.jme3.app.SimpleApplication;
 import com.jme3.asset.AssetKey;
 import com.jme3.asset.plugins.FileLocator;
-import com.jme3.audio.AudioNode;
 import com.jme3.input.KeyInput;
 import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.KeyTrigger;
@@ -58,6 +57,7 @@ import toniarts.openkeeper.game.data.ISoundable;
 import toniarts.openkeeper.game.sound.SoundCategory;
 import toniarts.openkeeper.game.sound.SoundFile;
 import toniarts.openkeeper.game.sound.SoundGroup;
+import toniarts.openkeeper.game.sound.SoundManager;
 import toniarts.openkeeper.gui.CursorFactory;
 import toniarts.openkeeper.tools.convert.AssetsConverter;
 import toniarts.openkeeper.tools.convert.KmfAssetInfo;
@@ -76,6 +76,7 @@ import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Trap;
 import toniarts.openkeeper.utils.AssetUtils;
 import toniarts.openkeeper.utils.PathUtils;
+import toniarts.openkeeper.utils.WorldUtils;
 import toniarts.openkeeper.view.animation.AnimationLoader;
 import toniarts.openkeeper.view.animation.LoopMode;
 import toniarts.openkeeper.view.effect.EffectManagerState;
@@ -139,6 +140,7 @@ public final class ModelViewer extends SimpleApplication {
     private boolean wireframe = false;
     private boolean rotate = true;
     private boolean showNormals = false;
+    private boolean ceilingVisible = true;
     private List<String> models;
     private List<String> maps;
     private IKwdFile kwdFile;
@@ -153,6 +155,7 @@ public final class ModelViewer extends SimpleApplication {
     private static final String KEY_MAPPING_SHOW_NORMALS = "show normals";
     private static final String KEY_MAPPING_TOGGLE_WIREFRAME = "toggle wireframe";
     private static final String KEY_MAPPING_TOGGLE_ROTATION = "toggle rotation";
+    private static final String KEY_MAPPING_TOGGLE_CEILING = "toggle ceiling";
 
     private EffectManagerState effectManagerState;
     private MapLoaderAppState mapLoaderAppState;
@@ -173,6 +176,10 @@ public final class ModelViewer extends SimpleApplication {
             else if (KEY_MAPPING_SHOW_NORMALS.equals(name) && !pressed) {
                 showNormals = !showNormals;
                 toggleShowNormals();
+            } // Ceiling
+            else if (KEY_MAPPING_TOGGLE_CEILING.equals(name) && !pressed) {
+                ceilingVisible = !ceilingVisible;
+                mapLoaderAppState.setCeilingVisible(ceilingVisible);
             }
         }
     };
@@ -224,8 +231,9 @@ public final class ModelViewer extends SimpleApplication {
         this.effectManagerState = new EffectManagerState(getKwdFile(), assetManager);
         stateManager.attach(effectManagerState);
 
-        // init sound loader
-        //soundLoader = new SoundsLoader(assetManager);
+        // Sound system, used for previewing the sound files
+        SoundManager.init(this);
+
         // Map loader
         mapLoaderAppState = new MapLoaderAppState();
         stateManager.attach(mapLoaderAppState);
@@ -264,6 +272,10 @@ public final class ModelViewer extends SimpleApplication {
         // Normals
         inputManager.addMapping(KEY_MAPPING_SHOW_NORMALS, new KeyTrigger(KeyInput.KEY_N));
         inputManager.addListener(actionListener, KEY_MAPPING_SHOW_NORMALS);
+
+        // Ceiling
+        inputManager.addMapping(KEY_MAPPING_TOGGLE_CEILING, new KeyTrigger(KeyInput.KEY_C));
+        inputManager.addListener(actionListener, KEY_MAPPING_TOGGLE_CEILING);
 
         setupLighting();
         setupFloor();
@@ -538,9 +550,12 @@ public final class ModelViewer extends SimpleApplication {
                 Node spat = new Node();
                 Effect effect = (Effect) selection;
                 effectManagerState.setEnabled(true);
-                // Load the selected effect
-                effectManagerState.loadSingleEffect(spat, new Vector3f(0, 0, 0),
-                        effect.getEffectId(), true);
+                // Load the selected effect a tile above the floor, so it can
+                // actually fall and land instead of spawning at/under floor
+                // level (WorldUtils.FLOOR_HEIGHT).
+                effectManagerState.loadSingleEffect(spat,
+                        new Vector3f(0, WorldUtils.FLOOR_HEIGHT + WorldUtils.TILE_HEIGHT, 0),
+                        effect.getEffectId(), false);
                 setupModel(spat, false);
 
                 screen.setupItem(effect, null);
@@ -737,10 +752,7 @@ public final class ModelViewer extends SimpleApplication {
     }
 
     public void onSoundChanged(SoundFile soundFile) {
-        AudioNode node = SoundsLoader.getAudioNode(assetManager, soundFile);
-        node.setLooping(false);
-        node.setPositional(false);
-        node.play();
+        SoundManager.playFile(soundFile);
     }
 
     public List<SoundFile> loadSoundCategory(ISoundable item) {
@@ -751,7 +763,7 @@ public final class ModelViewer extends SimpleApplication {
         List<SoundFile> result = new ArrayList<>();
 
         String soundCategory = item.getSoundCategory();
-        SoundCategory sc = SoundsLoader.load(soundCategory, useGlobal);
+        SoundCategory sc = SoundCategory.load(soundCategory, useGlobal);
         if (sc != null) {
             for (SoundGroup sa : sc.getGroups().values()) {
                 result.addAll(sa.getFiles());

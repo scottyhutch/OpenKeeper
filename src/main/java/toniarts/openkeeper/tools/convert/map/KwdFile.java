@@ -29,7 +29,7 @@ import toniarts.openkeeper.tools.convert.map.Creature.JobAlternative;
 import toniarts.openkeeper.tools.convert.map.Creature.OffsetType;
 import toniarts.openkeeper.tools.convert.map.Creature.Resistance;
 import toniarts.openkeeper.tools.convert.map.Creature.Spell;
-import toniarts.openkeeper.tools.convert.map.Creature.X1323;
+import toniarts.openkeeper.tools.convert.map.Creature.Footstep;
 import toniarts.openkeeper.tools.convert.map.Door.DoorFlag;
 import toniarts.openkeeper.tools.convert.map.GameLevel.LevFlag;
 import toniarts.openkeeper.tools.convert.map.GameLevel.LevelReward;
@@ -812,7 +812,8 @@ public final class KwdFile implements IKwdFile, IKwdMap {
                 artResource.setData("unknown_2", reader.readUnsignedInteger());
                 break;
 
-            case MESH_COLLECTION: // FIXME nothing todo ?! has just the name, reference to GROP meshes probably
+            case MESH_COLLECTION: // The name refers to a GROP group; the group's own part list is
+                                   // read from that pre-converted asset, not from these fields
             case UNKNOWN:
                 artResource.setData("unknown_1", reader.readUnsignedInteger());
                 artResource.setData("unknown_2", reader.readUnsignedInteger());
@@ -1526,14 +1527,14 @@ public final class KwdFile implements IKwdFile, IKwdMap {
                 );
             }
             creature.setAnimation(AnimationType.BACK_OFF, readArtResource(reader));
-            X1323[] x1323s = new X1323[48];
-            for (int x = 0; x < x1323s.length; x++) {
-                var x1323 = new X1323();
-                x1323.setX00(reader.readUnsignedShort());
-                x1323.setX02(reader.readUnsignedShort());
-                x1323s[x] = x1323;
+            Footstep[] footstepFrames = new Footstep[48];
+            for (int x = 0; x < footstepFrames.length; x++) {
+                var footstep = new Footstep();
+                footstep.setLeft(reader.readUnsignedShort());
+                footstep.setRight(reader.readUnsignedShort());
+                footstepFrames[x] = footstep;
             }
-            creature.setX1323(x1323s);
+            creature.setFootstepFrames(footstepFrames);
             creature.setAnimation(AnimationType.STAND_STILL, readArtResource(reader));
             creature.setAnimation(AnimationType.STEALTH_WALK, readArtResource(reader));
             creature.setAnimation(AnimationType.DEATH_POSE, readArtResource(reader));
@@ -1801,8 +1802,8 @@ public final class KwdFile implements IKwdFile, IKwdMap {
             effectElement.setMaxHp(reader.readUnsignedShort());
             effectElement.setDeathElementId(reader.readUnsignedShort());
             effectElement.setHitSolidElementId(reader.readUnsignedShort());
-            effectElement.setHitWaterElementId(reader.readUnsignedShort());
             effectElement.setHitLavaElementId(reader.readUnsignedShort());
+            effectElement.setHitWaterElementId(reader.readUnsignedShort());
             effectElement.setColor(readColor(reader));
             effectElement.setRandomColorIndex(reader.readUnsignedByte());
             effectElement.setTableColorIndex(reader.readUnsignedByte());
@@ -1860,8 +1861,8 @@ public final class KwdFile implements IKwdFile, IKwdMap {
             effect.setNextEffectId(reader.readUnsignedShort());
             effect.setDeathEffectId(reader.readUnsignedShort());
             effect.setHitSolidEffectId(reader.readUnsignedShort());
-            effect.setHitWaterEffectId(reader.readUnsignedShort());
             effect.setHitLavaEffectId(reader.readUnsignedShort());
+            effect.setHitWaterEffectId(reader.readUnsignedShort());
             List<Integer> generateIds = new ArrayList<>(8);
             for (int x = 0; x < 8; x++) {
                 int id = reader.readUnsignedShort();

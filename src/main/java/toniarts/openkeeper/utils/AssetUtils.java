@@ -30,7 +30,6 @@ import com.jme3.material.RenderState;
 import com.jme3.material.RenderState.BlendMode;
 import com.jme3.math.ColorRGBA;
 import com.jme3.scene.Geometry;
-import com.jme3.scene.Node;
 import com.jme3.scene.SceneGraphVisitor;
 import com.jme3.scene.Spatial;
 import com.jme3.texture.Texture;
@@ -341,6 +340,16 @@ public final class AssetUtils {
                 mat.setTexture("Texture", createArtResourceTexture(resource, assetManager));
             } catch (Exception e) {
                 logger.log(Level.ERROR, "Can't create a texture out of " + resource + "!", e);
+            }
+
+            // Particle.j3md hardcodes "Blend AlphaAdditive" in its technique,
+            // which is right for glow/spark-style ADDITIVE_ALPHA art but
+            // washes out plain ALPHA/SPRITE textures (e.g. feathers) to
+            // near-invisibility over lit terrain - use standard alpha
+            // compositing for those instead.
+            if (resource.getType() != ArtResource.ArtResourceType.ADDITIVE_ALPHA) {
+                mat.setTransparent(false);
+                mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
             }
 
             // Add to cache
@@ -674,18 +683,6 @@ public final class AssetUtils {
                 }
             }
         });
-    }
-
-    /**
-     * Generate procedural mesh TODO: procedural mesh
-     *
-     * @param resource
-     * @return generated mesh
-     */
-    public static Spatial createProceduralMesh(ArtResource resource) {
-        int id = resource.getData(ArtResource.KEY_ID);
-
-        return new Node();
     }
 
     /**

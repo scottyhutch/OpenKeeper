@@ -26,15 +26,19 @@ import com.jme3.scene.Node;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
-import java.util.Collections;
+import toniarts.openkeeper.game.event.GameEvent;
 import toniarts.openkeeper.game.controller.GameController;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
+import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.view.PlayerEntityViewState;
 import toniarts.openkeeper.view.map.MapViewController;
 import toniarts.openkeeper.view.text.TextParser;
+
+import java.util.Collections;
 
 /**
  * Our current map loader only functions with the game data. This creates fake
@@ -51,6 +55,7 @@ public final class MapLoaderAppState extends AbstractAppState {
     private EntityData mapEntityData;
     private MapLoaderAppState.MapEntityViewState mainMenuEntityViewState;
     private GameController gameController;
+    private MapViewController mapViewController;
 
     @Override
     public void initialize(final AppStateManager stateManager, final Application app) {
@@ -71,7 +76,7 @@ public final class MapLoaderAppState extends AbstractAppState {
         gameController.createNewGame();
 
         // Create the actual map
-        MapViewController mapLoader = new MapViewController(assetManager, kwdFile, gameController.getGameWorldController().getMapController(), Player.KEEPER1_ID) {
+        mapViewController = new MapViewController(assetManager, kwdFile, gameController.getGameWorldController().getMapController(), Player.KEEPER1_ID, true, true) {
 
             @Override
             protected void updateProgress(float progress) {
@@ -79,7 +84,7 @@ public final class MapLoaderAppState extends AbstractAppState {
             }
 
         };
-        mapNode.attachChild(mapLoader.load(assetManager, kwdFile));
+        mapNode.attachChild(mapViewController.load(assetManager, kwdFile));
 
         mainMenuEntityViewState = new MapLoaderAppState.MapEntityViewState(kwdFile, assetManager, mapEntityData, Player.KEEPER1_ID, null, mapNode);
         stateManager.attach(mainMenuEntityViewState);
@@ -99,6 +104,19 @@ public final class MapLoaderAppState extends AbstractAppState {
         if (mapEntityData != null) {
             mapEntityData.close();
             mapEntityData = null;
+        }
+        mapViewController = null;
+    }
+
+    /**
+     * Shows or hides the currently loaded map's ceiling, if any map is
+     * loaded.
+     *
+     * @param visible show the ceiling
+     */
+    public void setCeilingVisible(boolean visible) {
+        if (mapViewController != null) {
+            mapViewController.setCeilingVisible(visible);
         }
     }
 
@@ -185,6 +203,11 @@ public final class MapLoaderAppState extends AbstractAppState {
 
         @Override
         public void endGame(boolean win, short playerId) {
+            throw new UnsupportedOperationException("Not supported yet.");
+        }
+
+        @Override
+        public void sendEvent(GameEventType type, GameEvent.ThingFlag subjectKind, int subjectId, GameEvent.ThingFlag targetKind, int targetId, EntityId entity, Point position, Short playerId) {
             throw new UnsupportedOperationException("Not supported yet.");
         }
     }

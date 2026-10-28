@@ -29,11 +29,15 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.listener.MapListener;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
 import toniarts.openkeeper.game.map.IMapInformation;
+import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.map.IRoomsInformation;
 import toniarts.openkeeper.game.map.MapInformation;
+import toniarts.openkeeper.game.sound.GameEventSoundPlayer;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.modelviewer.Debug;
 import toniarts.openkeeper.utils.Point;
+import toniarts.openkeeper.utils.WorldUtils;
 import toniarts.openkeeper.view.effect.EffectManagerState;
 import toniarts.openkeeper.view.fogofwar.FogOfWarController;
 import toniarts.openkeeper.view.fogofwar.IFogOfWarInformation;
@@ -42,7 +46,6 @@ import toniarts.openkeeper.view.map.MapRoomContainer;
 import toniarts.openkeeper.view.map.MapTileContainer;
 import toniarts.openkeeper.view.map.MapViewController;
 
-import java.lang.System.Logger;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -56,8 +59,6 @@ import java.util.function.Consumer;
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
 public abstract class PlayerMapViewState extends AbstractAppState implements MapListener, PlayerActionListener {
-    
-    private static final Logger logger = System.getLogger(PlayerMapViewState.class.getName());
 
     private Main app;
     private AppStateManager stateManager;
@@ -70,7 +71,9 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private final EffectManagerState effectManager;
     private final FlashTileViewState flashTileControl;
     private final MapRoomContainer mapRoomContainer;
+    private short[][] lastTerrainIds;
     private final FogOfWarController fogOfWarController;
+    private final GameEventSoundPlayer gameEventSoundPlayer;
 
     // Creature vision (and the initial fog seeding) can produce tile updates
     // before MapViewController.load() has built its scene graph - queue those
@@ -84,12 +87,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private final List<Runnable> pendingFogChanges = new ArrayList<>();
     private final ConcurrentLinkedQueue<Point> pendingTileUpdates = new ConcurrentLinkedQueue<>();
 
-    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, ILoadCompleteNotifier loadCompleteNotifier) {
-        this(app, kwdFile, assetManager, players, entityData, playerId, loadCompleteNotifier, (entityId) -> {
-        });
-    }
-
-    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, ILoadCompleteNotifier loadCompleteNotifier, Consumer<EntityId> enemySightedNotifier) {
+    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, boolean ceilingEnabled, ILoadCompleteNotifier loadCompleteNotifier, Consumer<EntityId> enemySightedNotifier) {
         this.app = app;
         this.kwdFile = kwdFile;
         this.assetManager = assetManager;
@@ -116,6 +114,15 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
                     fogSeeded = true;
                     pendingFogChanges.forEach(Runnable::run);
                     pendingFogChanges.clear();
+                }
+
+                // Snapshot the initial terrain of every tile, so we can later detect
+                // claim/repair transitions (terrain type changing to its max-health variant)
+                lastTerrainIds = new short[getWidth()][getHeight()];
+                for (int x = 0; x < getWidth(); x++) {
+                    for (int y = 0; y < getHeight(); y++) {
+                        lastTerrainIds[x][y] = getTile(x, y).getTerrainId();
+                    }
                 }
 
                 // Don't block the caller, might be called from the render thread...
@@ -156,7 +163,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         effectManager = new EffectManagerState(kwdFile, assetManager);
 
         // Create the actual map
-        mapLoader = new MapViewController(assetManager, kwdFile, mapInformation, fogOfWarController, playerId) {
+        mapLoader = new MapViewController(assetManager, kwdFile, mapInformation, fogOfWarController, playerId, true, ceilingEnabled) {
 
             @Override
             protected void updateProgress(float progress) {
@@ -166,6 +173,8 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         };
 
         flashTileControl = new FlashTileViewState(mapLoader);
+
+        gameEventSoundPlayer = new GameEventSoundPlayer(kwdFile);
 
         // Start collecting the map entities
         mapRoomContainer.start();
@@ -181,6 +190,9 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
         // Effects
         this.stateManager.attach(effectManager);
+
+        // Sounds
+        this.gameEventSoundPlayer.register();
 
         // Tile flash state
         this.stateManager.attach(flashTileControl);
@@ -204,6 +216,9 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         // Effects
         stateManager.detach(effectManager);
 
+        // Sounds
+        this.gameEventSoundPlayer.unregister();
+
         // The actual map data
         mapRoomContainer.stop();
         mapTileContainer.stop();
@@ -219,6 +234,14 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         mapRoomContainer.update();
         mapTileContainer.update();
         fogOfWarController.update(tpf);
+    }
+
+    /**
+     * The map is built on a separate thread, anything that wants to look at
+     * the map data before the map is up should wait for this.
+     */
+    public boolean isMapLoaded() {
+        return mapLoaded;
     }
 
     public AssetManager getAssetManager() {
@@ -299,6 +322,24 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         if (!mapLoaded) {
             pendingTileUpdates.addAll(Arrays.asList(points));
             return;
+        }
+        for (Point point : points) {
+            IMapTileInformation tile = mapInformation.getMapData().getTile(point);
+            short newTerrainId = tile.getTerrainId();
+            short oldTerrainId = lastTerrainIds[point.x][point.y];
+            if (newTerrainId != oldTerrainId) {
+                Terrain oldTerrain = kwdFile.getTerrain(oldTerrainId);
+                if (newTerrainId == oldTerrain.getMaxHealthTypeTerrainId()) {
+                    effectManager.load(worldNode,
+                            WorldUtils.pointToVector3f(point).addLocal(0, WorldUtils.FLOOR_HEIGHT, 0),
+                            oldTerrain.getMaxHealthEffectId(), false, tile.getOwnerId());
+                } else if (newTerrainId == oldTerrain.getDestroyedTypeTerrainId()) {
+                    effectManager.load(worldNode,
+                            WorldUtils.pointToVector3f(point).addLocal(0, WorldUtils.FLOOR_HEIGHT, 0),
+                            oldTerrain.getDestroyedEffectId(), false);
+                }
+                lastTerrainIds[point.x][point.y] = newTerrainId;
+            }
         }
         mapLoader.updateTiles(points);
     }
