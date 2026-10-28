@@ -113,6 +113,14 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private static final Logger logger = System.getLogger(PlayerScreenController.class.getName());
 
     public static final float SCREEN_UPDATE_INTERVAL = 0.250f;
+
+    /**
+     * The quarters of the Talisman's pieces sheet in the order the pieces are
+     * added: x, y of the quarter on the sheet. The pie grows counter-clockwise
+     * from the top, like in DK II.
+     */
+    private static final int[][] TALISMAN_PIECE_QUARTERS = {{0, 0}, {0, 64}, {64, 64}, {64, 0}};
+    private static final int TALISMAN_BLINK_MS = 500;
     private static final java.awt.Color RESEARCH_COLOR = new java.awt.Color(0.569f, 0.106f, 0.31f, 0.6f);
     
     public float lastUpdate = 0;
@@ -134,13 +142,11 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private CreatureCardManager creatureCardManager;
     private int lastImpCount = -1;
     private String reaperTalismanState;
-    /**
-     * The quarters of the Talisman's pieces sheet in the order the pieces are
-     * added: x, y of the quarter on the sheet. The pie grows counter-clockwise
-     * from the top, like in DK II.
-     */
-    private static final int[][] TALISMAN_PIECE_QUARTERS = {{0, 0}, {0, 64}, {64, 64}, {64, 0}};
-    private static final int TALISMAN_BLINK_MS = 500;
+    private EntitySet keeperCreatures;
+    private boolean reaperOwned;
+    private EntitySet summonedReapers;
+    private int reaperSecondsLeft;
+    private Element talismanBlink;
     private PossessionInteractionState.Action possessionAction = PossessionInteractionState.Action.MELEE;
 
     private final TrapIconTextParser trapIconTextParser = new TrapIconTextParser();
@@ -172,7 +178,12 @@ public final class PlayerScreenController implements IPlayerScreenController {
                     lastImpCount = impCount;
                     populateSpellTab();
                 }
-                updateReaperTalisman();
+                if (talismanBlink != null) {
+                    talismanBlink.setVisible(System.currentTimeMillis() / TALISMAN_BLINK_MS % 2 == 1);
+                }
+                if (keeperCreatures != null && (isReaperOwned() != reaperOwned || getReaperSecondsLeft() != reaperSecondsLeft)) {
+                    updateReaperTalisman();
+                }
             }
             if (state != null && screen != null && SCREEN_HUD_ID.equals(screen.getScreenId())) {
                 updateWorkshopAvailability();
@@ -271,6 +282,13 @@ public final class PlayerScreenController implements IPlayerScreenController {
         entityData = null;
         screen = null;
         reaperTalismanState = null;
+        talismanBlink = null;
+        if (keeperCreatures != null) {
+            keeperCreatures.release();
+            keeperCreatures = null;
+            summonedReapers.release();
+            summonedReapers = null;
+        }
     }
 
     /**
@@ -1296,7 +1314,10 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
         Screen hud = nifty.getScreen(SCREEN_HUD_ID);
         for (ResearchableEntity spell : state.getAvailableKeeperSpells()) {
-            if (!spell.isDiscovered()) {
+
+            // DK II doesn't darken the Reaper Talisman for mana
+            if (!spell.isDiscovered() || spell.getId() == ReaperSummoner.SUMMON_REAPER_SPELL_ID
+                    || spell.getId() == ReaperSummoner.ONE_SHOT_REAPER_SPELL_ID) {
                 continue;
             }
             KeeperSpell keeperSpell = state.getKwdFile().getKeeperSpellById(spell.getId());
@@ -1462,6 +1483,15 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
         unaffordableSpells.clear();
         updateSpellAffordability(state.getPlayer().getMana());
+        updateReaperTalisman();
+    }
+
+    /**
+     * Does the keeper have a Horned Reaper
+     */
+    private boolean isReaperOwned() {
+        keeperCreatures.applyChanges();
+        return KeeperSpellCastValidator.hasReaper(state.getKwdFile(), keeperCreatures);
     }
 
     /**
@@ -1470,10 +1500,17 @@ public final class PlayerScreenController implements IPlayerScreenController {
      * it picks the spell it casts, as a spell icon does. The pieces are drawn as
      * a pie of quarters, the last one blinking while the free Reaper is unused,
      * and dimmed while the Talisman can't be used. The whole Talisman is greyed
-     * with its own texture while it can't be used.
+     * with its own texture while it can't be used. Updated when the keeper's
+     * spells change, and when he gets or loses a Reaper.
      */
     private void updateReaperTalisman() {
-        KeeperSpell keeperSpell = KeeperSpellCastValidator.getReaperTalismanSpell(state.getKwdFile(), state.getPlayer(), entityData);
+        if (keeperCreatures == null) {
+            FieldFilter<Owner> keeper = new FieldFilter<>(Owner.class, "ownerId", state.getPlayer().getId());
+            keeperCreatures = entityData.getEntities(keeper, Owner.class, CreatureComponent.class);
+            summonedReapers = entityData.getEntities(keeper, Owner.class, SummonedReaper.class);
+        }
+        reaperOwned = isReaperOwned();
+        KeeperSpell keeperSpell = KeeperSpellCastValidator.getReaperTalismanSpell(state.getKwdFile(), state.getPlayer(), reaperOwned);
         boolean summonReaperResearched = false;
         for (ResearchableEntity spell : state.getAvailableKeeperSpells()) {
             if (spell.getId() == ReaperSummoner.SUMMON_REAPER_SPELL_ID && spell.isDiscovered()) {
@@ -1487,11 +1524,15 @@ public final class PlayerScreenController implements IPlayerScreenController {
             activeImage = "reaper_talisman-03";
         }
         int pieces = summonReaperResearched ? 0 : Math.min(state.getKwdFile().getGameLevel().getTalismanPieces(), TALISMAN_PIECE_QUARTERS.length);
-        boolean blink = pieces > 0 && keeperSpell != null && System.currentTimeMillis() / TALISMAN_BLINK_MS % 2 == 1;
         String tooltipId = summonReaperResearched ? "2238" : keeperSpell != null ? "2239" : "2244";
 
         int secondsLeft = getReaperSecondsLeft();
-        String talismanState = image + "_" + tooltipId + "_" + (keeperSpell != null ? keeperSpell.getId() : "") + "_" + secondsLeft + "_" + pieces + "_" + blink;
+        String talismanState = image + "_" + tooltipId + "_" + (keeperSpell != null ? keeperSpell.getId() : "") + "_" + pieces + "_" + (secondsLeft > 0);
+        boolean countdownOnly = talismanState.equals(reaperTalismanState) && secondsLeft > 0 && reaperSecondsLeft > 0;
+        if (countdownOnly) {
+            nifty.getScreen(SCREEN_HUD_ID).findNiftyControl("reaper-seconds", Label.class).setText(Integer.toString(secondsLeft));
+        }
+        reaperSecondsLeft = secondsLeft;
         if (talismanState.equals(reaperTalismanState)) {
             return;
         }
@@ -1508,12 +1549,10 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 tooltip, tooltip, keeperSpell != null ? "select(spell, " + keeperSpell.getId() + ")" : "");
         cb.width("64px");
         cb.height("64px");
-        Element element = cb.build(panel);
-        if (keeperSpell == null && image.equals("reaper_talisman-02")) {
-            element.startEffect(EffectEventId.onCustom, null, "unaffordable");
-        }
+        cb.build(panel);
 
         // The pieces of the Talisman, 60% while it can't be used
+        talismanBlink = null;
         if (pieces > 0) {
             PanelBuilder piecePanel = new PanelBuilder("reaper-talisman-pieces");
             piecePanel.width("64px");
@@ -1522,29 +1561,15 @@ public final class PlayerScreenController implements IPlayerScreenController {
             for (int i = 0; i < pieces; i++) {
                 int[] quarter = TALISMAN_PIECE_QUARTERS[i];
 
-                // The blinking piece is the last one, drawn with the highlighted sheet
-                String sheet = blink && i == pieces - 1 ? "reaper_talisman-04" : "reaper_talisman-01";
-                piecePanel.image(new ImageBuilder() {
-                    {
-                        filename(AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER + File.separator + "GUI/Spells/" + sheet + ".png"));
-                        imageMode("subImage:" + quarter[0] + "," + quarter[1] + ",64,64");
-                        x(quarter[0] / 2 + "px");
-                        y(quarter[1] / 2 + "px");
-                        width("32px");
-                        height("32px");
-                        if (keeperSpell == null) {
-                            onActiveEffect(new EffectBuilder("fade") {
-                                {
-                                    effectParameter("start", "99");
-                                    effectParameter("end", "99");
-                                    effectParameter("neverStopRendering", "true");
-                                }
-                            });
-                        }
-                    }
-                });
+                piecePanel.image(createTalismanPiece("reaper_talisman-01", quarter, keeperSpell == null, null));
+                if (keeperSpell != null && i == pieces - 1) {
+
+                    // The last piece blinks, the highlighted sheet is shown over it now and then
+                    piecePanel.image(createTalismanPiece("reaper_talisman-04", quarter, false, "reaper-talisman-blink"));
+                }
             }
-            piecePanel.build(panel);
+            Element pieceElement = piecePanel.build(panel);
+            talismanBlink = pieceElement.findElementById("reaper-talisman-blink");
         }
 
         // The Reaper of the Talisman leaves when the time is up
@@ -1560,22 +1585,44 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
     }
 
+    private ImageBuilder createTalismanPiece(String sheet, int[] quarter, boolean dimmed, String id) {
+        return new ImageBuilder() {
+            {
+                if (id != null) {
+                    id(id);
+                    visible(false);
+                }
+                filename(AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER + File.separator + "GUI/Spells/" + sheet + ".png"));
+                imageMode("subImage:" + quarter[0] + "," + quarter[1] + ",64,64");
+                x(quarter[0] / 2 + "px");
+                y(quarter[1] / 2 + "px");
+                width("32px");
+                height("32px");
+                if (dimmed) {
+                    onActiveEffect(new EffectBuilder("fade") {
+                        {
+                            effectParameter("start", "#99");
+                            effectParameter("end", "#99");
+                            effectParameter("neverStopRendering", "true");
+                        }
+                    });
+                }
+            }
+        };
+    }
+
     /**
      * Gets the seconds the keeper's timed Reaper has left
      *
      * @return the seconds, 0 if the keeper has no timed Reaper
      */
     private int getReaperSecondsLeft() {
-        EntitySet reapers = entityData.getEntities(new FieldFilter<>(Owner.class, "ownerId", state.getPlayer().getId()), Owner.class, SummonedReaper.class);
-        try {
-            for (Entity entity : reapers) {
-                SummonedReaper reaper = entity.get(SummonedReaper.class);
-                if (reaper.lifetime > 0 && !reaper.isLeaving()) {
-                    return reaper.secondsLeft;
-                }
+        summonedReapers.applyChanges();
+        for (Entity entity : summonedReapers) {
+            SummonedReaper reaper = entity.get(SummonedReaper.class);
+            if (reaper.lifetime > 0 && !reaper.isLeaving()) {
+                return reaper.secondsLeft;
             }
-        } finally {
-            reapers.release();
         }
         return 0;
     }

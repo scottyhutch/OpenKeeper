@@ -154,13 +154,21 @@ class SummonedReaperSystemTest {
         SummonedReaperSystem system = system();
         assertEquals(99, entityData.getComponent(reaper, SummonedReaper.class).secondsLeft);
 
+        // Rounded down, so it drops to 98 at once
         tickAt(system, 0.25);
-        assertEquals(99, entityData.getComponent(reaper, SummonedReaper.class).secondsLeft);
+        assertEquals(98, entityData.getComponent(reaper, SummonedReaper.class).secondsLeft);
         tickAt(system, 1);
         assertEquals(98, entityData.getComponent(reaper, SummonedReaper.class).secondsLeft);
-        tickAt(system, 98.5);
+        tickAt(system, 97.5);
         assertEquals(1, entityData.getComponent(reaper, SummonedReaper.class).secondsLeft);
+        tickAt(system, 98.5);
+        assertEquals(0, entityData.getComponent(reaper, SummonedReaper.class).secondsLeft);
         assertFalse(isLeaving(reaper));
+
+        // He leaves with the time up, the count isn't taken back
+        tickAt(system, 99);
+        assertTrue(isLeaving(reaper));
+        assertEquals(0, entityData.getComponent(reaper, SummonedReaper.class).secondsLeft);
     }
 
     @Test

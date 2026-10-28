@@ -137,7 +137,7 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
             SummonedReaper summonedReaper = entity.get(SummonedReaper.class);
             short ownerId = entity.get(Owner.class).ownerId;
             if (summonedReaper.lifetime > 0 && !summonedReaper.isLeaving()) {
-                updateSecondsLeft(entityId, summonedReaper, gameTime);
+                summonedReaper = updateSecondsLeft(entityId, summonedReaper, gameTime);
             }
 
             FetchPortalGem fetchPortalGem = entityData.getComponent(entityId, FetchPortalGem.class);
@@ -181,13 +181,20 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
 
     /**
      * Counts the seconds down for the client
+     *
+     * @return the Reaper with the seconds left
      */
-    private void updateSecondsLeft(EntityId entityId, SummonedReaper summonedReaper, double gameTime) {
-        int secondsLeft = (int) Math.ceil(summonedReaper.summonTime + summonedReaper.lifetime - gameTime);
-        if (secondsLeft != summonedReaper.secondsLeft) {
-            entityData.setComponent(entityId, new SummonedReaper(summonedReaper.summonTime, summonedReaper.lifetime,
-                    summonedReaper.manaDrain, summonedReaper.manaCheckTime, summonedReaper.leaveTime, secondsLeft));
+    private SummonedReaper updateSecondsLeft(EntityId entityId, SummonedReaper summonedReaper, double gameTime) {
+        // Rounded down, as DK II divides its tick timer by the ticks per second
+        int secondsLeft = Math.max(0, (int) (summonedReaper.summonTime + summonedReaper.lifetime - gameTime));
+        if (secondsLeft == summonedReaper.secondsLeft) {
+            return summonedReaper;
         }
+        SummonedReaper counted = new SummonedReaper(summonedReaper.summonTime, summonedReaper.lifetime,
+                summonedReaper.manaDrain, summonedReaper.manaCheckTime, summonedReaper.leaveTime, secondsLeft);
+        entityData.setComponent(entityId, counted);
+
+        return counted;
     }
 
     /**

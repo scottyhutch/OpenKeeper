@@ -135,7 +135,7 @@ class ReaperAiTest {
         entityData.setComponent(addCreature(ENEMY_ID, new Point(12, 10)), new CreatureImprisoned(0, 0));
         entityData.setComponent(addCreature(ENEMY_ID, new Point(13, 10)), new InHand(0, ENEMY_ID, null, (short) 0));
         EntityId leavingReaper = addCreature(ENEMY_ID, new Point(14, 10));
-        entityData.setComponent(leavingReaper, new SummonedReaper(0, 0, 0, SummonedReaper.NOT_YET, 5));
+        entityData.setComponent(leavingReaper, new SummonedReaper(0, 0, 0, SummonedReaper.NOT_YET, 5, 0));
         EntityId target = addCreature(ENEMY_ID, new Point(15, 10));
 
         ai().think(reaper, PLAYER_ID);

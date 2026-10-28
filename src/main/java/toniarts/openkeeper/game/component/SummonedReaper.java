@@ -64,11 +64,7 @@ public final class SummonedReaper implements EntityComponent {
     }
 
     public SummonedReaper(double summonTime, double lifetime, int manaDrain) {
-        this(summonTime, lifetime, manaDrain, NOT_YET, NOT_YET);
-    }
-
-    public SummonedReaper(double summonTime, double lifetime, int manaDrain, double manaCheckTime, double leaveTime) {
-        this(summonTime, lifetime, manaDrain, manaCheckTime, leaveTime, (int) Math.ceil(lifetime));
+        this(summonTime, lifetime, manaDrain, NOT_YET, NOT_YET, (int) lifetime);
     }
 
     public SummonedReaper(double summonTime, double lifetime, int manaDrain, double manaCheckTime, double leaveTime, int secondsLeft) {
