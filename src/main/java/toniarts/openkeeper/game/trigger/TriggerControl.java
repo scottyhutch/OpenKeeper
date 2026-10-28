@@ -198,6 +198,12 @@ public class TriggerControl extends Control {
                 creaturesController.spawnCreature(creatureId, playerId, level, WorldUtils.pointToVector2f(p), ICreaturesController.SpawnType.PLACE);
                 break;
 
+            case CREATE_PORTAL_GEM:
+                gameController.getGameWorldController().getObjectsController().loadObject(
+                        trigger.getUserData("objectId", short.class), trigger.getUserData("playerId", short.class),
+                        trigger.getUserData("posX", int.class) - 1, trigger.getUserData("posY", int.class) - 1);
+                break;
+
             case MAKE:
                 TriggerAction.MakeType flag = ConversionUtils.parseEnum(trigger.getUserData("type", short.class),
                         TriggerAction.MakeType.class);
