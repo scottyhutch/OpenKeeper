@@ -47,6 +47,8 @@ import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectTyp
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
+import toniarts.openkeeper.game.controller.ICreaturesController;
+import toniarts.openkeeper.game.logic.CreatureAiSystem;
 import toniarts.openkeeper.game.logic.CreatureFallSystem;
 import toniarts.openkeeper.game.logic.CreatureMoodSystem;
 import toniarts.openkeeper.game.logic.CreatureSleepSystem;
@@ -88,7 +90,7 @@ class CreatureControllerTest {
 
     @Test
     void fatigueInterruptsRoomWorkAndKeepsTheNewSleepTaskAssigned() {
-        for (TaskType type : List.of(TaskType.TRAIN, TaskType.RESEARCH)) {
+        for (TaskType type : List.of(TaskType.TRAIN, TaskType.RESEARCH, TaskType.GUARD)) {
             try (Fixture f = new Fixture(9)) {
                 f.startWork(type);
                 f.data.setComponent(f.entity, new CreatureSleep(f.bed, -20, 0, 0));
@@ -101,6 +103,50 @@ class CreatureControllerTest {
                 f.tick();
                 assertEquals(CreatureState.SLEEPING, f.state());
             }
+        }
+    }
+
+    @Test
+    void guardWithoutLairLooksForOneNowAndThenButOtherWorkKeepsGoing() {
+        try (Fixture f = new Fixture(9)) {
+            f.data.setComponent(f.entity, new CreatureSleep(null, 0, 0, 0));
+            f.startWork(TaskType.GUARD);
+            for (int i = 0; i < 19; i++) {
+                f.tick();
+            }
+            assertEquals(0, f.lairSearches);
+            f.tick();
+            assertEquals(1, f.lairSearches);
+            for (int i = 0; i < 19; i++) {
+                f.tick();
+            }
+            assertEquals(1, f.lairSearches);
+            f.tick();
+            assertEquals(2, f.lairSearches);
+            assertEquals(CreatureState.WORK, f.state());
+        }
+        try (Fixture f = new Fixture(9)) {
+            f.data.setComponent(f.entity, new CreatureSleep(null, 0, 0, 0));
+            f.startWork(TaskType.TRAIN);
+            for (int i = 0; i < 40; i++) {
+                f.tick();
+            }
+            assertEquals(0, f.lairSearches);
+        }
+    }
+
+    @Test
+    void creatureTakenToTheHandGivesUpItsTask() {
+        try (Fixture f = new Fixture(9)) {
+            f.startWork(TaskType.GUARD);
+            CreatureAiSystem system = new CreatureAiSystem(f.data, proxy(ICreaturesController.class,
+                    (method, args) -> f.controller), proxy(ITaskManager.class, (method, args) -> null));
+            system.processTick(.25f);
+            f.data.removeComponent(f.entity, CreatureAi.class);
+            system.processTick(.25f);
+            assertEquals(1, f.oldJobUnassignments);
+            assertNull(f.data.getComponent(f.entity, TaskComponent.class));
+            system.stop();
         }
     }
 
@@ -376,6 +422,7 @@ class CreatureControllerTest {
             return null;
         });
         int sleepAssignments;
+        int lairSearches;
         int oldJobUnassignments;
         double time;
 
@@ -404,6 +451,10 @@ class CreatureControllerTest {
             });
             ITaskManager taskManager = proxy(ITaskManager.class, (method, args) -> switch (method) {
                 case "getTaskById" -> tasks.get((Long) args[0]);
+                case "assignClosestRoomTask" -> {
+                    lairSearches++;
+                    yield false;
+                }
                 case "assignSleepTask" -> {
                     sleepAssignments++;
                     if (!reachable.get()) {

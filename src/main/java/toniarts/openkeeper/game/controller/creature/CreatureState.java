@@ -285,12 +285,24 @@ public enum CreatureState implements State<ICreatureController> {
             // Native fatigue can interrupt compatible room work, including travel to it.
             Task task = entity.getAssignedTask();
             if (task != null && (task.getTaskType() == TaskType.TRAIN
-                    || task.getTaskType() == TaskType.RESEARCH)
+                    || task.getTaskType() == TaskType.RESEARCH
+                    || task.getTaskType() == TaskType.GUARD)
                     && entity.hasLair() && entity.isNeedForSleep() && entity.goToSleep()) {
                 // setAssignedTask released the previous job. Keep WORK so its exit cannot
                 // unassign the newly selected sleep task.
                 entity.navigateToAssignedTask();
                 return;
+            }
+
+            // A guard never finishes its duty, so a creature that took it up while no lair was
+            // to be had (a Dark Elf prefers it) looks for a home now and then
+            if (task != null && task.getTaskType() == TaskType.GUARD && entity.needsLair() && !entity.hasLair()
+                    && entity.isTimeToReEvaluate()) {
+                entity.resetReEvaluationTimer();
+                if (entity.findLair()) {
+                    entity.navigateToAssignedTask();
+                    return;
+                }
             }
 
             // Check validity
