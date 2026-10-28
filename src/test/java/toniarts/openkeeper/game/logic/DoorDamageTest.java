@@ -97,7 +97,7 @@ class DoorDamageTest {
                 MiscType.CREATURE_DYING_STATE_DURATION_SECONDS, DoorFixtures.miscVariable(MiscType.CREATURE_DYING_STATE_DURATION_SECONDS, 10),
                 MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND, DoorFixtures.miscVariable(MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND, 0),
                 MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, DoorFixtures.miscVariable(MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, 0)),
-                null, null, levelInfo, List.of(), mapController, (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
+                null, null, levelInfo, List.of(), mapController, () -> 0.0, (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
                         toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
                         new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));
         healthSystem.processTick(0.25f);

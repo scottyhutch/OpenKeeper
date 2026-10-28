@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 
 class PlayerRoomControlTest {
 
-    private final Room lair = RoomFixtures.room((short) 2, 100, Room.RoomFlag.PLACEABLE_ON_LAND, Room.RoomFlag.BUILDABLE, Room.RoomFlag.ATTACKABLE);
+    private final Room lair = RoomFixtures.room((short) 2, 100, Room.RoomFlag.PLACEABLE_ON_LAND, Room.RoomFlag.BUILDABLE);
     private final Room bridge = RoomFixtures.room((short) 8, 100, Room.RoomFlag.PLACEABLE_ON_WATER, Room.RoomFlag.PLACEABLE_ON_LAVA, Room.RoomFlag.BUILDABLE);
     private final PlayerRoomControl roomControl = new PlayerRoomControl(new Keeper(false, (short) 3), List.of(lair, bridge));
 

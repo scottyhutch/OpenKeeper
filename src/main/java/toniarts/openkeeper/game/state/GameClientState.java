@@ -415,7 +415,7 @@ public final class GameClientState extends AbstractPauseAwareState {
                 playerState = new PlayerState(playerId, kwdFile, gameClientService.getEntityData(), false, app, campaignLevel);
 
                 playerMapViewState = new PlayerMapViewState(app, kwdFile, app.getAssetManager(), players, gameClientService.getEntityData(), playerId,
-                        false,
+                        true, // Built, but hidden until the viewer possesses a creature
                         () -> {
                             synchronized (mapDataLoadingObject) {
                                 mapDataLoaded = true;
@@ -523,7 +523,8 @@ public final class GameClientState extends AbstractPauseAwareState {
 
                 // The background sounds of the level
                 if (playerMapViewState != null) {
-                    ambienceState = new AmbienceState(kwdFile, playerMapViewState);
+                    ambienceState = new AmbienceState(kwdFile, playerMapViewState,
+                            stateManager.getState(SoundState.class).getMusicLevel()::getIntensity);
                     stateManager.attach(ambienceState);
                     casinoDiscoState = new CasinoDiscoState(gameClientService.getEntityData(), players.get(playerId), kwdFile, playerMapViewState);
                     stateManager.attach(casinoDiscoState);
@@ -893,6 +894,18 @@ public final class GameClientState extends AbstractPauseAwareState {
      */
     public EntityId getPossessedCreature() {
         return possessedCreature;
+    }
+
+    /**
+     * Shows or hides the map ceiling, which is only wanted while possessing a
+     * creature
+     *
+     * @param visible show the ceiling
+     */
+    public void setCeilingVisible(boolean visible) {
+        if (playerMapViewState != null) {
+            playerMapViewState.setCeilingVisible(visible);
+        }
     }
 
     public GameSessionClientService getGameClientService() {

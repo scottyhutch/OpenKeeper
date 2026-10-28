@@ -97,7 +97,7 @@ class ReaperDamageTest {
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData") ? kwdFile : unsupported(name));
         return new HealthSystem(entityData, stub(IEntityPositionLookup.class, (name, args) -> unsupported(name)), gameSettings,
                 stub(ICreaturesController.class, (name, args) -> unsupported(name)), null, levelInfo, List.of(),
-                stub(IMapController.class, (name, args) -> unsupported(name)),
+                stub(IMapController.class, (name, args) -> unsupported(name)), () -> 0.0,
                 (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
                         toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
                         new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));

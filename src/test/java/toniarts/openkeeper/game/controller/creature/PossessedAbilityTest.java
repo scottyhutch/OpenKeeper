@@ -232,7 +232,7 @@ class PossessedAbilityTest {
         entityData.setComponents(us, new Health(100, 1000), new PossessedAbility(Creature.SpecialAbility.PRAY, 0));
         IKwdFile kwdFile = stub(IKwdFile.class, (name, args) -> null);
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> "getLevelData".equals(name) ? kwdFile : null);
-        HealthSystem healthSystem = new HealthSystem(entityData, null, gameSettings, null, null, levelInfo, List.of(), null, noEvents());
+        HealthSystem healthSystem = new HealthSystem(entityData, null, gameSettings, null, null, levelInfo, List.of(), null, () -> 0.0, noEvents());
 
         healthSystem.processTick(0.5f);
         assertEquals(100, entityData.getComponent(us, Health.class).health);
@@ -395,7 +395,7 @@ class PossessedAbilityTest {
 
         entityData.setComponent(knight, new Unconscious(0));
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> "getLevelData".equals(name) ? stub(IKwdFile.class, (kwdName, kwdArgs) -> null) : null);
-        new HealthSystem(entityData, null, gameSettings, null, null, levelInfo, List.of(), null, noEvents()).processTick(0.25f);
+        new HealthSystem(entityData, null, gameSettings, null, null, levelInfo, List.of(), null, () -> 0.0, noEvents()).processTick(0.25f);
 
         assertNull(entityData.getComponent(knight, Hypnotised.class));
         assertNull(entityData.getComponent(knight, Mana.class));

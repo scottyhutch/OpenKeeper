@@ -16,8 +16,7 @@
  */
 package toniarts.openkeeper.game.state;
 
-import com.jme3.app.Application;
-import com.jme3.app.state.AppStateManager;
+import java.util.function.IntSupplier;
 import javax.annotation.Nullable;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -31,6 +30,7 @@ import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.view.PlayerMapViewState;
 import toniarts.openkeeper.view.fogofwar.IFogOfWarInformation;
 import toniarts.openkeeper.view.map.MapViewController;
+import toniarts.openkeeper.view.map.TorchPlacement;
 
 /**
  * The background sounds of a level: the ambience bed, the distant noises, the
@@ -51,7 +51,6 @@ public final class AmbienceState extends AbstractPauseAwareState {
 
     private final IKwdFile kwdFile;
     private final PlayerMapViewState mapViewState;
-    private AppStateManager stateManager;
     private final String[] cells = new String[GRID_SIZE * GRID_SIZE];
 
     @Nullable
@@ -64,10 +63,19 @@ public final class AmbienceState extends AbstractPauseAwareState {
     private Point nearestTorch;
     private long lastScan;
     private volatile boolean possessing;
+    private final IntSupplier musicIntensity;
 
     public AmbienceState(IKwdFile kwdFile, PlayerMapViewState mapViewState) {
+        this(kwdFile, mapViewState, () -> 0);
+    }
+
+    /**
+     * @param musicIntensity the current music intensity, the ambience follows it
+     */
+    public AmbienceState(IKwdFile kwdFile, PlayerMapViewState mapViewState, IntSupplier musicIntensity) {
         this.kwdFile = kwdFile;
         this.mapViewState = mapViewState;
+        this.musicIntensity = musicIntensity;
     }
 
     @Override
@@ -92,12 +100,6 @@ public final class AmbienceState extends AbstractPauseAwareState {
     }
 
     @Override
-    public void initialize(AppStateManager stateManager, Application app) {
-        super.initialize(stateManager, app);
-        this.stateManager = stateManager;
-    }
-
-    @Override
     public void cleanup() {
         stopDriver();
         super.cleanup();
@@ -114,10 +116,7 @@ public final class AmbienceState extends AbstractPauseAwareState {
         if (driver == null || driverEngine != engine) {
             stopDriver();
             driverEngine = engine;
-            SoundState soundState = stateManager != null ? stateManager.getState(SoundState.class) : null;
-            driver = soundState != null
-                    ? new AmbienceDriver(engine, SoundManager::loadCategory, soundState.getMusicLevel()::getIntensity)
-                    : new AmbienceDriver(engine, SoundManager::loadCategory);
+            driver = new AmbienceDriver(engine, SoundManager::loadCategory, musicIntensity);
         }
 
         long now = System.nanoTime() / 1_000_000L;
@@ -205,7 +204,7 @@ public final class AmbienceState extends AbstractPauseAwareState {
         if (floor == null || floor.getFlags().contains(Terrain.TerrainFlag.SOLID)) {
             return false;
         }
-        for (Point wall : MapViewController.getTorchWallCandidates(p.x, p.y)) {
+        for (Point wall : TorchPlacement.getTorchWallCandidates(p.x, p.y)) {
             Terrain wallTerrain = getExploredTerrain(data, fogOfWar, wall.x, wall.y);
             if (wallTerrain == null || !wallTerrain.getFlags().contains(Terrain.TerrainFlag.TORCH)) {
                 continue;

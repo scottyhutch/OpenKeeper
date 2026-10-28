@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2025 OpenKeeper
+ * Copyright (C) 2014-2026 OpenKeeper
  *
  * OpenKeeper is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -16,6 +16,12 @@
  */
 package toniarts.openkeeper.game.sound;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -24,23 +30,19 @@ import javax.annotation.Nullable;
 /**
  * Legacy view of a {@link SoundEvent} of a category, flattening the event's
  * primary group and every group reachable through property links into a single
- * list of playable files. For the sequenced backgrounds (music, ambience) the
- * groups are also kept as {@link SoundEntry entries} in their original order,
- * with their links.
+ * list of playable files.
  */
 public final class SoundGroup {
 
     private final SoundCategory category;
     private final SoundEvent event;
     private final List<SoundFile> files = new ArrayList<>();
-    private final List<SoundEntry> entries = new ArrayList<>();
 
     public SoundGroup(SoundCategory category, SoundEvent event) {
         this.category = category;
         this.event = event;
 
         parseFiles();
-        parseEntries();
     }
 
     public int getId() {
@@ -64,30 +66,6 @@ public final class SoundGroup {
     }
 
     /**
-     * The entries in their original order, each with its sounds and links
-     *
-     * @return the entries
-     */
-    public List<SoundEntry> getEntries() {
-        return entries;
-    }
-
-    /**
-     * Tells whether this group is played as a sequence that follows the entry
-     * links (music, ambience) instead of picking a random file
-     *
-     * @return true if any entry links to another one
-     */
-    public boolean isLinked() {
-        for (SoundEntry soundEntry : entries) {
-            if (!soundEntry.getLinks().isEmpty()) {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /**
      * The group that is played when no property is supplied.
      */
     @Nullable
@@ -104,25 +82,6 @@ public final class SoundGroup {
                     continue;
                 }
                 files.add(new SoundFile(this, sample.getClip(), filename, eventGroup, sample));
-            }
-        }
-    }
-
-    private void parseEntries() {
-        for (SoundEventGroup eventGroup : event.getGroups()) {
-            SoundEntry soundEntry = new SoundEntry(eventGroup.getVolumeMin(), eventGroup.getVolumeMax(),
-                    eventGroup.getDelayMin(), eventGroup.getDelayMax());
-            entries.add(soundEntry);
-            for (SoundLink link : eventGroup.getLinks()) {
-                soundEntry.getLinks().add(new SoundEntry.Link(link.getGroupIndex() - 1, link.getPropertyMin(),
-                        link.getPropertyMax()));
-            }
-            for (SoundSample sample : eventGroup.getSamples()) {
-                String filename = sample.getArchive() == null ? null : sample.getArchive().getClipAssetPathNative(
-                        sample.getClip());
-                if (filename != null) {
-                    soundEntry.getFiles().add(new SoundFile(this, sample.getClip(), filename, eventGroup, sample));
-                }
             }
         }
     }

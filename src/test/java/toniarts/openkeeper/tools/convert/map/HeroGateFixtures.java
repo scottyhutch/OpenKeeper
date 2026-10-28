@@ -42,7 +42,7 @@ public final class HeroGateFixtures {
         room.setRoomId(roomId);
         room.setName(name);
         room.setTileConstruction(tileConstruction);
-        room.setFlags(EnumSet.of(Room.RoomFlag.ATTACKABLE));
+        room.setFlags(EnumSet.noneOf(Room.RoomFlag.class));
         room.setObjects(Collections.nCopies(8, (short) 0));
         return room;
     }

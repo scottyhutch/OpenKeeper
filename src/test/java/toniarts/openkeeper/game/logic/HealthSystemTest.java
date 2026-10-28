@@ -152,7 +152,7 @@ class HealthSystemTest {
                         MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND,
                         DestroyRoomsFixtures.destroyRoomsVariable(MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, 1)),
                 stub(ICreaturesController.class, null), new RoomAttackMessages(playerService, gameTimer),
-                stub(ILevelInfo.class, stub(IKwdFile.class, DestroyedFixtures.object((short) 0, 0))), List.of(), stub(IMapController.class, null),
+                stub(ILevelInfo.class, stub(IKwdFile.class, DestroyedFixtures.object((short) 0, 0))), List.of(), stub(IMapController.class, null), () -> 0.0,
                 (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
                         toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
                         new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));

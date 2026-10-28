@@ -57,13 +57,11 @@ public class SoundArchive {
     }
 
     /**
-     * @param name archive name
-     * @param flags archive flags
-     * @param sdtFile the archive file
-     * @param clipNames converted file names of the clips
-     * @param clipPcmBytes decoded lengths of the clips as 16 bit PCM in bytes
+     * @param clipPcmBytes per clip, the length of the decoded clip as 16 bit
+     * PCM in bytes
      */
-    public SoundArchive(String name, Set<BankFlag> flags, Path sdtFile, List<String> clipNames, List<Integer> clipPcmBytes) {
+    public SoundArchive(String name, Set<BankFlag> flags, Path sdtFile, List<String> clipNames,
+            List<Integer> clipPcmBytes) {
         this.name = name;
         this.flags = flags;
         this.sdtFile = sdtFile;
@@ -142,18 +140,6 @@ public class SoundArchive {
         return Collections.unmodifiableList(clipNames);
     }
 
-    /**
-     * Length of the decoded clip. The MPEG data decodes into slightly more
-     * samples (padded to whole frames), sequenced sounds such as the music must
-     * be cut to exactly this length to join seamlessly
-     *
-     * @param clip the clip
-     * @return length as 16 bit PCM in bytes, 0 if unknown
-     */
-    public int getClipPcmBytes(int clip) {
-        return clip >= 0 && clip < clipPcmBytes.size() ? clipPcmBytes.get(clip) : 0;
-    }
-
     public int getClipCount() {
         return clipNames.size();
     }
@@ -168,6 +154,22 @@ public class SoundArchive {
             return null;
         }
         return clipNames.get(index);
+    }
+
+    /**
+     * The MPEG data decodes into whole frames, a little more than the clip
+     * really is. Clips played back to back (the music segments) must be cut to
+     * this length to join seamlessly.
+     *
+     * @param clip 1-based clip index
+     * @return length of the decoded clip as 16 bit PCM in bytes, 0 if unknown
+     */
+    public int getClipPcmBytes(int clip) {
+        int index = clip - 1;
+        if (index < 0 || index >= clipPcmBytes.size()) {
+            return 0;
+        }
+        return clipPcmBytes.get(index);
     }
 
     /**
