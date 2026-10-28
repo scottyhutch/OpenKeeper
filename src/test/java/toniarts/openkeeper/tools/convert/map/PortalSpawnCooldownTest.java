@@ -31,6 +31,7 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.player.PlayerCreatureControl;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.controller.room.LairController;
 import toniarts.openkeeper.game.controller.room.ThreeByThreeController;
 import toniarts.openkeeper.game.data.Keeper;
@@ -50,6 +51,7 @@ class PortalSpawnCooldownTest {
         Keeper keeper = new Keeper(false, (short) 3);
         Creature goblin = new Creature();
         goblin.setCreatureId((short) 7);
+        goblin.setFlags(java.util.EnumSet.of(Creature.CreatureFlag.AVAILABLE_VIA_PORTAL));
         Creature.Attraction lairRequirement = new Creature.Attraction();
         lairRequirement.setRoomId(2);
         lairRequirement.setPresent(1);
@@ -104,8 +106,9 @@ class PortalSpawnCooldownTest {
         setting(settings, Variable.MiscVariable.MiscType.CREATURES_SUPPORTED_BY_FIRST_PORTAL, 10);
         setting(settings, Variable.MiscVariable.MiscType.CREATURES_SUPPORTED_PER_ADDITIONAL_PORTAL, 5);
         setting(settings, Variable.MiscVariable.MiscType.TIME_BEFORE_FREE_IMP_GENERATED_SECONDS, 30);
-        CreatureSpawnSystem system = new CreatureSpawnSystem(spawner, List.of(player), settings,
-                stub(ILevelInfo.class, (method, args) -> level), map);
+        CreatureSpawnSystem system = new CreatureSpawnSystem(entities, spawner, List.of(player), settings,
+                stub(ILevelInfo.class, (method, args) -> level), map,
+                stub(GameEventService.class, (method, args) -> null));
         timer.processTick(109.5f);
         system.processTick(109.5f);
         RoomInstance room = new RoomInstance(portalDefinition);
