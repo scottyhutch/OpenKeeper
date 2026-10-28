@@ -400,8 +400,9 @@ public class PlayerTriggerControl extends TriggerControl {
 
     private void displayObjective(TriggerActionData trigger) { // Info part
 //        if (playerId == playerState.getPlayerId()) {
-        // TODO this
         int objectiveId = trigger.getUserData("objectiveId", int.class); // limit 32767
+        // DKII keeps the objective text id on the player (DKII.EXE 0x518AD0, case 4); here it goes to the client as a message
+        playerService.showMessage(objectiveId, playerId);
         short apId = trigger.getUserData("actionPointId", short.class);
         // if != 0 => Zoom To AP = this
         zoomToAP(apId);
