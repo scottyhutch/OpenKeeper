@@ -39,6 +39,11 @@ public final class PortalGemDropSystem implements IGameLogicUpdatable {
     private final Short gemObjectId;
     private final EntitySet deadCarriers;
 
+    /**
+     * @param entityData the entities
+     * @param kwdFile the level
+     * @param objectsController the objects
+     */
     public PortalGemDropSystem(EntityData entityData, IKwdFile kwdFile, IObjectsController objectsController) {
         this.entityData = entityData;
         this.objectsController = objectsController;

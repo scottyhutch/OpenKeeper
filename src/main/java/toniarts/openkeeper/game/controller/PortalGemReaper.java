@@ -21,15 +21,20 @@ import com.simsilica.es.EntityId;
 import java.util.Random;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureImprisoned;
+import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.FetchPortalGem;
 import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.SummonedReaper;
+import toniarts.openkeeper.game.component.Unconscious;
+import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.navigation.pathfinding.INavigable;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -58,21 +63,32 @@ public final class PortalGemReaper {
     private final ICreaturesController creaturesController;
     private final IObjectsController objectsController;
     private final INavigationService navigationService;
+    private final IMapInformation<?> mapInformation;
     private final Random random;
 
+    /**
+     * @param kwdFile the level
+     * @param entityData the entities
+     * @param gameTimer the game clock
+     * @param creaturesController the creatures
+     * @param objectsController the objects
+     * @param navigationService finds the way to the gem
+     * @param mapInformation tells the solid tiles
+     */
     public PortalGemReaper(IKwdFile kwdFile, EntityData entityData, IGameTimer gameTimer, ICreaturesController creaturesController,
-            IObjectsController objectsController, INavigationService navigationService) {
-        this(kwdFile, entityData, gameTimer, creaturesController, objectsController, navigationService, new Random());
+            IObjectsController objectsController, INavigationService navigationService, IMapInformation<?> mapInformation) {
+        this(kwdFile, entityData, gameTimer, creaturesController, objectsController, navigationService, mapInformation, new Random());
     }
 
     PortalGemReaper(IKwdFile kwdFile, EntityData entityData, IGameTimer gameTimer, ICreaturesController creaturesController,
-            IObjectsController objectsController, INavigationService navigationService, Random random) {
+            IObjectsController objectsController, INavigationService navigationService, IMapInformation<?> mapInformation, Random random) {
         this.kwdFile = kwdFile;
         this.entityData = entityData;
         this.gameTimer = gameTimer;
         this.creaturesController = creaturesController;
         this.objectsController = objectsController;
         this.navigationService = navigationService;
+        this.mapInformation = mapInformation;
         this.random = random;
     }
 
@@ -94,9 +110,9 @@ public final class PortalGemReaper {
             return null;
         }
 
-        EntityId reaper = findOwnReaper(playerId);
+        Point gemTile = WorldUtils.vectorToPoint(entityData.getComponent(gem, Position.class).position);
+        EntityId reaper = findOwnReaper(playerId, gemTile, new ReaperNavigable(playerId, reaperCreature));
         if (reaper == null) {
-            Point gemTile = WorldUtils.vectorToPoint(entityData.getComponent(gem, Position.class).position);
             Point entrance = findEntrance(gemTile, new ReaperNavigable(playerId, reaperCreature));
             int level = Math.max(1, kwdFile.getGameLevel().getOneShotHornyLev());
             reaper = creaturesController.spawnCreature(reaperCreature.getId(), playerId, level,
@@ -169,16 +185,22 @@ public final class PortalGemReaper {
         return null;
     }
 
-    private EntityId findOwnReaper(short playerId) {
+    private EntityId findOwnReaper(short playerId, Point gemTile, INavigable navigable) {
         for (EntityId entityId : entityData.findEntities(null, CreatureComponent.class, Owner.class, Health.class)) {
             if (entityData.getComponent(entityId, Owner.class).ownerId != playerId
-                    || entityData.getComponent(entityId, Death.class) != null) {
+                    || entityData.getComponent(entityId, Death.class) != null
+                    || entityData.getComponent(entityId, InHand.class) != null
+                    || entityData.getComponent(entityId, Unconscious.class) != null
+                    || entityData.getComponent(entityId, CreatureImprisoned.class) != null
+                    || entityData.getComponent(entityId, CreatureTortured.class) != null) {
                 continue;
             }
             Creature creature = kwdFile.getCreature(entityData.getComponent(entityId, CreatureComponent.class).creatureId);
             SummonedReaper summonedReaper = entityData.getComponent(entityId, SummonedReaper.class);
             if (creature != null && creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)
-                    && (summonedReaper == null || !summonedReaper.isLeaving())) {
+                    && (summonedReaper == null || !summonedReaper.isLeaving())
+                    && navigationService.findPath(WorldUtils.vectorToPoint(entityData.getComponent(entityId, Position.class).position),
+                            gemTile, navigable) != null) {
                 return entityId;
             }
         }
@@ -192,13 +214,14 @@ public final class PortalGemReaper {
      */
     private Point findEntrance(Point gemTile, INavigable reaper) {
         for (int i = 0; i < ENTRANCE_TRIES; i++) {
-            int dx = random.nextInt(ENTRANCE_OFFSET * 2) - ENTRANCE_OFFSET;
-            int dy = random.nextInt(ENTRANCE_OFFSET * 2) - ENTRANCE_OFFSET;
+            int dx = random.nextInt(ENTRANCE_OFFSET * 2 + 1) - ENTRANCE_OFFSET;
+            int dy = random.nextInt(ENTRANCE_OFFSET * 2 + 1) - ENTRANCE_OFFSET;
             if (i < TRIES_BEFORE_ANY_DISTANCE && dx * dx + dy * dy < MIN_DISTANCE_SQUARED) {
                 continue;
             }
             Point tile = new Point(gemTile.x + dx, gemTile.y + dy);
-            if (!hasCreature(tile) && navigationService.findPath(gemTile, tile, reaper) != null) {
+            // The cheap checks first, the search is the expensive part
+            if (!mapInformation.isSolid(tile) && !hasCreature(tile) && navigationService.findPath(gemTile, tile, reaper) != null) {
                 return tile;
             }
         }

@@ -191,6 +191,21 @@ class ReaperAiTest {
     }
 
     @Test
+    void turnsOnAFighterThatComesIntoReachWhileAtTheHeartButNotBack() {
+        EntityId heart = addHeart(ENEMY_ID, new Point(30, 12));
+        entityData.setComponent(reaper, new AttackTarget(heart));
+        state = CreatureState.FIGHT;
+        EntityId fighter = addCreature(ENEMY_ID, new Point(20, 10));
+
+        assertTrue(ai().think(reaper, PLAYER_ID));
+        assertEquals(fighter, entityData.getComponent(reaper, AttackTarget.class).entityId);
+
+        // The heart is still there, but he stays on the fighter
+        assertTrue(ai().think(reaper, PLAYER_ID));
+        assertEquals(fighter, entityData.getComponent(reaper, AttackTarget.class).entityId);
+    }
+
+    @Test
     void leavesWhenThereIsNothingToDestroy() {
         Point heart = new Point(30, 12);
         addHeart(ENEMY_ID, heart);

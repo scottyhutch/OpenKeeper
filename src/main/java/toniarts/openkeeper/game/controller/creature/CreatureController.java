@@ -1383,7 +1383,11 @@ public final class CreatureController extends EntityController implements ICreat
         }
 
         Point attackTile = getHeartAttackTile(heart);
-        if (attackTile != null && !attackTile.equals(getCreatureCoordinates())) {
+        if (attackTile == null) {
+
+            // Walled off, pick something else to do
+            setAttackTarget(null);
+        } else if (!attackTile.equals(getCreatureCoordinates())) {
             createNavigation(getCreatureCoordinates(), attackTile, heartTile);
         }
     }

@@ -33,6 +33,7 @@ public final class GameResult {
         SPECIALS_MAX,
 
         LEVEL_WON,
+        WINNER,
         TIME_TAKEN,
         ENEMY_CREATURES_KILLED,
         HEROES_DESTROYED,

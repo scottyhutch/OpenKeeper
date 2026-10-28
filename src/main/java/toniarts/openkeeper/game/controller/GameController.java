@@ -92,7 +92,7 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
     private INavigationService navigationService;
     private PositionSystem positionSystem;
 
-    private GameResult gameResult = null;
+    private volatile GameResult gameResult = null;
     private final Set<Short> playersWithResult = new HashSet<>();
     private TaskManager taskManager;
 
@@ -309,6 +309,14 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         }
 
         controllers.stream().forEach(controller -> controller.processTick(tpf));
+
+        // The Horned Reaper comes for the Portal Gem of a won campaign level, on the logic loop. The Reaper
+        // stays marked with FetchPortalGem, so he is only sent once
+        if (levelObject != null && gameResult != null && Boolean.TRUE.equals(gameResult.getData(GameResult.ResultType.LEVEL_WON))) {
+            new PortalGemReaper(levelInfo.getLevelData(), entityData, gameTimer, gameWorldController.getCreaturesController(),
+                    gameWorldController.getObjectsController(), navigationService,
+                    gameWorldController.getMapController()).callForGem(gameResult.<Short>getData(GameResult.ResultType.WINNER));
+        }
     }
 
     private void updateTimeLimit(float tpf) {
@@ -357,9 +365,13 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         }
 
         // Determine what happens to the game & players
-        gameResult = new GameResult();
-        gameResult.setData(GameResult.ResultType.LEVEL_WON, win);
-        gameResult.setData(GameResult.ResultType.TIME_TAKEN, gameTimer.getGameTime());
+        GameResult result = new GameResult();
+        result.setData(GameResult.ResultType.LEVEL_WON, win);
+        result.setData(GameResult.ResultType.TIME_TAKEN, gameTimer.getGameTime());
+        if (win) {
+            result.setData(GameResult.ResultType.WINNER, playerId);
+        }
+        gameResult = result;
         addPlayerStatistics(playerId);
 
         // Mark the achievement if campaign level
@@ -372,12 +384,6 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
             } catch (IOException ex) {
                 logger.log(Level.ERROR, "Failed to save the level progress!", ex);
             }
-        }
-
-        // The Horned Reaper comes for the Portal Gem
-        if (win) {
-            new PortalGemReaper(levelInfo.getLevelData(), entityData, gameTimer, gameWorldController.getCreaturesController(),
-                    gameWorldController.getObjectsController(), navigationService).callForGem(playerId);
         }
 
         // Enable the end game state on the player (client)

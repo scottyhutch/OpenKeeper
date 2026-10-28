@@ -34,11 +34,13 @@ import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.FetchPortalGem;
 import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.SummonedReaper;
+import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -67,6 +69,8 @@ class PortalGemReaperTest {
     private final List<Object[]> spawns = new ArrayList<>();
     private final List<Object[]> loadedObjects = new ArrayList<>();
     private final Set<Point> unreachableTiles = new HashSet<>();
+    private final Set<Point> solidTiles = new HashSet<>();
+    private final List<Point> searchedTiles = new ArrayList<>();
     private final Deque<Integer> rolls = new ArrayDeque<>();
     private final List<Creature> creatures = List.of(
             SummonReaperFixtures.creature((short) 1, Creature.CreatureFlag.IS_WORKER),
@@ -123,6 +127,46 @@ class PortalGemReaperTest {
     }
 
     @Test
+    void reaperCanAppearEightTilesAwayOnEachAxis() {
+        addGem(GEM_TILE);
+
+        // Rolls are the raw nextInt values, 16 is the top of the range
+        rolls.add(16);
+        rolls.add(16);
+        gemReaper().callForGem(PLAYER_ID);
+
+        assertEquals(WorldUtils.pointToVector2f(28, 28), spawns.get(0)[3]);
+    }
+
+    @Test
+    void solidTilesAreNotSearchedAsEntrances() {
+        addGem(GEM_TILE);
+        Point solid = new Point(GEM_TILE.x + 5, GEM_TILE.y);
+        solidTiles.add(solid);
+
+        roll(5, 0);
+        roll(0, 5);
+        gemReaper().callForGem(PLAYER_ID);
+
+        assertTrue(!searchedTiles.contains(solid));
+        assertEquals(WorldUtils.pointToVector2f(20, 25), spawns.get(0)[3]);
+    }
+
+    @Test
+    void ownReaperInHandOrWalledOffIsNotSentForTheGem() {
+        addGem(GEM_TILE);
+        EntityId held = addCreature(REAPER_ID, PLAYER_ID, new Point(3, 3));
+        entityData.setComponent(held, new InHand());
+
+        roll(5, 0);
+        EntityId reaper = gemReaper().callForGem(PLAYER_ID);
+
+        assertTrue(!reaper.equals(held));
+        assertEquals(1, spawns.size());
+        assertNull(entityData.getComponent(held, FetchPortalGem.class));
+    }
+
+    @Test
     void reaperOfTheMapGoesForTheGemToo() {
         addGem(GEM_TILE);
         EntityId mapReaper = addCreature(REAPER_ID, PLAYER_ID, new Point(3, 3));
@@ -145,6 +189,17 @@ class PortalGemReaperTest {
         assertEquals(WorldUtils.pointToVector3f(7, 9), loadedObjects.get(0)[2]);
         assertNull(entityData.getComponent(lord, PortalGem.class));
         assertNotNull(entityData.getComponent(reaper, FetchPortalGem.class));
+    }
+
+    @Test
+    void reaperIsSentOnlyOnceWhenCalledOnEveryTick() {
+        addGem(GEM_TILE);
+
+        EntityId reaper = gemReaper().callForGem(PLAYER_ID);
+
+        assertNotNull(reaper);
+        assertNull(gemReaper().callForGem(PLAYER_ID));
+        assertEquals(1, spawns.size());
     }
 
     @Test
@@ -179,7 +234,7 @@ class PortalGemReaperTest {
 
     private PortalGemReaper gemReaper() {
         return new PortalGemReaper(kwdFile(), entityData, () -> NOW, creaturesController(), objectsController(),
-                navigationService(), new Random() {
+                navigationService(), mapInformation(), new Random() {
             @Override
             public int nextInt(int bound) {
                 return rolls.isEmpty() ? 8 : rolls.poll();
@@ -223,12 +278,23 @@ class PortalGemReaperTest {
                 });
     }
 
+    private IMapInformation<?> mapInformation() {
+        return (IMapInformation<?>) Proxy.newProxyInstance(IMapInformation.class.getClassLoader(),
+                new Class<?>[]{IMapInformation.class}, (proxy, method, args) -> {
+                    if (!method.getName().equals("isSolid")) {
+                        throw new UnsupportedOperationException(method.getName());
+                    }
+                    return solidTiles.contains((Point) args[0]);
+                });
+    }
+
     private INavigationService navigationService() {
         return (INavigationService) Proxy.newProxyInstance(INavigationService.class.getClassLoader(),
                 new Class<?>[]{INavigationService.class}, (proxy, method, args) -> {
                     if (!method.getName().equals("findPath")) {
                         throw new UnsupportedOperationException(method.getName());
                     }
+                    searchedTiles.add((Point) args[1]);
                     if (unreachableTiles.contains((Point) args[1])) {
                         return null;
                     }

@@ -75,6 +75,7 @@ class DungeonHeartAttackTest {
     private Map<EntityId, Set<EntityId>> sensed;
     private Set<Point> solidTiles;
     private int pathSearches;
+    private boolean walledOff;
 
     @BeforeEach
     void setUp() {
@@ -85,6 +86,7 @@ class DungeonHeartAttackTest {
         sensed = new HashMap<>();
         solidTiles = new HashSet<>();
         pathSearches = 0;
+        walledOff = false;
     }
 
     @Test
@@ -178,6 +180,19 @@ class DungeonHeartAttackTest {
     }
 
     @Test
+    void heartWithNoWayToItIsDroppedAsTheTarget() {
+        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 15));
+        EntityId heart = createHeart(KEEPER);
+        entityData.setComponent(hero, new AttackTarget(heart));
+        walledOff = true;
+
+        createController(hero).navigateToAttackTarget(heart);
+
+        assertNull(entityData.getComponent(hero, AttackTarget.class));
+        assertNull(entityData.getComponent(hero, Navigation.class));
+    }
+
+    @Test
     void heartIsHitFromTheTilesAroundIt() {
         EntityId heart = createHeart(KEEPER);
 
@@ -253,7 +268,7 @@ class DungeonHeartAttackTest {
             pathSearches++;
             Point to = (Point) args[1];
             boolean onHeart = Math.abs(to.x - HEART_TILE.x) <= 1 && Math.abs(to.y - HEART_TILE.y) <= 1;
-            return onHeart ? null : new DefaultGraphPath<>();
+            return onHeart || walledOff ? null : new DefaultGraphPath<>();
         });
         IMapData mapData = stub(IMapData.class, (name, args) -> "getTile".equals(name) && args.length == 1
                 ? stub(IMapTileController.class, (method, params) -> args[0]) : null);

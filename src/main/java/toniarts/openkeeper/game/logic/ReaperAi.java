@@ -57,8 +57,9 @@ import toniarts.openkeeper.utils.WorldUtils;
  * What a summoned Horned Reaper does, as in DK II. Whenever he is free he
  * decides again: one time in three he roams about. Otherwise he goes for the
  * nearest enemy creature he can reach. With no such creature he attacks the
- * nearest enemy Dungeon Heart he can get next to, and with no heart either he
- * has nothing left to do and leaves. He has no needs, so he never looks for a
+ * nearest enemy Dungeon Heart he can get next to, turning on any creature that
+ * comes within reach meanwhile, and with no heart either he has nothing left to
+ * do and leaves. He has no needs, so he never looks for a
  * lair, food or work. Sent for the Portal Gem, he walks to it and picks it up,
  * and that is the end of his job.
  */
@@ -95,7 +96,20 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
 
         Keeper keeper = keepers.get(ownerId);
         ICreatureController reaperController = creaturesController.createController(reaper);
-        if (keeper == null || isBusy(reaper, reaperController, keeper)) {
+        if (keeper == null) {
+            return true;
+        }
+        if (isBusy(reaper, reaperController, keeper)) {
+
+            // While at a heart he looks about again, and turns on a fighter that has come into reach
+            AttackTarget attackTarget = entityData.getComponent(reaper, AttackTarget.class);
+            if (attackTarget != null && DungeonHeartTarget.isDungeonHeart(entityData, attackTarget.entityId)) {
+                EntityId fighter = findNearestEnemy(reaper, reaperController, keeper);
+                if (fighter != null) {
+                    entityData.setComponent(reaper, new AttackTarget(fighter));
+                    reaperController.getStateMachine().changeState(CreatureState.FIGHT);
+                }
+            }
             return true;
         }
 
