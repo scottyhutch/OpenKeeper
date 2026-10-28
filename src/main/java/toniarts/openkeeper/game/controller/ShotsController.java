@@ -36,8 +36,9 @@ import toniarts.openkeeper.game.controller.shot.InfernoShotProcessor;
 import toniarts.openkeeper.game.controller.shot.LightningShotProcessor;
 import toniarts.openkeeper.game.controller.shot.ShotFlightRules;
 import toniarts.openkeeper.game.controller.shot.ShotRequest;
-import toniarts.openkeeper.game.sound.CombatSounds;
-import toniarts.openkeeper.game.sound.ThingSounds;
+import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Shot;
@@ -76,12 +77,13 @@ public final class ShotsController implements IShotsController {
     private final ILevelInfo levelInfo;
     private final IObjectsController objectsController;
     private final ICreaturesController creaturesController;
-    private final CombatSounds combatSounds;
+    private final GameEventService gameEventService;
     private final Map<Shot.ProcessType, IShotProcessor> processors;
     private final Set<Shot.ProcessType> unprocessedTypes = EnumSet.noneOf(Shot.ProcessType.class);
 
     public ShotsController(IKwdFile kwdFile, EntityData entityData, Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings, IGameTimer gameTimer,
-            IGameController gameController, IMapController mapController, ILevelInfo levelInfo, IObjectsController objectsController, ICreaturesController creaturesController) {
+            IGameController gameController, IMapController mapController, ILevelInfo levelInfo, IObjectsController objectsController, ICreaturesController creaturesController,
+            GameEventService gameEventService) {
         this.kwdFile = kwdFile;
         this.entityData = entityData;
         this.gameSettings = gameSettings;
@@ -91,7 +93,7 @@ public final class ShotsController implements IShotsController {
         this.levelInfo = levelInfo;
         this.objectsController = objectsController;
         this.creaturesController = creaturesController;
-        this.combatSounds = new CombatSounds(entityData, kwdFile);
+        this.gameEventService = gameEventService;
         this.processors = createProcessors();
     }
 
@@ -105,10 +107,7 @@ public final class ShotsController implements IShotsController {
         result.put(CREATE_SINGLE_CREATURE, createCreature);
         result.put(CREATE_OBJECT, this::createObject);
         result.put(POSSESS_CREATURE, request -> creaturesController.createController(request.target()).setPossession(true));
-        result.put(MODIFY_HEALTH, request -> {
-            EntityController.setDamage(entityData, request.target(), -request.shotData1());
-            playShotHit(request.shot(), request.target());
-        });
+        result.put(MODIFY_HEALTH, request -> EntityController.setDamage(entityData, request.target(), -request.shotData1()));
         result.put(TURNCOAT, request -> {
             if (request.target() != null && creaturesController.isValidEntity(request.target())) {
                 creaturesController.createController(request.target()).turncoat(request.playerId(), request.shotData1());
@@ -142,8 +141,6 @@ public final class ShotsController implements IShotsController {
 
     @Override
     public void createShot(short shotTypeId, int shotData1, int shotData2, short playerId, Vector3f position, EntityId target, EntityId shooter) {
-        Shot shot = kwdFile.getShotById(shotTypeId);
-        ThingSounds.play(shot.getSoundCategory(), ThingSounds.SHOT_LAUNCH, position);
 
         // Creature attacks still apply their damage themselves, see CreatureController#executeAttack. Processing
         // their shots here too would hit twice (Mistress and Fairy lightning share the keeper's process type)
@@ -151,7 +148,9 @@ public final class ShotsController implements IShotsController {
             return;
         }
 
+        Shot shot = kwdFile.getShotById(shotTypeId);
         IShotProcessor processor = processors.get(shot.getProcessType());
+        notifyShotHit(shot, target);
         if (processor == null) {
             logger.log(Logger.Level.WARNING, "Shot type {0} not implemented", shot.getProcessType());
             return;
@@ -174,7 +173,7 @@ public final class ShotsController implements IShotsController {
             return false;
         }
 
-        ThingSounds.play(shot.getSoundCategory(), ThingSounds.SHOT_LAUNCH, position);
+        gameEventService.emit(GameEventType.SHOT_LAUNCH, ThingFlag.SHOT, shotTypeId, position);
         Vector3f velocity = ShotFlightRules.aim(position, targetPosition, shot.getSpeed());
         int ticksPerSecond = kwdFile.getGameLevel().getTicksPerSec();
         EntityId entity = entityData.createEntity();
@@ -215,6 +214,7 @@ public final class ShotsController implements IShotsController {
             EntityController.setDamage(entityData, thing, flight.shotData1);
         }
 
+        notifyShotHit(shot, thing);
         IShotProcessor processor = processors.get(shot.getProcessType());
         if (processor != null) {
             processor.process(new ShotRequest(shot, flight.shotData1, flight.shotData2, flight.ownerId,
@@ -236,10 +236,10 @@ public final class ShotsController implements IShotsController {
         }
     }
 
-    private void playShotHit(Shot shot, EntityId target) {
+    private void notifyShotHit(Shot shot, EntityId target) {
         Position targetPosition = target != null ? entityData.getComponent(target, Position.class) : null;
         if (targetPosition != null) {
-            combatSounds.playShotHit(shot, target, targetPosition.position);
+            gameEventService.emitAt(GameEventType.SHOT_HIT, ThingFlag.SHOT, shot.getShotId(), target, targetPosition.position);
         }
     }
 

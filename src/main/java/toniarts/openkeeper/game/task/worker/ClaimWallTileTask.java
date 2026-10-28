@@ -16,7 +16,7 @@
  */
 package toniarts.openkeeper.game.task.worker;
 
-import toniarts.openkeeper.game.sound.ThingSounds;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
@@ -67,7 +67,7 @@ public final class ClaimWallTileTask extends DigTileTask {
 
             // The work is done, let it be heard
             if (!isValid(creature)) {
-                ThingSounds.play(creature.getCreature().getSoundCategory(), ThingSounds.CREATURE_REINFORCE, getTaskLocation());
+                creature.fireEvent(GameEventType.CREATURE_REINFORCE_WALL, getTaskLocation());
             }
         }
     }

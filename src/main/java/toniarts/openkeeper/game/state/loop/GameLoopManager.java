@@ -17,9 +17,6 @@
 package toniarts.openkeeper.game.state.loop;
 
 import com.simsilica.es.EntityData;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
 import toniarts.openkeeper.game.controller.GameController;
 import toniarts.openkeeper.game.controller.IGameController;
 import toniarts.openkeeper.game.controller.IGameWorldController;
@@ -30,6 +27,7 @@ import toniarts.openkeeper.game.controller.WorkshopOrders;
 import toniarts.openkeeper.game.controller.trap.TrapEffects;
 import toniarts.openkeeper.game.controller.room.FiveByFiveRotatedController;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.fogofwar.IBlocksSight;
 import toniarts.openkeeper.game.logic.*;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -39,6 +37,10 @@ import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.GameLoop;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
 
 /**
  *
@@ -71,6 +73,7 @@ public final class GameLoopManager {
         final IEntityPositionLookup positionSystem = gameController.getEntityLookupService();
         final Map<Short, IPlayerController> playerControllers = gameController.getPlayerControllers();
         final ITaskManager taskManager = gameController.getTaskManager();
+        final GameEventService gameEventService = gameController.getGameEventService();
 
         // Game logic
         final GameLogicManager gameLogicThread = new GameLogicManager(
@@ -92,8 +95,7 @@ public final class GameLoopManager {
                 new TurncoatSystem(entityData, gameController.getGameTimer()),
                 new HealthSystem(entityData, positionSystem, gameSettings, gameWorldController.getCreaturesController(),
                         gameWorldController.getRoomAttackMessages(),
-                        levelInfo, playerControllers.values(), gameWorldController.getMapController()),
-                new RoomSoundSystem(gameWorldController.getMapController()),
+                        levelInfo, playerControllers.values(), gameWorldController.getMapController(), gameEventService),
                 new InfernoSystem(entityData, positionSystem, levelInfo.getLevelData()),
                 new CreatureTorturingSystem(entityData, gameWorldController.getCreaturesController(),
                         gameWorldController.getMapController(), playerControllers),
@@ -110,7 +112,7 @@ public final class GameLoopManager {
                 new CreatureMoodSwitchSystem(entityData, levelInfo::isCreatureMoodsEnabled),
                 (IGameLogicUpdatable) gameController,
                 new CreatureSpawnSystem(entityData, gameWorldController.getCreaturesController(), playerControllers.values(),
-                        gameSettings, levelInfo, gameWorldController.getMapController()),
+                        gameSettings, levelInfo, gameWorldController.getMapController(), gameEventService),
                 new ChickenSpawnSystem(entityData, gameWorldController.getObjectsController(),
                         playerControllers.values(), gameSettings, gameWorldController.getMapController()),
                 new ManaCalculatorLogic(playerControllers.values(), entityData),
@@ -150,7 +152,7 @@ public final class GameLoopManager {
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.TIME_BEFORE_DUNGEON_HEART_CONSTRUCTION_BEGINS),
                         levelInfo.getLevelData().getObject(FiveByFiveRotatedController.OBJECT_PLUG_ID).getMiscEffectId(),
                         levelInfo.getLevelData().getGameLevel().getTicksPerSec()),
-                new CreatureFallSystem(entityData, gameController.getGameTimer(), levelInfo.getLevelData(),
+                new CreatureFallSystem(entityData, gameController.getGameTimer(), gameEventService,
                         gameWorldController.getMapController(), levelInfo.getLevelData().getGameLevel().getTicksPerSec(),
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.GRAVITY_CONSTANT)));
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));

@@ -28,14 +28,11 @@ import com.jme3.util.SafeArrayList;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.client.EntityDataClientService;
-import toniarts.openkeeper.utils.Point;
-import java.lang.System.Logger;
-import java.lang.System.Logger.Level;
-import java.util.Collection;
-import java.util.List;
+import toniarts.openkeeper.game.event.GameEvent;
 import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.network.NetworkConstants;
 import toniarts.openkeeper.game.network.message.GameLoadProgressData;
 import toniarts.openkeeper.game.state.CheatState;
@@ -43,6 +40,12 @@ import toniarts.openkeeper.game.state.session.GameSession;
 import toniarts.openkeeper.game.state.session.GameSessionClientService;
 import toniarts.openkeeper.game.state.session.GameSessionListener;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
+import toniarts.openkeeper.utils.Point;
+
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
+import java.util.Collection;
+import java.util.List;
 
 /**
  * Client side service for the game lobby services
@@ -384,6 +387,13 @@ public final class GameClientService extends AbstractClientService
         public void onGameEnded(GameResult result) {
             for (GameSessionListener l : listeners.getArray()) {
                 l.onGameEnded(result);
+            }
+        }
+
+        @Override
+        public void onEvent(GameEventType type, GameEvent.ThingFlag subjectKind, int subjectId, GameEvent.ThingFlag targetKind, int targetId, EntityId entity, Point position) {
+            for (GameSessionListener l : listeners.getArray()) {
+                l.onEvent(type, subjectKind, subjectId, targetKind, targetId, entity, position);
             }
         }
 

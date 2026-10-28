@@ -1,5 +1,7 @@
 package toniarts.openkeeper.game.sound;
 
+import java.util.EnumSet;
+import toniarts.openkeeper.tools.convert.sound.BankMapFileEntry.BankFlag;
 import java.io.File;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -60,7 +62,6 @@ class SoundEngineTest {
         assertEquals(SoundEngine.NO_HANDLE, engine.play(category, 0x4711));
         assertEquals(0, backends.size());
     }
-
 
     @Test
     void positionalEventCarriesThePosition() {
@@ -252,15 +253,15 @@ class SoundEngineTest {
 
     private static SoundCategory category() {
         Map<Integer, SoundEvent> events = new HashMap<>();
-        events.put(EVENT, new SoundEvent(EVENT, 100, 0, List.of(group())));
-        events.put(LOOP_EVENT, new SoundEvent(LOOP_EVENT, 100, (SoundEventFlags.REPEATING | SoundEventFlags.LOOP_EACH), List.of(group())));
-        events.put(DEFERRED_EVENT, new SoundEvent(DEFERRED_EVENT, 100, SoundEventFlags.DEFERRED, List.of(group())));
+        events.put(EVENT, new SoundEvent(EVENT, 100, EnumSet.noneOf(SoundEventFlag.class), List.of(group())));
+        events.put(LOOP_EVENT, new SoundEvent(LOOP_EVENT, 100, EnumSet.of(SoundEventFlag.REPEATING, SoundEventFlag.LOOP_EACH), List.of(group())));
+        events.put(DEFERRED_EVENT, new SoundEvent(DEFERRED_EVENT, 100, EnumSet.of(SoundEventFlag.DEFERRED), List.of(group())));
         // channel 0 is the master channel, channel 1 the music channel
         return new SoundCategory("TEST", 0b11, events);
     }
 
     private static SoundEventGroup group() {
-        SoundArchive archive = new SoundArchive("Global" + File.separator + "Test", 1, null,
+        SoundArchive archive = new SoundArchive("Global" + File.separator + "Test", EnumSet.of(BankFlag.RESIDENT), null,
                 List.of("clip1.mp2"));
         SoundSample sample = new SoundSample(1, 100, 1000, 0, archive);
         return new SoundEventGroup(100, 100, 0, 0, 0, 0, 0, 0, 0, 0, 100, 0.0f, List.of(sample), List.of());

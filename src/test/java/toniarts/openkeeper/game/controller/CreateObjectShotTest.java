@@ -80,7 +80,7 @@ class CreateObjectShotTest {
             }
             throw new UnsupportedOperationException(name);
         });
-        return new ShotsController(kwdFile, null, null, null, null, null, null, objectsController, null);
+        return new ShotsController(kwdFile, null, null, null, null, null, null, objectsController, null, null);
     }
 
     private interface Answer {

@@ -123,7 +123,9 @@ class PortalGenerationClockTest {
         settings.put(MiscType.CREATURES_SUPPORTED_PER_ADDITIONAL_PORTAL, miscVariable(MiscType.CREATURES_SUPPORTED_PER_ADDITIONAL_PORTAL, 5));
         settings.put(MiscType.TIME_BEFORE_FREE_IMP_GENERATED_SECONDS, miscVariable(MiscType.TIME_BEFORE_FREE_IMP_GENERATED_SECONDS, 1000));
         system = new CreatureSpawnSystem(entities, spawner, List.of(player), settings,
-                stub(ILevelInfo.class, (method, args) -> level), map);
+                stub(ILevelInfo.class, (method, args) -> level), map, (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
+                        toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
+                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));
 
         RoomInstance roomInstance = new RoomInstance(portalDefinition);
         roomInstance.setOwnerId(PLAYER_ID);

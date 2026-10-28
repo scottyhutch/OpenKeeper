@@ -72,13 +72,11 @@ class CreatureFallSystemTest {
             default -> throw new UnsupportedOperationException(method.getName());
         });
 
-        IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
-                (proxy, method, args) -> switch (method.getName()) {
-            case "getCreature" -> null;
-            default -> throw new UnsupportedOperationException(method.getName());
-        });
+        toniarts.openkeeper.game.event.GameEventService gameEventService = (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
+                toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
+                new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null);
 
-        fallSystem = new CreatureFallSystem(entityData, gameTimer, kwdFile, mapInformation, TICKS_PER_SECOND, GRAVITY_CONSTANT);
+        fallSystem = new CreatureFallSystem(entityData, gameTimer, gameEventService, mapInformation, TICKS_PER_SECOND, GRAVITY_CONSTANT);
     }
 
     @AfterEach

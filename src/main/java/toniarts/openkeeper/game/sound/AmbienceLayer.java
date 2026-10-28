@@ -20,6 +20,7 @@ import java.util.ArrayDeque;
 import java.util.function.IntSupplier;
 import java.util.Iterator;
 import javax.annotation.Nullable;
+import toniarts.openkeeper.game.sound.SoundVoice.Behaviour;
 import toniarts.openkeeper.utils.Point;
 
 /**
@@ -172,7 +173,7 @@ final class AmbienceLayer {
             // The engine plays the following clips of the voice, drawing the groups and the delays itself. The
             // layer must not start more voices, each of them would chain on its own and all would sound at once.
             // It only has to start a new voice if the chain has ended.
-            if (event.getBehaviour() == SoundVoiceBehaviour.REPEAT && delay <= 0) {
+            if (event.getBehaviour() == Behaviour.REPEAT && delay <= 0) {
                 // a repeater without a delay ends after its first clip
                 ended = true;
                 return;

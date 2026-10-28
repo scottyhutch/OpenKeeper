@@ -92,12 +92,14 @@ import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ObjectiveType;
+import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.logic.EffectTriggers;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.navigation.steering.SteeringUtils;
-import toniarts.openkeeper.game.sound.CombatSounds;
 import toniarts.openkeeper.game.task.ITaskManager;
 import toniarts.openkeeper.game.task.Task;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
@@ -212,9 +214,9 @@ public final class CreatureController extends EntityController implements ICreat
     private final ILevelInfo levelInfo;
     private final RoomDestructionTrigger roomDestructionTrigger = new RoomDestructionTrigger();
     private final IShotsController shotsController;
+    private final GameEventService gameEventService;
     // TODO: All the data is not supposed to be on entities as they become too big, but I don't want these here either
     private final Creature creature;
-    private final CombatSounds combatSounds;
     private final StateMachine<ICreatureController, CreatureState> stateMachine;
     private float motionless = 0;
     private final PathRetryBackoff pathRetryBackoff = new PathRetryBackoff();
@@ -227,7 +229,7 @@ public final class CreatureController extends EntityController implements ICreat
     public CreatureController(EntityId entityId, EntityData entityData, Creature creature, INavigationService navigationService,
             ITaskManager taskManager, IGameTimer gameTimer, Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
             ICreaturesController creaturesController, IEntityPositionLookup entityPositionLookup, IMapController mapController,
-            ILevelInfo levelInfo, IObjectsController objectsController, IShotsController shotsController) {
+            ILevelInfo levelInfo, IObjectsController objectsController, IShotsController shotsController, GameEventService gameEventService) {
         super(entityId, entityData, objectsController, mapController);
         this.navigationService = navigationService;
         this.taskManager = taskManager;
@@ -238,7 +240,7 @@ public final class CreatureController extends EntityController implements ICreat
         this.entityPositionLookup = entityPositionLookup;
         this.levelInfo = levelInfo;
         this.shotsController = shotsController;
-        this.combatSounds = new CombatSounds(entityData, levelInfo.getLevelData());
+        this.gameEventService = gameEventService;
         this.stateMachine = new DefaultStateMachine<>(this);
 
         // A slap from before doesn't count
@@ -1204,7 +1206,7 @@ public final class CreatureController extends EntityController implements ICreat
         if (damageTaken > 0) {
             setDamage(attackTarget, damageTaken);
         }
-        combatSounds.playMeleeHit(creature, attackTarget, getPosition());
+        gameEventService.emitAt(GameEventType.MELEE_HIT, ThingFlag.CREATURE, creature.getCreatureId(), attackTarget, getPosition());
         showMeleeHit(attackTarget, creatureMeleeAttack.getAttackType());
     }
 
@@ -1826,6 +1828,11 @@ public final class CreatureController extends EntityController implements ICreat
     @Override
     public Creature getCreature() {
         return creature;
+    }
+
+    @Override
+    public void fireEvent(GameEventType type, Point location) {
+        gameEventService.emit(type, ThingFlag.CREATURE, creature.getCreatureId(), location);
     }
 
     @Override

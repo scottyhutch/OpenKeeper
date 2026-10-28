@@ -23,19 +23,6 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.filter.FieldFilter;
-import toniarts.openkeeper.utils.Point;
-import java.lang.System.Logger;
-import java.lang.System.Logger.Level;
-import java.lang.ref.WeakReference;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.WeakHashMap;
-import java.util.stream.Collectors;
-import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureEfficiency;
@@ -58,7 +45,6 @@ import toniarts.openkeeper.game.component.Interaction;
 import toniarts.openkeeper.game.component.JailBreaker;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.Mobile;
-import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Objective;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Party;
@@ -79,15 +65,27 @@ import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.RoomTortureeControl;
-import toniarts.openkeeper.game.sound.EntitySounds;
-import toniarts.openkeeper.game.sound.ThingSounds;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Thing;
 import toniarts.openkeeper.tools.convert.map.Variable;
+import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.utils.WorldUtils;
+
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
+import java.lang.ref.WeakReference;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.WeakHashMap;
+import java.util.stream.Collectors;
 
 /**
  * This is a controller that controls all the game objects in the world TODO: Hmm, should this be more a
@@ -122,7 +120,6 @@ public final class CreaturesController implements ICreaturesController {
     private final IGameController gameController;
     private final IMapController mapController;
     private final ILevelInfo levelInfo;
-    private final EntitySounds entitySounds;
 
     private final static int MANA_GENERATION_IMP = -7;  // I don't find in Creature.java
 
@@ -152,7 +149,6 @@ public final class CreaturesController implements ICreaturesController {
         this.gameController = gameController;
         this.mapController = mapController;
         this.levelInfo = levelInfo;
-        this.entitySounds = new EntitySounds(entityData, kwdFile);
 
         // Load creatures
         loadCreatures();
@@ -571,7 +567,7 @@ public final class CreaturesController implements ICreaturesController {
             entityData.removeComponent(entityId, Regeneration.class);
         }
 
-        entitySounds.play(entityId, ThingSounds.CREATURE_LEVEL_UP);
+        gameController.getGameEventService().emit(GameEventType.CREATURE_LEVEL_UP, entityId);
     }
 
     private void setAttributesByLevel(CreatureComponent creatureComponent, CreatureExperience creatureExperience, Health healthComponent, Gold goldComponent, Senses sensesComponent, Threat threatComponent, CreatureMeleeAttack creatureMeleeAttack, Regeneration regeneration) {
@@ -714,7 +710,7 @@ public final class CreaturesController implements ICreaturesController {
                 gameController.getNavigationService(), gameController.getTaskManager(), gameTimer,
                 gameSettings, this, gameController.getEntityLookupService(), mapController, levelInfo,
                 gameController.getGameWorldController().getObjectsController(),
-                gameController.getGameWorldController().getShotsController());
+                gameController.getGameWorldController().getShotsController(), gameController.getGameEventService());
     }
 
     @Override

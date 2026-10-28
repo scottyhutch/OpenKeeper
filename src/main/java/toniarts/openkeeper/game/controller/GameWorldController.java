@@ -71,6 +71,9 @@ import toniarts.openkeeper.game.controller.room.storage.RoomLairControl;
 import toniarts.openkeeper.game.controller.room.storage.RoomTortureeControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
+import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
 import toniarts.openkeeper.game.listener.SpecialListener;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
@@ -79,18 +82,14 @@ import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Door;
 import toniarts.openkeeper.tools.convert.map.GameObject;
-import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Tile;
 import toniarts.openkeeper.tools.convert.map.Trap;
 import toniarts.openkeeper.tools.convert.map.Variable;
-import toniarts.openkeeper.game.sound.EntitySounds;
-import toniarts.openkeeper.game.sound.GlobalCategory;
-import toniarts.openkeeper.game.sound.SoundManager;
-import toniarts.openkeeper.game.sound.ThingSounds;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -110,6 +109,7 @@ import java.util.OptionalInt;
 import java.util.SequencedMap;
 import java.util.Set;
 import java.util.SortedMap;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 /**
@@ -138,11 +138,11 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
     private IShotsController shotsController;
     private SacrificeController sacrificeController;
     private IEntityPositionLookup entityPositionLookup;
-    private final EntitySounds entitySounds;
     private final Map<Short, IPlayerController> playerControllers;
     private final Map<Short, Keeper> players;
     private final IGameTimer gameTimer;
     private RoomAttackMessages roomAttackMessages;
+    private final GameEventService gameEventService;
 
     private IMapController mapController;
     private final Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings;
@@ -151,7 +151,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     public GameWorldController(IGameController gameController, ILevelInfo levelInfo, EntityData entityData,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
-            Map<Short, IPlayerController> playerControllers, IGameTimer gameTimer) {
+            Map<Short, IPlayerController> playerControllers, IGameTimer gameTimer, GameEventService gameEventService) {
 
         this.kwdFile = levelInfo.getLevelData();
         this.entityData = entityData;
@@ -159,7 +159,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         this.gameTimer = gameTimer;
         this.playerControllers = playerControllers;
         this.players = levelInfo.getPlayers();
-        this.entitySounds = new EntitySounds(entityData, kwdFile);
+        this.gameEventService = gameEventService;
 
         this.createNewGame(gameController, levelInfo);
     }
@@ -170,7 +170,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         objectsController = new ObjectsController(kwdFile, entityData, gameSettings, gameTimer, gameController, levelInfo);
 
         // Load the map
-        mapController = new MapController(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo);
+        mapController = new MapController(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo, gameEventService);
 
         // Load creatures
         creaturesController = new CreaturesController(kwdFile, entityData, gameSettings, gameTimer, gameController, mapController, levelInfo);
@@ -182,7 +182,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         trapsController = new TrapsController(kwdFile, entityData, gameSettings, gameController, levelInfo);
 
         // Init handlers
-        shotsController = new ShotsController(kwdFile, entityData, gameSettings, gameTimer, gameController, mapController, levelInfo, objectsController, creaturesController);
+        shotsController = new ShotsController(kwdFile, entityData, gameSettings, gameTimer, gameController, mapController, levelInfo, objectsController, creaturesController, gameEventService);
         sacrificeController = new SacrificeController(entityData, kwdFile.getSacrifices(), creaturesController, objectsController, this, playerControllers);
 
         // Setup player stuff
@@ -418,6 +418,26 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             addGoldCapacityToPlayer(instance.getEntityId());
             //notifyOnBuild(instance.getOwnerId(), mapController.getRoomActuals().get(instance));
         }
+
+        // Notify the build
+        notifyOnBuild(playerId, buildTiles);
+        notifyBuildEvents(room, instancePlots, buildTiles);
+    }
+
+    /**
+     * One event for the whole placement, at its top left tile, and one for each tile that appears
+     */
+    private void notifyBuildEvents(Room room, List<Point> plots, List<Point> buildTiles) {
+        int minX = Integer.MAX_VALUE;
+        int minY = Integer.MAX_VALUE;
+        for (Point plot : plots) {
+            minX = Math.min(minX, plot.x);
+            minY = Math.min(minY, plot.y);
+        }
+        gameEventService.emit(GameEventType.ROOM_TILES_LAID, ThingFlag.ROOM, room.getRoomId(), new Point(minX, minY));
+        for (Point tile : buildTiles) {
+            gameEventService.emit(GameEventType.ROOM_TILE_BUILT, ThingFlag.ROOM, room.getRoomId(), tile);
+        }
     }
 
     /**
@@ -465,10 +485,6 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         for (Point plot : plots) {
             minX = Math.min(minX, plot.x);
             minY = Math.min(minY, plot.y);
-        }
-        ThingSounds.play(room.getSoundCategory(), ThingSounds.ROOM_LAY_TILE, new Point(minX, minY));
-        for (Point tile : buildTiles) {
-            ThingSounds.play(room.getSoundCategory(), ThingSounds.OBJECT_CREATE, tile);
         }
     }
 
@@ -665,7 +681,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         sale.soldTiles.add(tile.getLocation());
 
         Room room = kwdFile.getRoomByTerrain(tile.getTerrainId());
-        ThingSounds.play(room.getSoundCategory(), ThingSounds.ROOM_SELL, p);
+        gameEventService.emit(GameEventType.ROOM_SOLD, ThingFlag.ROOM, room.getRoomId(), p);
         removeRoomFromTile(tile, room);
 
         int saleValue = (int) (room.getCost()
@@ -1140,7 +1156,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         // Lose the position component on the entity, do it here since we have the knowledge on locations etc. keep the "hand" simple
         // And also no need to create a system for this which saves resources
         Position position = entityData.getComponent(entity, Position.class);
-        entitySounds.play(entity, ThingSounds.PICK_UP, position.position);
+        gameEventService.emit(GameEventType.PICKED_UP, entity, position.position);
         entityData.removeComponent(entity, Navigation.class);
         entityData.removeComponent(entity, Position.class);
         entityData.removeComponent(entity, CreatureAi.class);
@@ -1218,8 +1234,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         if (entityData.getComponent(entity, CreatureComponent.class) != null) {
             if (canSlapCreature(entity, playerId)) {
                 entityData.setComponent(entity, new Slapped(gameTimer.getGameTime()));
-                playSlapSound(entity);
-                entitySounds.play(entity, ThingSounds.SLAP);
+                notifySlap(entity, playerId);
             }
             return;
         }
@@ -1246,27 +1261,15 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         ObjectComponent objectComponent = entityData.getComponent(entity, ObjectComponent.class);
         if (objectComponent != null && interaction.slappable) {
             entityData.setComponent(entity, new Slapped(gameTimer.getGameTime()));
-            playSlapSound(entity);
-            entitySounds.play(entity, ThingSounds.SLAP);
-            playSlappedThingSound(entity, objectComponent);
+            notifySlap(entity, playerId);
             return;
         }
     }
 
-    /**
-     * The slapped object makes a sound of its own, e.g. a chicken squawks
-     */
-    private void playSlappedThingSound(EntityId entity, ObjectComponent objectComponent) {
-        Position position = entityData.getComponent(entity, Position.class);
-        GameObject object = kwdFile.getObject(objectComponent.objectId);
-        if (position != null && object != null) {
-            ThingSounds.play(object.getSoundCategory(), ThingSounds.OBJECT_SLAPPED, position.position);
-        }
-    }
-
-    private void playSlapSound(EntityId entity) {
-        // The slap comes from the player's hand, so it is not positional
-        SoundManager.playSound(GlobalCategory.HAND, ThingSounds.SLAP);
+    private void notifySlap(EntityId entity, short playerId) {
+        // The slap comes from the player's hand, so it has no place and only the player gets it
+        gameEventService.emitToPlayer(GameEventType.HAND_SLAP, playerId);
+        gameEventService.emit(GameEventType.SLAPPED, entity);
     }
 
     @Override
@@ -1277,7 +1280,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         if (playerHandControl.peek().equals(entity) && canDropEntity(entity, playerId, entityData, mapTile, terrain)) {
             playerHandControl.pop();
             Vector3f dropPosition = new Vector3f(coordinates.x, 0, coordinates.y);
-            entitySounds.play(entity, ThingSounds.DROP, dropPosition);
+            gameEventService.emit(GameEventType.DROPPED, entity, dropPosition);
 
             // Stuff drop differently
             IRoomController roomController = mapController.getRoomControllerByCoordinates(tile);
@@ -1394,7 +1397,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         } else {
 
             // No fall, so no touchdown for the fall system to announce
-            entitySounds.play(entity, ThingSounds.CREATURE_LAND, pos);
+            gameEventService.emit(GameEventType.CREATURE_LAND, entity, pos);
         }
 
         // Also get rid of possible jailed or tortured status, we don't immediately remove them on picking up since the creature might be just displaced to another jail/torture room
@@ -1633,7 +1636,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         boolean spellUpgraded = researchableEntity.isUpgraded();
         int shotData1 = spellUpgraded ? keeperSpell.getBonusShotData1() : keeperSpell.getShotData1();
         int shotData2 = spellUpgraded ? keeperSpell.getBonusShotData2() : keeperSpell.getShotData2();
-        ThingSounds.play(keeperSpell.getSoundCategory(), ThingSounds.SHOT_LAUNCH, WorldUtils.vector2fToVector3(position));
+        gameEventService.emit(GameEventType.SHOT_LAUNCH, ThingFlag.KEEPER_SPELL, keeperSpell.getKeeperSpellId(), WorldUtils.vector2fToVector3(position));
         short shotTypeId = spellUpgraded && kwdFile.getShotById(keeperSpell.getBonusShotTypeId()) != null
                 ? keeperSpell.getBonusShotTypeId() : keeperSpell.getShotTypeId();
         shotsController.createShot(shotTypeId, shotData1, shotData2, playerId, WorldUtils.vector2fToVector3(position), target, null);

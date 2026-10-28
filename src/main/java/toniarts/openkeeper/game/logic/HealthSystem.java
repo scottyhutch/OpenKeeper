@@ -22,11 +22,6 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.filter.FieldFilter;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Set;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.ChickenAi;
 import toniarts.openkeeper.game.component.CreatureAi;
@@ -50,10 +45,6 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAbility;
-import toniarts.openkeeper.game.sound.EntitySounds;
-import toniarts.openkeeper.game.sound.SoundEngine;
-import toniarts.openkeeper.game.sound.SoundManager;
-import toniarts.openkeeper.game.sound.ThingSounds;
 import toniarts.openkeeper.game.component.Regeneration;
 import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.Unconscious;
@@ -65,11 +56,19 @@ import toniarts.openkeeper.game.controller.RoomAttackMessages;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.creature.DungeonHeartTarget;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.GameTimeCounter;
 import toniarts.openkeeper.utils.WorldUtils;
+
+import java.util.Collection;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Manages and monitors thing healthiness. Beeb... beeb... beeeeeeeeeeeeeeeeeeeb :)
@@ -91,8 +90,7 @@ public final class HealthSystem extends GameTimeCounter {
     private final ILevelInfo levelInfo;
     private final Map<Short, IPlayerController> playerControllersById;
     private final IMapController mapController;
-    private final EntitySounds entitySounds;
-    private final Map<EntityId, Integer> hurtSounds = new HashMap<>();
+    private final GameEventService gameEventService;
 
     private final EntitySet healthEntities;
     private final EntitySet damageEntities;
@@ -106,7 +104,8 @@ public final class HealthSystem extends GameTimeCounter {
     public HealthSystem(EntityData entityData, IEntityPositionLookup entityPositionLookup,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
             ICreaturesController creaturesController, RoomAttackMessages roomAttackMessages, ILevelInfo levelInfo,
-            Collection<IPlayerController> playerControllers, IMapController mapController) {
+            Collection<IPlayerController> playerControllers, IMapController mapController,
+            GameEventService gameEventService) {
 
         this.entityData = entityData;
         this.entityPositionLookup = entityPositionLookup;
@@ -114,7 +113,7 @@ public final class HealthSystem extends GameTimeCounter {
         this.roomAttackMessages = roomAttackMessages;
         this.levelInfo = levelInfo;
         this.mapController = mapController;
-        this.entitySounds = new EntitySounds(entityData, levelInfo.getLevelData());
+        this.gameEventService = gameEventService;
         entityIds = new SafeArrayList<>(EntityId.class);
 
         playerControllersById = HashMap.newHashMap(playerControllers.size());
@@ -418,7 +417,7 @@ public final class HealthSystem extends GameTimeCounter {
             if (damage.damage < 0 || !isHorny(entityId)) {
                 delta -= damage.damage;
                 if (damage.damage > 0) {
-                    playHurtSound(entityId);
+                    gameEventService.emit(GameEventType.CREATURE_HURT, entityId);
                 }
             }
 
@@ -521,20 +520,11 @@ public final class HealthSystem extends GameTimeCounter {
         return delta;
     }
 
-    /**
-     * The hurt sound is not restarted while the previous one is still playing
-     */
-    private void playHurtSound(EntityId entityId) {
-        Integer handle = hurtSounds.get(entityId);
-        if (handle == null || handle == SoundEngine.NO_HANDLE || !SoundManager.isPlaying(handle)) {
-            hurtSounds.put(entityId, entitySounds.play(entityId, ThingSounds.CREATURE_HIT));
-        }
-    }
-
     private void processDeath(EntityId entityId) {
         countKill(entityId);
-        if (entityData.getComponent(entityId, Death.class) == null && entitySounds.isCreature(entityId)) {
-            entitySounds.play(entityId, ThingSounds.CREATURE_DIE);
+        if (entityData.getComponent(entityId, Death.class) == null
+                && entityData.getComponent(entityId, CreatureComponent.class) != null) {
+            gameEventService.emit(GameEventType.CREATURE_DIE, entityId);
         }
         entityData.removeComponent(entityId, Health.class);
         entityData.removeComponent(entityId, CreatureAi.class);

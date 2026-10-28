@@ -281,7 +281,9 @@ class DungeonHeartAttackTest {
         CreatureComponent creatureComponent = entityData.getComponent(entity, CreatureComponent.class);
 
         return new CreatureController(entity, entityData, creatures.get(creatureComponent.creatureId), navigationService,
-                null, gameTimer, Map.of(), creaturesController, positionLookup, mapController, levelInfo, objectsController, null);
+                null, gameTimer, Map.of(), creaturesController, positionLookup, mapController, levelInfo, objectsController, null, (toniarts.openkeeper.game.event.GameEventService) java.lang.reflect.Proxy.newProxyInstance(
+                        toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
+                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));
     }
 
     @FunctionalInterface

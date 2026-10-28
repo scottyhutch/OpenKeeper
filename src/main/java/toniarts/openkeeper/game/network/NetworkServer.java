@@ -30,11 +30,8 @@ import com.jme3.network.service.rpc.RpcHostedService;
 import com.simsilica.es.base.DefaultEntityData;
 import com.simsilica.es.server.EntityDataHostedService;
 import com.simsilica.ethereal.EtherealHost;
-import toniarts.openkeeper.utils.Point;
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
 import toniarts.openkeeper.game.component.Alarm;
+import toniarts.openkeeper.game.component.Attack;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.Battle;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
@@ -49,6 +46,7 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureEfficiency;
 import toniarts.openkeeper.game.component.CreatureExperience;
 import toniarts.openkeeper.game.component.CreatureFall;
+import toniarts.openkeeper.game.component.CreatureGenerator;
 import toniarts.openkeeper.game.component.CreatureHunger;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureMeleeAttack;
@@ -56,6 +54,7 @@ import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreaturePay;
 import toniarts.openkeeper.game.component.CreatureRecuperating;
 import toniarts.openkeeper.game.component.CreatureSleep;
+import toniarts.openkeeper.game.component.CreatureSpells;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Damage;
@@ -66,6 +65,7 @@ import toniarts.openkeeper.game.component.Disguised;
 import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.DropArea;
+import toniarts.openkeeper.game.component.DungeonHeart;
 import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Fearless;
 import toniarts.openkeeper.game.component.FetchPortalGem;
@@ -77,6 +77,7 @@ import toniarts.openkeeper.game.component.HauledBy;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.HealthGain;
 import toniarts.openkeeper.game.component.Hypnotised;
+import toniarts.openkeeper.game.component.ImpGenerator;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Interaction;
 import toniarts.openkeeper.game.component.InfernoArea;
@@ -97,6 +98,7 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Party;
 import toniarts.openkeeper.game.component.Placeable;
 import toniarts.openkeeper.game.component.PlayerObjective;
+import toniarts.openkeeper.game.component.Portal;
 import toniarts.openkeeper.game.component.PortalAttracted;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
@@ -116,7 +118,6 @@ import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.Storage;
 import toniarts.openkeeper.game.component.Stored;
 import toniarts.openkeeper.game.component.TaskComponent;
-import toniarts.openkeeper.game.component.WoodenBridgeDecay;
 import toniarts.openkeeper.game.component.Threat;
 import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.TrapFiring;
@@ -125,6 +126,7 @@ import toniarts.openkeeper.game.component.Trigger;
 import toniarts.openkeeper.game.component.Turncoat;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.component.ViewType;
+import toniarts.openkeeper.game.component.WoodenBridgeDecay;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
@@ -132,6 +134,8 @@ import toniarts.openkeeper.game.data.ObjectiveType;
 import toniarts.openkeeper.game.data.PlayerSpell;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.data.ResearchableType;
+import toniarts.openkeeper.game.event.GameEvent;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.network.chat.ChatHostedService;
 import toniarts.openkeeper.game.network.game.GameHostedService;
 import toniarts.openkeeper.game.network.lobby.LobbyHostedService;
@@ -144,6 +148,11 @@ import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Thing;
 import toniarts.openkeeper.tools.convert.map.Tile;
+import toniarts.openkeeper.utils.Point;
+
+import java.io.IOException;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 
 /**
  *
@@ -194,8 +203,13 @@ public final class NetworkServer {
             Serializer.registerClass(GameResult.class, new FieldSerializer());
             Serializer.registerClass(GameResult.ResultType.class, new EnumSerializer());
 
+            // Events
+            Serializer.registerClass(GameEventType.class, new EnumSerializer());
+            Serializer.registerClass(GameEvent.ThingFlag.class, new EnumSerializer());
+
             // Our entity components
             Serializer.registerClass(Alarm.class, new FieldSerializer());
+            Serializer.registerClass(Attack.class, new FieldSerializer());
             Serializer.registerClass(AttackTarget.class, new FieldSerializer());
             Serializer.registerClass(Battle.class, new FieldSerializer());
             Serializer.registerClass(CasinoBigWinner.class, new FieldSerializer());
@@ -210,6 +224,7 @@ public final class NetworkServer {
             Serializer.registerClass(CreatureEfficiency.class, new FieldSerializer());
             Serializer.registerClass(CreatureExperience.class, new FieldSerializer());
             Serializer.registerClass(CreatureFall.class, new FieldSerializer());
+            Serializer.registerClass(CreatureGenerator.class, new FieldSerializer());
             Serializer.registerClass(CreatureHunger.class, new FieldSerializer());
             Serializer.registerClass(CreatureImprisoned.class, new FieldSerializer());
             Serializer.registerClass(CreatureMeleeAttack.class, new FieldSerializer());
@@ -217,6 +232,7 @@ public final class NetworkServer {
             Serializer.registerClass(CreaturePay.class, new FieldSerializer());
             Serializer.registerClass(CreatureRecuperating.class, new FieldSerializer());
             Serializer.registerClass(CreatureSleep.class, new FieldSerializer());
+            Serializer.registerClass(CreatureSpells.class, new FieldSerializer());
             Serializer.registerClass(CreatureTortured.class, new FieldSerializer());
             Serializer.registerClass(CreatureViewState.class, new FieldSerializer());
             Serializer.registerClass(Damage.class, new FieldSerializer());
@@ -227,6 +243,7 @@ public final class NetworkServer {
             Serializer.registerClass(DoorComponent.class, new FieldSerializer());
             Serializer.registerClass(DoorViewState.class, new FieldSerializer());
             Serializer.registerClass(DropArea.class, new FieldSerializer());
+            Serializer.registerClass(DungeonHeart.class, new FieldSerializer());
             Serializer.registerClass(EffectTrigger.class, new FieldSerializer());
             Serializer.registerClass(Fearless.class, new FieldSerializer());
             Serializer.registerClass(FetchPortalGem.class, new FieldSerializer());
@@ -238,6 +255,7 @@ public final class NetworkServer {
             Serializer.registerClass(Health.class, new FieldSerializer());
             Serializer.registerClass(HealthGain.class, new FieldSerializer());
             Serializer.registerClass(Hypnotised.class, new FieldSerializer());
+            Serializer.registerClass(ImpGenerator.class, new FieldSerializer());
             Serializer.registerClass(InHand.class, new FieldSerializer());
             Serializer.registerClass(Interaction.class, new FieldSerializer());
             Serializer.registerClass(JailBreaker.class, new FieldSerializer());
@@ -258,6 +276,7 @@ public final class NetworkServer {
             Serializer.registerClass(Party.class, new FieldSerializer());
             Serializer.registerClass(Placeable.class, new FieldSerializer());
             Serializer.registerClass(PlayerObjective.class, new FieldSerializer());
+            Serializer.registerClass(Portal.class, new FieldSerializer());
             Serializer.registerClass(PortalAttracted.class, new FieldSerializer());
             Serializer.registerClass(PortalGem.class, new FieldSerializer());
             Serializer.registerClass(Position.class, new FieldSerializer());

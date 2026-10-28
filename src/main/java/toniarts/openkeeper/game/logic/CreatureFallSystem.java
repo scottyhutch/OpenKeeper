@@ -27,10 +27,9 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.entity.EntityController;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.map.IMapInformation;
-import toniarts.openkeeper.game.sound.EntitySounds;
-import toniarts.openkeeper.game.sound.ThingSounds;
-import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -58,27 +57,27 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
 
     private final EntityData entityData;
     private final IGameTimer gameTimer;
+    private final GameEventService gameEventService;
     private final IMapInformation<?> mapInformation;
     private final int ticksPerSecond;
     private final float gravity;
     private final EntitySet fallEntities;
-    private final EntitySounds entitySounds;
 
     /**
      * Creates the system
      *
      * @param entityData the entity data
      * @param gameTimer the game timer
-     * @param kwdFile the level, for the landing sounds
+     * @param gameEventService the game events, the landing is announced
      * @param mapInformation the map, the thrown creatures bounce off its walls
      * @param ticksPerSecond the turns in a second
      * @param gravityConstant the level's gravity constant
      */
-    public CreatureFallSystem(EntityData entityData, IGameTimer gameTimer, IKwdFile kwdFile,
+    public CreatureFallSystem(EntityData entityData, IGameTimer gameTimer, GameEventService gameEventService,
             IMapInformation<?> mapInformation, int ticksPerSecond, float gravityConstant) {
         this.entityData = entityData;
         this.gameTimer = gameTimer;
-        this.entitySounds = new EntitySounds(entityData, kwdFile);
+        this.gameEventService = gameEventService;
         this.mapInformation = mapInformation;
         this.ticksPerSecond = ticksPerSecond;
         this.gravity = gravityConstant * GRAVITY_CONSTANT_SCALE;
@@ -113,8 +112,8 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
                     EffectTriggers.trigger(entityData, FOOT_DUST_EFFECT_ID, newPosition.position, gameTimer.getGameTime());
                 }
 
-                // The landing thud, on touchdown (hand drops and conjured creatures alike)
-                entitySounds.play(entity.getId(), ThingSounds.CREATURE_LAND, newPosition.position);
+                // The landing, on touchdown (hand drops and conjured creatures alike)
+                gameEventService.emit(GameEventType.CREATURE_LAND, entity.getId(), newPosition.position);
 
                 // The state, depending on the landing
                 CreatureComponent creatureComponent = entity.get(CreatureComponent.class);

@@ -55,7 +55,7 @@ class CreatureRemoveFromMapTest {
                 new Class<?>[]{ILevelInfo.class}, (proxy, method, args) -> null);
 
         new CreatureController(entityId, entityData, null, null, null, null, null, null, null, null, levelInfo,
-                objectsController, null).removeFromMap();
+                objectsController, null, null).removeFromMap();
 
         assertNull(entityData.getComponent(entityId, Position.class));
         assertNull(entityData.getComponent(entityId, Gold.class));

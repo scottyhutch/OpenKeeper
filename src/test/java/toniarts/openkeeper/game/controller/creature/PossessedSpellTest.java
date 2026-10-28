@@ -474,7 +474,7 @@ class PossessedSpellTest {
         });
 
         return new CreatureController(us, entityData, creature, null, null, gameTimer, gameSettings, creaturesController,
-                positionLookup, mapController, levelInfo, null, shotsController);
+                positionLookup, mapController, levelInfo, null, shotsController, null);
     }
 
     @FunctionalInterface

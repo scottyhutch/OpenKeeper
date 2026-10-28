@@ -121,7 +121,7 @@ class TileWorkStepTest {
                 new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];
-                    case "addGold" -> null;
+                    case "addGold", "fireEvent" -> null;
                     case "getEntityId" -> new EntityId(1);
                     case "getCreature" -> TileWorkFixtures.creature();
                     default -> throw new UnsupportedOperationException(method.getName());

@@ -46,7 +46,7 @@ class CreatureLairTest {
         ILevelInfo levelInfo = (ILevelInfo) Proxy.newProxyInstance(ILevelInfo.class.getClassLoader(),
                 new Class<?>[]{ILevelInfo.class}, (proxy, method, args) -> null);
         CreatureController prince = new CreatureController(entityId, entityData, new Creature(), null, null, null, null,
-                null, null, null, levelInfo, null, null);
+                null, null, null, levelInfo, null, null, null);
 
         assertFalse(prince.needsLair());
         assertFalse(prince.isNeedForSleep());

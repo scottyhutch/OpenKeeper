@@ -190,7 +190,9 @@ class CombatPitFightTest {
         INavigationService navigationService = stub(INavigationService.class, (name, args) -> "findPath".equals(name) ? new DefaultGraphPath<>() : null);
 
         return new CreatureController(entity, entityData, creatures.get(FIGHTER), navigationService,
-                null, gameTimer, gameSettings, creaturesController, positionLookup, null, levelInfo, null, null);
+                null, gameTimer, gameSettings, creaturesController, positionLookup, null, levelInfo, null, null, (toniarts.openkeeper.game.event.GameEventService) java.lang.reflect.Proxy.newProxyInstance(
+                        toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
+                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));
     }
 
     @FunctionalInterface

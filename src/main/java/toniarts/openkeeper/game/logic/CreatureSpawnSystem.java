@@ -21,12 +21,6 @@ import com.jme3.util.SafeArrayList;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.filter.FieldFilter;
-import toniarts.openkeeper.utils.Point;
-import java.util.Collection;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.Owner;
@@ -37,16 +31,23 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.listener.RoomListener;
-import toniarts.openkeeper.game.sound.ThingSounds;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.tools.convert.map.Variable.CreaturePool;
 import toniarts.openkeeper.utils.GameTimeCounter;
+import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.utils.WorldUtils;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 
 /**
  * Handles creatures spawning, from Portals, Dungeon Hearts...<br>
@@ -64,6 +65,7 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
 
     private final EntityData entityData;
     private final ICreaturesController creaturesController;
+    private final GameEventService gameEventService;
     private final int minimumImpCount;
     private final int entranceCooldownTime;
     private final int initialPortalCapacity;
@@ -77,9 +79,10 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
 
     public CreatureSpawnSystem(EntityData entityData, ICreaturesController creaturesController, Collection<IPlayerController> playerControllers,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings, ILevelInfo levelInfo,
-            IMapController mapController) {
+            IMapController mapController, GameEventService gameEventService) {
         this.entityData = entityData;
         this.creaturesController = creaturesController;
+        this.gameEventService = gameEventService;
         this.creatureChoice = new PortalCreatureChoice(entityData, Utils.getRandom());
 
         // We need the game state just for the variables
@@ -144,8 +147,8 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
                 entityId = creaturesController.spawnCreature(kwdFile.getImp().getCreatureId(), player.getKeeper().getId(), 1, spot, ICreaturesController.SpawnType.PLACE);
                 spawned = true;
 
-                // The cast sound is not gated by the free flag
-                ThingSounds.playCreateImp(kwdFile, WorldUtils.vector2fToVector3(spot));
+                // The cast is not gated by the free flag
+                gameEventService.emit(GameEventType.IMPS_CREATED, WorldUtils.vector2fToVector3(spot));
             }
         } else if (!entrance.isDungeonHeart() && timeSinceLastSpawn >= getGenerationInterval(entrance)) {
 

@@ -50,7 +50,7 @@ class CreatureStartingGoldTest {
     private final Creature imp = CreatureGoldFixtures.goldCreature(IMP_ID, MAX_GOLD, INITIAL_GOLD);
     private final Creature knight = CreatureGoldFixtures.goldCreature(KNIGHT_ID, MAX_GOLD, INITIAL_GOLD);
     private final CreaturesController controller = new CreaturesController(kwdFile(), entityData,
-            Collections.emptyMap(), stub(IGameTimer.class), null, stub(IMapController.class), null);
+            Collections.emptyMap(), stub(IGameTimer.class), gameController(), stub(IMapController.class), null);
 
     @Test
     void placedKeeperCreatureWithoutGoldCarriesNone() {
@@ -99,6 +99,12 @@ class CreatureStartingGoldTest {
             default ->
                 defaultValue(method.getReturnType());
         });
+    }
+
+    private static IGameController gameController() {
+        return (IGameController) Proxy.newProxyInstance(CreatureStartingGoldTest.class.getClassLoader(), new Class<?>[]{IGameController.class},
+                (proxy, method, args) -> method.getName().equals("getGameEventService")
+                ? stub(toniarts.openkeeper.game.event.GameEventService.class) : defaultValue(method.getReturnType()));
     }
 
     private static <T> T stub(Class<T> type) {

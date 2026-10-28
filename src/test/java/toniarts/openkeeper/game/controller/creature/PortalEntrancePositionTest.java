@@ -40,7 +40,7 @@ class PortalEntrancePositionTest {
         var levelInfo = (ILevelInfo) Proxy.newProxyInstance(ILevelInfo.class.getClassLoader(),
                 new Class<?>[]{ILevelInfo.class}, (proxy, method, args) -> null);
         var controller = new CreatureController(id, data, creature, null, null, null,
-                null, null, null, null, levelInfo, null, null);
+                null, null, null, null, levelInfo, null, null, null);
         controller.completeDungeonEntrance();
         var result = data.getComponent(id, Position.class);
         assertEquals(13 + x, result.position.x);

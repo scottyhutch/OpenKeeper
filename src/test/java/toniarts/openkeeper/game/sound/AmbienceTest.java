@@ -1,5 +1,7 @@
 package toniarts.openkeeper.game.sound;
 
+import java.util.EnumSet;
+import toniarts.openkeeper.tools.convert.sound.BankMapFileEntry.BankFlag;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -10,14 +12,15 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.utils.Point;
 
 class AmbienceTest {
 
-    private static final int REPEATING_FLAGS = SoundEventFlags.REPEATING;
-    private static final int SEGMENTED_FLAGS = SoundEventFlags.REPEATING | SoundEventFlags.SEGMENTED;
+    private static final Set<SoundEventFlag> REPEATING_FLAGS = EnumSet.of(SoundEventFlag.REPEATING);
+    private static final Set<SoundEventFlag> SEGMENTED_FLAGS = EnumSet.of(SoundEventFlag.REPEATING, SoundEventFlag.SEGMENTED);
 
     private final List<SilentAudioBackend> backends = new ArrayList<>();
     private SoundEngine engine;
@@ -154,7 +157,7 @@ class AmbienceTest {
     @Test
     void categoriesWithoutABedAreIgnored() {
         SoundCategory rock = category("ROCK", 0x100,
-                event(0x100, 0, loud(100, 100, 1000)));
+                event(0x100, EnumSet.noneOf(SoundEventFlag.class), loud(100, 100, 1000)));
         AmbienceBeds beds = new AmbienceBeds(engine, name -> rock);
 
         String[] cells = new String[AmbienceBeds.GRID_SIZE * AmbienceBeds.GRID_SIZE];
@@ -211,7 +214,6 @@ class AmbienceTest {
         driver.stop();
         engine.tick();
     }
-
 
     @Test
     void torchIsLoudestAtTheTorchAndSilentBeyondTwoTiles() {
@@ -271,7 +273,7 @@ class AmbienceTest {
         return new SoundCategory(name, 0b11, events);
     }
 
-    private static SoundEvent event(int id, int flags, SoundEventGroup group) {
+    private static SoundEvent event(int id, Set<SoundEventFlag> flags, SoundEventGroup group) {
         return new SoundEvent(id, 100, flags, List.of(group));
     }
 
@@ -290,7 +292,7 @@ class AmbienceTest {
     }
 
     private static SoundEventGroup group(int volumeMin, int volumeMax, int delayMin, int delayMax, int durationMs) {
-        SoundArchive archive = new SoundArchive("Global" + File.separator + "Test", 1, null,
+        SoundArchive archive = new SoundArchive("Global" + File.separator + "Test", EnumSet.of(BankFlag.RESIDENT), null,
                 List.of("clip1.mp2"));
         SoundSample sample = new SoundSample(1, 100, durationMs, 0, archive);
         return new SoundEventGroup(volumeMin, volumeMax, 0, 0, delayMin, delayMax, 0, 0, 0, 0, 100, 0.0f,

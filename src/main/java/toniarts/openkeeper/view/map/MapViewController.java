@@ -1257,8 +1257,9 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
      */
     protected void removeRoomInstances(RoomInstance... instances) {
         for (RoomInstance instance : instances) {
+            // A room that has no visuals is registered with no node
             Spatial roomNode = roomNodes.remove(instance);
-            if (roomNode != null) { // Not built, if it failed or there is no constructor for the room
+            if (roomNode != null) {
                 roomsNode.detachChild(roomNode);
             }
 
