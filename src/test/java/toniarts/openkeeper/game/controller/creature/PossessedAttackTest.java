@@ -544,7 +544,10 @@ class PossessedAttackTest {
         });
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData") ? kwdFile : null);
         return new CreatureController(entity, entityData, new Creature(), null, null, gameTimer, gameSettings, creaturesController,
-                positionLookup, mapController, levelInfo, null, null);
+                positionLookup, mapController, levelInfo, null, null,
+                (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
+                        toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
+                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));
     }
 
     @FunctionalInterface
