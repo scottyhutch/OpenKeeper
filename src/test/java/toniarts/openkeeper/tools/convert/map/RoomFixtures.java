@@ -11,6 +11,12 @@ public final class RoomFixtures {
     private RoomFixtures() {
     }
 
+    public static Room researchableRoom(short roomId, int researchTime) {
+        Room room = room(roomId, 0);
+        room.setResearchTime(researchTime);
+        return room;
+    }
+
     public static Room room(short roomId, int cost, Room.RoomFlag... flags) {
         EnumSet<Room.RoomFlag> set = EnumSet.noneOf(Room.RoomFlag.class);
         for (Room.RoomFlag flag : flags) {

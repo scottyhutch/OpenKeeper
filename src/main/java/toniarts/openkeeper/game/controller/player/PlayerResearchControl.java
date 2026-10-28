@@ -61,18 +61,19 @@ public final class PlayerResearchControl {
         researchableEntity.setResearch(researchableEntity.getResearch() + researchAmount);
         if (researchableEntity.isDiscovered() && researchableEntity.isUpgradedable() && researchableEntity.getResearch() >= upgradeResearchTime) {
             //spell.setUpgraded(true); - added with delay by the spellbook actually materializing
-            researchableEntity.setResearch(0);
             return true;
         } else if (!researchableEntity.isDiscovered() && researchableEntity.getResearch() >= researchTime) {
             //spell.setDiscovered(true); - added with delay by the spellbook actually materializing
-            researchableEntity.setResearch(0);
             return true;
         }
         return false;
     }
 
     /**
-     * Researches current item
+     * Researches current item. A completed item stays the current one, and the
+     * points keep piling up, until {@link #completeResearch()} is called (the original
+     * only completes it once the book has found room), so this keeps returning
+     * it until then.
      *
      * @param researchAmount the research amount
      * @return returns the type if it is researched completely
@@ -109,11 +110,16 @@ public final class PlayerResearchControl {
         }
 
         // If research complete, return the entity
-        if (advanceToNext) {
-            setNextResearchTarget();
-            return researchableEntity;
-        }
-        return null;
+        return advanceToNext ? researchableEntity : null;
+    }
+
+    /**
+     * Finishes the current research once its result has been stored: resets
+     * the progress and moves on to the next target
+     */
+    public void completeResearch() {
+        keeper.getCurrentResearch().setResearch(0);
+        setNextResearchTarget();
     }
 
     private void setNextResearchTarget() {
