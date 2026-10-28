@@ -91,7 +91,7 @@ class ReaperAiTest {
         addCreature(ENEMY_ID, new Point(16, 10));
         EntityId nearest = addCreature(ENEMY_ID, new Point(13, 10));
 
-        assertTrue(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
 
         assertEquals(CreatureState.FIGHT, state);
         assertEquals(nearest, entityData.getComponent(reaper, AttackTarget.class).entityId);
@@ -113,8 +113,11 @@ class ReaperAiTest {
         addCreature(ALLY_ID, new Point(12, 10));
         addCreature(Player.NEUTRAL_PLAYER_ID, new Point(13, 10));
 
-        assertFalse(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
+
         assertNull(entityData.getComponent(reaper, AttackTarget.class));
+        assertTrue(wandered);
+        assertEquals(CreatureState.WANDER, state);
     }
 
     @Test
@@ -149,7 +152,7 @@ class ReaperAiTest {
         addHeart(ALLY_ID, new Point(14, 10));
         addHeart(PLAYER_ID, new Point(10, 16));
 
-        assertTrue(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
 
         assertEquals(CreatureState.FIGHT, state);
         assertEquals(heart, entityData.getComponent(reaper, AttackTarget.class).entityId);
@@ -185,7 +188,7 @@ class ReaperAiTest {
         entityData.setComponent(reaper, new AttackTarget(heart));
         state = CreatureState.FIGHT;
 
-        assertTrue(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
 
         assertEquals(heart, entityData.getComponent(reaper, AttackTarget.class).entityId);
     }
@@ -197,22 +200,23 @@ class ReaperAiTest {
         state = CreatureState.FIGHT;
         EntityId fighter = addCreature(ENEMY_ID, new Point(20, 10));
 
-        assertTrue(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
         assertEquals(fighter, entityData.getComponent(reaper, AttackTarget.class).entityId);
 
         // The heart is still there, but he stays on the fighter
-        assertTrue(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
         assertEquals(fighter, entityData.getComponent(reaper, AttackTarget.class).entityId);
     }
 
     @Test
-    void leavesWhenThereIsNothingToDestroy() {
+    void roamsWhenThereIsNothingToDestroy() {
         Point heart = new Point(30, 12);
         addHeart(ENEMY_ID, heart);
         makeHeartUnreachable(heart);
         entityData.setComponent(addHeart(ENEMY_ID, new Point(20, 20)), new Health(0, 100));
 
-        assertFalse(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
+
         assertNull(entityData.getComponent(reaper, AttackTarget.class));
     }
 
@@ -221,7 +225,7 @@ class ReaperAiTest {
         roll = 0;
         addCreature(ENEMY_ID, new Point(13, 10));
 
-        assertTrue(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
 
         assertTrue(wandered);
         assertEquals(CreatureState.WANDER, state);
@@ -235,7 +239,7 @@ class ReaperAiTest {
         entityData.setComponent(reaper, new AttackTarget(target));
         state = CreatureState.FIGHT;
 
-        assertTrue(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
 
         assertEquals(target, entityData.getComponent(reaper, AttackTarget.class).entityId);
     }
@@ -259,7 +263,7 @@ class ReaperAiTest {
         entityData.setComponent(reaper, new Navigation(new Point(1, 1), null, null));
         state = CreatureState.WANDER;
 
-        assertTrue(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
 
         assertEquals(CreatureState.WANDER, state);
         assertNull(entityData.getComponent(reaper, AttackTarget.class));
@@ -270,7 +274,7 @@ class ReaperAiTest {
         addCreature(ENEMY_ID, new Point(13, 10));
         state = CreatureState.MELEE_ATTACK;
 
-        assertTrue(ai().think(reaper, PLAYER_ID));
+        ai().think(reaper, PLAYER_ID);
 
         assertEquals(CreatureState.MELEE_ATTACK, state);
     }

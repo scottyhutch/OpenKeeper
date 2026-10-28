@@ -58,8 +58,9 @@ import toniarts.openkeeper.utils.WorldUtils;
  * decides again: one time in three he roams about. Otherwise he goes for the
  * nearest enemy creature he can reach. With no such creature he attacks the
  * nearest enemy Dungeon Heart he can get next to, turning on any creature that
- * comes within reach meanwhile, and with no heart either he has nothing left to
- * do and leaves. He has no needs, so he never looks for a
+ * comes within reach meanwhile, and with no heart either he roams about until
+ * his time or the keeper's mana runs out (DKII.EXE 0x474AF0 goes to the roaming
+ * state when there is nothing to attack). He has no needs, so he never looks for a
  * lair, food or work. Sent for the Portal Gem, he walks to it and picks it up,
  * and that is the end of his job.
  */
@@ -90,14 +91,14 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
     }
 
     @Override
-    public boolean think(EntityId reaper, short ownerId) {
+    public void think(EntityId reaper, short ownerId) {
         creatures.applyChanges();
         objects.applyChanges();
 
         Keeper keeper = keepers.get(ownerId);
         ICreatureController reaperController = creaturesController.createController(reaper);
         if (keeper == null) {
-            return true;
+            return;
         }
         if (isBusy(reaper, reaperController, keeper)) {
 
@@ -110,24 +111,30 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
                     reaperController.getStateMachine().changeState(CreatureState.FIGHT);
                 }
             }
-            return true;
+            return;
         }
 
         StateMachine<ICreatureController, CreatureState> stateMachine = reaperController.getStateMachine();
         if (random.nextInt(WANDER_CHANCE) == 0) {
-            stateMachine.changeState(CreatureState.WANDER);
-            reaperController.navigateToRandomPoint();
-            return true;
+            wander(reaperController);
+            return;
         }
 
         EntityId target = findNearestEnemy(reaper, reaperController, keeper);
         if (target != null) {
             entityData.setComponent(reaper, new AttackTarget(target));
             stateMachine.changeState(CreatureState.FIGHT);
-            return true;
+            return;
         }
 
-        return attackNearestEnemyHeart(reaper, reaperController, keeper);
+        if (!attackNearestEnemyHeart(reaper, reaperController, keeper)) {
+            wander(reaperController);
+        }
+    }
+
+    private void wander(ICreatureController reaperController) {
+        reaperController.getStateMachine().changeState(CreatureState.WANDER);
+        reaperController.navigateToRandomPoint();
     }
 
     @Override
