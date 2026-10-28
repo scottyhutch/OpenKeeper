@@ -41,6 +41,21 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public boolean shouldFleeOrAttack();
 
     /**
+     * An idle fighter hits an enemy door that is next to it, as DKII.EXE does
+     *
+     * @return true if there is such a door and we are on it
+     */
+    public boolean attackAdjacentDoor();
+
+    /**
+     * A fighter with no enemy creature to fight goes for the nearest enemy
+     * trap it sees, as DKII.EXE does
+     *
+     * @return true if there is such a trap and we are on it
+     */
+    public boolean attackVisibleTrap();
+
+    /**
      * Checks what the creature sees and hears
      */
     public void checkSurroundings();
@@ -87,7 +102,13 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
 
     public boolean isAssignedTaskValid();
 
-    public ICreatureController getAttackTarget();
+    /**
+     * Gets the creature, or the enemy Dungeon Heart, we are fighting. Picks a
+     * new target if we don't have a valid one.
+     *
+     * @return the target to attack, or {@code null} if there is none
+     */
+    public IEntityController getAttackTarget();
 
     public boolean isWithinAttackDistance(EntityId attackTarget);
 
@@ -132,6 +153,14 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public Point getCreatureCoordinates();
 
     public void setAssignedTask(Task task);
+
+    /**
+     * The assigned task moved on to its next step, with a new type and
+     * location. The creature keeps the task and heads for the new location.
+     *
+     * @param task the assigned task
+     */
+    public void updateAssignedTask(Task task);
 
     public void executeAssignedTask();
 
@@ -253,6 +282,13 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public int getResearchPerSecond();
 
     /**
+     * Get manufacture per second attribute
+     *
+     * @return manufacture per second
+     */
+    public int getManufacturePerSecond();
+
+    /**
      * Gives object to creature
      *
      * @param object the object, might be food, gold, or what ever
@@ -294,11 +330,26 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public void setPossessedAttack(boolean attacking);
 
     /**
+     * The keeper wants the creature the possessed creature looks at to join
+     * its group. It joins on the game logic thread, see
+     * {@link #executePossessedAttack()}.
+     */
+    public void addPossessedFollower();
+
+    /**
      * Swings the melee attack of a possessed creature, if it has recharged.
      * Hits the nearest creature in front of it on the tiles around it, or if
-     * there is none, a worker digs the tile it is facing.
+     * there is none, a worker digs the tile it is facing. When the keeper asked
+     * for a follower instead, our own creature it looks at joins its group.
      */
     public void executePossessedAttack();
+
+    /**
+     * Does the creature follow a creature its keeper possesses
+     *
+     * @return true if the creature is in the group of a possessed creature
+     */
+    public boolean isInPossessedGroup();
 
     /**
      * Converts creature to another player's bidding

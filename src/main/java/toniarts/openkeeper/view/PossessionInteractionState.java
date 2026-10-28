@@ -206,8 +206,10 @@ public abstract class PossessionInteractionState extends AbstractPauseAwareState
      * @param pressed whether the key went down or up
      */
     private void useAttack(boolean pressed) {
-        // Only the melee attack for now, but always let go of it
-        if (action == Action.MELEE || !pressed) {
+        // The melee attack and the group, but always let go of the attack
+        if (action == Action.GROUP && pressed) {
+            stateManager.getState(GameClientState.class).getGameClientService().addPossessedFollower();
+        } else if (action == Action.MELEE || !pressed) {
             stateManager.getState(GameClientState.class).getGameClientService().setPossessedAttack(pressed);
         }
     }

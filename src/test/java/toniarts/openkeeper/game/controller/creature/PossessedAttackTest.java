@@ -32,12 +32,15 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Damage;
+import toniarts.openkeeper.game.component.DoorComponent;
+import toniarts.openkeeper.game.component.FollowTarget;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAttack;
+import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
@@ -52,6 +55,7 @@ import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.PossessionFixtures;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.TerrainFixtures;
+import toniarts.openkeeper.tools.convert.map.TrapFiringFixtures;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -68,6 +72,7 @@ class PossessedAttackTest {
 
     private static final short KEEPER = Player.KEEPER1_ID;
     private static final short HERO = Player.GOOD_PLAYER_ID;
+    private static final short HORNY = 27;
     private static final int DAMAGE = 100;
     private static final float RECHARGE = 1.5f;
     private static final float RANGE = 0.5f;
@@ -81,6 +86,7 @@ class PossessedAttackTest {
     private List<Point> dugTiles;
     private Map<Variable.CreatureStats.StatType, Variable.CreatureFirstPerson> firstPersonStats;
     private Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings;
+    private Map<EntityId, CreatureController> controllers;
     private double gameTime;
     private EntityId us;
 
@@ -91,6 +97,7 @@ class PossessedAttackTest {
         dugTiles = new ArrayList<>();
         firstPersonStats = new HashMap<>();
         gameSettings = new HashMap<>();
+        controllers = new HashMap<>();
         gameTime = 10;
 
         // At the middle of tile (5, 5), facing +z
@@ -204,6 +211,39 @@ class PossessedAttackTest {
     }
 
     @Test
+    void hitsAnEnemyDoorInFront() {
+        EntityId door = createDoor(HERO, new Vector3f(5.5f, 0, 6.3f));
+
+        createController().executePossessedAttack();
+
+        assertEquals(DAMAGE, entityData.getComponent(door, Damage.class).damage);
+        assertEquals(Creature.AnimationType.MELEE_ATTACK, entityData.getComponent(us, CreatureViewState.class).state);
+    }
+
+    @Test
+    void doesNotHitOwnDoorsOrBlueprints() {
+        EntityId own = createDoor(KEEPER, new Vector3f(5.5f, 0, 5.8f));
+        EntityId blueprint = createDoor(HERO, new Vector3f(5.5f, 0, 6.3f));
+        entityData.setComponent(blueprint, new DoorComponent((short) 1, false, true));
+
+        createController().executePossessedAttack();
+
+        assertNull(entityData.getComponent(own, Damage.class));
+        assertNull(entityData.getComponent(blueprint, Damage.class));
+    }
+
+    @Test
+    void hitsTheNearerOfADoorAndACreature() {
+        EntityId door = createDoor(HERO, new Vector3f(5.5f, 0, 5.9f));
+        EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 6.3f));
+
+        createController().executePossessedAttack();
+
+        assertEquals(DAMAGE, entityData.getComponent(door, Damage.class).damage);
+        assertNull(entityData.getComponent(enemy, Damage.class));
+    }
+
+    @Test
     void swingsAgainOnlyOnceRecharged() {
         EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 5.8f));
         CreatureController controller = createController();
@@ -241,6 +281,127 @@ class PossessedAttackTest {
         controller.executePossessedAttack();
         controller.setPossessedAttack(false);
         assertNull(entityData.getComponent(us, PossessedAttack.class));
+    }
+
+    @Test
+    void hitsAnEnemyTrapInFront() {
+        EntityId trap = createTrap(HERO, new Vector3f(5.5f, 0, 6.3f), false);
+
+        createController().executePossessedAttack();
+
+        assertEquals(DAMAGE, entityData.getComponent(trap, Damage.class).damage);
+        assertEquals(Creature.AnimationType.MELEE_ATTACK, entityData.getComponent(us, CreatureViewState.class).state);
+    }
+
+    @Test
+    void doesNotHitOwnOrHiddenTraps() {
+        EntityId own = createTrap(KEEPER, new Vector3f(5.5f, 0, 5.8f), false);
+        EntityId hidden = createTrap(HERO, new Vector3f(5.5f, 0, 6.3f), true);
+
+        createController().executePossessedAttack();
+
+        assertNull(entityData.getComponent(own, Damage.class));
+        assertNull(entityData.getComponent(hidden, Damage.class));
+    }
+
+    @Test
+    void ownCreatureInViewJoinsTheGroup() {
+        EntityId friend = createCreature(KEEPER, new Vector3f(5, 0, 9));
+        CreatureController controller = createController();
+
+        controller.addPossessedFollower();
+        controller.executePossessedAttack();
+
+        assertEquals(us, entityData.getComponent(friend, FollowTarget.class).entityId);
+        assertTrue(createController(friend).getStateMachine().isInState(CreatureState.FOLLOW));
+        assertTrue(createController(friend).isInPossessedGroup());
+        assertNull(entityData.getComponent(us, CreatureMeleeAttack.class).attactStartTime);
+    }
+
+    @Test
+    void theCreatureClosestToWhereItLooksJoins() {
+        EntityId ahead = createCreature(KEEPER, new Vector3f(5, 0, 10));
+        EntityId aside = createCreature(KEEPER, new Vector3f(5.3f, 0, 6.5f));
+        CreatureController controller = createController();
+
+        controller.addPossessedFollower();
+        controller.executePossessedAttack();
+
+        assertEquals(us, entityData.getComponent(ahead, FollowTarget.class).entityId);
+        assertNull(entityData.getComponent(aside, FollowTarget.class));
+    }
+
+    @Test
+    void creaturesTooFarOrOffToTheSideDoNotJoin() {
+        EntityId far = createCreature(KEEPER, new Vector3f(5, 0, 12.1f));
+        EntityId side = createCreature(KEEPER, new Vector3f(6.5f, 0, 8));
+        CreatureController controller = createController();
+
+        controller.addPossessedFollower();
+        controller.executePossessedAttack();
+
+        assertNull(entityData.getComponent(far, FollowTarget.class));
+        assertNull(entityData.getComponent(side, FollowTarget.class));
+    }
+
+    @Test
+    void enemiesHornyAndOtherGroupsDoNotJoin() {
+        EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 7));
+        EntityId horny = createCreature(KEEPER, new Vector3f(5, 0, 8));
+        CreatureComponent hornyComponent = entityData.getComponent(horny, CreatureComponent.class);
+        hornyComponent.creatureId = HORNY;
+        entityData.setComponent(horny, hornyComponent);
+        EntityId leader = createCreature(KEEPER, new Vector3f(1, 0, 1));
+        EntityId following = createCreature(KEEPER, new Vector3f(5, 0, 9));
+        entityData.setComponent(following, new FollowTarget(leader));
+        CreatureController controller = createController();
+
+        controller.addPossessedFollower();
+        controller.executePossessedAttack();
+
+        assertNull(entityData.getComponent(enemy, FollowTarget.class));
+        assertNull(entityData.getComponent(horny, FollowTarget.class));
+        assertEquals(leader, entityData.getComponent(following, FollowTarget.class).entityId);
+    }
+
+    @Test
+    void theGroupHasRoomForTheMaximumNumberOfFollowers() {
+        gameSettings.put(Variable.MiscVariable.MiscType.MAXIMUM_GROUP_NUMBER_OF_FOLLOWERS,
+                PossessionFixtures.miscVariable(Variable.MiscVariable.MiscType.MAXIMUM_GROUP_NUMBER_OF_FOLLOWERS, 1));
+        EntityId first = createCreature(KEEPER, new Vector3f(5, 0, 8));
+        CreatureController controller = createController();
+        controller.addPossessedFollower();
+        controller.executePossessedAttack();
+
+        EntityId second = createCreature(KEEPER, new Vector3f(5, 0, 7));
+        controller.addPossessedFollower();
+        controller.executePossessedAttack();
+
+        assertEquals(us, entityData.getComponent(first, FollowTarget.class).entityId);
+        assertNull(entityData.getComponent(second, FollowTarget.class));
+    }
+
+    @Test
+    void releasingTheButtonKeepsTheGroupRequest() {
+        CreatureController controller = createController();
+
+        controller.addPossessedFollower();
+        controller.setPossessedAttack(false);
+
+        assertTrue(entityData.getComponent(us, PossessedAttack.class).group);
+    }
+
+    @Test
+    void theGroupBreaksUpWhenThePossessionEnds() {
+        EntityId friend = createCreature(KEEPER, new Vector3f(5, 0, 8));
+        CreatureController controller = createController();
+        controller.addPossessedFollower();
+        controller.executePossessedAttack();
+
+        controller.setPossession(false);
+
+        assertNull(entityData.getComponent(friend, FollowTarget.class));
+        assertFalse(createController(friend).isInPossessedGroup());
     }
 
     @Test
@@ -292,6 +453,20 @@ class PossessedAttackTest {
         return entity;
     }
 
+    private EntityId createTrap(short ownerId, Vector3f position, boolean hidden) {
+        EntityId entity = entityData.createEntity();
+        entityData.setComponents(entity, new TrapViewState((short) 1, false, hidden), new Owner(ownerId, ownerId),
+                new Health(2000, 2000), new Position(0, position));
+        return entity;
+    }
+
+    private EntityId createDoor(short ownerId, Vector3f position) {
+        EntityId entity = entityData.createEntity();
+        entityData.setComponents(entity, new DoorComponent((short) 1, false, false), new Owner(ownerId, ownerId),
+                new Health(2000, 2000), new Position(0, position));
+        return entity;
+    }
+
     private List<EntityId> getEntitiesInLocation(Point tile) {
         List<EntityId> entities = new ArrayList<>();
         for (Entity entity : entityData.getEntities(Position.class)) {
@@ -303,7 +478,7 @@ class PossessedAttackTest {
     }
 
     private IMapTileInformation getTile(int x, int y) {
-        if (x < 0 || y < 0 || x > 9 || y > 9) {
+        if (x < 0 || y < 0 || x > 19 || y > 19) {
             return null;
         }
         Terrain tileTerrain = terrain.getOrDefault(new Point(x, y), FLOOR);
@@ -325,11 +500,27 @@ class PossessedAttackTest {
     }
 
     private CreatureController createController() {
+        return createController(us);
+    }
+
+    private CreatureController createController(EntityId entity) {
+        CreatureController controller = controllers.get(entity);
+        if (controller == null) {
+            controller = newController(entity);
+            controllers.put(entity, controller);
+        }
+        return controller;
+    }
+
+    private CreatureController newController(EntityId entity) {
         IGameTimer gameTimer = stub(IGameTimer.class, (name, args) -> "getGameTime".equals(name) ? gameTime : null);
         IEntityPositionLookup positionLookup = stub(IEntityPositionLookup.class,
                 (name, args) -> "getEntitiesInLocation".equals(name) ? getEntitiesInLocation((Point) args[0]) : null);
-        ICreaturesController creaturesController = stub(ICreaturesController.class,
-                (name, args) -> "isValidEntity".equals(name) ? entityData.getComponent((EntityId) args[0], CreatureComponent.class) != null : null);
+        ICreaturesController creaturesController = stub(ICreaturesController.class, (name, args) -> switch (name) {
+            case "isValidEntity" -> entityData.getComponent((EntityId) args[0], CreatureComponent.class) != null;
+            case "createController" -> createController((EntityId) args[0]);
+            default -> null;
+        });
         IMapDataInformation<?> mapData = stub(IMapDataInformation.class, (name, args) -> {
             if (!"getTile".equals(name)) {
                 return null;
@@ -346,10 +537,18 @@ class PossessedAttackTest {
             default -> null;
         });
 
-        ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData")
-                ? stub(IKwdFile.class, (kwdName, kwdArgs) -> kwdName.equals("getCreatureFirstPersonStats") ? firstPersonStats : null) : null);
-        return new CreatureController(us, entityData, new Creature(), null, null, gameTimer, gameSettings, creaturesController,
-                positionLookup, mapController, levelInfo, null, null, stub(GameEventService.class, (name, args) -> null));
+        IKwdFile kwdFile = stub(IKwdFile.class, (kwdName, kwdArgs) -> switch (kwdName) {
+            case "getCreatureFirstPersonStats" -> firstPersonStats;
+            case "getCreature" -> (Short) kwdArgs[0] == HORNY
+                    ? TrapFiringFixtures.creature(HORNY, Creature.CreatureFlag.IS_HORNY) : TrapFiringFixtures.creature((Short) kwdArgs[0]);
+            default -> null;
+        });
+        ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData") ? kwdFile : null);
+        return new CreatureController(entity, entityData, new Creature(), null, null, gameTimer, gameSettings, creaturesController,
+                positionLookup, mapController, levelInfo, null, null,
+                (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
+                        toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
+                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));
     }
 
     @FunctionalInterface

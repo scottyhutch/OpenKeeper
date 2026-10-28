@@ -19,11 +19,13 @@ package toniarts.openkeeper.game.controller.creature;
 import com.badlogic.gdx.ai.fsm.DefaultStateMachine;
 import com.badlogic.gdx.ai.fsm.StateMachine;
 import com.badlogic.gdx.ai.pfa.GraphPath;
+import com.badlogic.gdx.math.Vector2;
 import com.jme3.math.FastMath;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.filter.FieldFilter;
 import toniarts.openkeeper.game.component.Attack;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CreatureAi;
@@ -128,6 +130,12 @@ public final class CreatureController extends EntityController implements ICreat
      * that angle
      */
     private static final float POSSESSED_ATTACK_MIN_FACING = FastMath.cos(341 / 2048f * FastMath.TWO_PI);
+
+    /**
+     * A creature joins the group of the possessed creature from closer than
+     * this, in tiles
+     */
+    private static final int POSSESSED_GROUP_RANGE = 7;
 
     private final INavigationService navigationService;
     private final ITaskManager taskManager;
@@ -471,25 +479,123 @@ public final class CreatureController extends EntityController implements ICreat
         Task assignedTask = getAssignedTask();
         if (assignedTask != null) {
             Vector2f loc = assignedTask.getTarget(this);
-            if (!isNear(loc)) {
+            Vector2f workPosition = assignedTask.getWorkPosition(this);
+            if (workPosition != null && workPosition.equals(loc)) {
+                workPosition = null;
+            }
+
+            // The middle of the target tile is near enough, unless the task wants us somewhere else on the tile
+            boolean there = workPosition != null ? isAt(workPosition) : loc != null && isNear(loc);
+            if (loc != null && !there) {
                 //workNavigationRequired = false;
 
-                if (loc != null) {
-                    Point destination = WorldUtils.vectorToPoint(loc);
-                    createNavigation(getCreatureCoordinates(), destination, assignedTask.isFaceTarget() ? assignedTask.getTaskLocation() : null);
-                }
+                Point destination = WorldUtils.vectorToPoint(loc);
+                createNavigation(getCreatureCoordinates(), destination, assignedTask.isFaceTarget() ? assignedTask.getTaskLocation() : null, workPosition);
             }
         }
     }
 
     private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget) {
+        return createNavigation(currentLocation, destination, faceTarget, null);
+    }
+
+    private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget, Vector2f workPosition) {
         GraphPath<IMapTileInformation> path = navigationService.findPath(currentLocation, destination, this);
         if (path == null) {
             logger.log(Level.WARNING, "No path from {0} to {1}", getCreatureCoordinates(), destination);
             return true;
         }
-        entityData.setComponent(entityId, new Navigation(destination, faceTarget, SteeringUtils.pathToList(path)));
+
+        // An enemy door in the way is not walked through, it is broken down
+        List<Point> tiles = new ArrayList<>(path.getCount());
+        path.forEach(tile -> tiles.add(tile.getLocation()));
+        int doorIndex = DoorAttackTarget.getDoorIndex(tiles, this::isDoorToBreak);
+        if (doorIndex == DoorAttackTarget.ADJACENT_DOOR_INDEX) {
+            attackDoor(getBlockingDoor(tiles.get(doorIndex)));
+            return false;
+        } else if (doorIndex > DoorAttackTarget.ADJACENT_DOOR_INDEX) {
+            path = DoorAttackTarget.stopBefore(path, doorIndex);
+            destination = tiles.get(doorIndex - 1);
+            faceTarget = tiles.get(doorIndex);
+            workPosition = null;
+        }
+
+        List<Vector2> navigationPath = SteeringUtils.pathToList(path);
+        if (workPosition != null) {
+            Vector3f position = getPosition();
+            SteeringUtils.pathToPosition(navigationPath, new Vector2(position.x, position.z), new Vector2(workPosition.x, workPosition.y));
+        }
+        entityData.setComponent(entityId, new Navigation(destination, faceTarget, navigationPath));
         return false;
+    }
+
+    @Override
+    public boolean attackAdjacentDoor() {
+        if (!DoorAttackTarget.attacksAdjacentWhenIdle(getOwnerId())) {
+            return false;
+        }
+        Position position = entityData.getComponent(entityId, Position.class);
+        Point tile = position != null ? WorldUtils.vectorToPoint(position.position) : null;
+        EntityId door = DoorAttackTarget.findAdjacent(tile, this::getBlockingDoor, this::canBreakDoor);
+        if (door == null) {
+            return false;
+        }
+        attackDoor(door);
+        return true;
+    }
+
+    @Override
+    public boolean canBreakDoor(EntityId door) {
+        return DoorAttackTarget.canBreak(entityData, door, creature.getFightStyle(), isEnemy(door));
+    }
+
+    private boolean isDoorToBreak(Point tile) {
+        EntityId door = getBlockingDoor(tile);
+        return door != null && canBreakDoor(door);
+    }
+
+    private EntityId getBlockingDoor(Point tile) {
+        return entityPositionLookup.getBlockingDoor(tile.x, tile.y, getOwnerId());
+    }
+
+    @Override
+    public boolean attackVisibleTrap() {
+        if (!TrapAttackTarget.attacksTraps(creature.getFightStyle(), getOwnerId())) {
+            return false;
+        }
+        EntityId trap = TrapAttackTarget.findNearest(entityPositionLookup.getSensedEntities(entityId), this::isTrapToAttack,
+                this::getDistanceToCreature, creature.getAttributes().getDistanceCanSee(), isWorker(),
+                target -> isWithinAttackDistance(target) || hasPathToEntity(target));
+        if (trap == null) {
+            return false;
+        }
+
+        if (isWithinAttackDistance(trap)) {
+            stopCreature();
+            executeAttack(trap);
+        } else {
+            navigateToAttackTarget(trap);
+        }
+        return true;
+    }
+
+    private boolean isTrapToAttack(EntityId entity) {
+        return TrapAttackTarget.isAttackable(entityData, entity) && isEnemy(entity);
+    }
+
+    /**
+     * Hits a door that is next to us with the melee attack, as often as the
+     * attack recharges
+     *
+     * @param door the door
+     */
+    private void attackDoor(EntityId door) {
+        CreatureMeleeAttack creatureMeleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
+        if (creatureMeleeAttack != null && isAttackRecharged(creatureMeleeAttack)) {
+            entityData.setComponent(entityId, new CreatureMeleeAttack(creatureMeleeAttack, gameTimer.getGameTime()));
+            stateMachine.changeState(CreatureState.MELEE_ATTACK);
+            setDamage(door, creatureMeleeAttack.damage);
+        }
     }
 
     @Override
@@ -504,6 +610,16 @@ public final class CreatureController extends EntityController implements ICreat
     private boolean isNear(Vector2f target) {
         Vector3f currentPos = getPosition();
         return (target.distanceSquared(currentPos.x, currentPos.z) < 0.5f);
+    }
+
+    /**
+     * Standing on the spot, not just on the tile. Well above the arrival
+     * tolerance of the steering (0.1), or the creature keeps stepping around
+     * the spot
+     */
+    private boolean isAt(Vector2f target) {
+        Vector3f currentPos = getPosition();
+        return (target.distanceSquared(currentPos.x, currentPos.z) < 0.25f * 0.25f);
     }
 
     @Override
@@ -524,9 +640,15 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
-    public ICreatureController getAttackTarget() {
+    public IEntityController getAttackTarget() {
         AttackTarget attackTarget = entityData.getComponent(entityId, AttackTarget.class);
-        ICreatureController attackTargetController = null;
+        if (attackTarget != null && DungeonHeartTarget.isDungeonHeart(entityData, attackTarget.entityId)) {
+            if (isHeartToAttack(attackTarget.entityId)) {
+                return objectsController.createController(attackTarget.entityId);
+            }
+            attackTarget = null;
+        }
+        IEntityController attackTargetController = null;
         if (attackTarget == null || isIncapacitated(attackTarget.entityId)
                 || isFleeing(attackTarget.entityId) || isCaptive(attackTarget.entityId)) {
 
@@ -547,7 +669,16 @@ public final class CreatureController extends EntityController implements ICreat
                     }
                 }
             }
-            if (nearestEnemy != null) {
+
+            // With no one but workers to fight, go for an enemy heart in sight
+            EntityId heart = null;
+            if (nearestEnemy == null || isWorker(nearestEnemy)) {
+                heart = getNearestEnemyHeart(nearestDistance);
+            }
+            if (heart != null) {
+                attackTargetController = objectsController.createController(heart);
+                setAttackTarget(heart);
+            } else if (nearestEnemy != null) {
                 attackTargetController = creaturesController.createController(nearestEnemy);
                 setAttackTarget(nearestEnemy);
             } else {
@@ -557,6 +688,51 @@ public final class CreatureController extends EntityController implements ICreat
             attackTargetController = creaturesController.createController(attackTarget.entityId);
         }
         return attackTargetController;
+    }
+
+    private boolean isWorker(EntityId entity) {
+        CreatureComponent otherCreature = entityData.getComponent(entity, CreatureComponent.class);
+        return otherCreature != null && levelInfo.getLevelData().getCreature(otherCreature.creatureId)
+                .getFlags().contains(Creature.CreatureFlag.IS_WORKER);
+    }
+
+    /**
+     * Finds the nearest enemy Dungeon Heart we sense and can get next to
+     *
+     * @param maxDistance the heart needs to be nearer than this
+     * @return the heart, or {@code null} if there is none
+     */
+    private EntityId getNearestEnemyHeart(float maxDistance) {
+        EntityId nearestHeart = null;
+        float nearestDistance = maxDistance;
+        for (EntityId entity : entityPositionLookup.getSensedEntities(entityId)) {
+            if (DungeonHeartTarget.isDungeonHeart(entityData, entity) && isHeartToAttack(entity)
+                    && getHeartAttackTile(entity) != null) {
+                float distance = getDistanceToCreature(entity);
+                if (distance < nearestDistance) {
+                    nearestDistance = distance;
+                    nearestHeart = entity;
+                }
+            }
+        }
+
+        return nearestHeart;
+    }
+
+    private boolean isHeartToAttack(EntityId heart) {
+        Health health = entityData.getComponent(heart, Health.class);
+        return health != null && health.health > 0 && isEnemy(heart)
+                && creature.getFightStyle() != Creature.FightStyle.NON_FIGHTER;
+    }
+
+    private Point getHeartTile(EntityId heart) {
+        return WorldUtils.vectorToPoint(getPosition(entityData, heart));
+    }
+
+    private Point getHeartAttackTile(EntityId heart) {
+        Point ourPosition = getCreatureCoordinates();
+        return DungeonHeartTarget.getAttackTile(ourPosition, getHeartTile(heart),
+                tile -> tile.equals(ourPosition) || navigationService.findPath(ourPosition, tile, this) != null);
     }
 
     private boolean hasPathToEntity(EntityId entity) {
@@ -576,6 +752,9 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public boolean isWithinAttackDistance(EntityId attackTarget) {
+        if (DungeonHeartTarget.isDungeonHeart(entityData, attackTarget)) {
+            return DungeonHeartTarget.isInReach(getCreatureCoordinates(), getHeartTile(attackTarget));
+        }
         float distanceNeeded = Math.max(getPreferredAttackDistance(), getPossibleAttackDistance());
 
         // TODO: currently we move only with a tile precision, so accept attack if on the same tile already
@@ -669,7 +848,8 @@ public final class CreatureController extends EntityController implements ICreat
         // TODO: how to apply the damage? Create a component for THIS creature that adds the damage to enemy after the countdown is finished?
         // Always prefer melee if in range
         CreatureMeleeAttack creatureMeleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
-        if (isInRange(creatureMeleeAttack.range, attackTarget)) {
+        if (DungeonHeartTarget.isDungeonHeart(entityData, attackTarget)
+                ? isWithinAttackDistance(attackTarget) : isInRange(creatureMeleeAttack.range, attackTarget)) {
             if (isAttackRecharged(creatureMeleeAttack)) {
                 stateMachine.changeState(CreatureState.MELEE_ATTACK);
                 hitWithMelee(attackTarget, creatureMeleeAttack, creatureMeleeAttack.damage);
@@ -754,6 +934,10 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public void navigateToAttackTarget(EntityId attackTarget) {
+        if (DungeonHeartTarget.isDungeonHeart(entityData, attackTarget)) {
+            navigateToHeart(attackTarget);
+            return;
+        }
         Vector3f targetPosition = getPosition(entityData, attackTarget);
         if (targetPosition != null) {
 
@@ -769,6 +953,19 @@ public final class CreatureController extends EntityController implements ICreat
             if (destination != null && !destination.equals(ourPosition)) {
                 createNavigation(ourPosition, destination, null);
             }
+        }
+    }
+
+    private void navigateToHeart(EntityId heart) {
+        Point heartTile = getHeartTile(heart);
+        Navigation currentNavigation = entityData.getComponent(entityId, Navigation.class);
+        if (currentNavigation != null && DungeonHeartTarget.isInReach(currentNavigation.target, heartTile)) {
+            return;
+        }
+
+        Point attackTile = getHeartAttackTile(heart);
+        if (attackTile != null && !attackTile.equals(getCreatureCoordinates())) {
+            createNavigation(getCreatureCoordinates(), attackTile, heartTile);
         }
     }
 
@@ -1089,6 +1286,11 @@ public final class CreatureController extends EntityController implements ICreat
         unassingCurrentTask();
 
         //workNavigationRequired = true;
+        entityData.setComponent(entityId, new TaskComponent(task.getId(), task.getTaskTarget(), task.getTaskLocation(), task.getTaskType(), 0.0f, false));
+    }
+
+    @Override
+    public void updateAssignedTask(Task task) {
         entityData.setComponent(entityId, new TaskComponent(task.getId(), task.getTaskTarget(), task.getTaskLocation(), task.getTaskType(), 0.0f, false));
     }
 
@@ -1454,6 +1656,12 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
+    public int getManufacturePerSecond() {
+        CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        return creatureComponent.manufacturePerSecond;
+    }
+
+    @Override
     public void giveObject(IObjectController object) {
         if (object.getType() == AbstractRoomController.ObjectType.GOLD) {
             addGold(entityData.getComponent(object.getEntityId(), Gold.class).gold);
@@ -1513,7 +1721,7 @@ public final class CreatureController extends EntityController implements ICreat
         PossessedAttack possessedAttack = entityData.getComponent(entityId, PossessedAttack.class);
         if (attacking) {
             entityData.setComponent(entityId, new PossessedAttack(true, gameTimer.getGameTime()));
-        } else if (possessedAttack != null) {
+        } else if (possessedAttack != null && !possessedAttack.group) {
 
             // A click shorter than a logic tick still gets its one swing
             if (hasSwungSince(possessedAttack.pressTime)) {
@@ -1530,9 +1738,19 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
+    public void addPossessedFollower() {
+        entityData.setComponent(entityId, new PossessedAttack(false, gameTimer.getGameTime(), true));
+    }
+
+    @Override
     public void executePossessedAttack() {
         CreatureMeleeAttack meleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
         Position position = entityData.getComponent(entityId, Position.class);
+        PossessedAttack possessedAttack = entityData.getComponent(entityId, PossessedAttack.class);
+        if (position != null && possessedAttack != null && possessedAttack.group) {
+            addFollowerInView(position);
+            return;
+        }
         if (meleeAttack == null || position == null) {
             return;
         }
@@ -1584,29 +1802,44 @@ public final class CreatureController extends EntityController implements ICreat
 
     /**
      * Can the possessed creature hit the entity with its melee attack. Any
-     * creature but our own, also neutral and allied ones. Doors, traps and the
-     * Dungeon Heart can be added here.
+     * creature but our own, also neutral and allied ones, and the doors and
+     * the traps that are not ours. A hidden trap is not hit until it shows.
+     * The Dungeon Heart can't be hit, it is not among the objects the original
+     * game lets a possessed creature hit.
      *
      * @param entity the entity in reach
      * @return true if the entity is something to hit
      */
     private boolean isPossessedAttackTarget(EntityId entity) {
         Owner owner = entityData.getComponent(entity, Owner.class);
-        return !entityId.equals(entity) && creaturesController.isValidEntity(entity)
-                && owner != null && owner.ownerId != getOwnerId() && !isIncapacitated(entity);
+        if (entityId.equals(entity) || owner == null || owner.ownerId == getOwnerId()) {
+            return false;
+        }
+        return DoorAttackTarget.isBreakable(entityData, entity)
+                || TrapAttackTarget.isAttackable(entityData, entity)
+                || (creaturesController.isValidEntity(entity) && !isIncapacitated(entity));
     }
 
     private boolean isInFront(Position position, EntityId entity) {
+        return getFacing(position, entity) >= POSSESSED_ATTACK_MIN_FACING;
+    }
+
+    /**
+     * How straight the creature looks at the entity
+     *
+     * @return the cosine of the angle between where the creature looks and
+     * where the entity is, 1 if it is right on the entity
+     */
+    private float getFacing(Position position, EntityId entity) {
         Vector3f targetPosition = getPosition(entityData, entity);
         float dx = targetPosition.x - position.position.x;
         float dz = targetPosition.z - position.position.z;
         float length = FastMath.sqrt(dx * dx + dz * dz);
         if (length == 0) {
-            return true;
+            return 1;
         }
 
-        float facing = (FastMath.sin(position.rotation) * dx + FastMath.cos(position.rotation) * dz) / length;
-        return facing >= POSSESSED_ATTACK_MIN_FACING;
+        return (FastMath.sin(position.rotation) * dx + FastMath.cos(position.rotation) * dz) / length;
     }
 
     /**
@@ -1637,6 +1870,79 @@ public final class CreatureController extends EntityController implements ICreat
 
         addGold(mapController.damageTile(tile, getOwnerId(), this));
         return true;
+    }
+
+    /**
+     * Our own creature that the possessed creature looks at joins its group
+     * and follows it. It is the one closest to where the creature looks, at
+     * most FIRST_PERSON_ACCURACY_ANGLE_DEGREES off in the way the original game
+     * measures it, and closer than 7 tiles. The group has room for
+     * MAXIMUM_GROUP_NUMBER_OF_FOLLOWERS creatures.
+     *
+     * @param position the position of the possessed creature
+     */
+    private void addFollowerInView(Position position) {
+        if (getPossessedFollowers().size() >= getMiscVariable(Variable.MiscVariable.MiscType.MAXIMUM_GROUP_NUMBER_OF_FOLLOWERS, 8)) {
+            return;
+        }
+
+        // The original compares the angle, in 2048ths of a circle, to one minus the cosine, in 4096ths
+        float bestFacing = 1 - getMiscVariable(Variable.MiscVariable.MiscType.FIRST_PERSON_ACCURACY_ANGLE_DEGREES, 45) / 720f;
+        EntityId follower = null;
+        Point tile = WorldUtils.vectorToPoint(position.position);
+        for (int x = tile.x - POSSESSED_GROUP_RANGE; x <= tile.x + POSSESSED_GROUP_RANGE; x++) {
+            for (int y = tile.y - POSSESSED_GROUP_RANGE; y <= tile.y + POSSESSED_GROUP_RANGE; y++) {
+                if (mapController.getMapData().getTile(x, y) == null) {
+                    continue;
+                }
+                for (EntityId entity : entityPositionLookup.getEntitiesInLocation(new Point(x, y))) {
+                    float facing = getFacing(position, entity);
+                    if (facing > bestFacing && canJoinPossessedGroup(entity) && getDistanceToCreature(entity) < POSSESSED_GROUP_RANGE) {
+                        bestFacing = facing;
+                        follower = entity;
+                    }
+                }
+            }
+        }
+        if (follower == null) {
+            return;
+        }
+
+        ICreatureController creatureController = creaturesController.createController(follower);
+        creatureController.unassingCurrentTask();
+        creatureController.setFollowTarget(entityId);
+        creatureController.getStateMachine().changeState(CreatureState.FOLLOW);
+    }
+
+    /**
+     * Can the creature join the group of the possessed creature. Our own
+     * creatures can, but not the ones already in a group, the imprisoned or
+     * tortured ones, the incapacitated ones or the Horny Reaper.
+     */
+    private boolean canJoinPossessedGroup(EntityId entity) {
+        Owner owner = entityData.getComponent(entity, Owner.class);
+        CreatureComponent creatureComponent = entityData.getComponent(entity, CreatureComponent.class);
+        return !entityId.equals(entity) && owner != null && owner.ownerId == getOwnerId() && creatureComponent != null
+                && creaturesController.isValidEntity(entity) && !isIncapacitated(entity)
+                && entityData.getComponent(entity, FollowTarget.class) == null
+                && entityData.getComponent(entity, CreatureImprisoned.class) == null
+                && entityData.getComponent(entity, CreatureTortured.class) == null
+                && !levelInfo.getLevelData().getCreature(creatureComponent.creatureId).getFlags().contains(Creature.CreatureFlag.IS_HORNY);
+    }
+
+    private Set<EntityId> getPossessedFollowers() {
+        return entityData.findEntities(new FieldFilter<>(FollowTarget.class, "entityId", entityId), FollowTarget.class);
+    }
+
+    private int getMiscVariable(Variable.MiscVariable.MiscType type, int defaultValue) {
+        Variable.MiscVariable variable = gameSettings.get(type);
+        return variable != null ? (int) variable.getValue() : defaultValue;
+    }
+
+    @Override
+    public boolean isInPossessedGroup() {
+        FollowTarget followTarget = entityData.getComponent(entityId, FollowTarget.class);
+        return followTarget != null && entityData.getComponent(followTarget.entityId, Possessed.class) != null;
     }
 
     private void startPossession() {
@@ -1672,6 +1978,11 @@ public final class CreatureController extends EntityController implements ICreat
         entityData.removeComponent(entityId, PossessedMovement.class);
         entityData.removeComponent(entityId, PossessedAttack.class);
         entityData.removeComponent(entityId, Possessed.class);
+
+        // The group follows us only while we are possessed
+        for (EntityId follower : getPossessedFollowers()) {
+            entityData.removeComponent(follower, FollowTarget.class);
+        }
         entityData.setComponent(entityId, new CreatureAi(gameTimer.getGameTime(), CreatureState.IDLE, getCreature().getCreatureId()));
     }
 

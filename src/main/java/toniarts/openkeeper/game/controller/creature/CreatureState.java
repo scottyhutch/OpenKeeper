@@ -19,6 +19,7 @@ package toniarts.openkeeper.game.controller.creature;
 import com.badlogic.gdx.ai.fsm.State;
 import com.badlogic.gdx.ai.msg.Telegram;
 import java.util.function.Consumer;
+import toniarts.openkeeper.game.controller.entity.IEntityController;
 
 /**
  * State machine for creature AI. TODO: needs to be hierarchial so that this
@@ -38,6 +39,16 @@ public enum CreatureState implements State<ICreatureController> {
                 return;
             }
 
+            // An enemy door right next to us
+            if (entity.attackAdjacentDoor()) {
+                return;
+            }
+
+            // An enemy trap in sight, when there is no enemy creature to fight
+            if (entity.attackVisibleTrap()) {
+                return;
+            }
+
             // Idling is the last resort
             entity.unassingCurrentTask();
             findStuffToDo(entity, (foundWork) -> {
@@ -52,6 +63,8 @@ public enum CreatureState implements State<ICreatureController> {
             // See if we should just follow
             if (entity.getParty() != null && !entity.getParty().isPartyLeader(entity)) {
                 entity.setFollowTarget(entity.getParty().getPartyLeader().getEntityId());
+            }
+            if (entity.getFollowTarget() != null) {
                 entity.getStateMachine().changeState(CreatureState.FOLLOW);
                 workResult.accept(true);
                 return;
@@ -101,6 +114,16 @@ public enum CreatureState implements State<ICreatureController> {
 
             // Should we flee or attack
             if (entity.shouldFleeOrAttack()) {
+                return;
+            }
+
+            // An enemy door right next to us
+            if (entity.attackAdjacentDoor()) {
+                return;
+            }
+
+            // An enemy trap in sight, when there is no enemy creature to fight
+            if (entity.attackVisibleTrap()) {
                 return;
             }
 
@@ -250,7 +273,7 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void update(ICreatureController entity) {
-            ICreatureController attackTarget = entity.getAttackTarget();
+            IEntityController attackTarget = entity.getAttackTarget();
             if (attackTarget == null) {
                 entity.getStateMachine().changeState(IDLE); // Nothing to do
                 return;
@@ -289,6 +312,7 @@ public enum CreatureState implements State<ICreatureController> {
 
             // See if we should follow
             if (entity.getFollowTarget() == null || entity.getFollowTarget().isIncapacitated()) {
+                entity.resetFollowTarget();
                 entity.getStateMachine().changeState(IDLE);
                 return;
             }
@@ -312,7 +336,11 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void exit(ICreatureController entity) {
-            entity.resetFollowTarget();
+
+            // The group of a possessed creature gets back to following it after a fight
+            if (!entity.isInPossessedGroup()) {
+                entity.resetFollowTarget();
+            }
             entity.stopCreature();
         }
 
@@ -373,6 +401,9 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void enter(ICreatureController entity) {
+
+            // A creature that flees leaves the group it was in
+            entity.resetFollowTarget();
             entity.unassingCurrentTask();
             entity.flee();
         }

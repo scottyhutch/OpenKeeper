@@ -184,6 +184,12 @@ public interface GameSession {
     public void setPossessedAttack(boolean attacking);
 
     /**
+     * Add the creature the possessed creature looks at to its group
+     */
+    @Asynchronous
+    public void addPossessedFollower();
+
+    /**
      * Stop possessing the currently possessed creature
      */
     @Asynchronous
