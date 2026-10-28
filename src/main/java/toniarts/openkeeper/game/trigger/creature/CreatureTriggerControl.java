@@ -256,9 +256,7 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
                 return true;
 
             case REMOVE_FROM_MAP:
-                // STUB: mode 0 removes the creature silently, 1 kills it. The creature controller
-                // has no way to remove or kill a creature from the outside, it dies by its health
-                logStub(trigger, "The creature controller has no way to remove or kill a creature from the outside, it dies by its health");
+                instanceControl.removeFromMap();
                 return true;
 
             case SET_FIGHT_FLAG:
