@@ -116,6 +116,17 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
 
     public void executeAttack(EntityId attackTarget);
 
+    /**
+     * Lets the shot of the spell being cast leave once the cast has reached
+     * the spell's shot delay
+     */
+    public void releaseCastShot();
+
+    /**
+     * Drops the shot of an interrupted cast
+     */
+    public void cancelCastShot();
+
     public void navigateToAttackTarget(EntityId attackTarget);
 
     public ICreatureController getFollowTarget();
@@ -231,6 +242,14 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
      */
     public void setFollowTarget(EntityId target);
 
+    /**
+     * Gets the possessed creature that has hypnotised us, we are on its side
+     * and follow it
+     *
+     * @return the creature, {@code null} if we are not hypnotised
+     */
+    public EntityId getHypnotiser();
+
     public boolean shouldNavigateToFollowTarget();
 
     public boolean isSlapped();
@@ -326,8 +345,9 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
      * {@link #executePossessedAttack()}.
      *
      * @param attacking whether the attack button is held down
+     * @param spell 0 for the melee attack, 1 to 3 for the creature's spells
      */
-    public void setPossessedAttack(boolean attacking);
+    public void setPossessedAttack(boolean attacking, int spell);
 
     /**
      * The keeper wants the creature the possessed creature looks at to join
@@ -339,8 +359,10 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     /**
      * Swings the melee attack of a possessed creature, if it has recharged.
      * Hits the nearest creature in front of it on the tiles around it, or if
-     * there is none, a worker digs the tile it is facing. When the keeper asked
-     * for a follower instead, our own creature it looks at joins its group.
+     * there is none, a worker digs the tile it is facing. Or casts the chosen
+     * spell, if the creature has it at its level and it has recharged. When the
+     * keeper asked for a follower instead, our own creature it looks at joins
+     * its group.
      */
     public void executePossessedAttack();
 
@@ -350,6 +372,17 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
      * @return true if the creature is in the group of a possessed creature
      */
     public boolean isInPossessedGroup();
+
+    /**
+     * Uses a first person ability of a possessed creature, as its keeper
+     * presses the ability's key or uses the selected ability. The Vampire
+     * turns into a bat or back, the Monk and the Fairy start or stop praying,
+     * the Bile Demon picks up or throws a worker, the Vampire hypnotises a
+     * creature or lets it go.
+     *
+     * @param ability 1 or 2, the creature's first or second ability
+     */
+    public void usePossessedAbility(int ability);
 
     /**
      * Converts creature to another player's bidding

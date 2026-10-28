@@ -60,6 +60,14 @@ public enum CreatureState implements State<ICreatureController> {
 
         private static void findStuffToDo(ICreatureController entity, Consumer<Boolean> workResult) {
 
+            // A hypnotised creature follows the creature that hypnotised it (0x461980)
+            if (entity.getHypnotiser() != null) {
+                entity.setFollowTarget(entity.getHypnotiser());
+                entity.getStateMachine().changeState(CreatureState.FOLLOW);
+                workResult.accept(true);
+                return;
+            }
+
             // See if we should just follow
             if (entity.getParty() != null && !entity.getParty().isPartyLeader(entity)) {
                 entity.setFollowTarget(entity.getParty().getPartyLeader().getEntityId());
@@ -655,6 +663,7 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void update(ICreatureController entity) {
+            entity.releaseCastShot();
             if (entity.isStateTimeExceeded()) {
                 entity.getStateMachine().changeState(FIGHT);
             }
@@ -662,7 +671,7 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void exit(ICreatureController entity) {
-
+            entity.cancelCastShot();
         }
 
         @Override

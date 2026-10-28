@@ -39,12 +39,14 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
+import toniarts.openkeeper.game.component.PossessedAbility;
 import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -112,6 +114,17 @@ class PossessedAttackTest {
 
         assertEquals(DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
         assertEquals(Creature.AnimationType.MELEE_ATTACK, entityData.getComponent(us, CreatureViewState.class).state);
+    }
+
+    @Test
+    void batCannotAttack() {
+        EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 5.8f));
+        entityData.setComponent(us, new PossessedAbility(Creature.SpecialAbility.TURN_TO_BAT, 0));
+
+        createController().executePossessedAttack();
+
+        assertNull(entityData.getComponent(enemy, Damage.class));
+        assertNull(entityData.getComponent(us, CreatureViewState.class));
     }
 
     @Test
@@ -270,15 +283,15 @@ class PossessedAttackTest {
         createCreature(HERO, new Vector3f(5, 0, 5.8f));
         CreatureController controller = createController();
 
-        controller.setPossessedAttack(true);
-        controller.setPossessedAttack(false);
+        controller.setPossessedAttack(true, 0);
+        controller.setPossessedAttack(false, 0);
         assertFalse(entityData.getComponent(us, PossessedAttack.class).held);
 
         controller.executePossessedAttack();
         gameTime += RECHARGE;
-        controller.setPossessedAttack(true);
+        controller.setPossessedAttack(true, 0);
         controller.executePossessedAttack();
-        controller.setPossessedAttack(false);
+        controller.setPossessedAttack(false, 0);
         assertNull(entityData.getComponent(us, PossessedAttack.class));
     }
 
@@ -385,7 +398,7 @@ class PossessedAttackTest {
         CreatureController controller = createController();
 
         controller.addPossessedFollower();
-        controller.setPossessedAttack(false);
+        controller.setPossessedAttack(false, 0);
 
         assertTrue(entityData.getComponent(us, PossessedAttack.class).group);
     }
@@ -545,9 +558,7 @@ class PossessedAttackTest {
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> name.equals("getLevelData") ? kwdFile : null);
         return new CreatureController(entity, entityData, new Creature(), null, null, gameTimer, gameSettings, creaturesController,
                 positionLookup, mapController, levelInfo, null, null,
-                (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
-                        toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
-                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));
+                stub(GameEventService.class, (name, args) -> null));
     }
 
     @FunctionalInterface

@@ -28,6 +28,7 @@ import com.simsilica.es.EntityId;
 import com.simsilica.es.filter.FieldFilter;
 import toniarts.openkeeper.game.component.Attack;
 import toniarts.openkeeper.game.component.AttackTarget;
+import toniarts.openkeeper.game.component.CastShot;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureExperience;
@@ -45,6 +46,7 @@ import toniarts.openkeeper.game.component.Fearless;
 import toniarts.openkeeper.game.component.FollowTarget;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.component.Hypnotised;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.Mobile;
@@ -56,6 +58,7 @@ import toniarts.openkeeper.game.component.PlayerObjective;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
+import toniarts.openkeeper.game.component.PossessedAbility;
 import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.component.PossessedMovement;
 import toniarts.openkeeper.game.component.Slapped;
@@ -136,6 +139,26 @@ public final class CreatureController extends EntityController implements ICreat
      * this, in tiles
      */
     private static final int POSSESSED_GROUP_RANGE = 7;
+
+    /**
+     * A possessed creature's spell aims at creatures closer than this, 91
+     * square tiles (0x5B000 in DK II's fixed point)
+     */
+    private static final float POSSESSED_SPELL_REACH_SQUARED = 91;
+
+    /**
+     * A possessed Bile Demon picks up a worker closer than a tile (0x516EC0)
+     * and holds it half a tile in front of it (0x4831D0). DK II throws the
+     * worker with its physics, here it lands two tiles further ahead.
+     */
+    private static final float POSSESSED_PICK_UP_REACH = WorldUtils.TILE_WIDTH;
+    private static final float POSSESSED_CARRY_DISTANCE = WorldUtils.TILE_WIDTH / 2;
+    private static final float POSSESSED_THROW_DISTANCE = 2 * WorldUtils.TILE_WIDTH;
+
+    /**
+     * A thrown or dropped worker takes this much damage as it lands (0x4833C0)
+     */
+    private static final int THROWN_WORKER_DAMAGE = 50;
 
     private final INavigationService navigationService;
     private final ITaskManager taskManager;
@@ -867,15 +890,90 @@ public final class CreatureController extends EntityController implements ICreat
                 }
                 stateMachine.changeState(CreatureState.CAST_SPELL);
 
-                // TODO: What is the alternative shot all about?
-                toniarts.openkeeper.tools.convert.map.CreatureSpell creatureSpell = levelInfo.getLevelData().getCreatureSpellById(attack.get().creatureSpellId);
-                shotsController.createShot(creatureSpell.getShotTypeId(), creatureSpell.getShotData1(), creatureSpell.getShotData2(), getOwnerId(), getPosition(), attackTarget, entityId);
-
-                // TODO: Of course not like that, the shot is created and it does what it does
-                // Set the damage
-                setDamage(attackTarget, creatureSpell.getShotData1());
+                // The shot leaves during the cast, after the spell's shot delay (0x4984D0)
+                entityData.setComponent(entityId, new CastShot(attack.get().creatureSpellId, attackTarget, attack.get().range,
+                        gameTimer.getGameTime() + getShotDelay(attack.get().creatureSpellId)));
             }
         }
+    }
+
+    @Override
+    public void releaseCastShot() {
+        CastShot castShot = entityData.getComponent(entityId, CastShot.class);
+        if (castShot == null || gameTimer.getGameTime() < castShot.releaseTime) {
+            return;
+        }
+
+        entityData.removeComponent(entityId, CastShot.class);
+
+        // TODO: What is the alternative shot all about?
+        toniarts.openkeeper.tools.convert.map.CreatureSpell creatureSpell = levelInfo.getLevelData().getCreatureSpellById(castShot.creatureSpellId);
+        if (!shotsController.fireShot(creatureSpell.getShotTypeId(), creatureSpell.getShotData1(), creatureSpell.getShotData2(),
+                getOwnerId(), getShotPosition(castShot.creatureSpellId, getPosition(entityData, castShot.target)), castShot.target, entityId, castShot.range)) {
+            shotsController.createShot(creatureSpell.getShotTypeId(), creatureSpell.getShotData1(), creatureSpell.getShotData2(), getOwnerId(), getPosition(), castShot.target, entityId);
+
+            // TODO: Of course not like that, the shot is created and it does what it does
+            // Set the damage
+            if (creatureSpell.getFlags().contains(CreatureSpellFlag.IS_ATTACKING)) {
+                setDamage(castShot.target, creatureSpell.getShotData1());
+            }
+        }
+    }
+
+    @Override
+    public void cancelCastShot() {
+        entityData.removeComponent(entityId, CastShot.class);
+    }
+
+    /**
+     * How long into the cast the shot leaves. It leaves at the end of the cast
+     * at the latest, so that a cast always fires. A possessed creature's shot
+     * leaves at once (0x4984D0).
+     *
+     * @param creatureSpellId the spell cast
+     * @return the time from the start of the cast
+     */
+    private double getShotDelay(short creatureSpellId) {
+        if (entityData.getComponent(entityId, Possessed.class) != null) {
+            return 0;
+        }
+
+        double castTime = getAnimationTime(creature, Creature.AnimationType.CAST_SPELL);
+        for (Creature.Spell spell : creature.getSpells()) {
+            if (spell.getCreatureSpellId() == creatureSpellId) {
+                return Math.min(spell.getShotDelay(), castTime);
+            }
+        }
+
+        return 0;
+    }
+
+    /**
+     * Where the creature's shot starts. The spell's shot offset is in front of
+     * the creature and above its feet (0x4984D0), the creature faces the
+     * target when it fires.
+     *
+     * @param creatureSpellId the spell fired
+     * @param targetPosition where the shot is aimed at
+     * @return the start of the shot
+     */
+    private Vector3f getShotPosition(short creatureSpellId, Vector3f targetPosition) {
+        Vector3f position = getPosition();
+        Vector3f result = new Vector3f(position);
+        for (Creature.Spell spell : creature.getSpells()) {
+            if (spell.getCreatureSpellId() != creatureSpellId) {
+                continue;
+            }
+
+            Vector3f forward = targetPosition != null ? targetPosition.subtract(position).setY(0) : Vector3f.ZERO;
+            if (forward.lengthSquared() > 0) {
+                result.addLocal(forward.normalizeLocal().multLocal(-spell.getShotOffset().y));
+            }
+            result.y += spell.getShotOffset().z;
+            break;
+        }
+
+        return result;
     }
 
     /**
@@ -1194,6 +1292,15 @@ public final class CreatureController extends EntityController implements ICreat
         TaskComponent taskComponent = entityData.getComponent(entityId, TaskComponent.class);
         if (taskComponent != null && taskComponent.taskStarted) {
             entityData.setComponent(entityId, new TaskComponent(taskComponent.taskId, taskComponent.targetEntity, taskComponent.targetLocation, taskComponent.taskType, taskComponent.taskDuration + tpf, taskComponent.taskStarted));
+        }
+
+        // Hypnotised on the render thread, we start following here. Outside FOLLOW only a creature that was
+        // just hypnotised has its hypnotiser as the follow target, FOLLOW drops it on the way out
+        FollowTarget followTarget = entityData.getComponent(entityId, FollowTarget.class);
+        if (followTarget != null && followTarget.entityId.equals(getHypnotiser())
+                && stateMachine.getCurrentState() != CreatureState.FOLLOW) {
+            unassingCurrentTask();
+            stateMachine.changeState(CreatureState.FOLLOW);
         }
 
         stateMachine.update();
@@ -1703,7 +1810,10 @@ public final class CreatureController extends EntityController implements ICreat
             case PossessedMovement.SPEED_CREEP -> attributes.getShuffleSpeed();
             default -> walkSpeed;
         };
-        Vector2f normalizedDirection = direction.lengthSquared() > 0 ? direction.normalize() : new Vector2f();
+        // A praying creature doesn't move, but still turns
+        PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
+        boolean praying = possessedAbility != null && possessedAbility.ability == Creature.SpecialAbility.PRAY;
+        Vector2f normalizedDirection = direction.lengthSquared() > 0 && !praying ? direction.normalize() : new Vector2f();
         if (normalizedDirection.lengthSquared() > 0) {
 
             // Backing up and strafing are slower than walking forward, relative to the facing
@@ -1717,36 +1827,54 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
-    public void setPossessedAttack(boolean attacking) {
+    public void setPossessedAttack(boolean attacking, int spell) {
         PossessedAttack possessedAttack = entityData.getComponent(entityId, PossessedAttack.class);
         if (attacking) {
-            entityData.setComponent(entityId, new PossessedAttack(true, gameTimer.getGameTime()));
+            entityData.setComponent(entityId, new PossessedAttack(true, gameTimer.getGameTime(), false, spell));
         } else if (possessedAttack != null && !possessedAttack.group) {
 
             // A click shorter than a logic tick still gets its one swing
-            if (hasSwungSince(possessedAttack.pressTime)) {
+            if (hasSwungSince(possessedAttack)) {
                 entityData.removeComponent(entityId, PossessedAttack.class);
             } else {
-                entityData.setComponent(entityId, new PossessedAttack(false, possessedAttack.pressTime));
+                entityData.setComponent(entityId, new PossessedAttack(false, possessedAttack.pressTime, false, possessedAttack.spell));
             }
         }
     }
 
-    private boolean hasSwungSince(double time) {
-        CreatureMeleeAttack meleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
-        return meleeAttack == null || (meleeAttack.attactStartTime != null && meleeAttack.attactStartTime >= time);
+    private boolean hasSwungSince(PossessedAttack possessedAttack) {
+        Attack attack;
+        if (possessedAttack.spell > 0) {
+            EntityId spellEntity = getPossessedSpell(possessedAttack.spell);
+            attack = spellEntity != null ? entityData.getComponent(spellEntity, CreatureSpell.class) : null;
+        } else {
+            attack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
+        }
+        return attack == null || (attack.attactStartTime != null && attack.attactStartTime >= possessedAttack.pressTime);
     }
 
     @Override
     public void addPossessedFollower() {
-        entityData.setComponent(entityId, new PossessedAttack(false, gameTimer.getGameTime(), true));
+        entityData.setComponent(entityId, new PossessedAttack(false, gameTimer.getGameTime(), true, 0));
     }
 
     @Override
     public void executePossessedAttack() {
+
+        // A bat can't attack or cast (DK II stops it at the keys, 0x4100F0)
+        PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
+        if (possessedAbility != null && possessedAbility.ability == Creature.SpecialAbility.TURN_TO_BAT) {
+            return;
+        }
+
+        PossessedAttack possessedAttack = entityData.getComponent(entityId, PossessedAttack.class);
+        if (possessedAttack != null && possessedAttack.spell > 0) {
+            castPossessedSpell(possessedAttack.spell);
+            return;
+        }
+
         CreatureMeleeAttack meleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
         Position position = entityData.getComponent(entityId, Position.class);
-        PossessedAttack possessedAttack = entityData.getComponent(entityId, PossessedAttack.class);
         if (position != null && possessedAttack != null && possessedAttack.group) {
             addFollowerInView(position);
             return;
@@ -1768,12 +1896,360 @@ public final class CreatureController extends EntityController implements ICreat
         EntityId target = getPossessedAttackTarget(position);
         if (target != null) {
             hitWithMelee(target, meleeAttack, firstPersonAttack.damage);
+
+            // The creature we have hypnotised attacks what we hit (0x514830)
+            EntityId hypnotised = getHypnotised();
+            if (hypnotised != null) {
+                entityData.setComponent(hypnotised, new AttackTarget(target));
+            }
         } else if (isWorker() && digTileInFront(position)) {
             entityData.setComponent(entityId, new CreatureMeleeAttack(meleeAttack, gameTimer.getGameTime()));
         } else {
             return;
         }
         entityData.setComponent(entityId, new CreatureViewState(creature.getCreatureId(), gameTimer.getGameTime(), Creature.AnimationType.MELEE_ATTACK));
+    }
+
+    @Override
+    public void usePossessedAbility(int ability) {
+        Creature.SpecialAbility specialAbility = switch (ability) {
+            case 1 -> creature.getFirstPersonSpecialAbility1();
+            case 2 -> creature.getFirstPersonSpecialAbility2();
+            default -> Creature.SpecialAbility.NONE;
+        };
+        if (specialAbility == Creature.SpecialAbility.TURN_TO_BAT || specialAbility == Creature.SpecialAbility.PRAY) {
+            togglePossessedAbility(specialAbility);
+        } else if (specialAbility == Creature.SpecialAbility.PICK_UP_WORKERS) {
+            pickUpOrThrowWorker();
+        } else if (specialAbility == Creature.SpecialAbility.HYPNOTISE) {
+            hypnotiseOrRelease();
+        }
+    }
+
+    /**
+     * Hypnotises the nearest enemy creature in sight within 60 degrees of the
+     * view, or lets go of the one we have hypnotised (0x5163C0). It joins our
+     * keeper and follows us (0x461980), our keeper pays
+     * HYPNOTISM_MANA_DRAIN_PER_SECOND for it (0x4C10E0). If the nearest
+     * creature is immune to turncoat, nothing happens.
+     */
+    private void hypnotiseOrRelease() {
+        EntityId hypnotised = getHypnotised();
+        if (hypnotised != null) {
+            releaseHypnotised(hypnotised);
+            return;
+        }
+
+        Position position = entityData.getComponent(entityId, Position.class);
+        EntityId nearestCreature = null;
+        float nearestDistance = Float.MAX_VALUE;
+        for (EntityId entity : entityData.findEntities(null, CreatureComponent.class, Position.class)) {
+            float distance = getDistanceToCreature(entity);
+            if (distance < nearestDistance && canBeHypnotised(entity) && isInFront(position, entity) && isInSight(position.position, entity)) {
+                nearestDistance = distance;
+                nearestCreature = entity;
+            }
+        }
+        if (nearestCreature == null || getCreature(nearestCreature).getFlags().contains(Creature.CreatureFlag.IS_IMMUNE_TO_TURNCOAT)) {
+            return;
+        }
+
+        entityData.setComponent(nearestCreature, new Hypnotised(entityId, entityData.getComponent(nearestCreature, Owner.class).ownerId));
+        entityData.setComponent(nearestCreature, new Owner(getOwnerId(), getOwnerId()));
+        entityData.removeComponent(nearestCreature, AttackTarget.class);
+        Variable.MiscVariable manaDrain = gameSettings.get(Variable.MiscVariable.MiscType.HYPNOTISM_MANA_DRAIN_PER_SECOND);
+        if (manaDrain != null && manaDrain.getValue() > 0) {
+            entityData.setComponent(nearestCreature, new Mana(-(int) manaDrain.getValue()));
+        }
+
+        // This runs on the render thread, the creature starts following us on its own tick
+        entityData.setComponent(nearestCreature, new FollowTarget(entityId));
+    }
+
+    private boolean canBeHypnotised(EntityId entity) {
+        return !entityId.equals(entity) && creaturesController.isValidEntity(entity) && isEnemy(entity) && !isIncapacitated(entity)
+                && entityData.getComponent(entity, Possessed.class) == null
+                && getCreature(entity).getFlags().contains(Creature.CreatureFlag.CAN_BE_HYPNOTIZED);
+    }
+
+    private Creature getCreature(EntityId entity) {
+        return levelInfo.getLevelData().getCreature(entityData.getComponent(entity, CreatureComponent.class).creatureId);
+    }
+
+    /**
+     * Is there no solid tile on the line from us to the entity (0x4512F0)
+     */
+    private boolean isInSight(Vector3f position, EntityId entity) {
+        Vector3f target = getPosition(entityData, entity);
+        int steps = (int) FastMath.ceil(position.distance(target) / (WorldUtils.TILE_WIDTH / 8));
+        for (int i = 1; i <= steps; i++) {
+            Point tile = WorldUtils.vectorToPoint(position.clone().interpolateLocal(target, i / (float) steps));
+            if (mapController.getMapData().getTile(tile) == null || mapController.isSolid(tile)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Gets the creature we have hypnotised
+     *
+     * @return the creature, {@code null} if there is none
+     */
+    private EntityId getHypnotised() {
+        return entityData.findEntity(new FieldFilter<>(Hypnotised.class, "entity", entityId), Hypnotised.class);
+    }
+
+    /**
+     * Lets go of the creature we have hypnotised (0x5163C0, 0x514590). It goes
+     * back to its owner and stops fighting (0x45EF50).
+     *
+     * @param hypnotised the creature we have hypnotised
+     */
+    private void releaseHypnotised(EntityId hypnotised) {
+        short ownerId = entityData.getComponent(hypnotised, Hypnotised.class).ownerId;
+        entityData.removeComponent(hypnotised, Hypnotised.class);
+        entityData.removeComponent(hypnotised, Mana.class);
+        entityData.removeComponent(hypnotised, AttackTarget.class);
+        entityData.setComponent(hypnotised, new Owner(ownerId, ownerId));
+
+        // Without the follow target the creature goes back to idle on its own tick
+        FollowTarget followTarget = entityData.getComponent(hypnotised, FollowTarget.class);
+        if (followTarget != null && followTarget.entityId.equals(entityId)) {
+            entityData.removeComponent(hypnotised, FollowTarget.class);
+        }
+    }
+
+    @Override
+    public EntityId getHypnotiser() {
+        Hypnotised hypnotised = entityData.getComponent(entityId, Hypnotised.class);
+        return hypnotised != null ? hypnotised.entity : null;
+    }
+
+    /**
+     * Picks up the nearest worker of our keeper in front of us, or throws the
+     * one we carry (0x516EC0). The worker has to be within a tile and 60
+     * degrees of the view. It leaves its work and its AI while it is carried.
+     */
+    private void pickUpOrThrowWorker() {
+        PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
+        if (possessedAbility != null && possessedAbility.entity != null) {
+            entityData.removeComponent(entityId, PossessedAbility.class);
+            releaseWorker(possessedAbility.entity, POSSESSED_CARRY_DISTANCE + POSSESSED_THROW_DISTANCE);
+            return;
+        }
+
+        Position position = entityData.getComponent(entityId, Position.class);
+        EntityId nearestWorker = null;
+        float nearestDistance = POSSESSED_PICK_UP_REACH;
+        for (Point tile : WorldUtils.getSurroundingTiles(mapController.getMapData(), WorldUtils.vectorToPoint(position.position), true)) {
+            for (EntityId entity : entityPositionLookup.getEntitiesInLocation(tile)) {
+                float distance = getDistanceToCreature(entity);
+                if (distance < nearestDistance && isOwnWorker(entity) && isInFront(position, entity)) {
+                    nearestDistance = distance;
+                    nearestWorker = entity;
+                }
+            }
+        }
+        if (nearestWorker == null) {
+            return;
+        }
+
+        creaturesController.createController(nearestWorker).unassingCurrentTask();
+        entityData.removeComponent(nearestWorker, CreatureAi.class);
+        entityData.removeComponent(nearestWorker, Navigation.class);
+        CreatureViewState viewState = entityData.getComponent(nearestWorker, CreatureViewState.class);
+        if (viewState != null) {
+            entityData.setComponent(nearestWorker, new CreatureViewState(viewState.creatureId, gameTimer.getGameTime(), Creature.AnimationType.IN_HAND));
+        }
+        entityData.setComponent(entityId, new PossessedAbility(Creature.SpecialAbility.PICK_UP_WORKERS, gameTimer.getGameTime(), nearestWorker));
+    }
+
+    private boolean isOwnWorker(EntityId entity) {
+        Owner owner = entityData.getComponent(entity, Owner.class);
+        return !entityId.equals(entity) && creaturesController.isValidEntity(entity) && owner != null
+                && owner.ownerId == getOwnerId() && !isIncapacitated(entity) && creaturesController.createController(entity).isWorker();
+    }
+
+    /**
+     * Lets go of the worker we carry. It falls down from our height and takes
+     * damage as it lands (0x4833C0). It lands the distance ahead of us, or
+     * short of the first solid tile on the way.
+     *
+     * @param worker the worker we carry
+     * @param distance how far ahead of us it lands
+     */
+    private void releaseWorker(EntityId worker, float distance) {
+
+        // The keeper's hand may have taken it, or it has died
+        Position position = entityData.getComponent(entityId, Position.class);
+        if (position == null || entityData.getComponent(worker, Position.class) == null) {
+            return;
+        }
+
+        int steps = Math.round(distance / (WorldUtils.TILE_WIDTH / 4));
+        Vector3f step = new Vector3f(FastMath.sin(position.rotation), 0, FastMath.cos(position.rotation)).multLocal(distance / steps);
+        Vector3f landing = position.position.clone();
+        for (int i = 0; i < steps; i++) {
+            Point tile = WorldUtils.vectorToPoint(landing.add(step));
+            if (mapController.getMapData().getTile(tile) == null || mapController.isSolid(tile)) {
+                break;
+            }
+            landing.addLocal(step);
+        }
+        landing.y += creature.getAttributes().getHeight();
+
+        entityData.setComponent(worker, new Position(position.rotation, landing));
+        entityData.setComponent(worker, new CreatureFall());
+        setDamage(worker, THROWN_WORKER_DAMAGE);
+    }
+
+    /**
+     * Turns an ability that stays on, such as the Vampire's bat form, on or
+     * off. A bat flies (0x517190, 0x48ED40). A praying creature stays still
+     * and heals (0x517220).
+     *
+     * @param ability the ability to turn on or off
+     */
+    private void togglePossessedAbility(Creature.SpecialAbility ability) {
+        PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
+        boolean on = possessedAbility == null || possessedAbility.ability != ability;
+        if (on) {
+            entityData.setComponent(entityId, new PossessedAbility(ability, gameTimer.getGameTime()));
+        } else {
+            entityData.removeComponent(entityId, PossessedAbility.class);
+        }
+
+        Mobile mobile = entityData.getComponent(entityId, Mobile.class);
+        if (ability == Creature.SpecialAbility.TURN_TO_BAT && mobile != null) {
+            entityData.setComponent(entityId, new Mobile(on || creature.getFlags().contains(Creature.CreatureFlag.CAN_FLY),
+                    mobile.canWalkOnWater, mobile.canWalkOnLava, mobile.maxSpeed));
+        }
+    }
+
+    /**
+     * Casts a spell of the possessed creature, if it has recharged
+     * (0x514830). It is aimed at the creature closest to where the possessed
+     * creature looks, or straight ahead if there is none.
+     *
+     * @param spell 1 to 3, the creature's spell in the order the creature has
+     * them
+     */
+    private void castPossessedSpell(int spell) {
+        EntityId spellEntity = getPossessedSpell(spell);
+        Position position = entityData.getComponent(entityId, Position.class);
+        if (spellEntity == null || position == null) {
+            return;
+        }
+
+        // In first person the recharge time is scaled as the melee attack's is (0x4F7AB0)
+        CreatureSpell attack = entityData.getComponent(spellEntity, CreatureSpell.class);
+        CreatureSpell firstPersonAttack = new CreatureSpell(attack.creatureSpellId, entityId, attack.rechargeTime
+                * getFirstPersonPercentage(Variable.CreatureStats.StatType.MELEE_RECHARGE_TIME_SECONDS) / 100
+                * getFirstPersonRechargeModifyPercentage() / 100, attack.range);
+        firstPersonAttack.attactStartTime = attack.attactStartTime;
+        toniarts.openkeeper.tools.convert.map.CreatureSpell creatureSpell = levelInfo.getLevelData().getCreatureSpellById(attack.creatureSpellId);
+        Set<CreatureSpellFlag> flags = creatureSpell.getFlags();
+        if (!isAttackRecharged(firstPersonAttack) || flags.contains(CreatureSpellFlag.IMP_TELEPORT) || flags.contains(CreatureSpellFlag.IMP_HASTE)) {
+            return;
+        }
+
+        EntityId target = flags.contains(CreatureSpellFlag.CAST_ON_SELF) ? entityId
+                : getPossessedSpellTarget(position, flags.contains(CreatureSpellFlag.CREATURE));
+        if (target != null) {
+            entityData.setComponent(entityId, new CastShot(attack.creatureSpellId, target, attack.range,
+                    gameTimer.getGameTime() + getShotDelay(attack.creatureSpellId)));
+            releaseCastShot();
+        } else {
+            Vector3f ahead = new Vector3f(FastMath.sin(position.rotation), 0, FastMath.cos(position.rotation)).multLocal(attack.range);
+            Vector3f start = getShotPosition(attack.creatureSpellId, position.position.add(ahead));
+            if (!shotsController.fireShot(creatureSpell.getShotTypeId(), creatureSpell.getShotData1(), creatureSpell.getShotData2(),
+                    getOwnerId(), start, start.add(ahead), entityId, attack.range)) {
+                return;
+            }
+        }
+        entityData.setComponent(spellEntity, new CreatureSpell(attack, gameTimer.getGameTime()));
+        entityData.setComponent(entityId, new CreatureViewState(creature.getCreatureId(), gameTimer.getGameTime(), Creature.AnimationType.CAST_SPELL));
+    }
+
+    /**
+     * Finds the possessed creature's spell, the creature only has the spells
+     * of its level
+     *
+     * @param spell 1 to 3, the creature's spell in the order the creature has
+     * them
+     * @return the creature spell entity, {@code null} if the creature doesn't
+     * have the spell
+     */
+    private EntityId getPossessedSpell(int spell) {
+        if (spell < 1 || spell > creature.getSpells().size()) {
+            return null;
+        }
+
+        short creatureSpellId = creature.getSpells().get(spell - 1).getCreatureSpellId();
+        CreatureSpells creatureSpells = entityData.getComponent(entityId, CreatureSpells.class);
+        if (creatureSpells == null) {
+            return null;
+        }
+        for (EntityId spellEntity : creatureSpells.creatureSpells) {
+            if (entityData.getComponent(spellEntity, CreatureSpell.class).creatureSpellId == creatureSpellId) {
+                return spellEntity;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * Finds what a possessed creature's spell aims at (0x515520): the creature
+     * closest to where the possessed creature looks. It has to be within the
+     * first person accuracy, which DK II compares to one minus the cosine of
+     * the angle off the view as FIRST_PERSON_ACCURACY_ANGLE_DEGREES / 720. So
+     * the 45 of the levels lets through about 20 degrees.
+     *
+     * @param position the position of the possessed creature
+     * @param ownCreatures whether the spell is for our own creatures rather
+     * than the enemy's
+     * @return the target, {@code null} if there is nothing to aim at
+     */
+    private EntityId getPossessedSpellTarget(Position position, boolean ownCreatures) {
+        Variable.MiscVariable accuracy = gameSettings.get(Variable.MiscVariable.MiscType.FIRST_PERSON_ACCURACY_ANGLE_DEGREES);
+        float bestOffView = (accuracy != null ? accuracy.getValue() : 45) / 720f;
+        EntityId bestTarget = null;
+        Point center = WorldUtils.vectorToPoint(position.position);
+        int reach = (int) FastMath.ceil(FastMath.sqrt(POSSESSED_SPELL_REACH_SQUARED));
+        for (int x = center.x - reach; x <= center.x + reach; x++) {
+            for (int y = center.y - reach; y <= center.y + reach; y++) {
+                IMapTileInformation tile = mapController.getMapData().getTile(x, y);
+                if (tile == null) {
+                    continue;
+                }
+
+                for (EntityId entity : entityPositionLookup.getEntitiesInLocation(tile)) {
+                    Owner owner = entityData.getComponent(entity, Owner.class);
+                    Vector3f targetPosition = getPosition(entityData, entity);
+                    if (owner == null || targetPosition == null || entityId.equals(entity) || !creaturesController.isValidEntity(entity)
+                            || isIncapacitated(entity) || (owner.ownerId == getOwnerId()) != ownCreatures) {
+                        continue;
+                    }
+
+                    float dx = targetPosition.x - position.position.x;
+                    float dz = targetPosition.z - position.position.z;
+                    float distanceSquared = dx * dx + dz * dz;
+                    if (distanceSquared >= POSSESSED_SPELL_REACH_SQUARED || distanceSquared == 0) {
+                        continue;
+                    }
+
+                    float offView = 1 - (FastMath.sin(position.rotation) * dx + FastMath.cos(position.rotation) * dz) / FastMath.sqrt(distanceSquared);
+                    if (offView < bestOffView) {
+                        bestOffView = offView;
+                        bestTarget = entity;
+                    }
+                }
+            }
+        }
+
+        return bestTarget;
     }
 
     /**
@@ -1973,6 +2449,21 @@ public final class CreatureController extends EntityController implements ICreat
             entityData.removeComponent(entityId, Mana.class);
         } else {
             entityData.setComponent(entityId, new Mana(manaGeneration));
+        }
+
+        // The abilities only last the possession, a carried worker falls down (0x4831D0)
+        PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
+        if (possessedAbility != null) {
+            togglePossessedAbility(possessedAbility.ability);
+        }
+        if (possessedAbility != null && possessedAbility.entity != null) {
+            releaseWorker(possessedAbility.entity, POSSESSED_CARRY_DISTANCE);
+        }
+
+        // The hypnotised creature is let go (0x514590)
+        EntityId hypnotised = getHypnotised();
+        if (hypnotised != null) {
+            releaseHypnotised(hypnotised);
         }
 
         entityData.removeComponent(entityId, PossessedMovement.class);
