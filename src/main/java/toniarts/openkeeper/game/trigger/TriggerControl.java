@@ -387,8 +387,8 @@ public class TriggerControl extends Control {
             case CREATE_PORTAL_GEM:
                 gameController.getGameWorldController().getObjectsController().loadObject(
                         trigger.getUserData("objectId", short.class), trigger.getUserData("playerId", short.class),
-                        trigger.getUserData("posX", int.class) - 1, trigger.getUserData("posY", int.class) - 1);
-                break;
+                        trigger.getUserData("posX", int.class), trigger.getUserData("posY", int.class));
+                return true;
 
             case MAKE:
                 makeAvailable(trigger);
@@ -489,11 +489,6 @@ public class TriggerControl extends Control {
      */
     private boolean doStubAction(TriggerActionData trigger) {
         String reason = switch (trigger.getType()) {
-            // STUB: needs to create a Portal Gem object (object 28 for player 1 in every shipped
-            // record) on a tile. The trigger controls do not have access to the objects
-            // controller, only the creature and the map controllers
-            case CREATE_PORTAL_GEM ->
-                "the objects controller is not available to the triggers";
             // STUB: highlight the owner of a tile (or switch it off). There is no such
             // highlight in the game's view
             case DISPLAY_SLAB_OWNER ->
