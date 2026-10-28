@@ -92,6 +92,7 @@ public final class SoundState extends AbstractPauseAwareState {
     private final MusicLevel musicLevel = new MusicLevel();
     private final Random random = new Random();
     private final Queue<Speech> speechQueue = new ArrayDeque<>();
+    private float musicVolumeFactor = 1f;
 
     public SoundState(boolean enabled) {
         this.setEnabled(enabled);
@@ -184,6 +185,30 @@ public final class SoundState extends AbstractPauseAwareState {
         return musicLevel;
     }
 
+    /**
+     * Turns the music down or back up, i.e. while a disco plays in a Casino.
+     * In a level only the music plays in the background here.
+     *
+     * @param factor the share of the music volume of the settings, 0..1
+     */
+    public void setMusicVolumeFactor(float factor) {
+        if (musicVolumeFactor == factor) {
+            return;
+        }
+        musicVolumeFactor = factor;
+        float volume = getBackgroundVolume(true);
+        for (AudioNode node : backgroundNodes) {
+            node.setVolume(volume);
+        }
+    }
+
+    private float getBackgroundVolume(boolean music) {
+        Settings settings = Main.getUserSettings();
+        return settings.getFloat(Settings.Setting.MASTER_VOLUME)
+                * settings.getFloat(music ? Settings.Setting.MUSIC_VOLUME : Settings.Setting.SFX_VOLUME)
+                * (music ? musicVolumeFactor : 1f);
+    }
+
     private void startBackground(String category, int groupId, boolean music) {
         SoundCategory sc = SoundCategory.load(category, true);
         SoundGroup group = sc != null ? sc.getGroup(groupId) : null;
@@ -211,8 +236,7 @@ public final class SoundState extends AbstractPauseAwareState {
         AudioNode node = new AudioNode(stream, new AudioKey(group.getCategory().getName() + "/" + group.getId(), true));
         node.setLooping(false);
         node.setPositional(false);
-        node.setVolume(settings.getFloat(Settings.Setting.MASTER_VOLUME)
-                * settings.getFloat(music ? Settings.Setting.MUSIC_VOLUME : Settings.Setting.SFX_VOLUME));
+        node.setVolume(getBackgroundVolume(music));
         backgroundNodes.add(node);
         backgroundStreams.add(in);
         node.play();
