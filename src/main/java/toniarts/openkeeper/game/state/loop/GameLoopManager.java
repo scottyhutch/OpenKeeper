@@ -50,6 +50,7 @@ import toniarts.openkeeper.game.logic.PlayerSpellbookSystem;
 import toniarts.openkeeper.game.logic.PossessedMovementSystem;
 import toniarts.openkeeper.game.logic.PossessedSystem;
 import toniarts.openkeeper.game.logic.SlapSystem;
+import toniarts.openkeeper.game.logic.TrainingDummySystem;
 import toniarts.openkeeper.game.logic.WoodenBridgeDecaySystem;
 import toniarts.openkeeper.game.state.session.GameSessionServerService;
 import toniarts.openkeeper.game.task.ITaskManager;
