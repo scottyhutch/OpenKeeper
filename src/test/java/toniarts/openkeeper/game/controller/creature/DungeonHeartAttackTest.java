@@ -23,10 +23,12 @@ import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.Damage;
@@ -37,17 +39,22 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
+import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.object.IObjectController;
 import toniarts.openkeeper.game.controller.room.FiveByFiveRotatedController;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
+import toniarts.openkeeper.game.map.IMapData;
+import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.HeartAttackFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
+import toniarts.openkeeper.tools.convert.map.Terrain;
+import toniarts.openkeeper.tools.convert.map.TerrainFixtures;
 import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -66,6 +73,8 @@ class DungeonHeartAttackTest {
     private EntityData entityData;
     private Map<Short, Creature> creatures;
     private Map<EntityId, Set<EntityId>> sensed;
+    private Set<Point> solidTiles;
+    private int pathSearches;
 
     @BeforeEach
     void setUp() {
@@ -74,6 +83,8 @@ class DungeonHeartAttackTest {
         creatures.put(FIGHTER, HeartAttackFixtures.creature(FIGHTER, Creature.FightStyle.BLOCKER));
         creatures.put(IMP, HeartAttackFixtures.creature(IMP, Creature.FightStyle.NON_FIGHTER));
         sensed = new HashMap<>();
+        solidTiles = new HashSet<>();
+        pathSearches = 0;
     }
 
     @Test
@@ -111,6 +122,59 @@ class DungeonHeartAttackTest {
         sensed.put(hero, Set.of(heart, defender));
 
         assertEquals(defender, createController(hero).getAttackTarget().getEntityId());
+    }
+
+    @Test
+    void creatureStaysOnTheHeartWithNoFighterInSight() {
+        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 12));
+        EntityId heart = createHeart(KEEPER);
+        EntityId worker = createCreature(KEEPER, IMP, new Point(10, 14));
+        sensed.put(hero, Set.of(heart, worker));
+        entityData.setComponent(hero, new AttackTarget(heart));
+
+        assertEquals(heart, createController(hero).getAttackTarget().getEntityId());
+    }
+
+    @Test
+    void creatureLeavesTheHeartForAFighterAndDoesNotGoBack() {
+        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 12));
+        EntityId heart = createHeart(KEEPER);
+        EntityId defender = createCreature(KEEPER, FIGHTER, new Point(10, 16));
+        sensed.put(hero, Set.of(heart, defender));
+        entityData.setComponent(hero, new AttackTarget(heart));
+
+        assertEquals(defender, createController(hero).getAttackTarget().getEntityId());
+        assertEquals(defender, createController(hero).getAttackTarget().getEntityId());
+    }
+
+    @Test
+    void workerComesBeforeTheHeartWhenAFighterIsInSightToo() {
+        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 13));
+        EntityId heart = createHeart(KEEPER);
+        EntityId worker = createCreature(KEEPER, IMP, new Point(10, 14));
+        EntityId defender = createCreature(KEEPER, FIGHTER, new Point(10, 18));
+        sensed.put(hero, Set.of(heart, worker, defender));
+
+        assertEquals(worker, createController(hero).getAttackTarget().getEntityId());
+    }
+
+    @Test
+    void walledInTilesAreSkippedWithoutAPathSearch() {
+        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 15));
+        EntityId heart = createHeart(KEEPER);
+        for (int x = 8; x <= 12; x++) {
+            for (int y = 8; y <= 12; y++) {
+                if (Math.max(Math.abs(x - HEART_TILE.x), Math.abs(y - HEART_TILE.y)) == 2 && !(x == 8 && y == 8)) {
+                    solidTiles.add(new Point(x, y));
+                }
+            }
+        }
+
+        createController(hero).navigateToAttackTarget(heart);
+
+        assertEquals(new Point(8, 8), entityData.getComponent(hero, Navigation.class).target);
+        // One search to pick the tile, one to build the route
+        assertEquals(2, pathSearches);
     }
 
     @Test
@@ -153,6 +217,7 @@ class DungeonHeartAttackTest {
         EntityId entity = entityData.createEntity();
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.creatureId = creatureId;
+        creatureComponent.worker = creatureId == IMP;
         entityData.setComponents(entity, creatureComponent, new Owner(ownerId, ownerId), new Health(1000, 1000),
                 new Position(0, new Vector3f(tile.x, 0, tile.y)), new CreatureMeleeAttack(0, 100, 1, 0.5f));
         return entity;
@@ -185,14 +250,23 @@ class DungeonHeartAttackTest {
             if (!"findPath".equals(name)) {
                 return null;
             }
+            pathSearches++;
             Point to = (Point) args[1];
             boolean onHeart = Math.abs(to.x - HEART_TILE.x) <= 1 && Math.abs(to.y - HEART_TILE.y) <= 1;
             return onHeart ? null : new DefaultGraphPath<>();
         });
+        IMapData mapData = stub(IMapData.class, (name, args) -> "getTile".equals(name) && args.length == 1
+                ? stub(IMapTileController.class, (method, params) -> args[0]) : null);
+        IMapController mapController = stub(IMapController.class, (name, args) -> switch (name) {
+            case "getMapData" -> mapData;
+            case "getTerrain" -> TerrainFixtures.terrain((short) 1, solidTiles.contains(((IMapTileController) args[0]).getLocation())
+                    ? TerrainFixtures.flags(Terrain.TerrainFlag.SOLID) : TerrainFixtures.flags(), 0, 0, 0, (short) 0);
+            default -> null;
+        });
         CreatureComponent creatureComponent = entityData.getComponent(entity, CreatureComponent.class);
 
         return new CreatureController(entity, entityData, creatures.get(creatureComponent.creatureId), navigationService,
-                null, gameTimer, Map.of(), creaturesController, positionLookup, null, levelInfo, objectsController, null);
+                null, gameTimer, Map.of(), creaturesController, positionLookup, mapController, levelInfo, objectsController, null);
     }
 
     @FunctionalInterface
