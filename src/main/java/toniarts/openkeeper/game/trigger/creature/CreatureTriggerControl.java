@@ -174,6 +174,9 @@ public final class CreatureTriggerControl extends AbstractThingTriggerControl<IC
                 break;
 
             case REMOVE_FROM_MAP:
+                if (instanceControl != null) {
+                    instanceControl.removeFromMap();
+                }
                 break;
 
             case SET_FIGHT_FLAG:
