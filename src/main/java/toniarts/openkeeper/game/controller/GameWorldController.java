@@ -947,8 +947,13 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         }
 
         PlayerHandControl playerHandControl = playerControllers.get(playerId).getHandControl();
-        if (!playerHandControl.isFull() && canPickUpEntity(entity, playerId, entityData)) {
+        boolean pickedUp = !playerHandControl.isFull() && canPickUpEntity(entity, playerId, entityData);
+        if (pickedUp) {
             putToKeeperHand(playerHandControl, entity, playerId);
+        }
+        ObjectComponent objectComponent = entityData.getComponent(entity, ObjectComponent.class);
+        if (objectComponent != null && kwdFile.getObject(objectComponent.objectId).getFlags().contains(GameObject.ObjectFlag.OBJECT_TYPE_SPECIAL)) {
+            logger.log(Level.INFO, "Special click: entity=" + entity + ", hand path: " + (pickedUp ? "picked up into hand" : "not picked up (hand full or not allowed)"));
         }
     }
 
@@ -995,21 +1000,34 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             return false;
         }
 
+        // Debug logging of every click on a special
+        Stored stored = entityData.getComponent(entity, Stored.class);
+        String objectName = kwdFile.getObject(objectComponent.objectId).getName();
+        String clickInfo = "Special click: entity=" + entity + ", object=" + objectComponent.objectId + " (" + objectName
+                + "), player=" + playerId + ", stored=" + (stored != null ? "room " + stored.room + " (" + stored.objectType + ")" : "no");
+
         Position position = entityData.getComponent(entity, Position.class);
         if (position == null) {
+            logger.log(Level.INFO, clickInfo + ", position=none (in hand?): not activated, falls through to pick-up");
             return false;
         }
-        IMapTileController tile = mapController.getMapData().getTile(WorldUtils.vectorToPoint(position.position));
+        Point tilePoint = WorldUtils.vectorToPoint(position.position);
+        IMapTileController tile = mapController.getMapData().getTile(tilePoint);
+        clickInfo += ", tile=" + tilePoint + ", tileOwner=" + (tile != null ? tile.getOwnerId() : "no tile");
         if (tile == null || tile.getOwnerId() != playerId) {
+            logger.log(Level.INFO, clickInfo + ": refused (not on own land), falls through to pick-up");
             return false;
         }
 
         if (!activateSpecial(objectComponent.objectId, playerId, position)) {
+            logger.log(Level.INFO, clickInfo + ": not activated (unrecognized special or effect refused), falls through to pick-up");
             return false;
         }
 
         playerControllers.get(playerId).getStatsControl().specialFound();
         entityData.removeEntity(entity);
+        logger.log(Level.INFO, clickInfo + ": activated on own land, specialFound() called, entity removed (still has Position: "
+                + (entityData.getComponent(entity, Position.class) != null) + ")");
         return true;
     }
 
