@@ -57,10 +57,12 @@ class ResearchOrderTest {
         assertSame(spellB, keeper.getCurrentResearch());
 
         assertSame(spellB, researchControl.research(1000));
-        assertSame(door, keeper.getCurrentResearch());
         spellB.setDiscovered(true); // The spellbook materializes
+        researchControl.completeResearch();
+        assertSame(door, keeper.getCurrentResearch());
 
         assertSame(door, researchControl.research(1000));
+        researchControl.completeResearch();
         assertSame(spellA, keeper.getCurrentResearch());
     }
 
@@ -90,6 +92,7 @@ class ResearchOrderTest {
         assertSame(door, keeper.getCurrentResearch());
 
         researchControl.research(1000);
+        researchControl.completeResearch();
         assertSame(spellA, keeper.getCurrentResearch());
     }
 

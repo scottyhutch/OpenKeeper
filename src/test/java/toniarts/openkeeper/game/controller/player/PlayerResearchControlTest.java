@@ -17,12 +17,14 @@
 package toniarts.openkeeper.game.controller.player;
 
 import java.lang.reflect.Proxy;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.data.ResearchableType;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
-import toniarts.openkeeper.tools.convert.map.RoomFixtures;
+import toniarts.openkeeper.tools.convert.map.ResearchOrderFixtures;
+import toniarts.openkeeper.tools.convert.map.Variable.ResearchOrder.ResearchOrderType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -31,7 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 class PlayerResearchControlTest {
 
     private final IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
-            (proxy, method, args) -> method.getName().equals("getRoomById") ? RoomFixtures.researchableRoom(((Number) args[0]).shortValue(), 10) : null);
+            (proxy, method, args) -> method.getName().equals("getResearchOrder")
+                    ? List.of(ResearchOrderFixtures.researchOrder(ResearchOrderType.ROOM, 1, 10),
+                            ResearchOrderFixtures.researchOrder(ResearchOrderType.ROOM, 2, 10)) : null);
     private final Keeper keeper = new Keeper(false, (short) 1);
     private final ResearchableEntity first = new ResearchableEntity((short) 1, ResearchableType.ROOM);
     private final ResearchableEntity second = new ResearchableEntity((short) 2, ResearchableType.ROOM);

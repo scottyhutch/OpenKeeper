@@ -26,6 +26,7 @@ import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IObjectsController;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -50,7 +51,10 @@ class CreatureRemoveFromMapTest {
         entityData.setComponent(entityId, new Owner((short) 3, (short) 3));
         entityData.setComponent(entityId, new Gold(100, 300));
 
-        new CreatureController(entityId, entityData, null, null, null, null, null, null, null, null, null,
+        ILevelInfo levelInfo = (ILevelInfo) Proxy.newProxyInstance(ILevelInfo.class.getClassLoader(),
+                new Class<?>[]{ILevelInfo.class}, (proxy, method, args) -> null);
+
+        new CreatureController(entityId, entityData, null, null, null, null, null, null, null, null, levelInfo,
                 objectsController, null).removeFromMap();
 
         assertNull(entityData.getComponent(entityId, Position.class));
