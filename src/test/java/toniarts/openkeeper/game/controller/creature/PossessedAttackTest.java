@@ -43,6 +43,7 @@ import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -395,7 +396,7 @@ class PossessedAttackTest {
                     default -> null;
                 }) : null);
         return new CreatureController(us, entityData, new Creature(), null, null, gameTimer, gameSettings, creaturesController,
-                positionLookup, mapController, levelInfo, null, null);
+                positionLookup, mapController, levelInfo, null, null, stub(GameEventService.class, (name, args) -> null));
     }
 
     @FunctionalInterface
