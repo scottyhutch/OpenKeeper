@@ -45,25 +45,6 @@ import toniarts.openkeeper.view.text.EntityTextParser;
  */
 public final class CreatureViewControl extends EntityViewControl<Creature, Creature.AnimationType> {
 
-    /**
-     * Which model the creature is drawn with
-     */
-    enum Look {
-
-        /**
-         * The creature's own animations
-         */
-        OWN,
-        /**
-         * The mesh of the object it is morphed into
-         */
-        MORPH,
-        /**
-         * The in-hand mesh of the object it is morphed into
-         */
-        MORPH_IN_HAND
-    }
-
     private final GameObject morphObject;
     private boolean morphed;
 
@@ -103,9 +84,9 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         // The Chicken spell changes the look, and back again when it wears off
         boolean nowMorphed = isMorphed();
         if (nowMorphed != morphed) {
-            boolean lookChanged = currentState != null && getLook(morphed, currentState) != getLook(nowMorphed, currentState);
+            ArtResource before = currentState != null ? getAnimationData(currentState) : null;
             morphed = nowMorphed;
-            if (lookChanged) {
+            if (currentState != null && before != getAnimationData(currentState)) {
                 playAnimation(currentState);
             }
         }
@@ -113,25 +94,6 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     private boolean isMorphed() {
         return morphObject != null && getEntity().get(Morphed.class) != null;
-    }
-
-    /**
-     * Which model the creature is drawn with. A creature morphed into a
-     * chicken is drawn with the chicken object's mesh, also when it is in
-     * hand, but it dies with its own animations
-     *
-     * @param morphed whether the creature is morphed
-     * @param state the creature animation
-     * @return the model to use
-     */
-    static Look getLook(boolean morphed, Creature.AnimationType state) {
-        if (!morphed || state == Creature.AnimationType.DIE || state == Creature.AnimationType.DEATH_POSE) {
-            return Look.OWN;
-        }
-        if (state == Creature.AnimationType.IN_HAND) {
-            return Look.MORPH_IN_HAND;
-        }
-        return Look.MORPH;
     }
 
     @Override
@@ -175,7 +137,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     private void playAnimation(Creature.AnimationType animation) {
         AnimationLoader.playAnimation(getSpatial(), getAnimationData(animation), assetManager);
-        if (getLook(morphed, animation) == Look.OWN && getDataObject().getFlags().contains(CreatureFlag.IS_UNIQUE)) {
+        if (getAnimationData(animation) == getDataObject().getAnimation(animation) && getDataObject().getFlags().contains(CreatureFlag.IS_UNIQUE)) {
             CreatureVariantTextures.apply(getSpatial(), assetManager);
         }
         isAnimationPlaying = true;
@@ -219,14 +181,12 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     @Override
     protected ArtResource getAnimationData(Creature.AnimationType state) {
-        switch (getLook(morphed, state)) {
-            case MORPH:
-                return morphObject.getMeshResource();
-            case MORPH_IN_HAND:
-                return morphObject.getInHandMeshResource();
-            default:
-                return getDataObject().getAnimation(state);
+        // A creature morphed into a chicken is drawn with the chicken object's mesh, also in hand,
+        // but it dies with its own animations
+        if (morphed && state != Creature.AnimationType.DIE && state != Creature.AnimationType.DEATH_POSE) {
+            return state == Creature.AnimationType.IN_HAND ? morphObject.getInHandMeshResource() : morphObject.getMeshResource();
         }
+        return getDataObject().getAnimation(state);
     }
 
     private boolean isWorkAnimation() {
