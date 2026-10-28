@@ -64,7 +64,7 @@ class PossessedSystemTest {
     @Test
     void releasedAttackIsRemovedAfterItsSwing() {
         EntityId creature = entityData.createEntity();
-        entityData.setComponents(creature, new Possessed(0, 0), new PossessedAttack(false, 1));
+        entityData.setComponents(creature, new Possessed(0, 0), new PossessedAttack(false, 1, false, 0));
 
         system(() -> { }).processTick(0.1f);
 
@@ -75,7 +75,7 @@ class PossessedSystemTest {
     @Test
     void heldAttackIsKept() {
         EntityId creature = entityData.createEntity();
-        entityData.setComponents(creature, new Possessed(0, 0), new PossessedAttack(true, 1));
+        entityData.setComponents(creature, new Possessed(0, 0), new PossessedAttack(true, 1, false, 0));
 
         system(() -> { }).processTick(0.1f);
 
@@ -86,10 +86,10 @@ class PossessedSystemTest {
     @Test
     void quickClickDuringSwingInSameTickIsKept() {
         EntityId creature = entityData.createEntity();
-        entityData.setComponents(creature, new Possessed(0, 0), new PossessedAttack(false, 1));
+        entityData.setComponents(creature, new Possessed(0, 0), new PossessedAttack(false, 1, false, 0));
 
         // A press and release written in the same game tick get the same press time
-        system(() -> entityData.setComponent(creature, new PossessedAttack(false, 1))).processTick(0.1f);
+        system(() -> entityData.setComponent(creature, new PossessedAttack(false, 1, false, 0))).processTick(0.1f);
 
         assertNotNull(entityData.getComponent(creature, PossessedAttack.class));
     }
@@ -97,10 +97,10 @@ class PossessedSystemTest {
     @Test
     void newPressDuringSwingIsKept() {
         EntityId creature = entityData.createEntity();
-        entityData.setComponents(creature, new Possessed(0, 0), new PossessedAttack(false, 1));
+        entityData.setComponents(creature, new Possessed(0, 0), new PossessedAttack(false, 1, false, 0));
 
         // The session thread writes a new press while the swing is processed
-        system(() -> entityData.setComponent(creature, new PossessedAttack(true, 2))).processTick(0.1f);
+        system(() -> entityData.setComponent(creature, new PossessedAttack(true, 2, false, 0))).processTick(0.1f);
 
         PossessedAttack attack = entityData.getComponent(creature, PossessedAttack.class);
         assertTrue(attack.held);
