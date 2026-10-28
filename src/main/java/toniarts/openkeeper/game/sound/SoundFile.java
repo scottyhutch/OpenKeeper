@@ -16,6 +16,8 @@
  */
 package toniarts.openkeeper.game.sound;
 
+import javax.annotation.Nullable;
+
 /**
  *
  * @author archdemon
@@ -25,11 +27,51 @@ public final class SoundFile implements Comparable<SoundFile> {
     private final int id;
     private final SoundGroup group;
     private final String filename;
+    private final int pcmBytes;
+    private final int weight;
+    @Nullable
+    private final SoundEventGroup eventGroup;
+    @Nullable
+    private final SoundSample sample;
 
     public SoundFile(SoundGroup action, int id, String filename) {
+        this(action, id, filename, 0, 0, null, null);
+    }
+
+    /**
+     * @param action the group
+     * @param id 0-based entry id in the SDT file
+     * @param filename the converted file name
+     * @param pcmBytes length of the sound as 16 bit PCM in bytes, 0 if
+     * unknown
+     * @param weight cumulative selection weight within the owning entry
+     */
+    public SoundFile(SoundGroup action, int id, String filename, int pcmBytes, int weight) {
+        this(action, id, filename, pcmBytes, weight, null, null);
+    }
+
+    /**
+     * @param action the group
+     * @param id the clip in the sound archive
+     * @param filename the converted file name
+     * @param eventGroup the event group the file belongs to
+     * @param sample the sample the file plays
+     */
+    public SoundFile(SoundGroup action, int id, String filename, @Nullable SoundEventGroup eventGroup,
+            @Nullable SoundSample sample) {
+        this(action, id, filename, getPcmBytes(sample), sample == null ? 0 : sample.getCumulativeWeight(), eventGroup,
+                sample);
+    }
+
+    private SoundFile(SoundGroup action, int id, String filename, int pcmBytes, int weight,
+            @Nullable SoundEventGroup eventGroup, @Nullable SoundSample sample) {
         this.group = action;
         this.id = id;
         this.filename = filename;
+        this.pcmBytes = pcmBytes;
+        this.weight = weight;
+        this.eventGroup = eventGroup;
+        this.sample = sample;
     }
 
     public SoundGroup getGroup() {
@@ -38,6 +80,55 @@ public final class SoundFile implements Comparable<SoundFile> {
 
     public String getFilename() {
         return filename;
+    }
+
+    /**
+     * Length of the decoded sound in bytes. The MPEG data decodes into slightly
+     * more samples (padded to whole frames). Sequenced sounds such as the music
+     * must be cut to exactly this length to join seamlessly.
+     *
+     * @return length as 16 bit PCM in bytes, 0 if unknown
+     */
+    public int getPcmBytes() {
+        return pcmBytes;
+    }
+
+    /**
+     * @return cumulative selection weight (0-65535) within the owning entry
+     */
+    public int getWeight() {
+        return weight;
+    }
+
+    @Nullable
+    public SoundEventGroup getEventGroup() {
+        return eventGroup;
+    }
+
+    @Nullable
+    public SoundSample getSample() {
+        return sample;
+    }
+
+    /**
+     * Group volume of this file, an integer percentage where 100 is unity.
+     */
+    public int getVolume() {
+        return eventGroup == null ? 100 : SoundRng.volume(eventGroup);
+    }
+
+    /**
+     * Group pitch of this file, 100 being the unmodified playback rate.
+     */
+    public float getPitch() {
+        return eventGroup == null ? 100.0f : SoundRng.pitch(eventGroup);
+    }
+
+    /**
+     * Delay of this file in milliseconds.
+     */
+    public int getDelay() {
+        return eventGroup == null ? 0 : SoundRng.delay(eventGroup);
     }
 
     @Override
@@ -82,4 +173,12 @@ public final class SoundFile implements Comparable<SoundFile> {
         }
         return (group.getId() - o.group.getId());
     }
+
+    private static int getPcmBytes(@Nullable SoundSample sample) {
+        if (sample == null || sample.getArchive() == null) {
+            return 0;
+        }
+        return sample.getArchive().getClipPcmBytes(sample.getClip());
+    }
+
 }
