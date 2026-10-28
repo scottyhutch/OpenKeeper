@@ -29,6 +29,7 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Turncoat;
 import toniarts.openkeeper.game.controller.creature.CreatureController;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.Shot;
@@ -75,18 +76,19 @@ class TurncoatSpellTest {
             case "createController" -> {
                 EntityId entity = (EntityId) args[0];
                 Creature targetCreature = kwdFile.getCreature(entityData.getComponent(entity, CreatureComponent.class).creatureId);
-                yield new CreatureController(entity, entityData, targetCreature, null, null, gameTimer, null, null, null, null, levelInfo, null, null);
+                yield new CreatureController(entity, entityData, targetCreature, null, null, gameTimer, null, null, null, null, levelInfo, null, null, null);
             }
             default -> null;
         });
-        shotsController = new ShotsController(kwdFile, entityData, null, gameTimer, null, null, null, null, creaturesController);
+        shotsController = new ShotsController(kwdFile, entityData, null, gameTimer, null, null, null, null, creaturesController,
+                proxy(GameEventService.class, (method, args) -> null));
     }
 
     @Test
     void enemyCreatureFightsForTheCasterForTheSpellDuration() {
         EntityId target = creature(CREATURE_ID, ENEMY);
 
-        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), target);
+        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), target, null);
 
         Turncoat turncoat = entityData.getComponent(target, Turncoat.class);
         assertNotNull(turncoat);
@@ -101,7 +103,7 @@ class TurncoatSpellTest {
     void immuneCreatureIsNotTurned() {
         EntityId target = creature(IMMUNE_CREATURE_ID, ENEMY);
 
-        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), target);
+        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), target, null);
 
         assertNull(entityData.getComponent(target, Turncoat.class));
     }
@@ -111,8 +113,8 @@ class TurncoatSpellTest {
         EntityId door = entityData.createEntity();
         entityData.setComponent(door, new Owner(ENEMY, ENEMY));
 
-        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), door);
-        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), null);
+        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), door, null);
+        shotsController.createShot(TURNCOAT_SHOT_ID, 25, 0, CASTER, new Vector3f(), null, null);
 
         assertNull(entityData.getComponent(door, Turncoat.class));
     }
