@@ -61,9 +61,11 @@ import toniarts.openkeeper.view.control.EntityViewControl;
 import toniarts.openkeeper.view.control.IEntityViewControl;
 import toniarts.openkeeper.view.control.IUnitFlowerControl;
 import toniarts.openkeeper.view.control.ObjectViewControl;
+import toniarts.openkeeper.view.control.ShotFlightControl;
 import toniarts.openkeeper.view.control.TrapFlowerControl;
 import toniarts.openkeeper.view.control.TrapViewControl;
 import toniarts.openkeeper.view.effect.EffectManagerState;
+import toniarts.openkeeper.view.effect.VisualEffect;
 import toniarts.openkeeper.view.loader.CreatureLoader;
 import toniarts.openkeeper.view.loader.DoorLoader;
 import toniarts.openkeeper.view.loader.ILoader;
@@ -143,6 +145,7 @@ public class PlayerEntityViewState extends AbstractAppState {
 
     private final Map<EntityId, IUnitFlowerControl> flowerControls = new HashMap<>();
     private final Map<EntityId, IEntityViewControl> entityViewControls = new HashMap<>();
+    private final Map<EntityId, VisualEffect> shotTrails = new HashMap<>();
     private Spatial hiddenSpatial;
 
     public PlayerEntityViewState(IKwdFile kwdFile, AssetManager assetManager, EntityData entityData, short playerId, TextParser textParser, Node rootNode) {
@@ -448,6 +451,13 @@ public class PlayerEntityViewState extends AbstractAppState {
         if (result == null) {
             result = new Node("Wat"); // FIXME: Yeah...
         }
+        if (shotViewState.velocity != null) {
+            Node flyingShot = new Node(result.getName());
+            flyingShot.attachChild(result);
+            flyingShot.addControl(new ShotFlightControl(shotViewState.velocity));
+            addShotTrail(e.getId(), kwdFile.getShotById(shotViewState.shotId), flyingShot);
+            result = flyingShot;
+        }
         nodeShots.attachChild(result);
 
         Vector3f position = e.get(Position.class).position;
@@ -456,6 +466,23 @@ public class PlayerEntityViewState extends AbstractAppState {
         }
 
         return result;
+    }
+
+    /**
+     * A flying shot drags its general effect along, like the fire trail of the
+     * cannon ball. DKII.EXE moves the effect with the shot every turn
+     * (0x4AB180). The effect lasts as long as the shot flies.
+     */
+    private void addShotTrail(EntityId entityId, Shot shot, Node flyingShot) {
+        EffectManagerState effectManagerState = stateManager.getState(EffectManagerState.class);
+        if (effectManagerState == null) {
+            return;
+        }
+
+        VisualEffect trail = effectManagerState.load(flyingShot, null, shot.getGeneralEffectId(), true);
+        if (trail != null) {
+            shotTrails.put(entityId, trail);
+        }
     }
 
     /**
@@ -816,6 +843,10 @@ public class PlayerEntityViewState extends AbstractAppState {
 
         @Override
         protected void removeObject(Spatial object, Entity e) {
+            VisualEffect trail = shotTrails.remove(e.getId());
+            if (trail != null) {
+                trail.removeEffect();
+            }
             removeModel(object, e);
         }
     }

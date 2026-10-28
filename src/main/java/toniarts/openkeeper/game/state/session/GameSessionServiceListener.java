@@ -173,10 +173,20 @@ public interface GameSessionServiceListener {
      * Player starts or stops attacking with the possessed creature
      *
      * @param attacking whether the attack button is held down
+     * @param spell 0 for the melee attack, 1 to 3 for the creature's spells
      * @param playerId the player who is possessing
      */
     @Asynchronous
-    public void onSetPossessedAttack(boolean attacking, short playerId);
+    public void onSetPossessedAttack(boolean attacking, int spell, short playerId);
+
+    /**
+     * Player uses a first person ability of the possessed creature
+     *
+     * @param ability 1 or 2, the creature's first or second ability
+     * @param playerId the player who is possessing
+     */
+    @Asynchronous
+    public void onUsePossessedAbility(int ability, short playerId);
 
     /**
      * Player wants the creature the possessed creature looks at in its group

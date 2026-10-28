@@ -206,11 +206,17 @@ public abstract class PossessionInteractionState extends AbstractPauseAwareState
      * @param pressed whether the key went down or up
      */
     private void useAttack(boolean pressed) {
-        // The melee attack and the group, but always let go of the attack
+        // The melee attack, the spells and the group, but always let go of the attack
+        int spell = switch (action) {
+            case SPELL_1 -> 1;
+            case SPELL_2 -> 2;
+            case SPELL_3 -> 3;
+            default -> 0;
+        };
         if (action == Action.GROUP && pressed) {
             stateManager.getState(GameClientState.class).getGameClientService().addPossessedFollower();
-        } else if (action == Action.MELEE || !pressed) {
-            stateManager.getState(GameClientState.class).getGameClientService().setPossessedAttack(pressed);
+        } else if (action == Action.MELEE || spell > 0 || !pressed) {
+            stateManager.getState(GameClientState.class).getGameClientService().setPossessedAttack(pressed, spell);
         }
     }
 
@@ -255,6 +261,15 @@ public abstract class PossessionInteractionState extends AbstractPauseAwareState
                 // Same as the left mouse button, holding the key is not repeated here
                 if (evt.getKeyCode() == (int) Settings.Setting.USE_ATTACK.getDefaultValue() && !evt.isRepeating()) {
                     useAttack(evt.isPressed());
+                }
+
+                // The creature uses its ability as the key goes down, the server knows what it does
+                if (evt.isPressed() && !evt.isRepeating()) {
+                    if (evt.getKeyCode() == (int) Settings.Setting.POSSESSED_SELECT_ABILITY_1.getDefaultValue()) {
+                        stateManager.getState(GameClientState.class).getGameClientService().usePossessedAbility(1);
+                    } else if (evt.getKeyCode() == (int) Settings.Setting.POSSESSED_SELECT_ABILITY_2.getDefaultValue()) {
+                        stateManager.getState(GameClientState.class).getGameClientService().usePossessedAbility(2);
+                    }
                 }
 
                 if (evt.getKeyCode() == (int) Settings.Setting.POSSESSED_SELECT_MELEE.getDefaultValue() && evt.isReleased()) {

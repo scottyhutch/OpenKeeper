@@ -54,6 +54,7 @@ import toniarts.openkeeper.game.logic.PlayerCreatureSystem;
 import toniarts.openkeeper.game.logic.PlayerSpellbookSystem;
 import toniarts.openkeeper.game.logic.PossessedMovementSystem;
 import toniarts.openkeeper.game.logic.PossessedSystem;
+import toniarts.openkeeper.game.logic.ShotSystem;
 import toniarts.openkeeper.game.logic.SlapSystem;
 import toniarts.openkeeper.game.logic.TrapSystem;
 import toniarts.openkeeper.game.logic.WoodenBridgeDecaySystem;
@@ -139,6 +140,8 @@ public final class GameLoopManager {
                         new TrapEffects(entityData, level, gameController.getGameTimer()),
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.TRIGGER_TRAP_TRIGGER_SPEED_TILES_PER_SECOND)),
                 new FreezeSystem(entityData, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
+                new ShotSystem(entityData, level, gameWorldController.getShotsController(), positionSystem,
+                        gameWorldController.getMapController(), playerControllers),
                 (IGameLogicUpdatable) taskManager);
 
         loops.add(new GameLoop(gameLogicThread, 1_000_000_000 / levelInfo.getLevelData().getGameLevel().getTicksPerSec(), "Logic"));
