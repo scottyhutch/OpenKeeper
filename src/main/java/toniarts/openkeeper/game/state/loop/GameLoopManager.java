@@ -125,7 +125,7 @@ public final class GameLoopManager {
                 new NewSpeciesSystem(entityData, gameService,
                         levelInfo.getLevelData().getGameLevel().getIntroductionOverrideTextIds()),
                 new CasinoSystem(entityData, gameWorldController.getCreaturesController(),
-                        gameWorldController.getMapController(), positionSystem, gameController.getGameTimer(), gameSettings),
+                        gameWorldController.getMapController(), positionSystem, gameController.getGameTimer(), gameEventService, gameSettings),
                 new ChickenAiSystem(entityData, gameWorldController.getObjectsController()),
                 new TrainingDummySystem(entityData, levelInfo.getLevelData(), gameWorldController.getMapController()),
                 new CreatureViewSystem(entityData, levelInfo.getLevelData()),
