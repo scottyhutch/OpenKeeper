@@ -32,9 +32,9 @@ import toniarts.openkeeper.game.controller.player.PlayerManaControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
+import static toniarts.openkeeper.tools.convert.map.ManaRulesFixtures.manaVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static toniarts.openkeeper.tools.convert.map.ManaRulesFixtures.manaVariable;
 
 class ManaCalculatorLogicTest {
 
@@ -72,11 +72,23 @@ class ManaCalculatorLogicTest {
     }
 
     @Test
+    void vaultBuiltOnOwnedTileRaisesTheGainLimit() {
+        addManaSource(600, 0);
+        EntityId tile = addManaSource(0, 0);
+
+        ManaCalculatorLogic logic = new ManaCalculatorLogic(List.of(playerController()), entityData);
+        entityData.setComponent(tile, new Mana(100, 100));
+        logic.processTick(1f);
+
+        assertEquals(600, keeper.getManaGain());
+    }
+
+    @Test
     void possessedCreatureCostsOnlyWhatGoesOverTheGainLimit() {
         keeper.setMana(1000);
         addManaSource(200, 0); // Claimed tiles
         addManaSource(30, 0); // Dungeon heart
-        EntityId vampire = addManaSource(-600, 0);
+        EntityId vampire = addManaSource(-600, 0); // CreatureController puts the cost in its Mana when possessed
         entityData.setComponent(vampire, new Possessed(600, 0));
 
         ManaCalculatorLogic logic = new ManaCalculatorLogic(List.of(playerController()), entityData);
@@ -85,6 +97,20 @@ class ManaCalculatorLogicTest {
         assertEquals(500, keeper.getManaGain());
         assertEquals(600, keeper.getManaLoose());
         assertEquals(900, keeper.getMana());
+    }
+
+    @Test
+    void anotherKeepersPossessionDoesNotRaiseTheGain() {
+        addManaSource(200, 0);
+        addManaSource(30, 0);
+        EntityId enemyVampire = entityData.createEntity();
+        entityData.setComponents(enemyVampire, new Mana(-600), new Possessed(600, 0), new Owner((short) 4, (short) 4));
+
+        ManaCalculatorLogic logic = new ManaCalculatorLogic(List.of(playerController()), entityData);
+        logic.processTick(1f);
+
+        assertEquals(230, keeper.getManaGain());
+        assertEquals(0, keeper.getManaLoose());
     }
 
     private EntityId addManaSource(int manaGeneration, int maxManaGeneration) {

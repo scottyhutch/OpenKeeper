@@ -40,16 +40,14 @@ public final class PlayerManaControl {
         this.keeper = keeper;
 
         this.keeper.setMaxMana((int) gameSettings.get(MiscType.MAXIMUM_MANA_THRESHOLD).getValue());
-
-        // A level without the limit doesn't limit the gain
-        Variable.MiscVariable maxManaGainVariable = gameSettings.get(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND);
-        this.maxManaGain = maxManaGainVariable != null ? (int) maxManaGainVariable.getValue() : Integer.MAX_VALUE;
+        this.maxManaGain = (int) gameSettings.get(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND).getValue();
     }
 
     /**
      * Updates gain and loose and adds/removes mana accordingly to the player.
      * The gain is limited to the maximum mana gain per second, raised by the
-     * owned tiles (mana vaults), and the loose is paid after the limit.<br>
+     * owned tiles (mana vaults), and the loose is paid after the limit
+     * (DKII.EXE 0x4C10E0; a tile changing owner moves its raise in 0x4559D0).<br>
      * The possession cost is in the loose, but DKII.EXE also adds it to the
      * gain before the limit (0x4C10E0, the loss from 0x4C17A0). So possessing
      * only costs the part of it that pushes the gain over the limit.
@@ -62,7 +60,7 @@ public final class PlayerManaControl {
      */
     public void updateMana(int gain, int loose, int maxGainIncrease, int possessionManaDrain) {
 
-        int cappedGain = (int) Math.min((long) gain + possessionManaDrain, (long) maxManaGain + maxGainIncrease);
+        int cappedGain = Math.min(gain + possessionManaDrain, maxManaGain + maxGainIncrease);
 
         // The mana spent at once this second is gone already, it only shows with the loss
         keeper.setManaGain(cappedGain);

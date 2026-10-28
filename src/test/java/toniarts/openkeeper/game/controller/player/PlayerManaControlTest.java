@@ -22,12 +22,16 @@ import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
+import static toniarts.openkeeper.tools.convert.map.ManaRulesFixtures.manaVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static toniarts.openkeeper.tools.convert.map.ManaRulesFixtures.manaVariable;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+/**
+ * The mana a keeper spends at once shows with the loss of that second, and the
+ * gain is limited
+ */
 class PlayerManaControlTest {
 
     private final Keeper keeper = new Keeper(false, (short) 3);
@@ -131,6 +135,18 @@ class PlayerManaControlTest {
 
         keeper.setMana(599);
         assertFalse(manaControl.hasEnoughMana(600));
+    }
+
+    @Test
+    void manaJustSpentDoesNotEndThePossession() {
+        keeper.setMana(1500);
+        manaControl.spendMana(500);
+
+        // The 500 just spent shows in the loss, but it is gone from the mana already
+        manaControl.updateMana(230, 600, 0, 600);
+
+        assertEquals(900, keeper.getMana());
+        assertTrue(manaControl.hasEnoughMana(600));
     }
 
     private static Map<MiscType, MiscVariable> settings() {

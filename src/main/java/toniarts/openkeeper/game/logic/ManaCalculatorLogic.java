@@ -70,6 +70,9 @@ public final class ManaCalculatorLogic implements IGameLogicUpdatable {
     public void processTick(float tpf) {
         tick += tpf;
         if (tick >= 1) {
+
+            // Right before the mana sources, so the possession cost is in both the gain and the loss
+            possessedEntities.applyChanges();
             updateManaSources();
             updateManaControls();
             tick -= 1;
