@@ -110,7 +110,6 @@ public final class GameClientState extends AbstractPauseAwareState {
     private PlayerMapViewState playerMapViewState;
     private AmbienceState ambienceState;
     private volatile EntityId possessedCreature;
-    private CasinoDiscoState casinoDiscoState;
     private RoomSoundState roomSoundState;
     private PlayerEntityViewState playerModelViewState;
     private MinimapPanelState minimapPanelState;
@@ -203,10 +202,6 @@ public final class GameClientState extends AbstractPauseAwareState {
             roomSoundState = null;
         }
         stateManager.detach(effectManagerState);
-        if (casinoDiscoState != null) {
-            stateManager.detach(casinoDiscoState);
-            casinoDiscoState = null;
-        }
         stateManager.detach(playerModelViewState);
         stateManager.detach(playerMapViewState);
         stateManager.detach(playerState);
@@ -526,8 +521,6 @@ public final class GameClientState extends AbstractPauseAwareState {
                     ambienceState = new AmbienceState(kwdFile, playerMapViewState,
                             stateManager.getState(SoundState.class).getMusicLevel()::getIntensity);
                     stateManager.attach(ambienceState);
-                    casinoDiscoState = new CasinoDiscoState(gameClientService.getEntityData(), players.get(playerId), kwdFile, playerMapViewState);
-                    stateManager.attach(casinoDiscoState);
                 }
 
                 roomSoundState = new RoomSoundState(gameClientService.getEntityData(), kwdFile);
