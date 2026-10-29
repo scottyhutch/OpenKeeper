@@ -35,6 +35,7 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.utils.Point;
@@ -66,7 +67,7 @@ class TaskManagerDestroyedRoomTest {
         IPlayerController player = stub(IPlayerController.class, Map.of("getKeeper", keeper));
         TaskManager taskManager = new TaskManager(new DefaultEntityData(), stub(IGameWorldController.class, Map.of()), mapController,
                 stub(IObjectsController.class, Map.of()), stub(ICreaturesController.class, Map.of()), stub(INavigationService.class, Map.of()),
-                List.of(player), stub(ILevelInfo.class, Map.of()), stub(IEntityPositionLookup.class, Map.of()), Map.of());
+                List.of(player), stub(ILevelInfo.class, Map.of("getLevelData", stub(IKwdFile.class, Map.of()))), stub(IEntityPositionLookup.class, Map.of()), Map.of());
         ICreatureController imp = stub(ICreatureController.class, Map.of(
                 "getOwnerId", Player.KEEPER1_ID,
                 "getCreatureCoordinates", new Point(20, 11)));
