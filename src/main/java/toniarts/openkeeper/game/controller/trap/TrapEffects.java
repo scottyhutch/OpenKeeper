@@ -17,10 +17,8 @@
 package toniarts.openkeeper.game.controller.trap;
 
 import com.jme3.math.Vector3f;
-import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
-import com.simsilica.es.EntitySet;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.EnumSet;
@@ -63,15 +61,12 @@ public final class TrapEffects implements ITrapEffects {
     private final EntityData entityData;
     private final IKwdFile kwdFile;
     private final IGameTimer gameTimer;
-    private final EntitySet creatureEntities;
     private final Set<Shot.ProcessType> reportedProcessTypes = EnumSet.noneOf(Shot.ProcessType.class);
 
     public TrapEffects(EntityData entityData, IKwdFile kwdFile, IGameTimer gameTimer) {
         this.entityData = entityData;
         this.kwdFile = kwdFile;
         this.gameTimer = gameTimer;
-
-        creatureEntities = entityData.getEntities(CreatureComponent.class, Owner.class, Position.class, Health.class);
     }
 
     @Override
@@ -118,10 +113,10 @@ public final class TrapEffects implements ITrapEffects {
     }
 
     private void damageCreatures(int damage, short ownerId, Predicate<Vector3f> inArea) {
-        creatureEntities.applyChanges();
-        for (Entity creatureEntity : creatureEntities) {
-            if (creatureEntity.get(Owner.class).ownerId != ownerId && inArea.test(creatureEntity.get(Position.class).position)) {
-                EntityController.setDamage(entityData, creatureEntity.getId(), damage);
+        for (EntityId creature : entityData.findEntities(null, CreatureComponent.class, Owner.class, Position.class, Health.class)) {
+            if (entityData.getComponent(creature, Owner.class).ownerId != ownerId
+                    && inArea.test(entityData.getComponent(creature, Position.class).position)) {
+                EntityController.setDamage(entityData, creature, damage);
             }
         }
     }
