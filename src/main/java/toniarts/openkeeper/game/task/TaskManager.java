@@ -718,7 +718,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     }
 
     private AbstractTask getObjectTask(IObjectController gameObject, short playerId) {
-        return new FetchObjectTask(this, navigationService, mapController, gameObject, playerId);
+        return new FetchObjectTask(this, navigationService, mapController, gameObject, playerId, playerControllers.get(playerId));
     }
 
     @Override
