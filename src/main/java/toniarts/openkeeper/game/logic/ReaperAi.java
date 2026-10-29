@@ -19,10 +19,8 @@ package toniarts.openkeeper.game.logic;
 import com.badlogic.gdx.ai.fsm.StateMachine;
 import com.badlogic.gdx.ai.pfa.GraphPath;
 import com.jme3.math.Vector3f;
-import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
-import com.simsilica.es.EntitySet;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -75,8 +73,6 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
     private final ICreaturesController creaturesController;
     private final INavigationService navigationService;
     private final Random random;
-    private final EntitySet creatures;
-    private final EntitySet objects;
 
     ReaperAi(EntityData entityData, Map<Short, Keeper> keepers, ICreaturesController creaturesController,
             INavigationService navigationService, Random random) {
@@ -85,16 +81,10 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
         this.creaturesController = creaturesController;
         this.navigationService = navigationService;
         this.random = random;
-
-        creatures = entityData.getEntities(CreatureComponent.class, Owner.class, Position.class, Health.class);
-        objects = entityData.getEntities(ObjectComponent.class, Owner.class, Position.class, Health.class);
     }
 
     @Override
     public void think(EntityId reaper, short ownerId) {
-        creatures.applyChanges();
-        objects.applyChanges();
-
         Keeper keeper = keepers.get(ownerId);
         ICreatureController reaperController = creaturesController.createController(reaper);
         if (keeper == null) {
@@ -224,19 +214,19 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
 
     private EntityId findNearestEnemy(EntityId reaper, ICreatureController reaperController, Keeper keeper) {
         Vector3f reaperPosition = entityData.getComponent(reaper, Position.class).position;
-        List<Entity> enemies = new ArrayList<>();
-        for (Entity entity : creatures) {
-            if (isEnemyToAttack(reaper, entity.getId(), keeper)) {
-                enemies.add(entity);
+        List<EntityId> enemies = new ArrayList<>();
+        for (EntityId entityId : entityData.findEntities(null, CreatureComponent.class, Owner.class, Position.class, Health.class)) {
+            if (isEnemyToAttack(reaper, entityId, keeper)) {
+                enemies.add(entityId);
             }
         }
-        enemies.sort(Comparator.comparingDouble(entity -> entity.get(Position.class).position.distanceSquared(reaperPosition)));
+        enemies.sort(Comparator.comparingDouble(entityId -> entityData.getComponent(entityId, Position.class).position.distanceSquared(reaperPosition)));
 
         Point from = WorldUtils.vectorToPoint(reaperPosition);
-        for (Entity enemy : enemies) {
-            Point to = WorldUtils.vectorToPoint(enemy.get(Position.class).position);
+        for (EntityId enemy : enemies) {
+            Point to = WorldUtils.vectorToPoint(entityData.getComponent(enemy, Position.class).position);
             if (from.equals(to) || navigationService.findPath(from, to, reaperController) != null) {
-                return enemy.getId();
+                return enemy;
             }
         }
 
@@ -273,34 +263,28 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
     private boolean attackNearestEnemyHeart(EntityId reaper, ICreatureController reaperController, Keeper keeper) {
         Vector3f reaperPosition = entityData.getComponent(reaper, Position.class).position;
         Point from = WorldUtils.vectorToPoint(reaperPosition);
-        List<Entity> hearts = new ArrayList<>();
-        for (Entity entity : objects) {
-            Health health = entity.get(Health.class);
-            if (DungeonHeartTarget.isDungeonHeart(entityData, entity.getId()) && health.health > 0
-                    && keeper.isEnemy(entity.get(Owner.class).ownerId)) {
-                hearts.add(entity);
+        List<EntityId> hearts = new ArrayList<>();
+        for (EntityId entityId : entityData.findEntities(null, ObjectComponent.class, Owner.class, Position.class, Health.class)) {
+            Health health = entityData.getComponent(entityId, Health.class);
+            if (DungeonHeartTarget.isDungeonHeart(entityData, entityId) && health.health > 0
+                    && keeper.isEnemy(entityData.getComponent(entityId, Owner.class).ownerId)) {
+                hearts.add(entityId);
             }
         }
-        hearts.sort(Comparator.comparingDouble(entity -> entity.get(Position.class).position.distanceSquared(reaperPosition)));
+        hearts.sort(Comparator.comparingDouble(entityId -> entityData.getComponent(entityId, Position.class).position.distanceSquared(reaperPosition)));
 
-        for (Entity heart : hearts) {
-            Point heartTile = WorldUtils.vectorToPoint(heart.get(Position.class).position);
+        for (EntityId heart : hearts) {
+            Point heartTile = WorldUtils.vectorToPoint(entityData.getComponent(heart, Position.class).position);
             Point attackTile = DungeonHeartTarget.getAttackTile(from, heartTile,
                     tile -> tile.equals(from) || navigationService.findPath(from, tile, reaperController) != null);
             if (attackTile != null) {
-                entityData.setComponent(reaper, new AttackTarget(heart.getId()));
+                entityData.setComponent(reaper, new AttackTarget(heart));
                 reaperController.getStateMachine().changeState(CreatureState.FIGHT);
                 return true;
             }
         }
 
         return false;
-    }
-
-    @Override
-    public void stop() {
-        creatures.release();
-        objects.release();
     }
 
 }
