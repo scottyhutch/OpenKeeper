@@ -33,6 +33,7 @@ import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureRecuperating;
 import toniarts.openkeeper.game.component.CreatureSleep;
 import toniarts.openkeeper.game.component.CreatureTortured;
+import toniarts.openkeeper.game.component.DiggingTiles;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.DiggingTiles;
 import toniarts.openkeeper.game.component.DoorComponent;
