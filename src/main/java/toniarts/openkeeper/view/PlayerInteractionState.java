@@ -68,6 +68,7 @@ import toniarts.openkeeper.game.state.GameClientState;
 import toniarts.openkeeper.game.state.PlayerScreenController;
 import toniarts.openkeeper.game.state.PlayerState;
 import toniarts.openkeeper.gui.CursorFactory;
+import toniarts.openkeeper.gui.nifty.MapHoverHint;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
@@ -141,6 +142,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
     private final Set<Integer> keys = new HashSet<>();
     private IEntityViewControl interactiveControl;
     private Label tooltip;
+    private MapHoverHint fogHint;
     private KeeperHandState keeperHandState;
     private PlayerEntityViewState playerEntityViewState;
 
@@ -174,6 +176,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         PlayerScreenController psc = this.stateManager.getState(PlayerState.class).getScreen();
         this.view = psc.getGuiConstraint();
         this.tooltip = psc.getTooltip();
+        fogHint = new MapHoverHint(view, Utils.getMainTextResourceBundle().getString("348"));
 
         // Init the keeper hand
         keeperHandState = new InteractionKeeperHandState();
@@ -196,6 +199,9 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
     @Override
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
+        if (!enabled && fogHint != null) {
+            fogHint.clear();
+        }
 
         if (enabled && !inputListenerAdded) {
             app.getInputManager().addRawInputListener(inputListener);
@@ -217,6 +223,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
     @Override
     public void cleanup() {
+        fogHint.clear();
         playerEntityViewState = null;
         this.stateManager.detach(keeperHandState);
         keeperHandState = null;
@@ -256,7 +263,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         selectionHandler.update(mousePosition);
         cursorIcon.update(mousePosition, interactionState.getType(), isOnMap && !isOnGui,
                 selectionHandler.getSelectionColor() != SelectionHandler.ColorIndicator.RED, cursorPrice);
-        if (isOnMap && !isOnGui && !isTaggable) {
+        if (isOnMap && !isOnGui && !isTaggable && !isPointedTileUnexplored()) {
             updateInteractiveObjectOnCursor();
         }
         updateCursorLight();
@@ -284,6 +291,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
             updateCursor();
             refreshCursor = false;
         }
+        fogHint.update(isPointedTileUnexplored(), tpf);
     }
 
     @Override
@@ -377,7 +385,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
     }
 
     private boolean isInteractable() {
-        if (isOnGui || !isOnMap || isTaggable) {
+        if (isOnGui || !isOnMap || isTaggable || isPointedTileUnexplored()) {
             setInteractiveControl(null);
         }
 
@@ -409,6 +417,15 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         return interactiveControl != null
                 && (interactiveControl.isPickable(player.getPlayerId())
                 || interactiveControl.isInteractable(player.getPlayerId()));
+    }
+
+    private boolean isPointedTileUnexplored() {
+        if (isOnGui || !isOnMap) {
+            return false;
+        }
+        IFogOfWarInformation fog = gameClientState.getFogOfWarInformation();
+        Point p = selectionHandler.getPointedTileIndex();
+        return fog != null && mapInformation.getMapData().getTile(p) != null && !fog.isExplored(p);
     }
 
     private String getTileTooltip(Point p) {
@@ -674,6 +691,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
             timeFromLastUpdate = 0;
             updateStateFlags();
+            fogHint.update(isPointedTileUnexplored(), 0f);
             //updateCursor();
         }
 
