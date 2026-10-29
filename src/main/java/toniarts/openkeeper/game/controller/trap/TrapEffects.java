@@ -17,10 +17,8 @@
 package toniarts.openkeeper.game.controller.trap;
 
 import com.jme3.math.Vector3f;
-import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
-import com.simsilica.es.EntitySet;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.EnumSet;
@@ -95,8 +93,6 @@ public final class TrapEffects implements ITrapEffects {
     private final IMapInformation mapInformation;
     private final PlayerService playerService;
     private final IShotsController shotsController;
-    private final EntitySet creatureEntities;
-    private final EntitySet alarmEntities;
     private final Set<Shot.ProcessType> reportedProcessTypes = EnumSet.noneOf(Shot.ProcessType.class);
 
     /**
@@ -117,9 +113,6 @@ public final class TrapEffects implements ITrapEffects {
         this.mapInformation = mapInformation;
         this.playerService = playerService;
         this.shotsController = shotsController;
-
-        creatureEntities = entityData.getEntities(CreatureComponent.class, Owner.class, Position.class, Health.class);
-        alarmEntities = entityData.getEntities(Alarm.class, Owner.class);
     }
 
     @Override
@@ -196,10 +189,10 @@ public final class TrapEffects implements ITrapEffects {
     }
 
     private void damageCreatures(int damage, short ownerId, Predicate<Vector3f> inArea) {
-        creatureEntities.applyChanges();
-        for (Entity creatureEntity : creatureEntities) {
-            if (creatureEntity.get(Owner.class).ownerId != ownerId && inArea.test(creatureEntity.get(Position.class).position)) {
-                EntityController.setDamage(entityData, creatureEntity.getId(), damage);
+        for (EntityId creature : entityData.findEntities(null, CreatureComponent.class, Owner.class, Position.class, Health.class)) {
+            if (entityData.getComponent(creature, Owner.class).ownerId != ownerId
+                    && inArea.test(entityData.getComponent(creature, Position.class).position)) {
+                EntityController.setDamage(entityData, creature, damage);
             }
         }
     }
@@ -261,9 +254,8 @@ public final class TrapEffects implements ITrapEffects {
      * @param origin where the trap is
      */
     private void raiseAlarm(short ownerId, Vector3f origin) {
-        alarmEntities.applyChanges();
-        for (Entity alarmEntity : alarmEntities) {
-            if (alarmEntity.get(Owner.class).ownerId == ownerId) {
+        for (EntityId alarm : entityData.findEntities(null, Alarm.class, Owner.class)) {
+            if (entityData.getComponent(alarm, Owner.class).ownerId == ownerId) {
                 return;
             }
         }
