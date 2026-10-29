@@ -68,6 +68,8 @@ public final class GameEventSounds {
         List<Sound> sounds = new ArrayList<>(2);
         String subject = getCategory(kwdFile, event.subjectKind, event.subjectId);
         switch (event.type) {
+            case CREATURE_CHARGE ->
+                add(sounds, subject, ThingSounds.CREATURE_CHARGE, event.position);
             case CREATURE_LEVEL_UP ->
                 add(sounds, subject, ThingSounds.CREATURE_LEVEL_UP, event.position);
             case CREATURE_LAND ->
@@ -80,8 +82,6 @@ public final class GameEventSounds {
                 add(sounds, subject, ThingSounds.CREATURE_CLAIM, event.position);
             case CREATURE_REINFORCE_WALL ->
                 add(sounds, subject, ThingSounds.CREATURE_REINFORCE, event.position);
-            case CREATURE_BATTLE_CALL ->
-                add(sounds, subject, ThingSounds.CREATURE_BATTLE_CALL, event.position);
             case MELEE_HIT ->
                 addMeleeHit(sounds, event, kwdFile);
             case PICKED_UP ->

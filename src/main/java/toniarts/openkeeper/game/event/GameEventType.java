@@ -36,10 +36,6 @@ public enum GameEventType {
      * The subject is the attacker's creature type, the target is the victim
      */
     MELEE_HIT,
-    /**
-     * The creature sets off for its attack target, the subject is the creature type
-     */
-    CREATURE_BATTLE_CALL,
 
     // Hand, the subject is the creature or object type
     PICKED_UP,
@@ -91,5 +87,7 @@ public enum GameEventType {
     /**
      * Fireworks go off over a tile of a Casino that is in disco mode
      */
-    CASINO_FIREWORKS
+    CASINO_FIREWORKS,
+    /** A creature successfully started pursuing an attack target. */
+    CREATURE_CHARGE
 }

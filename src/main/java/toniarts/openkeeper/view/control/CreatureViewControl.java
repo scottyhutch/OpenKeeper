@@ -160,12 +160,12 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     @Override
     public boolean isStopAnimation() {
-        return super.isStopAnimation() || (currentState != Creature.AnimationType.WALK && currentState != Creature.AnimationType.IN_HAND && !isWorkAnimation());
+        return super.isStopAnimation() || (currentState != Creature.AnimationType.WALK && currentState != Creature.AnimationType.RUN && currentState != Creature.AnimationType.IN_HAND && !isWorkAnimation());
     }
 
     private void playAnimation(Creature.AnimationType animation) {
         AnimationLoader.playAnimation(getSpatial(), getAnimationData(animation), assetManager);
-        if (getAnimationData(animation) == getDataObject().getAnimation(animation) && getDataObject().getFlags().contains(CreatureFlag.IS_UNIQUE)) {
+        if (getAnimationData(animation) == getDataObject().getAnimation(getAvailableAnimation(animation)) && getDataObject().getFlags().contains(CreatureFlag.IS_UNIQUE)) {
             CreatureVariantTextures.apply(getSpatial(), assetManager);
         }
         isAnimationPlaying = true;
@@ -217,7 +217,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
      * A walking or running creature steps when the animation passes a footstep mark
      */
     private void playFootsteps() {
-        int[] marks = FootstepSounds.getMarks(getDataObject(), currentState);
+        int[] marks = FootstepSounds.getMarks(getDataObject(), getAvailableAnimation(currentState));
         if (marks == null || spatial == null || spatial.getCullHint() == Spatial.CullHint.Always) {
             previousStepTime = -1;
             return;
@@ -255,7 +255,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     }
 
     private AnimComposer getAnimComposer() {
-        ArtResource animation = getDataObject().getAnimation(currentState);
+        ArtResource animation = getAnimationData(currentState);
         if (animation == null || !(spatial instanceof Node node)) {
             return null;
         }
@@ -325,7 +325,14 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         if (morphed && state != Creature.AnimationType.DIE && state != Creature.AnimationType.DEATH_POSE) {
             return state == Creature.AnimationType.IN_HAND ? morphObject.getInHandMeshResource() : morphObject.getMeshResource();
         }
-        return getDataObject().getAnimation(state);
+        return getDataObject().getAnimation(getAvailableAnimation(state));
+    }
+
+    private Creature.AnimationType getAvailableAnimation(Creature.AnimationType state) {
+        if (state == Creature.AnimationType.RUN && getDataObject().getAnimation(state) == null) {
+            return Creature.AnimationType.WALK;
+        }
+        return state;
     }
 
     private boolean isWorkAnimation() {

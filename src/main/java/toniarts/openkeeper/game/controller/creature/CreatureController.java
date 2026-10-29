@@ -691,6 +691,11 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget, Vector2f workPosition) {
+        return createNavigation(currentLocation, destination, faceTarget, workPosition, false);
+    }
+
+    private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget, Vector2f workPosition,
+            boolean pursuingAttackTarget) {
         GraphPath<IMapTileInformation> path = navigationService.findPath(currentLocation, destination, this);
         if (path == null) {
             pathRetryBackoff.failed(destination, gameTimer.getGameTime());
@@ -1434,19 +1439,17 @@ public final class CreatureController extends EntityController implements ICreat
             // Check if we are already going there
             Point destination = WorldUtils.vectorToPoint(targetPosition);
             Navigation currentNavigation = entityData.getComponent(entityId, Navigation.class);
-            if (currentNavigation != null && currentNavigation.target.equals(destination)) {
+            boolean continuingPursuit = currentNavigation != null && currentNavigation.pursuingAttackTarget;
+            if (continuingPursuit && currentNavigation.target.equals(destination)) {
                 return;
             }
 
             // Just now simply go where the target currently is
             Point ourPosition = getCreatureCoordinates();
             if (destination != null && !destination.equals(ourPosition)) {
-                createNavigation(ourPosition, destination, null);
-
-                // The call is made when setting off, not on every change of the target's tile
-                if (currentNavigation == null) {
-                    gameEventService.emit(GameEventType.CREATURE_BATTLE_CALL, ThingFlag.CREATURE, creature.getCreatureId(),
-                            getPosition());
+                boolean failed = createNavigation(ourPosition, destination, null, null, true);
+                if (!failed && !continuingPursuit) {
+                    gameEventService.emit(GameEventType.CREATURE_CHARGE, entityId, getPosition());
                 }
             }
         }
