@@ -17,7 +17,6 @@
 package toniarts.openkeeper.tools.convert.map;
 
 import java.util.Collections;
-import java.util.EnumSet;
 
 /**
  * Builds hero gate {@link Room} fixtures for tests. Lives in {@code Room}'s
