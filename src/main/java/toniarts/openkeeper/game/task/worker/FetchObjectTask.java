@@ -19,8 +19,10 @@ package toniarts.openkeeper.game.task.worker;
 import com.jme3.math.Vector2f;
 import java.util.Objects;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.object.IObjectController;
+import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.AbstractTileTask;
@@ -37,12 +39,14 @@ public final class FetchObjectTask extends AbstractTileTask {
 
     private final IObjectController gameObject;
     private final TaskManager taskManager;
+    private final IPlayerController playerController;
 
-    public FetchObjectTask(final TaskManager taskManager, final INavigationService navigationService, final IMapController mapController, final IObjectController objectController, short playerId) {
+    public FetchObjectTask(final TaskManager taskManager, final INavigationService navigationService, final IMapController mapController, final IObjectController objectController, short playerId, final IPlayerController playerController) {
         super(navigationService, mapController, WorldUtils.vectorToPoint(objectController.getPosition()), playerId);
 
         this.taskManager = taskManager;
         this.gameObject = objectController;
+        this.playerController = playerController;
     }
 
     @Override
@@ -75,6 +79,12 @@ public final class FetchObjectTask extends AbstractTileTask {
     }
 
     private boolean isPlayerCapacityFull() {
+
+        // Gold that can't be stored is not fetched, the same check as when the carried gold is taken to a treasury
+        if (gameObject.getType() == ObjectType.GOLD && playerController.getGoldControl().isFullCapacity()) {
+            return true;
+        }
+
         // The storage for this kind of object counts, a library keeps its researchers too
         for (IRoomController room : mapController.getRoomsByFunction(gameObject.getType(), playerId)) {
             if (!room.getObjectControl(gameObject.getType()).isFullCapacity()) {
