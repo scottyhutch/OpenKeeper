@@ -25,6 +25,7 @@ import java.util.Collections;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Gold;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.CreatureGoldFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
