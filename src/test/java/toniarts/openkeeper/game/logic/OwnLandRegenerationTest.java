@@ -79,7 +79,7 @@ class OwnLandRegenerationTest {
             settings.put(type, CreatureSleepFixtures.variable(type, 0));
         }
 
-        return new HealthSystem(entityData, lookup, settings, null, null, List.of(), null, () -> 0.0, events);
+        return new HealthSystem(entityData, lookup, settings, null, null, null, List.of(), null, () -> 0.0, events);
     }
 
     @SuppressWarnings("unchecked")

@@ -560,6 +560,7 @@ class CreatureControllerTest {
                 case "isValidEntity" -> data.getComponent((EntityId) args[0], Position.class) != null;
                 case "createController" -> proxy(ICreatureController.class, (method2, args2) -> switch (method2) {
                     case "getEntityId" -> args[0];
+                    case "isWorker" -> false;
                     default -> throw new UnsupportedOperationException(method2);
                 });
                 default -> throw new UnsupportedOperationException(method);
