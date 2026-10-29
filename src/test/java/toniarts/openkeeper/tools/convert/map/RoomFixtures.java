@@ -1,6 +1,7 @@
 package toniarts.openkeeper.tools.convert.map;
 
 import java.util.EnumSet;
+import java.util.List;
 
 /**
  * Builds {@link Room} fixtures for tests. Lives in {@code Room}'s own package
@@ -34,6 +35,12 @@ public final class RoomFixtures {
         Thing.Room thing = new Thing.Room();
         thing.setInitialHealth(initialHealth);
         return thing;
+    }
+
+    public static Room roomWithObjects(short roomId, Short... objects) {
+        Room room = room(roomId, 0);
+        room.setObjects(List.of(objects));
+        return room;
     }
 
 }
