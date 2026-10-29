@@ -517,6 +517,7 @@ class CreatureControllerTest {
             IEntityPositionLookup lookup = proxy(IEntityPositionLookup.class, (method, args) -> switch (method) {
                 case "getSensedEntities" -> sensed;
                 case "getBlockingDoor" -> null;
+                case "getEntityLocation" -> null;
                 default -> throw new UnsupportedOperationException(method);
             });
             Keeper keeper = new Keeper(false, (short) 3);
