@@ -19,6 +19,7 @@ package toniarts.openkeeper.game.controller.creature;
 import com.badlogic.gdx.ai.fsm.DefaultStateMachine;
 import com.badlogic.gdx.ai.fsm.StateMachine;
 import com.badlogic.gdx.ai.pfa.GraphPath;
+import com.badlogic.gdx.math.Vector2;
 import com.jme3.math.FastMath;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
@@ -117,6 +118,7 @@ public final class CreatureController extends EntityController implements ICreat
     /**
      * Possessed movement speed relative to walking forward
      */
+    private static final float FACING_TOLERANCE = 0.2f; // Radians
     private static final float POSSESSED_BACKWARD_SPEED_FACTOR = 0.5f;
     private static final float POSSESSED_STRAFE_SPEED_FACTOR = 0.667f;
     private static final float SPEED_MULTIPLIER = 2f;
@@ -804,6 +806,9 @@ public final class CreatureController extends EntityController implements ICreat
         CreatureMeleeAttack creatureMeleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
         if (DungeonHeartTarget.isDungeonHeart(entityData, attackTarget)
                 ? isWithinAttackDistance(attackTarget) : isInRange(creatureMeleeAttack.range, attackTarget)) {
+            if (DungeonHeartTarget.isDungeonHeart(entityData, attackTarget)) {
+                faceHeart(attackTarget);
+            }
             if (isAttackRecharged(creatureMeleeAttack)) {
                 entityData.setComponent(entityId, new CreatureMeleeAttack(creatureMeleeAttack, gameTimer.getGameTime()));
                 stateMachine.changeState(CreatureState.MELEE_ATTACK);
@@ -882,6 +887,24 @@ public final class CreatureController extends EntityController implements ICreat
             if (destination != null && !destination.equals(ourPosition)) {
                 createNavigation(ourPosition, destination, null);
             }
+        }
+    }
+
+    /**
+     * Turns the creature on the spot to face the heart it is hitting. Facing
+     * is steered through a navigation that only has the tile to face from, and
+     * it is only made when the creature isn't already facing the heart.
+     *
+     * @param heart the heart being hit
+     */
+    private void faceHeart(EntityId heart) {
+        Point tile = getCreatureCoordinates();
+        Point heartTile = getHeartTile(heart);
+        Position position = entityData.getComponent(entityId, Position.class);
+        double turn = Math.IEEEremainder(-position.rotation - SteeringUtils.calculateVectorToAngle(
+                new Vector2(heartTile.x - tile.x, heartTile.y - tile.y)), 2 * Math.PI);
+        if (Math.abs(turn) > FACING_TOLERANCE) {
+            entityData.setComponent(entityId, new Navigation(tile, heartTile, new ArrayList<>()));
         }
     }
 
