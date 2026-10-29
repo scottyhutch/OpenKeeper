@@ -1028,32 +1028,9 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         }
 
         playerControllers.get(playerId).getStatsControl().specialFound();
-        removeFromRoomStorage(entityData, mapController, entity);
-        entityData.removeEntity(entity);
-        logger.log(Level.INFO, clickInfo + ": activated on own land, specialFound() called, entity removed (still has Position: "
-                + (entityData.getComponent(entity, Position.class) != null) + ")");
+        // Also frees the room storage slot, if the special was stored in a room
+        objectsController.createController(entity).remove();
         return true;
-    }
-
-    /**
-     * Frees the room storage slot an entity occupies, if it is stored in a room
-     *
-     * @param entityData the entity data
-     * @param mapController the map controller, to find the room
-     * @param entity the entity about to be removed
-     */
-    static void removeFromRoomStorage(EntityData entityData, IMapController mapController, EntityId entity) {
-        Stored roomStorage = entityData.getComponent(entity, Stored.class);
-        if (roomStorage == null) {
-            return;
-        }
-
-        // The room the object is stored in, not necessarily the one under it
-        IRoomController roomController = mapController.getRoomController(roomStorage.room);
-        IRoomObjectControl roomObjectControl = roomController != null ? roomController.getObjectControl(roomStorage.objectType) : null;
-        if (roomObjectControl != null) {
-            roomObjectControl.removeItem(entity);
-        }
     }
 
     /**
