@@ -1172,16 +1172,16 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER + File.separator + "GUI/Icons/hilight.png"),
                 AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER + File.separator + "GUI/Spells/" + activeImage + ".png"),
                 tooltip, tooltip, keeperSpell != null ? "select(spell, " + keeperSpell.getId() + ")" : "");
-        cb.width("64px");
-        cb.height("64px");
+        cb.width("128px");
+        cb.height("128px");
         cb.build(panel);
 
         // The pieces of the Talisman, 60% while it can't be used
         talismanBlink = null;
         if (pieces > 0) {
             PanelBuilder piecePanel = new PanelBuilder("reaper-talisman-pieces");
-            piecePanel.width("64px");
-            piecePanel.height("64px");
+            piecePanel.width("128px");
+            piecePanel.height("128px");
             piecePanel.childLayoutAbsolute();
             for (int i = 0; i < pieces; i++) {
                 int[] quarter = TALISMAN_PIECE_QUARTERS[i];
@@ -1219,10 +1219,10 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 }
                 filename(AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER + File.separator + "GUI/Spells/" + sheet + ".png"));
                 imageMode("subImage:" + quarter[0] + "," + quarter[1] + ",64,64");
-                x(quarter[0] / 2 + "px");
-                y(quarter[1] / 2 + "px");
-                width("32px");
-                height("32px");
+                x(quarter[0] + "px");
+                y(quarter[1] + "px");
+                width("64px");
+                height("64px");
                 if (dimmed) {
                     onActiveEffect(new EffectBuilder("fade") {
                         {
