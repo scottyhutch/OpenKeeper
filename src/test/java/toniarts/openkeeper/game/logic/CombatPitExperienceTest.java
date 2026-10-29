@@ -22,6 +22,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CombatPitFighter;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
@@ -64,6 +65,9 @@ class CombatPitExperienceTest {
         creatureComponent.creatureId = FIGHTER;
         entityData.setComponents(entity, creatureComponent, new CreatureExperience(level, 0, 1000, 10, 0),
                 new CreatureAi(0, CreatureState.MELEE_ATTACK, FIGHTER));
+        EntityId foe = entityData.createEntity();
+        entityData.setComponents(foe, new CreatureComponent());
+        entityData.setComponent(entity, new AttackTarget(foe));
         if (inPit) {
             entityData.setComponent(entity, new CombatPitFighter(entityData.createEntity()));
         }

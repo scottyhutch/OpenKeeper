@@ -12,8 +12,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Navigation;
+import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.event.GameEvent;
+import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.event.ServerGameEventService;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -33,6 +36,10 @@ class CreaturePursuitTest {
     private final List<GameEvent> events = new ArrayList<>();
     private final ServerGameEventService eventService;
     private final INavigationService navigation;
+    private final IGameTimer gameTimer = (IGameTimer) Proxy.newProxyInstance(getClass().getClassLoader(),
+            new Class<?>[]{IGameTimer.class}, (proxy, method, args) -> method.getName().equals("getGameTime") ? 0.0 : null);
+    private final IEntityPositionLookup positionLookup = (IEntityPositionLookup) Proxy.newProxyInstance(getClass().getClassLoader(),
+            new Class<?>[]{IEntityPositionLookup.class}, (proxy, method, args) -> null);
     private boolean pathAvailable = true;
     private int pathRequests;
 
@@ -40,6 +47,7 @@ class CreaturePursuitTest {
         CreatureComponent component = new CreatureComponent();
         component.creatureId = 5;
         data.setComponent(attacker, component);
+        data.setComponent(attacker, new Owner((short) 1, (short) 1));
         PlayerService players = (PlayerService) Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[]{PlayerService.class}, (proxy, method, args) -> {
                     if (method.getName().equals("sendEvent")) {
@@ -168,7 +176,7 @@ class CreaturePursuitTest {
 
     private CreatureController controller() {
         return new CreatureController(attacker, data, SoundFixtures.creature((short) 5, "CREATURE_GOBLIN"),
-                navigation, null, null, null, null, null, null, null, null, null, eventService);
+                navigation, null, gameTimer, null, null, positionLookup, null, null, null, null, eventService);
     }
 
     private EntityId entity(float x, float z) {

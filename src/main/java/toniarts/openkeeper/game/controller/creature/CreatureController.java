@@ -722,7 +722,7 @@ public final class CreatureController extends EntityController implements ICreat
             Vector3f position = getPosition();
             SteeringUtils.pathToPosition(navigationPath, new Vector2(position.x, position.z), new Vector2(workPosition.x, workPosition.y));
         }
-        entityData.setComponent(entityId, new Navigation(destination, faceTarget, navigationPath));
+        entityData.setComponent(entityId, new Navigation(destination, faceTarget, navigationPath, pursuingAttackTarget));
         return false;
     }
 

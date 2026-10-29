@@ -21,7 +21,7 @@ class CreatureRunAnimationTest {
     void runLoopsInsteadOfStoppingAfterItsFirstCycle() {
         var run = new ArtResource();
         var creature = CreatureAnimationFixtures.creature(new ArtResource(), run);
-        var control = new CreatureViewControl(data.createEntity(), data, creature, AnimationType.RUN, null, null);
+        var control = new CreatureViewControl(data.createEntity(), data, creature, AnimationType.RUN, null, null, null);
         assertSame(run, control.getAnimationData(AnimationType.RUN));
         assertFalse(control.isStopAnimation());
         control.onAnimationCycleDone();
@@ -32,7 +32,7 @@ class CreatureRunAnimationTest {
     void missingRunUsesWalkWithoutDiscardingTheCreatureModel() {
         var walk = new ArtResource();
         var creature = CreatureAnimationFixtures.creature(walk, null);
-        var control = new CreatureViewControl(data.createEntity(), data, creature, AnimationType.RUN, null, null);
+        var control = new CreatureViewControl(data.createEntity(), data, creature, AnimationType.RUN, null, null, null);
         assertSame(walk, control.getAnimationData(AnimationType.RUN));
         assertFalse(control.isStopAnimation());
     }

@@ -25,6 +25,7 @@ import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureExperience;
@@ -137,6 +138,11 @@ class CreatureCombatExperienceTest {
                 creatureComponent,
                 new CreatureExperience(1, 0, 21600, EXPERIENCE_PER_SECOND, 40),
                 new CreatureAi(0, state, creatureId));
+        if (state == CreatureState.MELEE_ATTACK) {
+            EntityId foe = entityData.createEntity();
+            entityData.setComponents(foe, new CreatureComponent());
+            entityData.setComponent(entityId, new AttackTarget(foe));
+        }
         if (state == CreatureState.WORK) {
             entityData.setComponent(entityId, new TaskComponent(1, null, null, TaskType.CLAIM_TILE, 0, true));
         }
