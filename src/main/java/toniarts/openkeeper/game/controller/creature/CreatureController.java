@@ -255,13 +255,6 @@ public final class CreatureController extends EntityController implements ICreat
      */
     private static final int CHASE_BACK_OFF_TURNS = 60;
 
-    /**
-     * Every creature's work modifier, which the attack recharges are divided
-     * by. DK II starts it at 0.8 (0x4872A0) and the creature data of the
-     * original creatures never raises it.
-     */
-    private static final float ATTACK_WORK_MODIFIER = 0.8f;
-
     private final INavigationService navigationService;
     private final ITaskManager taskManager;
     private final IGameTimer gameTimer;

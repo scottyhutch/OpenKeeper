@@ -158,14 +158,17 @@ class PrayTest {
 
     private IRoomController room() {
         IRoomObjectControl control = (IRoomObjectControl) Proxy.newProxyInstance(IRoomObjectControl.class.getClassLoader(),
-                new Class<?>[]{IRoomObjectControl.class}, (proxy, method, args) -> method.getName().equals("addItem") && worshippers.add((EntityId) args[0]) ? args[0] : null);
+                new Class<?>[]{IRoomObjectControl.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "addItem" -> worshippers.add((EntityId) args[0]) ? args[0] : null;
+                    case "contains" -> worshippers.contains((EntityId) args[0]);
+                    default -> null;
+                });
         return (IRoomController) Proxy.newProxyInstance(IRoomController.class.getClassLoader(),
                 new Class<?>[]{IRoomController.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];
                     case "toString" -> "temple";
-                    case "getObjectControl" -> Proxy.newProxyInstance(IRoomObjectControl.class.getClassLoader(),
-                            new Class<?>[]{IRoomObjectControl.class}, (p, m, a) -> null);
+                    case "getObjectControl" -> control;
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
     }
