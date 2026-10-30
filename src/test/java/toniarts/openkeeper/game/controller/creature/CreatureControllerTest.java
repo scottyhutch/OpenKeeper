@@ -692,6 +692,23 @@ class CreatureControllerTest {
     }
 
     @Test
+    void meleeHitDelayIsRoundedDownToWholeTurns() {
+
+        // A Dwarf's 0.47 s is one turn at 4 turns a second
+        Creature definition = CreatureSleepFixtures.sleeper(9);
+        CreatureSleepFixtures.setShotDelay(definition, .47f);
+        try (Fixture f = new Fixture(definition)) {
+            EntityId target = f.meleeTarget();
+            f.controller.executeAttack(target);
+            assertNull(f.data.getComponent(target, Damage.class));
+
+            f.time = .25;
+            f.controller.getStateMachine().update();
+            assertEquals(30, f.data.getComponent(target, Damage.class).damage);
+        }
+    }
+
+    @Test
     void meleeHitIsLostWhenTheSwingIsInterruptedOrTheTargetLeavesTheMap() {
         Creature definition = CreatureSleepFixtures.sleeper(9);
         CreatureSleepFixtures.setShotDelay(definition, .5f);
