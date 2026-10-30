@@ -34,6 +34,7 @@ import toniarts.openkeeper.game.component.CombatPitFighter;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureExperience;
+import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
@@ -55,7 +56,8 @@ public final class CreatureExperienceSystem implements IGameLogicUpdatable {
 
     private enum ExperienceGainReason {
         NONE,
-        WORKING_OR_FIGHTING
+        WORKING,
+        FIGHTING
     }
 
     /**
@@ -120,7 +122,10 @@ public final class CreatureExperienceSystem implements IGameLogicUpdatable {
         for (EntityId entityId : experienceEntityIds.getArray()) {
             Entity entity = experienceEntities.getEntity(entityId);
             handleEntity(entity, entityId, tpf, () -> {
-                return isEntityWorkingOrFighting(entity) && !isWorkerFightingWithoutGain(entity) ? ExperienceGainReason.WORKING_OR_FIGHTING : ExperienceGainReason.NONE;
+                if (isFightingACreature(entity)) {
+                    return isWorkerFightingWithoutGain(entity) ? ExperienceGainReason.NONE : ExperienceGainReason.FIGHTING;
+                }
+                return isEntityWorking(entity) ? ExperienceGainReason.WORKING : ExperienceGainReason.NONE;
             });
             if (experienceLossPerTick > 0 && !isTraining(entityId)) {
                 loseExperience(entityId);
@@ -210,19 +215,22 @@ public final class CreatureExperienceSystem implements IGameLogicUpdatable {
             return;
         }
 
-        double timeWorking = timeWorkingByEntityId.compute(entityId, (k, v) -> {
-            if (v == null) {
-                return 0.0;
+        // Fighting teaches on every tick, the rest once a second
+        if (reason != ExperienceGainReason.FIGHTING) {
+            double timeWorking = timeWorkingByEntityId.compute(entityId, (k, v) -> {
+                if (v == null) {
+                    return 0.0;
+                }
+                return v + tpf;
+            });
+
+            // Increase the exp
+            if (timeWorking < 1) {
+                return;
             }
-            return v + tpf;
-        });
 
-        // Increase the exp
-        if (timeWorking < 1) {
-            return;
+            timeWorkingByEntityId.merge(entityId, -1.0, Double::sum);
         }
-
-        timeWorkingByEntityId.merge(entityId, -1.0, Double::sum);
         addExperience(entityId, creatureExperience, getCreatureExperienceGain(entity, reason));
     }
 
@@ -273,25 +281,24 @@ public final class CreatureExperienceSystem implements IGameLogicUpdatable {
     }
 
     /**
-     * A creature only learns from fighting another creature, not from hitting
-     * a Dungeon Heart or other objects
+     * A creature learns from the whole fight with another creature, also
+     * while it waits for its next swing, but not on its way to the target. Nor
+     * does it learn from hitting a Dungeon Heart or other objects
      */
-    private boolean isHittingAnObject(Entity entity) {
+    private boolean isFightingACreature(Entity entity) {
         CreatureState creatureState = entity.get(CreatureAi.class).getCreatureState();
-        if (creatureState != CreatureState.MELEE_ATTACK && creatureState != CreatureState.CAST_SPELL) {
+        if (creatureState != CreatureState.FIGHT && creatureState != CreatureState.MELEE_ATTACK && creatureState != CreatureState.CAST_SPELL) {
+            return false;
+        }
+        if (entityData.getComponent(entity.getId(), Navigation.class) != null) {
             return false;
         }
         AttackTarget attackTarget = entityData.getComponent(entity.getId(), AttackTarget.class);
-        return attackTarget == null || entityData.getComponent(attackTarget.entityId, CreatureComponent.class) == null;
+        return attackTarget != null && entityData.getComponent(attackTarget.entityId, CreatureComponent.class) != null;
     }
 
-    private boolean isEntityWorkingOrFighting(Entity entity) {
-        if (isHittingAnObject(entity)) {
-            return false;
-        }
-        CreatureAi creatureAi = entity.get(CreatureAi.class);
-        CreatureState creatureState = creatureAi.getCreatureState();
-        return creatureState == CreatureState.MELEE_ATTACK || creatureState == CreatureState.CAST_SPELL || (creatureState == CreatureState.WORK && isWorker(entity) && isDoingWorkerJob(entity));
+    private boolean isEntityWorking(Entity entity) {
+        return entity.get(CreatureAi.class).getCreatureState() == CreatureState.WORK && isWorker(entity) && isDoingWorkerJob(entity);
     }
 
     /**
@@ -322,7 +329,12 @@ public final class CreatureExperienceSystem implements IGameLogicUpdatable {
     }
 
     private int getCreatureExperienceGain(Entity entity, ExperienceGainReason reason) {
-        if (reason != ExperienceGainReason.WORKING_OR_FIGHTING) {
+        if (reason == ExperienceGainReason.FIGHTING) {
+            // The experience per second spread over the ticks, at least one point
+            int experiencePerSecond = entity.get(CreatureExperience.class).experiencePerSecond;
+            return experiencePerSecond > 0 ? Math.max(1, experiencePerSecond / kwdFile.getGameLevel().getTicksPerSec()) : 0;
+        }
+        if (reason != ExperienceGainReason.WORKING) {
             return 0;
         }
         CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
