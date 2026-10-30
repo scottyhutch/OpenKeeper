@@ -186,7 +186,8 @@ class PossessedAttackTest {
         controller.executePossessedAttack();
         assertEquals(DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
 
-        gameTime += RECHARGE / 4;
+        // 25 % slower and divided by the 0.8 work modifier
+        gameTime += RECHARGE * 0.6;
         controller.executePossessedAttack();
         assertEquals(2 * DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
         assertEquals(RECHARGE, entityData.getComponent(us, CreatureMeleeAttack.class).rechargeTime);
@@ -200,7 +201,7 @@ class PossessedAttackTest {
         CreatureController controller = createController();
 
         controller.executePossessedAttack();
-        gameTime += RECHARGE / 2;
+        gameTime += RECHARGE * 0.7;
         controller.executePossessedAttack();
 
         assertEquals(2 * DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
@@ -300,7 +301,7 @@ class PossessedAttackTest {
         controller.executePossessedAttack();
         assertEquals(DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
 
-        gameTime += RECHARGE / 2;
+        gameTime += RECHARGE * 0.8;
         controller.executePossessedAttack();
         assertEquals(2 * DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
     }
@@ -323,7 +324,7 @@ class PossessedAttackTest {
         assertFalse(entityData.getComponent(us, PossessedAttack.class).held);
 
         controller.executePossessedAttack();
-        gameTime += RECHARGE;
+        gameTime += RECHARGE * 1.3;
         controller.setPossessedAttack(true, 0);
         controller.executePossessedAttack();
         controller.setPossessedAttack(false, 0);
