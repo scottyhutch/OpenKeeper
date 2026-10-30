@@ -287,6 +287,29 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             updateCrateDeliveryTasks();
             crateDeliveryTasksScanned = true;
         }
+        clearEmptiedManufactureLists(trapBlueprintEntities.getRemovedEntities());
+        clearEmptiedManufactureLists(doorBlueprintEntities.getRemovedEntities());
+    }
+
+    /**
+     * The original starts the keeper's manufacture list over when selling a
+     * blueprint leaves nothing to manufacture (0x5069E0)
+     *
+     * @param removed the traps or doors gone this tick
+     */
+    private void clearEmptiedManufactureLists(Set<Entity> removed) {
+        for (Entity entity : removed) {
+            TrapViewState trap = entity.get(TrapViewState.class);
+            DoorComponent door = entity.get(DoorComponent.class);
+            if ((trap == null || !trap.blueprint) && (door == null || !door.blueprint)) {
+                continue;
+            }
+            short playerId = entity.get(Owner.class).ownerId;
+            IPlayerController player = playerControllers.get(playerId);
+            if (player != null && player.getManufactureControl() != null && workshopOrders.getNext(playerId) == null) {
+                player.getManufactureControl().clearOrders();
+            }
+        }
     }
 
     /**
