@@ -33,7 +33,7 @@ class CreatureViewControlTest {
         EntityId creature = entityData.createEntity();
         entityData.setComponent(creature, new Owner((short) 4, (short) 4));
 
-        CreatureViewControl control = new CreatureViewControl(creature, entityData, new Creature(), null, null, new CreatureTextParser(null));
+        CreatureViewControl control = new CreatureViewControl(creature, entityData, new Creature(), null, null, null, new CreatureTextParser(null));
 
         assertEquals("", control.getTooltip((short) 3));
     }
