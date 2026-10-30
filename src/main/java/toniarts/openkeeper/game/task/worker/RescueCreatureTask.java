@@ -70,7 +70,8 @@ public final class RescueCreatureTask extends AbstractTileTask {
     @Override
     public boolean isValid(ICreatureController creature) {
         Point location = getTaskLocation();
-        return this.creature.isUnconscious() && !this.creature.isDragged() && !this.creature.isRecuperating()
+        return Boolean.parseBoolean(System.getProperty("ok.tweak.impRescue", "true")) // DEBUG: sweep switch, drop before the PR
+                && this.creature.isUnconscious() && !this.creature.isDragged() && !this.creature.isRecuperating()
                 && location != null && mapController.getMapData().getTile(location).getOwnerId() == playerId
                 && getLairLocation() != null;
     }
