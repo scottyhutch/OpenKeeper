@@ -46,12 +46,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * Training in the Training Room gives experience on every logic tick, as the
  * original does, and never more than the creature needs for its next level.
  * Like in DK II, the training experience per second of the creature data is
- * turned into experience per tick, and the creature's level scales that
+ * turned into experience per tick, and the creature's level scales that.
+ * Creatures that are not training lose experience on every tick. The shipped
+ * levels lose none, so the loss here is made up
  */
 class CreatureTrainingExperienceTest {
 
     private static final float TPF = 0.25f;
     private static final int MAX_TRAINING_LEVEL = 4;
+    private static final int EXPERIENCE_LOSS = 3;
     private static final short GOBLIN = 7;
     private static final short PRINCE = 2;
     private static final short SLOW_LEARNER = 50;
@@ -68,6 +71,8 @@ class CreatureTrainingExperienceTest {
                 TrainingVariableFixtures.miscVariable(Variable.MiscVariable.MiscType.IMP_EXPERIENCE_GAIN_PER_SECOND, 2));
         gameSettings.put(Variable.MiscVariable.MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL,
                 TrainingVariableFixtures.miscVariable(Variable.MiscVariable.MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, MAX_TRAINING_LEVEL));
+        gameSettings.put(Variable.MiscVariable.MiscType.E_P_LOSS_SECOND_WHILE_NOT_TRAINING,
+                TrainingVariableFixtures.miscVariable(Variable.MiscVariable.MiscType.E_P_LOSS_SECOND_WHILE_NOT_TRAINING, EXPERIENCE_LOSS));
 
         // Goblins learn 40 a second, Prince Tristran 15, and the training is 150 % at the level 3
         Map<Short, Creature> creatures = Map.of(GOBLIN, TrainingVariableFixtures.trainee(GOBLIN, 40),
@@ -179,6 +184,52 @@ class CreatureTrainingExperienceTest {
         system.processTick(TPF);
 
         assertEquals(0, experience(warlock));
+    }
+
+    @Test
+    void creatureThatIsNotTrainingLosesExperienceOnEveryTick() {
+        EntityId goblin = idler(2, 100);
+
+        for (int i = 0; i < 4; i++) {
+            system.processTick(TPF);
+        }
+
+        assertEquals(100 - 4 * EXPERIENCE_LOSS, experience(goblin));
+    }
+
+    @Test
+    void experienceLossStopsAtZeroWithoutLosingALevel() {
+        EntityId goblin = idler(2, 4);
+
+        system.processTick(TPF);
+        system.processTick(TPF);
+        system.processTick(TPF);
+
+        assertEquals(0, experience(goblin));
+        assertEquals(2, entityData.getComponent(goblin, CreatureExperience.class).level);
+    }
+
+    @Test
+    void creatureOnItsWayToTrainLosesNoExperience() {
+        EntityId warlock = trainee(GOBLIN, MAX_TRAINING_LEVEL, 100, 2000);
+        TaskComponent task = entityData.getComponent(warlock, TaskComponent.class);
+        entityData.setComponent(warlock, new TaskComponent(task.taskId, task.targetEntity, task.targetLocation, task.taskType, task.taskDuration, false));
+
+        system.processTick(TPF);
+        system.processTick(TPF);
+
+        assertEquals(100, experience(warlock));
+    }
+
+    private EntityId idler(int level, int experience) {
+        EntityId entityId = entityData.createEntity();
+        CreatureComponent creatureComponent = new CreatureComponent();
+        creatureComponent.creatureId = GOBLIN;
+        entityData.setComponents(entityId,
+                creatureComponent,
+                new CreatureExperience(level, experience, 1000, 5, 160),
+                new CreatureAi(0, CreatureState.IDLE, (short) 1));
+        return entityId;
     }
 
     private EntityId trainee(short creatureId, int level, int experience, int experienceToNextLevel) {
