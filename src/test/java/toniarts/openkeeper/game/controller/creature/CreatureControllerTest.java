@@ -566,6 +566,25 @@ class CreatureControllerTest {
         }
     }
 
+    @Test
+    void swingLastsItsStartAndEndAnimationsToo() {
+        Creature definition = CreatureSleepFixtures.sleeper(9);
+
+        // A Goblin's swing: 15 + 28 + 15 frames at 30 fps
+        CreatureSleepFixtures.setSwing(definition, 28, 30, 15, 15);
+        try (Fixture f = new Fixture(definition)) {
+            f.controller.executeAttack(f.meleeTarget());
+
+            f.time = 1.75;
+            f.controller.getStateMachine().update();
+            assertEquals(CreatureState.MELEE_ATTACK, f.state());
+
+            f.time = 2;
+            f.controller.getStateMachine().update();
+            assertEquals(CreatureState.FIGHT, f.state());
+        }
+    }
+
     private static final class Fixture implements AutoCloseable {
         final EntityData data = new DefaultEntityData();
         final EntityId entity = data.createEntity();
