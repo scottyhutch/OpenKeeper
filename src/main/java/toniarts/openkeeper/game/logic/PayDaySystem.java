@@ -28,6 +28,7 @@ import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreaturePay;
 import toniarts.openkeeper.game.component.CreatureTortured;
+import toniarts.openkeeper.game.component.GamblingAfterPay;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.controller.IGameTimer;
@@ -211,6 +212,10 @@ public final class PayDaySystem implements IGameLogicUpdatable {
             int collected = pay.unpaid - unpaid;
             setPay(entityId, unpaid, collected > 0 ? pay.attempts : pay.attempts + 1, gameTime + payReevaluationDelay);
             keepGold(entityId, collected / 2);
+            if (collected > 0 && !entity.get(CreatureComponent.class).worker) {
+                // As in DKII.EXE (0x472740) it may go gambling with its pay straight away
+                entityData.setComponent(entityId, new GamblingAfterPay());
+            }
         }
 
         updateAnger(entity, unpaid > 0);
