@@ -24,24 +24,15 @@ package toniarts.openkeeper.game.controller.player;
 public final class PlayerManufactureControl {
 
     private int progress = 0;
-    private int required = 0;
 
     /**
-     * Adds manufacture points to the item in production. The original checks
-     * the points against the cost of the first slot of its manufacture list,
-     * not of the item being made (0x506B50). The list doesn't go back to its
-     * first slot when an item is done, so every item costs as much as the
-     * first one ordered until the list is emptied by selling.
+     * Adds manufacture points to the item in production
      *
      * @param points the points to add
-     * @param itemRequired the points the item in production needs
-     * ({@code manufToBuild})
+     * @param required the points the item needs ({@code manufToBuild})
      * @return true if the item is finished, the progress starts over then
      */
-    public boolean manufacture(int points, int itemRequired) {
-        if (required == 0) {
-            required = itemRequired;
-        }
+    public boolean manufacture(int points, int required) {
         progress += points;
         if (progress >= required) {
             progress = 0;
@@ -58,16 +49,6 @@ public final class PlayerManufactureControl {
      */
     public void losePoints(int points) {
         progress = Math.max(0, progress - points);
-    }
-
-    /**
-     * Starts the manufacture list over, as the original does when selling
-     * blueprints leaves nothing to manufacture (0x5069E0). The next item
-     * ordered sets the cost again.
-     */
-    public void clearOrders() {
-        progress = 0;
-        required = 0;
     }
 
     /**

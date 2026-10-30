@@ -60,37 +60,17 @@ class PlayerManufactureControlTest {
     }
 
     @Test
-    void laterItemsAreBuiltAgainstTheFirstItemsCost() {
+    void everyItemIsBuiltAgainstItsOwnCost() {
         PlayerManufactureControl control = new PlayerManufactureControl();
         int cheapDoor = 600;
+        while (!control.manufacture(TROLL, SENTRY_TRAP)) {
+        }
 
-        // The Sentry Trap was ordered first. The door after it still needs the Sentry Trap's 1500 points
-        // (0x506B50 compares with the first slot of the list, which stays put)
-        manufacture(control, SENTRY_TRAP, 1500);
-        for (int points = TROLL; points < SENTRY_TRAP; points += TROLL) {
-            assertFalse(control.manufacture(TROLL, cheapDoor), "Done at " + points + " points");
+        // The door ordered after the Sentry Trap needs its own 600 points, ten seconds of a Troll
+        for (int second = 1; second < 10; second++) {
+            assertFalse(control.manufacture(TROLL, cheapDoor), "Done after " + second + " seconds");
         }
         assertTrue(control.manufacture(TROLL, cheapDoor));
-    }
-
-    @Test
-    void sellingEveryOrderStartsTheListOver() {
-        PlayerManufactureControl control = new PlayerManufactureControl();
-        int cheapDoor = 600;
-        manufacture(control, SENTRY_TRAP, 1500);
-        control.manufacture(TROLL, SENTRY_TRAP);
-
-        control.clearOrders();
-
-        assertEquals(0, control.getProgress());
-        manufacture(control, cheapDoor, 600);
-    }
-
-    private static void manufacture(PlayerManufactureControl control, int required, int expectedPoints) {
-        for (int points = TROLL; points < expectedPoints; points += TROLL) {
-            assertFalse(control.manufacture(TROLL, required), "Done at " + points + " points");
-        }
-        assertTrue(control.manufacture(TROLL, required));
     }
 
 }
