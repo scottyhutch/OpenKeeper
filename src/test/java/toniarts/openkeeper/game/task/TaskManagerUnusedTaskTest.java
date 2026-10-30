@@ -94,6 +94,9 @@ class TaskManagerUnusedTaskTest {
                 entityData.setComponent(creatureId, new TaskComponent(task.getId(), null, null, task.getTaskType(), 0f, false));
                 return null;
             }
+            if (method.getName().equals("getObjectiveTargetActionPointId")) {
+                return 1;
+            }
             return defaultValue(proxy, method);
         });
     }
