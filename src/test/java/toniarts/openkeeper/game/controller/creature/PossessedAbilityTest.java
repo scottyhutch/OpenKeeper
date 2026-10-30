@@ -66,6 +66,7 @@ import toniarts.openkeeper.game.logic.HealthSystem;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.logic.PossessedMovementSystem;
 import toniarts.openkeeper.game.map.IMapDataInformation;
+import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -740,7 +741,7 @@ class PossessedAbilityTest {
                 return null;
             }
             Point tile = args.length == 1 ? (Point) args[0] : new Point((Integer) args[0], (Integer) args[1]);
-            return stub(IMapTileInformation.class, (tileName, tileArgs) -> switch (tileName) {
+            return stub(IMapTileController.class, (tileName, tileArgs) -> switch (tileName) {
                 case "getLocation" -> tile;
                 case "getOwnerId" -> tileOwners.getOrDefault(tile, Player.NEUTRAL_PLAYER_ID);
                 default -> null;

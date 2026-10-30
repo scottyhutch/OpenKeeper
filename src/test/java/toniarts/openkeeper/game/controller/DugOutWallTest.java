@@ -18,6 +18,7 @@ package toniarts.openkeeper.game.controller;
 
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.data.Keeper;
@@ -69,10 +70,13 @@ class DugOutWallTest {
                 map;
             case "getTerrain" ->
                 (short) args[0] == WALL_ID ? wall : rock;
+            case "getThings" ->
+                List.of();
             default ->
                 throw new UnsupportedOperationException(name);
         });
-        ILevelInfo levelInfo = proxy(ILevelInfo.class, (name, args) -> Map.of(KEEPER_ID, new Keeper(false, KEEPER_ID)));
+        Keeper keeper = new Keeper(false, KEEPER_ID);
+        ILevelInfo levelInfo = proxy(ILevelInfo.class, (name, args) -> "getPlayer".equals(name) ? keeper : Map.of(KEEPER_ID, keeper));
         MapController mapController = new MapController(kwdFile, null,
                 Map.of(MiscType.DIG_ENEMY_WALL_HEALTH, CreatureSleepFixtures.variable(MiscType.DIG_ENEMY_WALL_HEALTH, 100)),
                 null, new DefaultEntityData(), levelInfo, proxy(GameEventService.class, (name, args) -> null));
