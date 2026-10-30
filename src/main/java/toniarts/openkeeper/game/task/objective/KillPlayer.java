@@ -101,7 +101,8 @@ public final class KillPlayer extends AbstractObjectiveTask {
     /**
      * Tells whether the target keeper takes part in the level and has a
      * Dungeon Heart to go for. Maps can give heroes a keeper to kill whose slot
-     * is left empty, or a side, such as the heroes' own, that has no heart
+     * is left empty, or a side, such as the heroes' own, that has no heart. A
+     * defeated keeper has lost his heart, so there is nothing left to go for
      *
      * @param levelInfo the level
      * @param targetPlayerId the keeper to kill
@@ -109,7 +110,7 @@ public final class KillPlayer extends AbstractObjectiveTask {
      */
     public static boolean isTargetPresent(ILevelInfo levelInfo, short targetPlayerId) {
         Keeper keeper = levelInfo.getPlayer(targetPlayerId);
-        return keeper != null && keeper.getDungeonHeartLocation() != null;
+        return keeper != null && !keeper.isDestroyed() && keeper.getDungeonHeartLocation() != null;
     }
 
     private boolean isPlayerDestroyed() {
