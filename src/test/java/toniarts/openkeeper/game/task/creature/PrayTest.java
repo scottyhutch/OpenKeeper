@@ -20,7 +20,9 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.EnumMap;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -51,6 +53,7 @@ class PrayTest {
     private ICreatureController creature;
     private Keeper keeper;
     private Pray pray;
+    private final List<EntityId> worshippers = new ArrayList<>();
 
     @BeforeEach
     void setUp() {
@@ -77,6 +80,11 @@ class PrayTest {
 
         pray = new Pray(null, null, new Point(2, 3), PLAYER_ID, room(), null, entityData, gameSettings, manaControl);
         pray.assign(creature, false);
+    }
+
+    @Test
+    void worshipperIsCountedInTheTemple() {
+        assertEquals(List.of(entity), worshippers);
     }
 
     @Test
@@ -148,7 +156,9 @@ class PrayTest {
                 });
     }
 
-    private static IRoomController room() {
+    private IRoomController room() {
+        IRoomObjectControl control = (IRoomObjectControl) Proxy.newProxyInstance(IRoomObjectControl.class.getClassLoader(),
+                new Class<?>[]{IRoomObjectControl.class}, (proxy, method, args) -> method.getName().equals("addItem") && worshippers.add((EntityId) args[0]) ? args[0] : null);
         return (IRoomController) Proxy.newProxyInstance(IRoomController.class.getClassLoader(),
                 new Class<?>[]{IRoomController.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "hashCode" -> System.identityHashCode(proxy);
