@@ -44,30 +44,30 @@ public final class CombatRules {
     }
 
     /**
-     * Adds the bonus for hitting a creature from its side or back. The bonus
-     * grows with the angle between the target's facing and the direction of
-     * the attacker, from 16 % at about 56 degrees off the front up to 51 % at
-     * the back. Attacks from the front get no bonus.
+     * Adds the bonus for a melee hit on a creature. The original doesn't look
+     * at the way the target faces, it takes the direction from the target to
+     * the attacker on the map: from the north there is no bonus, from the east
+     * or the west 25 % and from the south 51 %. Below 16 % (about 56 degrees
+     * off north) there is no bonus (0x498E30).
      *
      * @param damage the damage of the hit
      * @param attackerPosition where the attacker stands
      * @param targetPosition where the target stands
-     * @param targetRotation the target's rotation around the y-axis
      * @return the damage with the bonus added
      */
-    public static int addRearAttackBonus(int damage, Vector3f attackerPosition, Vector3f targetPosition, float targetRotation) {
+    public static int addRearAttackBonus(int damage, Vector3f attackerPosition, Vector3f targetPosition) {
         float dx = attackerPosition.x - targetPosition.x;
         float dz = attackerPosition.z - targetPosition.z;
-        float length = FastMath.sqrt(dx * dx + dz * dz);
-        if (length == 0) {
+        if (dx == 0 && dz == 0) {
             return damage;
         }
 
-        // Facing of the target, the same way the view turns the model
-        float facingX = FastMath.sin(targetRotation);
-        float facingZ = FastMath.cos(targetRotation);
-        float cos = FastMath.clamp((facingX * dx + facingZ * dz) / length, -1f, 1f);
-        int steps = Math.min(HALF_CIRCLE_STEPS - 1, (int) (FastMath.acos(cos) / FastMath.PI * HALF_CIRCLE_STEPS));
+        // Angle steps clockwise from north (-z), then folded to the steps away from north as the original
+        // does it, where the very last step before north counts as south
+        int steps = Math.floorMod((int) (FastMath.atan2(dx, -dz) / FastMath.PI * HALF_CIRCLE_STEPS), 2 * HALF_CIRCLE_STEPS);
+        if (steps >= HALF_CIRCLE_STEPS) {
+            steps = (2 * HALF_CIRCLE_STEPS - 2 - steps) & (HALF_CIRCLE_STEPS - 1);
+        }
         int bonusPercent = steps / STEPS_PER_BONUS_PERCENT;
         if (bonusPercent < MIN_REAR_ATTACK_BONUS_PERCENT) {
             return damage;

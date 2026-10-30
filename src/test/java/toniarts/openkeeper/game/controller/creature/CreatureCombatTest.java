@@ -97,8 +97,10 @@ class CreatureCombatTest {
     }
 
     @Test
-    void hitInTheBackGetsTheRearAttackBonus() {
-        EntityId target = createCreature(HERO, FIGHTER, new Vector3f(5, 0, 5), 0);
+    void hitFromTheSouthGetsTheBiggestBonus() {
+
+        // We stand south of the target, the way it faces doesn't matter
+        EntityId target = createCreature(HERO, FIGHTER, new Vector3f(5, 0, 3), 0);
 
         createController(us).executeAttack(target);
 
@@ -109,7 +111,7 @@ class CreatureCombatTest {
     void onlyCreaturesGetTheRearAttackBonus() {
         EntityId thing = entityData.createEntity();
         entityData.setComponents(thing, new Owner(HERO, HERO), new Health(1000, 1000),
-                new Position(0, new Vector3f(5, 0, 5)));
+                new Position(0, new Vector3f(5, 0, 3)));
 
         createController(us).executeAttack(thing);
 
@@ -118,7 +120,7 @@ class CreatureCombatTest {
 
     @Test
     void possessedTargetTakesHalfTheDamage() {
-        EntityId target = createCreature(HERO, FIGHTER, new Vector3f(5, 0, 5), 0);
+        EntityId target = createCreature(HERO, FIGHTER, new Vector3f(5, 0, 3), 0);
         entityData.setComponent(target, new Possessed(0, 0));
 
         createController(us).executeAttack(target);
