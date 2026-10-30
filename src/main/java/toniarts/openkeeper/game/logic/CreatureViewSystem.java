@@ -17,12 +17,14 @@
 package toniarts.openkeeper.game.logic;
 
 import com.jme3.math.Vector2f;
+import com.jme3.math.FastMath;
 import com.jme3.util.SafeArrayList;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureFall;
@@ -57,6 +59,12 @@ import toniarts.openkeeper.utils.GameTimeCounter;
 public final class CreatureViewSystem extends GameTimeCounter {
 
     private static final short ELECTRIC_CHAIR_OBJECT_ID = 61;
+    /**
+     * How many times a gambler plays an animation before it picks the next
+     */
+    private static final int GAMBLE_PLAYS = 3;
+    private static final Set<Creature.AnimationType> GAMBLE_ANIMATIONS = EnumSet.of(Creature.AnimationType.RESEARCHING,
+            Creature.AnimationType.HAPPY, Creature.AnimationType.IDLE_1);
 
     private final EntityData entityData;
     private final IKwdFile kwdFile;
@@ -89,6 +97,7 @@ public final class CreatureViewSystem extends GameTimeCounter {
             CreatureViewState state = entityData.getComponent(entityId, CreatureViewState.class);
             Creature.AnimationType currentState = state.state;
             Creature.AnimationType targetState = currentState;
+            boolean restart = false;
             CreatureFall creatureFall = entityData.getComponent(entityId, CreatureFall.class);
             if (creatureFall != null) {
 
@@ -105,7 +114,14 @@ public final class CreatureViewSystem extends GameTimeCounter {
                 targetState = getPossessedAnimation(entityId, state);
             } else {
                 TaskComponent taskComponent = entityData.getComponent(entityId, TaskComponent.class);
-                if (taskComponent != null) {
+                if (taskComponent != null && taskComponent.taskType == TaskType.GAMBLE) {
+
+                    // A gambler plays an animation three times, then picks the next one, which can be the same
+                    restart = !GAMBLE_ANIMATIONS.contains(currentState) || !isPlaying(state, GAMBLE_PLAYS);
+                    if (restart) {
+                        targetState = getGambleAnimation(kwdFile.getCreature(state.creatureId));
+                    }
+                } else if (taskComponent != null) {
                     targetState = taskComponent.taskType == TaskType.MANUFACTURE
                             ? getManufactureAnimation(kwdFile.getCreature(state.creatureId))
                             : getAnimation(taskComponent.taskType);
@@ -113,6 +129,8 @@ public final class CreatureViewSystem extends GameTimeCounter {
                     CreatureAi aiState = entityData.getComponent(entityId, CreatureAi.class);
                     if (aiState != null && aiState.getCreatureState() == CreatureState.TORTURED) {
                         targetState = getTortureAnimation(entityId);
+                    } else if (aiState != null && aiState.getCreatureState() == CreatureState.CELEBRATING) {
+                        targetState = getCelebrationAnimation(state);
                     } else if (aiState != null) {
                         targetState = getAnimation(aiState.getCreatureState());
                     } else if (entityData.getComponent(entityId, PortalGem.class) != null) {
@@ -124,7 +142,7 @@ public final class CreatureViewSystem extends GameTimeCounter {
             }
 
             // Change!
-            if (currentState != targetState) {
+            if (currentState != targetState || restart) {
                 entityData.setComponent(entityId, new CreatureViewState(state.creatureId, timeElapsed, targetState));
             }
         }
@@ -264,6 +282,60 @@ public final class CreatureViewSystem extends GameTimeCounter {
             return Creature.AnimationType.MANUFACTURING;
         }
         return Creature.AnimationType.MELEE_ATTACK;
+    }
+
+    /**
+     * The original (0x4567D0) has no gambling animation. Half of the time the
+     * gambler plays its research animation, if it has one and a happy one too.
+     * Otherwise it is happy three times out of four and idles for the rest. A
+     * creature without a happy animation only idles. In the money pay out mode
+     * the original plays the angry animation instead of the happy one, but the
+     * pay out can't be switched yet.
+     */
+    private static Creature.AnimationType getGambleAnimation(Creature creature) {
+        boolean happy = hasAnimation(creature, Creature.AnimationType.HAPPY);
+        int roll = FastMath.rand.nextInt(100);
+        if (happy && roll < 50 && hasAnimation(creature, Creature.AnimationType.RESEARCHING)) {
+            return Creature.AnimationType.RESEARCHING;
+        }
+        if (happy && roll < 75) {
+            return Creature.AnimationType.HAPPY;
+        }
+        return Creature.AnimationType.IDLE_1;
+    }
+
+    /**
+     * The big winner dances once, if it can, and then cheers until it goes to
+     * collect its winnings, as in the original (0x456EC0)
+     */
+    private Creature.AnimationType getCelebrationAnimation(CreatureViewState state) {
+        if (state.state != Creature.AnimationType.HAPPY
+                && hasAnimation(kwdFile.getCreature(state.creatureId), Creature.AnimationType.DANCE)
+                && (state.state != Creature.AnimationType.DANCE || isPlaying(state, 1))) {
+            return Creature.AnimationType.DANCE;
+        }
+        return Creature.AnimationType.HAPPY;
+    }
+
+    /**
+     * Is the creature still playing its animation the given number of times
+     */
+    private boolean isPlaying(CreatureViewState state, int plays) {
+        ArtResource animation = kwdFile.getCreature(state.creatureId).getAnimation(state.state);
+        if (animation == null) {
+            return false;
+        }
+
+        // A second for an animation without timing
+        Number frames = animation.getData(ArtResource.KEY_FRAMES);
+        Number fps = animation.getData(ArtResource.KEY_FPS);
+        double length = (frames == null || fps == null || fps.intValue() <= 0) ? 1 : frames.doubleValue() / fps.doubleValue();
+        return timeElapsed < state.stateStartTime + plays * length;
+    }
+
+    private static boolean hasAnimation(Creature creature, Creature.AnimationType animation) {
+        ArtResource resource = creature.getAnimation(animation);
+        return resource != null && resource.getType() != ArtResource.ArtResourceType.NONE;
     }
 
 }
