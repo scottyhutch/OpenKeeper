@@ -986,7 +986,11 @@ public final class CreatureController extends EntityController implements ICreat
             }
         }
         if (picked) {
-            heroLogTarget(target);
+            try {
+                heroLogTarget(target);
+            } catch (RuntimeException e) {
+                // Debug logging must never break the game
+            }
             entityData.setComponent(entityId, new AttackTarget(target, gameTimer.getGameTime(), getCreatureCoordinates(), chaseStartTime));
         } else if (Double.compare(chaseStartTime, attackTarget.chaseStartTime) != 0) {
             entityData.setComponent(entityId, new AttackTarget(target, attackTarget.time, attackTarget.tile, chaseStartTime));

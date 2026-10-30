@@ -127,7 +127,11 @@ public class TriggerControl extends Control {
         if (!isArmed()) {
             return;
         }
-        HeroLog.time = gameTimer.getGameTime();
+        try {
+            HeroLog.time = gameTimer.getGameTime();
+        } catch (RuntimeException e) {
+            // Debug logging must never break the game
+        }
         pollEvents();
         walk(root, getRootRepeat());
     }

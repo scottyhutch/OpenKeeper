@@ -1012,9 +1012,13 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     @Override
     public boolean assignObjectiveTask(ICreatureController creature, Thing.HeroParty.Objective objective) {
         AbstractObjectiveTask task = null;
-        String heroState = objective + " player=" + creature.getObjectiveTargetPlayerId() + " ap=" + creature.getObjectiveTargetActionPointId();
-        toniarts.openkeeper.game.HeroLog.logChange("objective" + creature.getEntityId().getId(), heroState,
-                "OBJECTIVE hero=" + creature.getEntityId().getId() + " " + heroState);
+        try {
+            String heroState = objective + " player=" + creature.getObjectiveTargetPlayerId() + " ap=" + creature.getObjectiveTargetActionPointId();
+            toniarts.openkeeper.game.HeroLog.logChange("objective" + creature.getEntityId().getId(), heroState,
+                    "OBJECTIVE hero=" + creature.getEntityId().getId() + " " + heroState);
+        } catch (RuntimeException e) {
+            // Debug logging must never break the game
+        }
         switch (objective) {
             case SEND_TO_ACTION_POINT: {
 
