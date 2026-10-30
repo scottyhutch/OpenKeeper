@@ -21,6 +21,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.awt.image.BufferedImage;
+import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -28,16 +29,22 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.ViewType;
 import toniarts.openkeeper.game.map.FakeFogOfWarInformation;
+import toniarts.openkeeper.utils.WorldUtils;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MinimapMarkerPainterTest {
 
     private static final short VIEWER_ID = 3;
+    private static final short GUARD_POST_ID = 11;
+    private static final short ALARM_ID = 13;
 
+    private final FakeFogOfWarInformation fogOfWar = new FakeFogOfWarInformation();
     private EntityData entityData;
     private MinimapMarkerPainter painter;
 
@@ -50,7 +57,8 @@ class MinimapMarkerPainterTest {
                 paletteImage.setRGB(x, y, 0x00FF00);
             }
         }
-        painter = new MinimapMarkerPainter(entityData, MinimapPalette.load(paletteImage), VIEWER_ID);
+        painter = new MinimapMarkerPainter(entityData, MinimapPalette.load(paletteImage), VIEWER_ID,
+                Set.of(GUARD_POST_ID), 7);
     }
 
     @AfterEach
@@ -79,14 +87,39 @@ class MinimapMarkerPainterTest {
         assertTrue(paintsAnything());
     }
 
+    @Test
+    void ownGuardPostGetsItsReportingDistanceRing() {
+        EntityId trap = entityData.createEntity();
+        entityData.setComponents(trap,
+                new Position(0, new Vector3f(8, 0, 8)),
+                new Owner(VIEWER_ID, VIEWER_ID),
+                new TrapComponent(ALARM_ID));
+        painter.update();
+        int trapDotOnly = paintedBytes();
+
+        entityData.setComponent(trap, new TrapComponent(GUARD_POST_ID));
+        painter.update();
+        assertTrue(paintedBytes() > trapDotOnly);
+
+        fogOfWar.explored.add(WorldUtils.vectorToPoint(8, 8));
+        entityData.setComponent(trap, new Owner((short) (VIEWER_ID + 1), (short) (VIEWER_ID + 1)));
+        painter.update();
+        assertEquals(trapDotOnly, paintedBytes()); // another keeper's guard post, only its dot
+    }
+
     private boolean paintsAnything() {
+        return paintedBytes() > 0;
+    }
+
+    private int paintedBytes() {
         byte[] raster = new byte[MinimapRasteriser.RASTER_SIZE * MinimapRasteriser.RASTER_SIZE * 3];
-        painter.paint(raster, 16, 16, -1, 0, 0, new FakeFogOfWarInformation(), true, 0, 0, null, 0);
+        painter.paint(raster, 16, 16, -1, 0, 0, fogOfWar, true, 0, 0, null, 0);
+        int painted = 0;
         for (byte b : raster) {
             if (b != 0) {
-                return true;
+                painted++;
             }
         }
-        return false;
+        return painted;
     }
 }
