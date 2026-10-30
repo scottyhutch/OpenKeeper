@@ -30,6 +30,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureFall;
@@ -43,6 +44,7 @@ import toniarts.openkeeper.game.component.Fearless;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.MeleeHit;
+import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Stored;
@@ -63,7 +65,9 @@ import toniarts.openkeeper.game.logic.CreatureMoodSystem;
 import toniarts.openkeeper.game.logic.CreatureSleepSystem;
 import toniarts.openkeeper.game.logic.HealthSystem;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
+import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
+import toniarts.openkeeper.game.navigation.pathfinding.INavigable;
 import toniarts.openkeeper.game.task.ITaskManager;
 import toniarts.openkeeper.game.task.Task;
 import toniarts.openkeeper.game.task.TaskType;
@@ -74,13 +78,16 @@ import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
+import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CreatureControllerTest {
@@ -457,46 +464,194 @@ class CreatureControllerTest {
     }
 
     @Test
-    void fleesInAnEnemyOrRuinedHeartButStandsInItsOwn() {
-        assertEquals(CreatureState.FLEE, stateWhenThreatenedInHeart((short) 4, false));
-        assertEquals(CreatureState.FLEE, stateWhenThreatenedInHeart((short) 3, true));
-        assertNotEquals(CreatureState.FLEE, stateWhenThreatenedInHeart((short) 3, false));
+    void fleesUnlessNearItsOwnStandingHeart() {
+        assertEquals(CreatureState.FLEE, stateWhenThreatenedWithHeartAt(7, false)); // 4 tiles away
+        assertEquals(CreatureState.FLEE, stateWhenThreatenedWithHeartAt(3, true));
+        assertNotEquals(CreatureState.FLEE, stateWhenThreatenedWithHeartAt(6, false)); // 3 tiles away
     }
 
     @Test
-    void workerInItsOwnHeartOnlyFightsAnEnemyInReach() {
-        assertNull(workerStateWithHeroAt(6)); // Neither fights nor flees, keeps working
-        assertEquals(CreatureState.FIGHT, workerStateWithHeroAt(3.5f));
+    void workerWithdrawsFromAnEnemyAfterItAndOnlyHitsBackNearItsHeart() {
+
+        // An enemy after it sends it away at once, wherever it is
+        assertEquals(CreatureState.FLEE, workerStateWithHeroAt(6, 20, true));
+        assertEquals(CreatureState.FLEE, workerStateWithHeroAt(3.5f, 3, true));
+
+        // Near its own heart it hits back at an enemy in reach that is after nobody
+        assertNull(workerStateWithHeroAt(6, 3, null)); // Neither fights nor flees, keeps working
+        assertEquals(CreatureState.FIGHT, workerStateWithHeroAt(3.5f, 3, null));
+
+        // Elsewhere it keeps working next to an enemy that isn't after it
+        assertNull(workerStateWithHeroAt(3.5f, 20, null));
+        assertNull(workerStateWithHeroAt(3.5f, 20, false));
     }
 
-    private static CreatureState workerStateWithHeroAt(float x) {
+    @Test
+    void workerWithdrawsWhenTheEnemyTurnsOnItInTheMiddleOfAFight() {
         try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
-            EntityId hero = f.data.createEntity();
-            f.data.setComponents(hero, new Owner((short) 1, (short) 1), new Health(1000, 1000), new Threat(100),
-                    new Position(0, new Vector3f(x, WorldUtils.FLOOR_HEIGHT, 4)));
-            f.data.setComponent(f.entity, new CreatureMeleeAttack(0, 30, 1.2f, 1));
-            f.data.removeComponent(f.entity, Fearless.class);
-            f.sensed = Set.of(hero);
-            f.roomHere = proxy(IRoomController.class, (method, args) -> switch (method) {
-                case "isDungeonHeart" -> true;
-                case "getOwnerId" -> (short) 3;
-                case "isDestroyed" -> false;
-                default -> throw new UnsupportedOperationException(method);
-            });
+            EntityId hero = heroNextToWorker(f, 3.5f, 3);
+            f.controller.shouldFleeOrAttack();
+            assertEquals(CreatureState.FIGHT, f.state());
+
+            f.data.setComponent(hero, new AttackTarget(f.entity));
+            f.controller.getStateMachine().update();
+            assertEquals(CreatureState.FLEE, f.state());
+        }
+    }
+
+    @Test
+    void workerWithdrawsWhenTheEnemyTurnsOnItDuringItsOwnSwing() {
+        try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
+            EntityId hero = heroNextToWorker(f, 3.5f, 3);
+            f.controller.getStateMachine().changeState(CreatureState.MELEE_ATTACK);
+
+            f.data.setComponent(hero, new AttackTarget(f.entity));
+            f.controller.getStateMachine().update();
+            assertEquals(CreatureState.FLEE, f.state());
+        }
+    }
+
+    @Test
+    void workerHitsBackAtAnEnemyATileAwayNearItsHeart() {
+        try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
+            heroNextToWorker(f, 4, 3);
+            f.data.setComponent(f.entity, new CreatureMeleeAttack(0, 30, 1.2f, .3f));
+            f.controller.shouldFleeOrAttack();
+            assertEquals(CreatureState.FIGHT, f.state());
+        }
+    }
+
+    @Test
+    void workerWithdrawsNextToItsHeartAndGoesBackToWorkOnArrival() {
+        try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
+            EntityId hero = heroNextToWorker(f, 3.5f, 3);
+            f.data.setComponent(hero, new AttackTarget(f.entity));
+            f.controller.shouldFleeOrAttack();
+            assertEquals(CreatureState.FLEE, f.state());
+            // 2 tiles either way of (4, 5), a tile down and right of the heart's centre
+            assertTrue(Set.of(new Point(6, 7), new Point(2, 7), new Point(6, 3), new Point(2, 3))
+                    .contains(f.data.getComponent(f.entity, Navigation.class).target));
+
+            // Still wanted when it gets there, so off it goes again
+            f.data.removeComponent(f.entity, Navigation.class);
+            f.controller.getStateMachine().update();
+            assertEquals(CreatureState.FLEE, f.state());
+            assertNotNull(f.data.getComponent(f.entity, Navigation.class));
+
+            // The enemy has turned to someone else
+            f.data.setComponent(hero, new AttackTarget(f.data.createEntity()));
+            f.data.setComponent(hero, new Position(0, new Vector3f(8, WorldUtils.FLOOR_HEIGHT, 4)));
+            f.data.removeComponent(f.entity, Navigation.class);
+            f.controller.getStateMachine().update();
+            assertEquals(CreatureState.IDLE, f.state());
+        }
+    }
+
+    @Test
+    void workerWithdrawsNextToTheRoomPositionWhenItCantGetOutsideTheHeart() {
+        try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
+            EntityId hero = heroNextToWorker(f, 3.5f, 3);
+            f.data.setComponent(hero, new AttackTarget(f.entity));
+            // The heart's centre 3x3 can't be walked on
+            f.walkable = tile -> Math.abs(tile.x - 3) <= 2 && Math.abs(tile.y - 4) <= 2
+                    && !(Math.abs(tile.x - 3) <= 1 && Math.abs(tile.y - 4) <= 1);
+            for (int i = 0; i < 20; i++) {
+                f.data.removeComponent(f.entity, Navigation.class);
+                f.controller.flee();
+                assertTrue(Set.of(new Point(5, 5), new Point(4, 6))
+                        .contains(f.data.getComponent(f.entity, Navigation.class).target));
+            }
+
+            // Its corners can
+            f.walkable = tile -> Math.abs(tile.x - 3) <= 2 && Math.abs(tile.y - 4) <= 2
+                    && Math.abs(tile.x - 3) + Math.abs(tile.y - 4) > 1;
+            for (int i = 0; i < 20; i++) {
+                f.data.removeComponent(f.entity, Navigation.class);
+                f.controller.flee();
+                assertTrue(Set.of(new Point(4, 5), new Point(2, 3))
+                        .contains(f.data.getComponent(f.entity, Navigation.class).target));
+            }
+        }
+    }
+
+    @Test
+    void workerWithdrawsRoundTheEnemyInItsWay() {
+        try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
+            EntityId hero = heroNextToWorker(f, 3.5f, 3);
+            f.data.setComponent(hero, new AttackTarget(f.entity));
+            Point heroTile = WorldUtils.vectorToPoint(f.data.getComponent(hero, Position.class).position);
+
+            // The way it plans first doesn't go through the enemy's tile
+            f.controller.flee();
+            INavigable navigable = f.navigables.get(0);
+            assertNotSame(f.controller, navigable);
+            assertNull(navigable.getCost(null, f.tile(heroTile), null, null));
+            assertNotNull(f.data.getComponent(f.entity, Navigation.class));
+
+            // With no way round, it goes through
+            f.navigables.clear();
+            f.data.removeComponent(f.entity, Navigation.class);
+            f.walkable = tile -> f.navigables.get(f.navigables.size() - 1) == f.controller;
+            f.controller.flee();
+            assertSame(f.controller, f.navigables.get(f.navigables.size() - 1));
+            assertNotNull(f.data.getComponent(f.entity, Navigation.class));
+        }
+    }
+
+    @Test
+    void workerWalksToItsJobRoundTheEnemiesInItsWay() {
+        try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
+            EntityId hero = heroNextToWorker(f, 3.5f, 3);
+            Point heroTile = WorldUtils.vectorToPoint(f.data.getComponent(hero, Position.class).position);
+            f.tasks.put(-1L, proxy(Task.class, (method, args) -> switch (method) {
+                case "getTarget" -> new Vector2f(6, 4);
+                case "isFaceTarget" -> false;
+                default -> null;
+            }));
+            f.data.setComponent(f.entity, new TaskComponent(-1, null, null, TaskType.CLAIM_TILE, 0, false));
+            f.controller.navigateToAssignedTask();
+
+            INavigable navigable = f.navigables.get(0);
+            assertNotSame(f.controller, navigable);
+            assertNull(navigable.getCost(null, f.tile(heroTile), null, null));
+            assertNotNull(f.data.getComponent(f.entity, Navigation.class));
+        }
+    }
+
+    private static CreatureState workerStateWithHeroAt(float x, int heartX, Boolean heroAfterUs) {
+        try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
+            EntityId hero = heroNextToWorker(f, x, heartX);
+            if (heroAfterUs != null) {
+                f.data.setComponent(hero, new AttackTarget(heroAfterUs ? f.entity : f.data.createEntity()));
+            }
             f.controller.shouldFleeOrAttack();
             return f.state();
         }
     }
 
-    private static CreatureState stateWhenThreatenedInHeart(short heartOwner, boolean destroyed) {
+    private static EntityId heroNextToWorker(Fixture f, float x, int heartX) {
+        EntityId hero = f.data.createEntity();
+        f.data.setComponents(hero, new Owner((short) 1, (short) 1), new Health(1000, 1000), new Threat(100),
+                new Position(0, new Vector3f(x, WorldUtils.FLOOR_HEIGHT, 4)));
+        f.data.setComponent(f.entity, new CreatureMeleeAttack(0, 30, 1.2f, 1));
+        f.data.removeComponent(f.entity, Fearless.class);
+        f.sensed = Set.of(hero);
+        f.keeper.setDungeonHeartLocation(new Point(heartX, 4));
+        f.roomHere = proxy(IRoomController.class, (method, args) -> switch (method) {
+            case "isDestroyed" -> false;
+            default -> throw new UnsupportedOperationException(method);
+        });
+        return hero;
+    }
+
+    private static CreatureState stateWhenThreatenedWithHeartAt(int heartX, boolean destroyed) {
         try (Fixture f = new Fixture(9)) {
             EntityId hero = f.data.createEntity();
             f.data.setComponents(hero, new Owner((short) 1, (short) 1), new Health(1000, 1000), new Threat(100));
             f.data.removeComponent(f.entity, Fearless.class);
             f.sensed = Set.of(hero);
+            f.keeper.setDungeonHeartLocation(new Point(heartX, 4));
             f.roomHere = proxy(IRoomController.class, (method, args) -> switch (method) {
-                case "isDungeonHeart" -> true;
-                case "getOwnerId" -> heartOwner;
                 case "isDestroyed" -> destroyed;
                 default -> throw new UnsupportedOperationException(method);
             });
@@ -592,6 +747,9 @@ class CreatureControllerTest {
         final EntityId room = data.createEntity();
         final Map<Long, Task> tasks = new HashMap<>();
         final AtomicBoolean reachable = new AtomicBoolean(true);
+        java.util.function.Predicate<Point> walkable = tile -> true;
+        final List<INavigable> navigables = new java.util.ArrayList<>();
+        final Keeper keeper = new Keeper(false, (short) 3);
         IRoomController roomHere;
         Set<EntityId> sensed = Set.of();
         CreatureController controller;
@@ -684,7 +842,7 @@ class CreatureControllerTest {
             IEntityPositionLookup lookup = proxy(IEntityPositionLookup.class, (method, args) -> switch (method) {
                 case "getSensedEntities" -> sensed;
                 case "getBlockingDoor" -> null;
-                case "getEntityLocation" -> null;
+                case "getEntityLocation" -> tile((EntityId) args[0]);
                 default -> throw new UnsupportedOperationException(method);
             });
             IKwdFile kwd = proxy(IKwdFile.class, (method, args) -> switch (method) {
@@ -693,7 +851,6 @@ class CreatureControllerTest {
                 case "getRoomById" -> new Room();
                 default -> throw new UnsupportedOperationException(method);
             });
-            Keeper keeper = new Keeper(false, (short) 3);
             ILevelInfo levelInfo = proxy(ILevelInfo.class, (method, args) -> switch (method) {
                 case "getPlayer" -> keeper;
                 case "getLevelData" -> kwd;
@@ -709,7 +866,10 @@ class CreatureControllerTest {
                 default -> throw new UnsupportedOperationException(method);
             });
             INavigationService navigation = proxy(INavigationService.class, (method, args) -> switch (method) {
-                case "findPath" -> new DefaultGraphPath<>();
+                case "findPath" -> {
+                    navigables.add((INavigable) args[2]);
+                    yield walkable.test((Point) args[1]) ? new DefaultGraphPath<>() : null;
+                }
                 default -> throw new UnsupportedOperationException(method);
             });
             controllers = () -> new CreatureController(entity, data, definition, navigation, taskManager, () -> time,
@@ -760,6 +920,18 @@ class CreatureControllerTest {
             moodSystem.processTick(.25f);
             healthSystem.processTick(.25f);
             controller.processTick(.25f);
+        }
+
+        IMapTileInformation tile(EntityId entity) {
+            Position position = data.getComponent(entity, Position.class);
+            return position != null ? tile(WorldUtils.vectorToPoint(position.position)) : null;
+        }
+
+        IMapTileInformation tile(Point location) {
+            return proxy(IMapTileInformation.class, (method, args) -> switch (method) {
+                case "getLocation" -> location;
+                default -> throw new UnsupportedOperationException(method);
+            });
         }
 
         int health() { return data.getComponent(entity, Health.class).health; }

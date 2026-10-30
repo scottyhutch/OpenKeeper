@@ -235,6 +235,43 @@ class CreatureStateTest {
         return piles;
     }
 
+    @Test
+    void fighterAttacksFromTheTurnAfterItArrivesOnceItFacesTheTarget() {
+        StateMachine<ICreatureController, CreatureState> stateMachine = stateMachine(new AtomicReference<>(CreatureState.FIGHT));
+        AtomicBoolean stopped = new AtomicBoolean();
+        AtomicBoolean facing = new AtomicBoolean();
+        AtomicInteger attacks = new AtomicInteger();
+        IEntityController target = (IEntityController) Proxy.newProxyInstance(IEntityController.class.getClassLoader(),
+                new Class<?>[]{IEntityController.class}, (proxy, method, args) -> "getEntityId".equals(method.getName())
+                ? new EntityId(5) : defaultValue(method.getReturnType()));
+        ICreatureController creature = (ICreatureController) Proxy.newProxyInstance(
+                ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "getStateMachine" -> stateMachine;
+                    case "getAttackTarget" -> target;
+                    case "isWithinAttackDistance" -> true;
+                    case "isStopped" -> stopped.get();
+                    case "stopCreature" -> {
+                        stopped.set(true);
+                        yield null;
+                    }
+                    case "turnToAttackTarget" -> facing.get();
+                    case "executeAttack" -> {
+                        attacks.incrementAndGet();
+                        yield null;
+                    }
+                    default -> defaultValue(method.getReturnType());
+                });
+
+        // It stops on arriving, then turns, and swings once it faces the target
+        CreatureState.FIGHT.update(creature);
+        assertEquals(0, attacks.get());
+        CreatureState.FIGHT.update(creature);
+        assertEquals(0, attacks.get());
+        facing.set(true);
+        CreatureState.FIGHT.update(creature);
+        assertEquals(1, attacks.get());
+    }
+
     private static void assertMissingLairChangesStateToIdle(CreatureState state) {
         AtomicReference<CreatureState> currentState = new AtomicReference<>(state);
         StateMachine<ICreatureController, CreatureState> stateMachine = stateMachine(currentState);

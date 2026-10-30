@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.component.BackOff;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.CasinoDisco;
 import toniarts.openkeeper.game.component.CastShot;
+import toniarts.openkeeper.game.component.ChaseBackOff;
 import toniarts.openkeeper.game.component.CombatPitFighter;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
@@ -102,6 +103,7 @@ import toniarts.openkeeper.game.logic.EffectTriggers;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
+import toniarts.openkeeper.game.navigation.pathfinding.INavigable;
 import toniarts.openkeeper.game.navigation.steering.SteeringUtils;
 import toniarts.openkeeper.game.task.ITaskManager;
 import toniarts.openkeeper.game.task.Task;
@@ -235,6 +237,21 @@ public final class CreatureController extends EntityController implements ICreat
      * original creatures never raises it.
      */
     private static final float ATTACK_WORK_MODIFIER = 0.8f;
+    // DK II's 0xD000, under 13 square tiles from the heart's centre
+    private static final float NEAR_OWN_HEART_DISTANCE_SQUARED = 13 * WorldUtils.TILE_WIDTH * WorldUtils.TILE_WIDTH;
+
+    /**
+     * A creature picks its target again this often, in game turns, an Imp
+     * more often (0x45E9F0)
+     */
+    private static final int TARGET_PICK_TURNS = 10;
+    private static final int IMP_TARGET_PICK_TURNS = 4;
+
+    /**
+     * How long a creature that gave up a chase leaves those that run away
+     * alone, in game turns (0x488930)
+     */
+    private static final int CHASE_BACK_OFF_TURNS = 60;
 
     private final INavigationService navigationService;
     private final ITaskManager taskManager;
@@ -312,39 +329,42 @@ public final class CreatureController extends EntityController implements ICreat
     public boolean shouldFleeOrAttack() {
         checkSurroundings();
 
-        // Check fleeing, TODO: Always flee?
-        boolean inDHeart = false;
-        if (entityData.getComponent(entityId, Fearless.class) == null && !isCombatPitFighter()) {
+        // A non-fighter (imp) only hits back at an enemy in reach and otherwise keeps working
+        boolean fighter = creature.getFightStyle() != Creature.FightStyle.NON_FIGHTER;
+        IEntityController enemyInReach = fighter ? null : getAttackTarget();
+        // DK II gives it a reach of one tile (0x45BDF0)
+        if (enemyInReach != null && !isInRange(WorldUtils.TILE_WIDTH, enemyInReach.getEntityId())) {
+            setAttackTarget(null);
+            enemyInReach = null;
+        }
+
+        // Check fleeing, TODO: Always flee? Fighters no longer flee near our own DHeart
+        boolean nearOwnHeart = isNearOwnHeart();
+        if (entityData.getComponent(entityId, Fearless.class) == null && !isCombatPitFighter() && !(fighter && nearOwnHeart)) {
             Threat threatComponent = entityData.getComponent(entityId, Threat.class);
             int threat = threatComponent != null ? threatComponent.threat : 0;
             int fear = entityData.getComponent(entityId, CreatureComponent.class).fear;
             int threatToUs = getEnemyThreat();
             int threatCaused = creature.getFlags().contains(Creature.CreatureFlag.ALWAYS_FLEE)
                     || isHealthAtCriticalLevel() ? threat : getOurThreat();
-            if (threatToUs - threatCaused > fear && (getFellowFighters() == 0
-                    || creature.getFlags().contains(Creature.CreatureFlag.ALWAYS_FLEE)) || isFrightened(fear)) {
 
-                // No longer flee from DHeart, our own one that still stands
-                IRoomController roomController = mapController.getRoomControllerByCoordinates(getCreatureCoordinates());
-                if (roomController == null || !roomController.isDungeonHeart()
-                        || roomController.getOwnerId() != getOwnerId() || roomController.isDestroyed()) {
-                    if (!stateMachine.isInState(CreatureState.FLEE)) {
+            // A non-fighter withdraws as soon as an enemy fighter picks it as its target
+            if ((fighter ? threatToUs - threatCaused > fear && (getFellowFighters() == 0
+                    || creature.getFlags().contains(Creature.CreatureFlag.ALWAYS_FLEE))
+                    : isTargetedByEnemyFighter()) || isFrightened(fear)) {
+                if (!stateMachine.isInState(CreatureState.FLEE)) {
 
-                        stateMachine.changeState(CreatureState.FLEE);
-                    }
-                    return true;
-                } else {
-                    inDHeart = true;
+                    stateMachine.changeState(CreatureState.FLEE);
                 }
+                return true;
             }
         }
 
-        // Should we attack, try to avoid i.e. imps engaging in a fight. In their own heart they
-        // only hit back at an enemy in reach and otherwise keep working
-        boolean fighter = creature.getFightStyle() != Creature.FightStyle.NON_FIGHTER;
-        IEntityController attackTarget = fighter || inDHeart ? getAttackTarget() : null;
-        if (attackTarget != null && (fighter || isWithinAttackDistance(attackTarget.getEntityId()))) {
-            if (!stateMachine.isInState(CreatureState.FIGHT)) {
+        // Should we attack, try to avoid i.e. imps engaging in a fight. Near their own heart they
+        // hit back at an enemy in reach
+        IEntityController attackTarget = fighter ? getAttackTarget() : nearOwnHeart ? enemyInReach : null;
+        if (attackTarget != null) {
+            if (!stateMachine.isInState(CreatureState.FIGHT) && !stateMachine.isInState(CreatureState.MELEE_ATTACK)) {
                 stateMachine.changeState(CreatureState.FIGHT);
             }
             return true;
@@ -368,6 +388,36 @@ public final class CreatureController extends EntityController implements ICreat
                 convertCreature(entity, ownerId);
             }
         }
+    }
+
+    /**
+     * DK II's creatures stand their ground within about 3.6 tiles of the centre of their own
+     * Dungeon Heart, as long as it stands
+     */
+    private boolean isNearOwnHeart() {
+        Keeper keeper = levelInfo.getPlayer(getOwnerId());
+        Point heart = keeper != null ? keeper.getDungeonHeartLocation() : null;
+        if (heart == null) {
+            return false;
+        }
+        IRoomController room = mapController.getRoomControllerByCoordinates(heart);
+        if (room == null || room.isDestroyed()) {
+            return false;
+        }
+        Vector3f position = getPosition();
+        return WorldUtils.pointToVector2f(heart).distanceSquared(position.x, position.z) < NEAR_OWN_HEART_DISTANCE_SQUARED;
+    }
+
+    private boolean isTargetedByEnemyFighter() {
+        for (EntityId entity : entityPositionLookup.getSensedEntities(entityId)) {
+            AttackTarget target = entityData.getComponent(entity, AttackTarget.class);
+            if (target != null && target.entityId.equals(entityId) && isEnemy(entity)
+                    && getEntityFightingStyle(entity) != Creature.FightStyle.NON_FIGHTER) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -729,7 +779,13 @@ public final class CreatureController extends EntityController implements ICreat
 
     private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget, Vector2f workPosition,
             boolean pursuingAttackTarget) {
-        GraphPath<IMapTileInformation> path = navigationService.findPath(currentLocation, destination, this);
+
+        // A worker walks round the enemies in its way, see flee()
+        GraphPath<IMapTileInformation> path = creature.getFightStyle() == Creature.FightStyle.NON_FIGHTER
+                ? navigationService.findPath(currentLocation, destination, getNavigableAroundEnemies()) : null;
+        if (path == null) {
+            path = navigationService.findPath(currentLocation, destination, this);
+        }
         if (path == null) {
             pathRetryBackoff.failed(destination, gameTimer.getGameTime());
             logger.log(Level.WARNING, "No path from {0} to {1}", getCreatureCoordinates(), destination);
@@ -893,53 +949,102 @@ public final class CreatureController extends EntityController implements ICreat
             return getCombatPitOpponent(pitFighter.pit);
         }
         AttackTarget attackTarget = entityData.getComponent(entityId, AttackTarget.class);
-        if (attackTarget != null && DungeonHeartTarget.isDungeonHeart(entityData, attackTarget.entityId)) {
-            if (isHeartToAttack(attackTarget.entityId)) {
+        EntityId target = attackTarget != null && isTargetToKeep(attackTarget.entityId) ? attackTarget.entityId : null;
 
-                // The original picks a target again while hitting a heart, leave it for any fighter that shows up,
-                // or for a worker nearer than the heart
-                EntityId enemy = getNearestEnemy(true);
-                if (enemy == null) {
-                    enemy = getNearestEnemy(false);
-                    if (enemy != null && getDistanceToCreature(enemy) >= getDistanceToCreature(attackTarget.entityId)) {
-                        enemy = null;
-                    }
-                }
-                if (enemy == null) {
-                    return objectsController.createController(attackTarget.entityId);
-                }
-                setAttackTarget(enemy);
-                return creaturesController.createController(enemy);
+        // The original picks its target again when it steps onto another tile or every 10 turns, and keeps the one it
+        // has when it finds none (0x45E9F0). Chasing a creature, it drops it and picks again every turn, so it only
+        // chases on while it picks the same one (0x470E30)
+        boolean chasing = target != null && !DungeonHeartTarget.isDungeonHeart(entityData, target) && !isWithinAttackDistance(target);
+        boolean picked = target == null || chasing || isTimeToPickTarget(attackTarget);
+        if (picked) {
+            EntityId enemy = pickAttackTarget(target);
+            if (enemy != null || chasing) {
+                target = enemy;
             }
-            attackTarget = null;
         }
-        IEntityController attackTargetController = null;
-        if (attackTarget == null || isIncapacitated(attackTarget.entityId)
-                || isFleeing(attackTarget.entityId) || isCaptive(attackTarget.entityId)
-                || !isEnemy(attackTarget.entityId)) {
+        if (target == null) {
+            setAttackTarget(null);
+            return null;
+        }
 
-            // Pick a new target, the nearest enemy already attacking us comes first
-            // TODO: creatures only now
-            EntityId nearestEnemy = getNearestEnemy(false);
-
-            // With no one but workers to fight, go for an enemy heart in sight
-            EntityId heart = null;
-            if (getNearestEnemy(true) == null) {
-                heart = getNearestEnemyHeart(nearestEnemy != null ? getDistanceToCreature(nearestEnemy) : Float.MAX_VALUE);
-            }
-            if (heart != null) {
-                attackTargetController = objectsController.createController(heart);
-                setAttackTarget(heart);
-            } else if (nearestEnemy != null) {
-                attackTargetController = creaturesController.createController(nearestEnemy);
-                setAttackTarget(nearestEnemy);
-            } else {
+        // It counts how long it chases one that runs away, and gives up on it after the chase duration of its side
+        // (0x470E30). Then it leaves those that run away alone for a while
+        double chaseStartTime = Double.NaN;
+        if (isFleeing(target)) {
+            chaseStartTime = attackTarget != null && !Double.isNaN(attackTarget.chaseStartTime) ? attackTarget.chaseStartTime
+                    : isWithinAttackDistance(target) ? Double.NaN : gameTimer.getGameTime();
+            if (gameTimer.getGameTime() - chaseStartTime >= getChaseDuration() && !isWithinAttackDistance(target)) {
+                entityData.setComponent(entityId, new ChaseBackOff(gameTimer.getGameTime()));
                 setAttackTarget(null);
+                return null;
             }
-        } else {
-            attackTargetController = creaturesController.createController(attackTarget.entityId);
         }
-        return attackTargetController;
+        if (picked) {
+            entityData.setComponent(entityId, new AttackTarget(target, gameTimer.getGameTime(), getCreatureCoordinates(), chaseStartTime));
+        } else if (Double.compare(chaseStartTime, attackTarget.chaseStartTime) != 0) {
+            entityData.setComponent(entityId, new AttackTarget(target, attackTarget.time, attackTarget.tile, chaseStartTime));
+        }
+
+        return DungeonHeartTarget.isDungeonHeart(entityData, target) ? objectsController.createController(target)
+                : creaturesController.createController(target);
+    }
+
+    private boolean isTargetToKeep(EntityId target) {
+        if (DungeonHeartTarget.isDungeonHeart(entityData, target)) {
+            return isHeartToAttack(target);
+        }
+        return !(isIncapacitated(target) || isCaptive(target)) && isEnemy(target);
+    }
+
+    private boolean isTimeToPickTarget(AttackTarget attackTarget) {
+        int turns = creature.getFightStyle() == Creature.FightStyle.NON_FIGHTER ? IMP_TARGET_PICK_TURNS : TARGET_PICK_TURNS;
+        return !getCreatureCoordinates().equals(attackTarget.tile) || gameTimer.getGameTime() - attackTarget.time >= getTurns(turns);
+    }
+
+    /**
+     * How long we chase an enemy that runs away, 3 seconds for a good creature
+     * and 7 for an evil one
+     */
+    private double getChaseDuration() {
+        Variable.MiscVariable chaseDuration = gameSettings.get(getOwnerId() == Player.GOOD_PLAYER_ID
+                ? Variable.MiscVariable.MiscType.GOOD_CREATURES_CHASE_ENEMY_DURATION_SECONDS
+                : Variable.MiscVariable.MiscType.EVIL_CREATURES_CHASE_ENEMY_DURATION_SECONDS);
+        return chaseDuration != null ? chaseDuration.getValue() : 0;
+    }
+
+    private boolean isBackingOff() {
+        ChaseBackOff backOff = entityData.getComponent(entityId, ChaseBackOff.class);
+        return backOff != null && gameTimer.getGameTime() - backOff.time < getTurns(CHASE_BACK_OFF_TURNS);
+    }
+
+    private double getTurns(int turns) {
+        return (double) turns / levelInfo.getLevelData().getGameLevel().getTicksPerSec();
+    }
+
+    /**
+     * Picks the enemy to attack: the nearest one, or with no one but workers
+     * to fight, an enemy heart in sight that is nearer. A creature hitting a
+     * heart leaves it for any fighter that shows up. A worker, even one that
+     * attacks it, only draws it away when it is nearer than the heart's
+     * nearest pillar, so only on its way there: next to the pillar the
+     * original stands closer to it than a worker can come (0x45CB00).
+     *
+     * @param current the target we have now, if any
+     * @return the enemy to attack, {@code null} if there is none
+     */
+    private EntityId pickAttackTarget(EntityId current) {
+        boolean hittingHeart = current != null && DungeonHeartTarget.isDungeonHeart(entityData, current);
+        EntityId fighter = getNearestEnemy(true);
+        if (fighter != null) {
+            return hittingHeart ? fighter : getNearestEnemy(false);
+        }
+        EntityId worker = getNearestEnemy(false);
+        if (worker != null && hittingHeart
+                && (isWithinAttackDistance(current) || getDistanceToCreature(worker) >= getDistanceToHeart(current))) {
+            return current;
+        }
+        EntityId heart = getNearestEnemyHeart(worker != null ? getDistanceToCreature(worker) : Float.MAX_VALUE);
+        return heart != null ? heart : worker;
     }
 
     private boolean isAttacking(EntityId attacker, EntityId target) {
@@ -980,7 +1085,8 @@ public final class CreatureController extends EntityController implements ICreat
         for (EntityId entity : entityPositionLookup.getSensedEntities(entityId)) {
             if (creaturesController.isValidEntity(entity)
                     && isEnemy(entity)
-                    && !(isIncapacitated(entity) || isFleeing(entity) || isCaptive(entity))
+                    && !(isIncapacitated(entity) || isCaptive(entity))
+                    && !(isFleeing(entity) && isBackingOff() && !isWithinAttackDistance(entity))
                     && hasRoomForAttacker(entity)
                     && !(fightersOnly && creaturesController.createController(entity).isWorker())
                     && (hasPathToEntity(entity) || isWithinAttackDistance(entity))) {
@@ -1011,7 +1117,7 @@ public final class CreatureController extends EntityController implements ICreat
         for (EntityId entity : entityPositionLookup.getSensedEntities(entityId)) {
             if (DungeonHeartTarget.isDungeonHeart(entityData, entity) && isHeartToAttack(entity)
                     && getHeartAttackTile(entity) != null) {
-                float distance = getDistanceToCreature(entity);
+                float distance = getDistanceToHeart(entity);
                 if (distance < nearestDistance) {
                     nearestDistance = distance;
                     nearestHeart = entity;
@@ -1026,6 +1132,15 @@ public final class CreatureController extends EntityController implements ICreat
         Health health = entityData.getComponent(heart, Health.class);
         return health != null && health.health > 0 && isEnemy(heart)
                 && creature.getFightStyle() != Creature.FightStyle.NON_FIGHTER;
+    }
+
+    /**
+     * How far the heart's nearest pillar is, the original goes for the pillars
+     */
+    private float getDistanceToHeart(EntityId heart) {
+        Vector3f position = getPosition();
+        Vector2f ourPosition = new Vector2f(position.x, position.z);
+        return DungeonHeartTarget.getNearestPillar(ourPosition, getHeartTile(heart)).distance(ourPosition);
     }
 
     private Point getHeartTile(EntityId heart) {
@@ -1120,7 +1235,7 @@ public final class CreatureController extends EntityController implements ICreat
         if (entity == null) {
             entityData.removeComponent(entityId, AttackTarget.class);
         } else {
-            entityData.setComponent(entityId, new AttackTarget(entity));
+            entityData.setComponent(entityId, new AttackTarget(entity, gameTimer.getGameTime(), getCreatureCoordinates(), Double.NaN));
         }
     }
 
@@ -1214,6 +1329,29 @@ public final class CreatureController extends EntityController implements ICreat
     @Override
     public void stop() {
         // Note that this is the updatable stop, not the creature stop...
+    }
+
+    @Override
+    public boolean turnToAttackTarget(EntityId attackTarget) {
+        if (DungeonHeartTarget.isDungeonHeart(entityData, attackTarget)) {
+            return true;
+        }
+        Position position = entityData.getComponent(entityId, Position.class);
+        Vector3f targetPosition = getPosition(entityData, attackTarget);
+        if (position == null || targetPosition == null) {
+            return true;
+        }
+
+        // The original turns a creature by its turn speed every turn and starts an attack only once it faces the target
+        // (0x45F030, 0x4B2AE0). The turn speed is in 2048ths of a full circle per second
+        float turn = (float) Math.IEEEremainder(-position.rotation - SteeringUtils.calculateVectorToAngle(
+                new Vector2(targetPosition.x - position.position.x, targetPosition.z - position.position.z)), FastMath.TWO_PI);
+        float maxTurn = creature.getTurnSpeed() * 2 * FastMath.TWO_PI / levelInfo.getLevelData().getGameLevel().getTicksPerSec();
+        if (turn != 0) {
+            entityData.setComponent(entityId, new Position(position.rotation + FastMath.clamp(turn, -maxTurn, maxTurn),
+                    position.position.clone()));
+        }
+        return Math.abs(turn) <= maxTurn;
     }
 
     @Override
@@ -1635,20 +1773,27 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public void flee() {
-        Point threat = findThreatLocation();
+        Keeper keeper = levelInfo.getPlayer(getOwnerId());
+
+        // A frightened creature, or one without a heart, runs away from its threat
+        Point threat = keeper == null || keeper.getDungeonHeartLocation() == null
+                || entityData.getComponent(entityId, Frightened.class) != null ? findThreatLocation() : null;
         if (threat != null) {
             fleeFrom(threat);
             return;
         }
 
-        // Nothing to run from, just go to the dungeon heart or random tiles
-        Keeper keeper = levelInfo.getPlayer(getOwnerId());
+        // A keeper's creature withdraws to its heart. DK II's creatures push each other aside as they move (separation
+        // steering, 0x4D2DF0 and 0x4D2B80), so one that withdraws goes round the enemies in its way instead of through
+        // them: plan a way round the tiles they stand on, and only when there is none, go through
         if (keeper != null && keeper.getDungeonHeartLocation() != null) {
-            Point p = keeper.getDungeonHeartLocation();
-            createNavigation(getCreatureCoordinates(), new Point(p.x - 2, p.y - 2), null);
-        } else {
-            navigateToRandomPoint();
+            for (INavigable navigable : List.of(getNavigableAroundEnemies(), this)) {
+                if (withdrawToHeart(keeper.getDungeonHeartLocation(), navigable)) {
+                    return;
+                }
+            }
         }
+        navigateToRandomPoint();
     }
 
     /**
@@ -1694,6 +1839,82 @@ public final class CreatureController extends EntityController implements ICreat
         finder.findAwayFrom(ourLocation, threat, FLEE_DISTANCE)
                 .or(() -> finder.findAround(ourLocation))
                 .ifPresent(destination -> createNavigation(ourLocation, destination, null));
+    }
+
+    /**
+     * Withdraws to a random point 2 tiles either way of the heart room's
+     * position, or to the position itself if we can't get there (0x4611D0).
+     * In DK II that position is a tile down and right of the heart's centre
+     * (room +0x27), so on level 5 the Imps end up on the corners of the centre
+     * 3x3
+     */
+    private boolean withdrawToHeart(Point heart, INavigable navigable) {
+        Point position = new Point(heart.x + 1, heart.y + 1);
+        Point destination = new Point(position.x + (FastMath.rand.nextBoolean() ? 2 : -2), position.y + (FastMath.rand.nextBoolean() ? 2 : -2));
+        GraphPath<IMapTileInformation> path = navigationService.findPath(getCreatureCoordinates(), destination, navigable);
+        if (path == null) {
+            destination = position;
+            path = navigationService.findPath(getCreatureCoordinates(), destination, navigable);
+
+            // Where we can't stand on the position, stop next to it
+            if (path == null) {
+                destination = FastMath.rand.nextBoolean() ? new Point(destination.x + 1, destination.y) : new Point(destination.x, destination.y + 1);
+                path = navigationService.findPath(getCreatureCoordinates(), destination, navigable);
+            }
+        }
+        if (path != null) {
+            entityData.setComponent(entityId, new Navigation(destination, null, SteeringUtils.pathToList(path)));
+        }
+        return path != null;
+    }
+
+    /**
+     * Finds paths for us that don't go through the tiles the enemies we sense
+     * stand on
+     */
+    private INavigable getNavigableAroundEnemies() {
+        Set<Point> enemyTiles = new HashSet<>();
+        for (EntityId entity : entityPositionLookup.getSensedEntities(entityId)) {
+            IMapTileInformation tile = creaturesController.isValidEntity(entity) && isEnemy(entity) && !isIncapacitated(entity)
+                    ? entityPositionLookup.getEntityLocation(entity) : null;
+            if (tile != null) {
+                enemyTiles.add(tile.getLocation());
+            }
+        }
+        INavigable navigable = this;
+        return new INavigable() {
+
+            @Override
+            public Float getCost(IMapTileInformation from, IMapTileInformation to, IMapController mapController,
+                    IEntityPositionLookup entityPositionLookup) {
+                return enemyTiles.contains(to.getLocation()) ? null : navigable.getCost(from, to, mapController, entityPositionLookup);
+            }
+
+            @Override
+            public short getOwnerId() {
+                return navigable.getOwnerId();
+            }
+
+            @Override
+            public boolean canFly() {
+                return navigable.canFly();
+            }
+
+            @Override
+            public boolean canWalkOnWater() {
+                return navigable.canWalkOnWater();
+            }
+
+            @Override
+            public boolean canWalkOnLava() {
+                return navigable.canWalkOnLava();
+            }
+
+            @Override
+            public boolean canMoveDiagonally() {
+                return navigable.canMoveDiagonally();
+            }
+        };
     }
 
     @Override

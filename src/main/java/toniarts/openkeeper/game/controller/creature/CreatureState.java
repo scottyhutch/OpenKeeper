@@ -23,6 +23,7 @@ import java.util.function.Consumer;
 import toniarts.openkeeper.game.controller.entity.IEntityController;
 import toniarts.openkeeper.game.task.Task;
 import toniarts.openkeeper.game.task.TaskType;
+import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Thing;
 
 /**
@@ -390,6 +391,12 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void update(ICreatureController entity) {
+
+            // DK II weighs withdrawing on every turn of a fight too (0x45F030 calls 0x45EC80)
+            if (entity.shouldFleeOrAttack() && entity.getStateMachine().isInState(FLEE)) {
+                return;
+            }
+
             IEntityController attackTarget = entity.getAttackTarget();
             if (attackTarget == null) {
                 entity.getStateMachine().changeState(entity.isCombatPitFighter() ? COMBAT_PIT : IDLE); // Nothing to do
@@ -405,9 +412,13 @@ public enum CreatureState implements State<ICreatureController> {
             // If we have reached the target, stop and fight!
             if (entity.isWithinAttackDistance(attackTarget.getEntityId())) {
 
-                // Attack!!
+                // Attack!! The original stops chasing and attacks from the next turn on, once it faces the target
+                // (0x470E30, 0x45F030)
+                boolean arriving = !entity.isStopped();
                 entity.stopCreature();
-                entity.executeAttack(attackTarget.getEntityId());
+                if (!arriving && entity.turnToAttackTarget(attackTarget.getEntityId())) {
+                    entity.executeAttack(attackTarget.getEntityId());
+                }
             } else {
                 entity.navigateToAttackTarget(attackTarget.getEntityId());
             }
@@ -534,6 +545,17 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void update(ICreatureController entity) {
+
+            // A worker's withdraw ends once it gets there (DK II's 0xCA), then it goes back to
+            // work, or withdraws again if an enemy is still after it
+            if (entity.getCreature().getFightStyle() == Creature.FightStyle.NON_FIGHTER && entity.isStopped()) {
+                if (!entity.shouldFleeOrAttack()) {
+                    entity.getStateMachine().changeState(IDLE);
+                } else if (entity.getStateMachine().isInState(FLEE)) {
+                    entity.flee();
+                }
+                return;
+            }
             if (entity.isStateTimeExceeded() && !entity.shouldFleeOrAttack()) {
                 entity.getStateMachine().changeState(IDLE);
             }
@@ -789,6 +811,13 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void update(ICreatureController entity) {
+
+
+            // A worker weighs withdrawing during its own swing too
+            if (entity.getCreature().getFightStyle() == Creature.FightStyle.NON_FIGHTER
+                    && entity.shouldFleeOrAttack() && entity.getStateMachine().isInState(FLEE)) {
+                return;
+            }
 
             // The swing lasts until both the animation is over and the hit has landed
             entity.releaseMeleeHit();
