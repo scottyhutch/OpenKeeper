@@ -27,9 +27,13 @@ import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.GamblingAfterPay;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.task.ITaskManager;
+import toniarts.openkeeper.game.task.Task;
+import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.CasinoVariableFixtures;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Player;
@@ -38,6 +42,7 @@ import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -50,6 +55,7 @@ class CreatureGamblingTest {
     private final EntityData entityData = new DefaultEntityData();
     private final Map<MiscType, MiscVariable> gameSettings = new EnumMap<>(MiscType.class);
     private int drinkAssignments = 0;
+    private final Map<Object, TaskType> taskTypes = new java.util.HashMap<>();
 
     @Test
     void creatureWithMoreGoldThanTheStakeGoesGambling() {
@@ -80,6 +86,37 @@ class CreatureGamblingTest {
     }
 
     @Test
+    void creatureThatTookItsPayLeavesTrainingToGamble() {
+        ICreatureController creature = creature(Player.KEEPER1_ID, false, 500);
+        onTask(creature, TaskType.TRAIN);
+        entityData.setComponent(creature.getEntityId(), new GamblingAfterPay());
+
+        assertTrue(creature.goGamblingAfterPay());
+        assertEquals(1, drinkAssignments);
+        assertNull(entityData.getComponent(creature.getEntityId(), GamblingAfterPay.class));
+    }
+
+    @Test
+    void creatureThatTookItsPayKeepsToWorkItHasToSeeThrough() {
+        ICreatureController creature = creature(Player.KEEPER1_ID, false, 500);
+        onTask(creature, TaskType.GO_TO_SLEEP);
+        entityData.setComponent(creature.getEntityId(), new GamblingAfterPay());
+
+        assertFalse(creature.goGamblingAfterPay());
+        assertEquals(0, drinkAssignments);
+        assertNull(entityData.getComponent(creature.getEntityId(), GamblingAfterPay.class));
+    }
+
+    @Test
+    void creatureThatDidNotTakePayDoesNotGambleFromItsTask() {
+        ICreatureController creature = creature(Player.KEEPER1_ID, false, 500);
+        onTask(creature, TaskType.TRAIN);
+
+        assertFalse(creature.goGamblingAfterPay());
+        assertEquals(0, drinkAssignments);
+    }
+
+    @Test
     void idleCreatureThatWantsToGambleStartsWorking() {
         AtomicReference<CreatureState> currentState = new AtomicReference<>(CreatureState.IDLE);
         StateMachine<ICreatureController, CreatureState> stateMachine = (StateMachine<ICreatureController, CreatureState>) Proxy.newProxyInstance(
@@ -101,6 +138,11 @@ class CreatureGamblingTest {
         assertEquals(CreatureState.WORK, currentState.get());
     }
 
+    private void onTask(ICreatureController creature, TaskType type) {
+        taskTypes.put(1L, type);
+        entityData.setComponent(creature.getEntityId(), new TaskComponent(1, null, null, type, 0.0f, false));
+    }
+
     private ICreatureController creature(short owner, boolean worker, int gold) {
         gameSettings.put(MiscType.GAMBLING_MODIFY_CREATURE_MONEY_MONEY_PER_SECOND,
                 CasinoVariableFixtures.miscVariable(MiscType.GAMBLING_MODIFY_CREATURE_MONEY_MONEY_PER_SECOND, -8));
@@ -110,6 +152,9 @@ class CreatureGamblingTest {
         entityData.setComponents(id, creatureComponent, new Owner(owner, owner), new Gold(gold, 1000));
         ITaskManager taskManager = (ITaskManager) Proxy.newProxyInstance(
                 ITaskManager.class.getClassLoader(), new Class<?>[]{ITaskManager.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("getTaskById")) {
+                        return Proxy.newProxyInstance(Task.class.getClassLoader(), new Class<?>[]{Task.class}, (p, m, a) -> m.getName().equals("getTaskType") ? taskTypes.get(args[0]) : null);
+                    }
                     if (method.getName().equals("assignTask") && args[1] == Creature.JobType.DRINK) {
                         drinkAssignments++;
                         return true;
