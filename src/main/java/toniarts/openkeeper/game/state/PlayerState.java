@@ -448,7 +448,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         GameResult result = gameResult != null ? gameResult : new GameResult();
         stateManager.getState(GameClientState.class).detach();
         stateManager.detach(this);
-        stateManager.getState(MainMenuState.class).doDebriefing(result, kwdFile, campaignLevel != null);
+        stateManager.getState(MainMenuState.class).doDebriefing(result, kwdFile, campaignLevel);
     }
 
     public void quitToOS() {
