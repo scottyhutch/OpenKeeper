@@ -386,6 +386,17 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         return previous > 0f && current <= 0f;
     }
 
+    /**
+     * Tells if the Horned Reaper should be sent for the Portal Gem
+     *
+     * @param campaign whether this is a campaign level
+     * @param result the game result, {@code null} while the game goes on
+     * @return true if a campaign level has been won
+     */
+    static boolean isReaperDue(boolean campaign, GameResult result) {
+        return campaign && result != null && Boolean.TRUE.equals(result.getData(GameResult.ResultType.LEVEL_WON));
+    }
+
     @Override
     public void endGame(short playerId, boolean win) {
 
