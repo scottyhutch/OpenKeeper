@@ -29,6 +29,7 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreaturePay;
+import toniarts.openkeeper.game.component.GamblingAfterPay;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.controller.IGameWorldController;
@@ -43,6 +44,7 @@ import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class PayDaySystemTest {
@@ -97,6 +99,22 @@ class PayDaySystemTest {
         assertEquals(WAGE / 2, gold(goblin));
         assertNull(entityData.getComponent(goblin, CreaturePay.class));
         assertEquals(1, keeperStats.getPayDays());
+    }
+
+    @Test
+    void aCreatureThatTookPayWishesToGamble() {
+        EntityId goblin = addCreature(KEEPER, GOBLIN, WAGE, false);
+        EntityId imp = addCreature(KEEPER, IMP, WAGE, true);
+        treasury = 0;
+
+        tick(0);
+        tick(FIRST_PAY_DAY);
+        assertNull(entityData.getComponent(goblin, GamblingAfterPay.class));
+
+        treasury = 1000;
+        tick(FIRST_PAY_DAY + REEVALUATION);
+        assertNotNull(entityData.getComponent(goblin, GamblingAfterPay.class));
+        assertNull(entityData.getComponent(imp, GamblingAfterPay.class));
     }
 
     @Test
