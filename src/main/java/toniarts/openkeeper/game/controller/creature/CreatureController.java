@@ -1124,7 +1124,7 @@ public final class CreatureController extends EntityController implements ICreat
                     && !(isFleeing(entity) && isBackingOff() && !isWithinAttackDistance(entity))
                     && hasRoomForAttacker(entity)
                     && !(fightersOnly && creaturesController.createController(entity).isWorker())
-                    && (hasPathToEntity(entity) || isWithinAttackDistance(entity))) {
+                    && isNoticed(entity)) {
                 float distance = getDistanceToCreature(entity);
                 if (distance < nearestDistance) {
                     nearestDistance = distance;
@@ -1257,6 +1257,49 @@ public final class CreatureController extends EntityController implements ICreat
     private boolean isAtTopCombatPitLevel(EntityId entity) {
         CreatureExperience creatureExperience = entityData.getComponent(entity, CreatureExperience.class);
         return creatureExperience != null && creatureExperience.level >= (int) gameSettings.get(Variable.MiscVariable.MiscType.COMBAT_PIT_MAX_EXPERIENCE_LEVEL).getValue();
+    }
+
+    /**
+     * Whether we notice the enemy. DK II sees an enemy nearer than the sight
+     * distance with no solid tile in between, and hears one nearer than the
+     * hearing distance when the walk there is shorter than that too
+     * (0x45B140, 0x45BAD0, 0x45B500). An enemy further away is left alone,
+     * even one we could walk to.
+     */
+    private boolean isNoticed(EntityId entity) {
+        Senses senses = entityData.getComponent(entityId, Senses.class);
+        if (senses == null) {
+            return true; // Only the position lookup limits what it notices
+        }
+        Vector3f ourPosition = getPosition();
+        Vector3f theirPosition = getPosition(entityData, entity);
+        if (ourPosition == null || theirPosition == null) {
+            return false;
+        }
+        float distance = ourPosition.distance(theirPosition) / WorldUtils.TILE_WIDTH;
+        if (distance < senses.distanceCanSee && hasLineOfSight(ourPosition, theirPosition)) {
+            return true;
+        }
+        if (distance >= senses.distanceCanHear) {
+            return false;
+        }
+
+        // The walk is measured like DK II does it, a diagonal step counts one and a half
+        Point ourPos = WorldUtils.vectorToPoint(ourPosition);
+        Point theirPos = WorldUtils.vectorToPoint(theirPosition);
+        GraphPath<IMapTileInformation> path = ourPos.equals(theirPos) ? null : navigationService.findPath(ourPos, theirPos, this);
+        if (path == null) {
+            return ourPos.equals(theirPos);
+        }
+        float walk = 0;
+        Point previous = ourPos;
+        for (IMapTileInformation tile : path) {
+            int dx = Math.abs(tile.getX() - previous.x);
+            int dy = Math.abs(tile.getY() - previous.y);
+            walk += Math.max(dx, dy) + Math.min(dx, dy) / 2f;
+            previous = tile.getLocation();
+        }
+        return walk < senses.distanceCanHear;
     }
 
     private boolean hasPathToEntity(EntityId entity) {
