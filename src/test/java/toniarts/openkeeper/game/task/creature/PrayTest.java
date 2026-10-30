@@ -30,6 +30,7 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.player.PlayerManaControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.tools.convert.map.TempleFixtures;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
@@ -153,6 +154,8 @@ class PrayTest {
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];
                     case "toString" -> "temple";
+                    case "getObjectControl" -> Proxy.newProxyInstance(IRoomObjectControl.class.getClassLoader(),
+                            new Class<?>[]{IRoomObjectControl.class}, (p, m, a) -> null);
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
     }

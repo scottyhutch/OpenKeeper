@@ -870,7 +870,9 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             if (taskPoints != null) {
                 List<Point> freeCoordinates = new ArrayList<>(coordinates);
                 freeCoordinates.removeAll(taskPoints.values());
-                if (!freeCoordinates.isEmpty() || taskPoints.size() + control.getCurrentCapacity() >= control.getMaxCapacity()) {
+                // The creatures that have a task are counted in the capacity of a room they occupy
+                int tasks = objectType.isOccupiedByCreatures() ? 0 : taskPoints.size();
+                if (!freeCoordinates.isEmpty() || tasks + control.getCurrentCapacity() >= control.getMaxCapacity()) {
                     coordinates = freeCoordinates;
                 }
             }
