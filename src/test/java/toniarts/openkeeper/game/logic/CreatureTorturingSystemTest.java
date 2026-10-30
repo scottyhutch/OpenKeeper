@@ -33,7 +33,9 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.CreatureViewState;
+import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.Death;
+import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
@@ -127,7 +129,7 @@ class CreatureTorturingSystemTest {
                         }
                         default -> throw new UnsupportedOperationException(method.getName());
                     });
-    private CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, lastChoice);
+    private CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 0, lastChoice);
 
     @Test
     void enemyTorturedToDeathRevealsOneOfItsKeepersRooms() {
@@ -149,7 +151,7 @@ class CreatureTorturingSystemTest {
     void victimTellsWhatTheKeeperDoesNotKnowYet() {
 
         // An artisan has two things to tell about its keeper, every victim one more thing
-        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, firstChoice);
+        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 0, firstChoice);
         torturedToDeath(HERO_ID);
         torturedToDeath(HERO_ID);
         torturedToDeath(HERO_ID);
@@ -164,7 +166,7 @@ class CreatureTorturingSystemTest {
         torturedToDeath(HERO_ID);
 
         // A loaded game starts with a new system on the same entities
-        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, lastChoice);
+        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 0, lastChoice);
         torturedToDeath(HERO_ID);
 
         assertEquals(List.of(heroGate.getCoordinates(), heroLair.getCoordinates()), revealed);
@@ -244,6 +246,21 @@ class CreatureTorturingSystemTest {
 
         assertEquals(KEEPER_ID, converted.get(victim));
         assertEquals(List.of(victim), leftDevice);
+    }
+
+    @Test
+    void victimDiesInsteadOfJoiningByTheLevelsChanceOfDying() {
+        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 100, lastChoice);
+        EntityId victim = victim(HERO_ID, 2);
+        entityData.setComponent(victim, new Health(300, 1000));
+
+        tick(3);
+
+        assertTrue(converted.isEmpty());
+        assertEquals(300, entityData.getComponent(victim, Damage.class).damage);
+
+        // The torture starts over, the health system lets the victim die
+        assertTrue(entityData.getComponent(victim, CreatureTortured.class).timeTortured < 2);
     }
 
     @Test

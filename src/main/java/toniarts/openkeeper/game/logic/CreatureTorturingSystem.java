@@ -33,6 +33,7 @@ import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Death;
+import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.KeeperInformation;
 import toniarts.openkeeper.game.component.ObjectComponent;
@@ -42,6 +43,7 @@ import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
+import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.event.GameEvent;
@@ -53,7 +55,8 @@ import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
 /**
- * Handles creatures torturing. When enough... persuasion has been received... join the player army
+ * Handles creatures torturing. When enough... persuasion has been received... join the player army. Or
+ * die, by the level's chance of dying when converted.
  *
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
@@ -78,18 +81,21 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
     private final IMapController mapController;
     private final Map<Short, IPlayerController> playerControllers;
     private final GameEventService gameEventService;
+    private final int chanceOfDyingWhenConverted;
     private final EntitySet torturedEntities;
     private final EntitySet keeperInformation;
     private final Random random;
     private final Map<EntityId, IRoomController> chambersByVictim = new HashMap<>();
 
     public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController,
-            Map<Short, IPlayerController> playerControllers, GameEventService gameEventService) {
-        this(entityData, creaturesController, mapController, playerControllers, gameEventService, new Random());
+            Map<Short, IPlayerController> playerControllers, GameEventService gameEventService, int chanceOfDyingWhenConverted) {
+        this(entityData, creaturesController, mapController, playerControllers, gameEventService, chanceOfDyingWhenConverted, new Random());
     }
 
     CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController,
-            Map<Short, IPlayerController> playerControllers, GameEventService gameEventService, Random random) {
+            Map<Short, IPlayerController> playerControllers, GameEventService gameEventService, int chanceOfDyingWhenConverted,
+            Random random) {
+        this.chanceOfDyingWhenConverted = chanceOfDyingWhenConverted;
         this.playerControllers = playerControllers;
         this.random = random;
         this.entityData = entityData;
@@ -133,6 +139,16 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
 
             if (creatureTortured.timeTortured + tpf >= creatureComponent.tortureTimeToConvert) {
                 if (owner.ownerId != playerId) {
+
+                    // Some die instead, the torture starts over for them until death comes
+                    if (chanceOfDyingWhenConverted > 0 && random.nextInt(100) < chanceOfDyingWhenConverted) {
+                        Health health = entityData.getComponent(entity.getId(), Health.class);
+                        if (health != null) {
+                            EntityController.setDamage(entityData, entity.getId(), health.health);
+                        }
+                        entity.set(new CreatureTortured(0, timeElapsed, creatureTortured.healthCheckTime, creatureTortured.device));
+                        continue;
+                    }
 
                     // Convert!
                     entityData.removeComponent(entity.getId(), CreatureTortured.class);
