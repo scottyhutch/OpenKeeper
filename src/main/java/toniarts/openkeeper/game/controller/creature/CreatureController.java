@@ -27,6 +27,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.filter.FieldFilter;
 import toniarts.openkeeper.game.component.Attack;
+import toniarts.openkeeper.game.HeroLog;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.BackOff;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
@@ -985,6 +986,7 @@ public final class CreatureController extends EntityController implements ICreat
             }
         }
         if (picked) {
+            heroLogTarget(target);
             entityData.setComponent(entityId, new AttackTarget(target, gameTimer.getGameTime(), getCreatureCoordinates(), chaseStartTime));
         } else if (Double.compare(chaseStartTime, attackTarget.chaseStartTime) != 0) {
             entityData.setComponent(entityId, new AttackTarget(target, attackTarget.time, attackTarget.tile, chaseStartTime));
@@ -992,6 +994,30 @@ public final class CreatureController extends EntityController implements ICreat
 
         return DungeonHeartTarget.isDungeonHeart(entityData, target) ? objectsController.createController(target)
                 : creaturesController.createController(target);
+    }
+
+    /**
+     * DEBUG: a hero picks a keeper owned target, logged on the first one and
+     * whenever the target's owner changes
+     */
+    private void heroLogTarget(EntityId target) {
+        if (getOwnerId() != Player.GOOD_PLAYER_ID) {
+            return;
+        }
+        Owner owner = entityData.getComponent(target, Owner.class);
+        if (owner == null || owner.ownerId < Player.KEEPER1_ID) {
+            return;
+        }
+        boolean heart = DungeonHeartTarget.isDungeonHeart(entityData, target);
+        CreatureComponent cc = entityData.getComponent(target, CreatureComponent.class);
+        Vector3f from = getPosition();
+        Vector3f to = EntityController.getPosition(entityData, target);
+        float tiles = from != null && to != null ? from.distance(to) / WorldUtils.TILE_WIDTH : -1;
+        toniarts.openkeeper.game.HeroLog.logChange("target" + entityId.getId(), String.valueOf(owner.ownerId),
+                String.format("HERO_TARGET hero=%d creatureId=%d target=%s id=%d owner=%d heroPos=%s targetPos=%s dist=%.1f tiles",
+                        entityId.getId(), entityData.getComponent(entityId, CreatureComponent.class).creatureId,
+                        heart ? "DUNGEON_HEART" : cc != null ? "creature" + cc.creatureId : "object", target.getId(), owner.ownerId,
+                        from, to, tiles));
     }
 
     private boolean isTargetToKeep(EntityId target) {

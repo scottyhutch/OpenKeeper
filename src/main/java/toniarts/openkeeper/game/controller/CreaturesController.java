@@ -78,6 +78,7 @@ import toniarts.openkeeper.utils.WorldUtils;
 
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import toniarts.openkeeper.game.HeroLog;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -305,6 +306,11 @@ public final class CreaturesController implements ICreaturesController {
 
     private EntityId loadCreature(EntityId entity, Creature creature, String name, String bloodType, Integer healthPercentage, int money, int level, SpawnType spawnType, float x, float y, short ownerId, float rotation, Thing.HeroParty.Objective objective, short objectiveTargetPlayerId, int objectiveTargetActionPointId, Integer triggerId, boolean diesInstantly) {
         short creatureId = creature.getId();
+        if (ownerId == toniarts.openkeeper.tools.convert.map.Player.GOOD_PLAYER_ID) {
+            HeroLog.log("HERO_CREATED id=" + entity.getId() + " creatureId=" + creatureId + " level=" + level + " at "
+                    + x + "," + y + " objective=" + objective + " targetPlayer=" + objectiveTargetPlayerId
+                    + " targetAP=" + objectiveTargetActionPointId + " trigger=" + triggerId);
+        }
 
         // Create health, unless dead body
         Health healthComponent = healthPercentage != null ? new Health(healthPercentage, 100) : null;
@@ -698,6 +704,8 @@ public final class CreaturesController implements ICreaturesController {
             entityData.setComponent(entityId, new Party(partyController.getId()));
 
             partyController.addMemberInstance(creature, createController(entityId));
+            HeroLog.log("HERO_PARTY_MEMBER party=" + partyId + " id=" + entityId.getId() + " creatureId=" + creature.getCreatureId()
+                    + " level=" + creature.getLevel());
         }
         creaturePartiesByPartyId.put(partyId, partyController);
 

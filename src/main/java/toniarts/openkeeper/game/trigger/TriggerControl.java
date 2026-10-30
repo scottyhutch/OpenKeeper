@@ -21,6 +21,7 @@ import java.lang.System.Logger.Level;
 import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.Set;
+import toniarts.openkeeper.game.HeroLog;
 import toniarts.openkeeper.game.control.Control;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameController;
@@ -126,6 +127,7 @@ public class TriggerControl extends Control {
         if (!isArmed()) {
             return;
         }
+        HeroLog.time = gameTimer.getGameTime();
         pollEvents();
         walk(root, getRootRepeat());
     }
@@ -152,11 +154,20 @@ public class TriggerControl extends Control {
             }
 
             if (node instanceof TriggerGenericData condition) {
-                if (isActive(condition)) {
+                boolean active = isActive(condition);
+                if (active) {
+                    heroLogTrigger(condition, "walk");
                     walk(condition, condition.getRepeatTimes());
+                } else {
+                    HeroLog.setState("cond" + System.identityHashCode(this) + "_" + condition.getId(), "off");
                 }
             } else if (node instanceof TriggerActionData action) {
-                if (doAction(action) && repeat == 1) {
+                boolean handled = doAction(action);
+                if (handled) {
+                    HeroLog.logThrottled("act" + System.identityHashCode(this) + "_" + action.getId(), 30,
+                            "ACTION #" + action.getId() + " " + action.getType() + " tree=" + getClass().getSimpleName());
+                }
+                if (handled && repeat == 1) {
                     action.setEnabled(false);
                 }
             }
@@ -182,9 +193,32 @@ public class TriggerControl extends Control {
                 break;
             }
             if (condition.getType() == type && condition.isEnabled() && eventMatches(condition, arg1, arg2)) {
+                heroLogTrigger(condition, "event");
                 walk(condition, condition.getRepeatTimes());
             }
         }
+    }
+
+    /**
+     * DEBUG: log a condition that has become true (or an event), with the
+     * types of the actions directly under it
+     */
+    private void heroLogTrigger(TriggerGenericData condition, String how) {
+        String key = "cond" + System.identityHashCode(this) + "_" + condition.getId();
+        if (how.equals("walk") && "on".equals(HeroLog.state(key))) {
+            return;
+        }
+        HeroLog.setState(key, "on");
+        StringBuilder sb = new StringBuilder("TRIGGER #").append(condition.getId()).append(' ').append(condition.getType())
+                .append(' ').append(how).append(" tree=").append(getClass().getSimpleName()).append(" actions=[");
+        for (TriggerData child : condition.getChildren().getArray()) {
+            if (child instanceof TriggerActionData a) {
+                sb.append(a.getType()).append(a.isEnabled() ? "" : "(off)").append(' ');
+            } else if (child instanceof TriggerGenericData g) {
+                sb.append("cond:").append(g.getType()).append(' ');
+            }
+        }
+        HeroLog.log(sb.append(']').toString());
     }
 
     protected final void fire(TriggerGeneric.TargetType type) {
@@ -400,6 +434,7 @@ public class TriggerControl extends Control {
 
             case INITIALIZE_TIMER:
                 GameTimer timer = getTimer(trigger.getUserData("timerId", short.class));
+                HeroLog.log("TIMER start id=" + trigger.getUserData("timerId", short.class) + " trigger #" + trigger.getId());
                 if (timer != null) {
                     timer.initialize();
                 }
@@ -521,6 +556,8 @@ public class TriggerControl extends Control {
         EnumSet<Creature.CreatureFlag> flags = ConversionUtils.parseFlagValue(trigger.getUserData("flag", short.class), Creature.CreatureFlag.class);
         Point p = new Point(trigger.getUserData("posX", int.class),
                 trigger.getUserData("posY", int.class));
+        HeroLog.log("TRIGGER_CREATURE trigger #" + trigger.getId() + " creatureId=" + creatureId + " player=" + playerId
+                + " level=" + level + " at " + p.x + "," + p.y);
         // STUB: the creature flags (will fight, dies instantly, will be attacked, return to
         // lair, free friends on jailbreak, act as dropped, start dying). ICreaturesController
         // hands back only an entity ID and the creature controller has no setters for these
@@ -671,7 +708,11 @@ public class TriggerControl extends Control {
         } else if (flagId >= 0 && flagId < FLAG_COUNT) {
 
             // The flags are bytes, the arithmetic wraps around
-            levelInfo.setFlag(flagId, getTargetValue(levelInfo.getFlag(flagId), value, flagType) & 0xFF);
+            int oldFlag = levelInfo.getFlag(flagId);
+            levelInfo.setFlag(flagId, getTargetValue(oldFlag, value, flagType) & 0xFF);
+            if (levelInfo.getFlag(flagId) != oldFlag) {
+                HeroLog.log("FLAG " + flagId + " " + oldFlag + " -> " + levelInfo.getFlag(flagId) + " trigger #" + trigger.getId());
+            }
         }
     }
 
@@ -686,6 +727,8 @@ public class TriggerControl extends Control {
         if (partyType != PartyType.NONE && isPartyOut(partyId)) {
             return;
         }
+        HeroLog.log("HERO_PARTY trigger #" + trigger.getId() + " party=" + partyId + " type=" + partyType
+                + " actionPoint=" + trigger.getUserData("actionPointId", short.class));
         creaturesController.spawnHeroParty(partyId, partyType, WorldUtils.ActionPointToVector2f(ap));
     }
 

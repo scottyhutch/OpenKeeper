@@ -1012,6 +1012,9 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     @Override
     public boolean assignObjectiveTask(ICreatureController creature, Thing.HeroParty.Objective objective) {
         AbstractObjectiveTask task = null;
+        String heroState = objective + " player=" + creature.getObjectiveTargetPlayerId() + " ap=" + creature.getObjectiveTargetActionPointId();
+        toniarts.openkeeper.game.HeroLog.logChange("objective" + creature.getEntityId().getId(), heroState,
+                "OBJECTIVE hero=" + creature.getEntityId().getId() + " " + heroState);
         switch (objective) {
             case SEND_TO_ACTION_POINT: {
 
