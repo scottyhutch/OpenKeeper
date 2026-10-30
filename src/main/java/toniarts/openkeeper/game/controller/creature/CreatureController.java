@@ -793,11 +793,11 @@ public final class CreatureController extends EntityController implements ICreat
             return 0;
         }
 
-        // Only creatures take the bonus for a hit from behind, doors and objects are hit as they are (0x498E30)
+        // Only creatures take the bonus for where the attacker stands, doors and objects are hit as they are (0x498E30)
         Position targetPosition = entityData.getComponent(attackTarget, Position.class);
         Vector3f ourPosition = getPosition();
         if (targetCreature != null && targetPosition != null && ourPosition != null) {
-            damage = CombatRules.addRearAttackBonus(damage, ourPosition, targetPosition.position, targetPosition.rotation);
+            damage = CombatRules.addRearAttackBonus(damage, ourPosition, targetPosition.position);
         }
 
         return CombatRules.getDamageTaken(damage, entityData.getComponent(attackTarget, Possessed.class) != null);

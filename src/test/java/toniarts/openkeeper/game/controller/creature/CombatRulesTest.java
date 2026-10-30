@@ -31,34 +31,27 @@ class CombatRulesTest {
     private static final Vector3f TARGET = new Vector3f(5, 0, 5);
 
     @Test
-    void hitFromTheFrontGetsNoBonus() {
-        assertEquals(100, CombatRules.addRearAttackBonus(100, new Vector3f(5, 0, 6), TARGET, 0));
+    void attackerNorthOfTheTargetGetsNoBonus() {
+        assertEquals(100, CombatRules.addRearAttackBonus(100, new Vector3f(5, 0, 4), TARGET));
     }
 
     @Test
-    void hitFromBehindGetsTheBiggestBonus() {
-        assertEquals(151, CombatRules.addRearAttackBonus(100, new Vector3f(5, 0, 4), TARGET, 0));
+    void attackerSouthOfTheTargetGetsTheBiggestBonus() {
+        assertEquals(151, CombatRules.addRearAttackBonus(100, new Vector3f(5, 0, 6), TARGET));
     }
 
     @Test
-    void hitFromTheSideGetsAQuarterMore() {
-        assertEquals(125, CombatRules.addRearAttackBonus(100, new Vector3f(6, 0, 5), TARGET, 0));
+    void attackerEastOrWestOfTheTargetGetsAQuarterMore() {
+        assertEquals(125, CombatRules.addRearAttackBonus(100, new Vector3f(6, 0, 5), TARGET));
+        assertEquals(125, CombatRules.addRearAttackBonus(100, new Vector3f(4, 0, 5), TARGET));
     }
 
     @Test
-    void bonusFollowsTheTargetsFacing() {
-
-        // Target turned to face +x, so the attacker at -x is behind it
-        assertEquals(151, CombatRules.addRearAttackBonus(100, new Vector3f(4, 0, 5), TARGET, FastMath.HALF_PI));
-        assertEquals(100, CombatRules.addRearAttackBonus(100, new Vector3f(6, 0, 5), TARGET, FastMath.HALF_PI));
-    }
-
-    @Test
-    void smallAngleOffTheFrontGetsNoBonus() {
+    void smallAngleOffNorthGetsNoBonus() {
         float angle = 50 * FastMath.DEG_TO_RAD;
-        Vector3f attacker = new Vector3f(5 + FastMath.sin(angle), 0, 5 + FastMath.cos(angle));
+        Vector3f attacker = new Vector3f(5 + FastMath.sin(angle), 0, 5 - FastMath.cos(angle));
 
-        assertEquals(100, CombatRules.addRearAttackBonus(100, attacker, TARGET, 0));
+        assertEquals(100, CombatRules.addRearAttackBonus(100, attacker, TARGET));
     }
 
     @Test
