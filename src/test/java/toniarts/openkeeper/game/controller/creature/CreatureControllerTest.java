@@ -730,19 +730,20 @@ class CreatureControllerTest {
     }
 
     @Test
-    void swingLastsItsStartAndEndAnimationsToo() {
+    void swingPlaysEachAnimationPartOverWholeTurns() {
         Creature definition = CreatureSleepFixtures.sleeper(9);
 
-        // A Goblin's swing: 15 + 28 + 15 frames at 30 fps
+        // A Goblin's swing: 15 + 28 + 15 frames at 30 fps take 3 + 5 + 3 turns at 4 turns a second, so the creature
+        // is back in FIGHT on turn 10 and swings again on turn 11, as a Goblin does in DK II
         CreatureSleepFixtures.setSwing(definition, 28, 30, 15, 15);
         try (Fixture f = new Fixture(definition)) {
             f.controller.executeAttack(f.meleeTarget());
 
-            f.time = 1.75;
+            f.time = 2.25;
             f.controller.getStateMachine().update();
             assertEquals(CreatureState.MELEE_ATTACK, f.state());
 
-            f.time = 2;
+            f.time = 2.5;
             f.controller.getStateMachine().update();
             assertEquals(CreatureState.FIGHT, f.state());
         }
