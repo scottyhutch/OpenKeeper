@@ -2347,7 +2347,9 @@ public final class CreatureController extends EntityController implements ICreat
     public boolean goGambling() {
 
         // As in the original (0x4560F0), the wish only depends on the gold held, the stake is the money mode one
-        return !isWorker() && getOwnerId() >= Player.KEEPER1_ID && getGold() > Math.abs(
+        // The big winner has stopped gambling (the Gamble task is not valid for it), so it doesn't wish for it
+        return !isWorker() && getOwnerId() >= Player.KEEPER1_ID
+                && entityData.getComponent(entityId, CasinoBigWinner.class) == null && getGold() > Math.abs(
                 gameSettings.get(Variable.MiscVariable.MiscType.GAMBLING_MODIFY_CREATURE_MONEY_MONEY_PER_SECOND).getValue())
                 && taskManager.assignTask(this, Creature.JobType.DRINK);
     }
