@@ -51,10 +51,14 @@ import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.console.ConsoleState;
 import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.ObjectComponent;
+import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.TrapComponent;
+import toniarts.openkeeper.game.controller.DoorPlacementValidator;
 import toniarts.openkeeper.game.controller.KeeperSpellCastValidator;
 import toniarts.openkeeper.game.controller.RoomPlacementValidator;
+import toniarts.openkeeper.game.controller.TrapPlacementValidator;
+import toniarts.openkeeper.game.controller.TrapSellRules;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -64,6 +68,7 @@ import toniarts.openkeeper.game.state.GameClientState;
 import toniarts.openkeeper.game.state.PlayerScreenController;
 import toniarts.openkeeper.game.state.PlayerState;
 import toniarts.openkeeper.gui.CursorFactory;
+import toniarts.openkeeper.gui.nifty.MapHoverHint;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
@@ -80,6 +85,7 @@ import toniarts.openkeeper.view.fogofwar.IFogOfWarInformation;
 import toniarts.openkeeper.view.lighting.LightConstants;
 import toniarts.openkeeper.view.lighting.LightRules;
 import toniarts.openkeeper.view.selection.SelectionArea;
+import toniarts.openkeeper.view.map.TerrainDeformer;
 import toniarts.openkeeper.view.selection.SelectionHandler;
 import toniarts.openkeeper.view.text.TextParser;
 
@@ -107,12 +113,16 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
     private final EntitySet constructionBlockingObjects;
     private final EntitySet constructionBlockingDoors;
     private final EntitySet constructionBlockingTraps;
+    private final ConstructionBlockingTiles constructionBlockingTiles = new ConstructionBlockingTiles();
     private final IMapInformation mapInformation;
     private final TextParser textParser;
     private SelectionHandler selectionHandler;
+    private CursorIcon cursorIcon;
+    private CursorIcon.Price cursorPrice;
     private final Vector2f mousePosition = new Vector2f(Vector2f.ZERO);
     private final InteractionState interactionState = new InteractionState();
     private float timeFromLastUpdate = CURSOR_UPDATE_INTERVAL;
+    private boolean refreshCursor;
     private Element view;
 
     private boolean isOnGui = false;
@@ -132,6 +142,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
     private final Set<Integer> keys = new HashSet<>();
     private IEntityViewControl interactiveControl;
     private Label tooltip;
+    private MapHoverHint fogHint;
     private KeeperHandState keeperHandState;
     private PlayerEntityViewState playerEntityViewState;
 
@@ -141,8 +152,11 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         this.kwdFile = kwdFile;
         this.entityData = entityData;
         constructionBlockingObjects = entityData.getEntities(ObjectComponent.class, Position.class);
-        constructionBlockingDoors = entityData.getEntities(DoorComponent.class, Position.class);
-        constructionBlockingTraps = entityData.getEntities(TrapComponent.class, Position.class);
+        constructionBlockingDoors = entityData.getEntities(DoorComponent.class, Position.class, Owner.class);
+        constructionBlockingTraps = entityData.getEntities(TrapComponent.class, Position.class, Owner.class);
+        constructionBlockingTiles.addAll(constructionBlockingObjects, this::isConstructionBlockingObject);
+        constructionBlockingTiles.addAll(constructionBlockingDoors, entity -> true);
+        constructionBlockingTiles.addAll(constructionBlockingTraps, entity -> true);
         this.mapInformation = mapInformation;
         this.textParser = textParser;
 
@@ -162,6 +176,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         PlayerScreenController psc = this.stateManager.getState(PlayerState.class).getScreen();
         this.view = psc.getGuiConstraint();
         this.tooltip = psc.getTooltip();
+        fogHint = new MapHoverHint(view, Utils.getMainTextResourceBundle().getString("348"));
 
         // Init the keeper hand
         keeperHandState = new InteractionKeeperHandState();
@@ -169,6 +184,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
         // Init handler
         selectionHandler = new InteractionSelectionHandler();
+        cursorIcon = new CursorIcon(assetManager, this.app.getGuiNode(), this.app.getCamera());
 
         if (!gameClientState.isMultiplayer()) {
             this.stateManager.attach(new InteractionCheatState());
@@ -183,10 +199,14 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
     @Override
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
+        if (!enabled && fogHint != null) {
+            fogHint.clear();
+        }
 
         if (enabled && !inputListenerAdded) {
             app.getInputManager().addRawInputListener(inputListener);
             inputListenerAdded = true;
+            refreshCursor = true;
         } else if (!enabled && inputListenerAdded) {
             app.getInputManager().removeRawInputListener(inputListener);
             inputListenerAdded = false;
@@ -203,12 +223,14 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
     @Override
     public void cleanup() {
+        fogHint.clear();
         playerEntityViewState = null;
         this.stateManager.detach(keeperHandState);
         keeperHandState = null;
         app.getInputManager().removeRawInputListener(inputListener);
         keys.clear();
         selectionHandler.cleanup();
+        cursorIcon.cleanup();
         constructionBlockingObjects.release();
         constructionBlockingDoors.release();
         constructionBlockingTraps.release();
@@ -228,12 +250,20 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
             return;
         }
 
-        constructionBlockingObjects.applyChanges();
-        constructionBlockingDoors.applyChanges();
-        constructionBlockingTraps.applyChanges();
+        if (constructionBlockingObjects.applyChanges()) {
+            constructionBlockingTiles.applyChanges(constructionBlockingObjects, this::isConstructionBlockingObject);
+        }
+        if (constructionBlockingDoors.applyChanges()) {
+            constructionBlockingTiles.applyChanges(constructionBlockingDoors, entity -> true);
+        }
+        if (constructionBlockingTraps.applyChanges()) {
+            constructionBlockingTiles.applyChanges(constructionBlockingTraps, entity -> true);
+        }
 
         selectionHandler.update(mousePosition);
-        if (isOnMap && !isOnGui && !isTaggable) {
+        cursorIcon.update(mousePosition, interactionState.getType(), isOnMap && !isOnGui,
+                selectionHandler.getSelectionColor() != SelectionHandler.ColorIndicator.RED, cursorPrice);
+        if (isOnMap && !isOnGui && !isTaggable && !isPointedTileUnexplored()) {
             updateInteractiveObjectOnCursor();
         }
         updateCursorLight();
@@ -256,6 +286,12 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
             updateStateFlags();
             timeFromLastUpdate = 0;
         }
+        if (refreshCursor) {
+            updateStateFlags();
+            updateCursor();
+            refreshCursor = false;
+        }
+        fogHint.update(isPointedTileUnexplored(), tpf);
     }
 
     @Override
@@ -349,7 +385,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
     }
 
     private boolean isInteractable() {
-        if (isOnGui || !isOnMap || isTaggable) {
+        if (isOnGui || !isOnMap || isTaggable || isPointedTileUnexplored()) {
             setInteractiveControl(null);
         }
 
@@ -357,7 +393,13 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         if (interactiveControl != null) {
 
             // Maybe a kinda hack, but set the tooltip here
-            tooltip.setText(interactiveControl.getTooltip(player.getPlayerId()));
+            String text = interactiveControl.getTooltip(player.getPlayerId());
+            if (text == null) {
+
+                // No tooltip of its own (creature beds), show the one of the tile it stands on
+                text = getTileTooltip(WorldUtils.vectorToPoint(((AbstractControl) interactiveControl).getSpatial().getWorldTranslation()));
+            }
+            tooltip.setText(text);
             interactiveControl.onHover(player.getPlayerId());
         } else if (isOnMap) {
             p = selectionHandler.getPointedTileIndex();
@@ -375,6 +417,15 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         return interactiveControl != null
                 && (interactiveControl.isPickable(player.getPlayerId())
                 || interactiveControl.isInteractable(player.getPlayerId()));
+    }
+
+    private boolean isPointedTileUnexplored() {
+        if (isOnGui || !isOnMap) {
+            return false;
+        }
+        IFogOfWarInformation fog = gameClientState.getFogOfWarInformation();
+        Point p = selectionHandler.getPointedTileIndex();
+        return fog != null && mapInformation.getMapData().getTile(p) != null && !fog.isExplored(p);
     }
 
     private String getTileTooltip(Point p) {
@@ -401,9 +452,14 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
             return Utils.getMainTextResourceBundle().getString("2471");
         }
 
-        // Override dungeon heart JELLY text
+        // Override dungeon heart JELLY text and the portal text, DK II ignores the stored ids
         Room room = kwdFile.getRoomByTerrain(terrain.getTerrainId());
-        String bundleKey = kwdFile.getDungeonHeart() == room ? "2579" : Integer.toString(room.getTooltipStringId());
+        String bundleKey = Integer.toString(room.getTooltipStringId());
+        if (kwdFile.getDungeonHeart() == room) {
+            bundleKey = "2579";
+        } else if (kwdFile.getPortal() == room) {
+            bundleKey = "2790";
+        }
 
         return textParser.getRoomTextParser().parseText(Utils.getMainTextResourceBundle().getString(bundleKey),
                 tile.getRoomId(), gameClientState.getPlayer(tile.getOwnerId()));
@@ -635,6 +691,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
             timeFromLastUpdate = 0;
             updateStateFlags();
+            fogHint.update(isPointedTileUnexplored(), 0f);
             //updateCursor();
         }
 
@@ -669,9 +726,15 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
             if (interactionState.getType() == Type.SPELL) {
                 castSpell(kwdFile.getKeeperSpellById(interactionState.getItemId()), interactiveControl, selectionHandler.getPointedTileIndex(), selectionHandler.getActualPointedPosition());
             } else if (interactionState.getType() == Type.TRAP) {
-                //TODO put trap
+                Point p = selectionHandler.getPointedTileIndex();
+                if (isTrapPlacementValid(p)) {
+                    gameClientState.getGameClientService().placeTrap((short) interactionState.getItemId(), p);
+                }
             } else if (interactionState.getType() == Type.DOOR) {
-                //TODO put door
+                Point p = selectionHandler.getPointedTileIndex();
+                if (isDoorPlacementValid(p)) {
+                    gameClientState.getGameClientService().placeDoor((short) interactionState.getItemId(), p);
+                }
             } else if (interactionState.getType() == Type.NONE
                     && interactiveControl != null && !keeperHandState.isFull()
                     && interactiveControl.isPickable(player.getPlayerId())) {
@@ -718,13 +781,21 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
                 // until exploration reveals whether that's really true.
                 gameClientState.markPendingTaggedTiles(getRectPoints(selectionArea), select);
             } else if (interactionState.getType() == Type.ROOM
-                    && RoomPlacementValidator.validate(kwdFile, mapInformation, getConstructionBlockingTiles(),
+                    && RoomPlacementValidator.validate(kwdFile, mapInformation, constructionBlockingTiles,
                             selectionArea.getRealStart(), selectionArea.getRealEnd(), player.getPlayerId(),
                             (short) interactionState.getItemId(),
-                            gameClientState.getPlayer(player.getPlayerId()).getGold()).isValid()) {
+                            stateManager.getState(PlayerState.class).getGold()).isValid()) {
                 gameClientState.getGameClientService().build(selectionArea.getRealStart(), selectionArea.getRealEnd(), (short) interactionState.getItemId());
             } else if (interactionState.getType() == Type.SELL) {
-                gameClientState.getGameClientService().sell(selectionArea.getStart(), selectionArea.getEnd());
+
+                // Started on a trap or a door: sell just that one, it is never sold together with rooms
+                Point realStart = WorldUtils.vectorToPoint(selectionArea.getRealStart());
+                if (hasSellableTrap(realStart) || hasSellableDoor(realStart)) {
+                    Vector2f tile = WorldUtils.pointToVector2f(realStart);
+                    gameClientState.getGameClientService().sell(tile, tile);
+                } else {
+                    gameClientState.getGameClientService().sell(selectionArea.getStart(), selectionArea.getEnd());
+                }
             }
 
             selectionHandler.setActive(false);
@@ -793,11 +864,14 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         public void onKeyEvent(KeyInputEvent evt) {
             updateModifierKeys(evt);
 
-            if (evt.isPressed()) {
-                handleKeyPress(evt);
+            // Typing in the debug console mustn't work the keys, a "g" would hide the HUD
+            ConsoleState console = stateManager.getState(ConsoleState.class);
+            if (!evt.isPressed() || (console != null && console.isEnabled())) {
+                return;
             }
 
-            if (evt.isPressed() && evt.getKeyCode() == (int) Settings.Setting.TOGGLE_GUI.getDefaultValue()) {
+            handleKeyPress(evt);
+            if (evt.getKeyCode() == (int) Settings.Setting.TOGGLE_GUI.getDefaultValue()) {
                 stateManager.getState(PlayerState.class).getScreen().toggleGui();
             }
         }
@@ -875,15 +949,51 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
     }
 
     private boolean canCastSpell(KeeperSpell keeperSpell, IEntityViewControl object, Point tile) {
-        return KeeperSpellCastValidator.isValidCast(keeperSpell, kwdFile, mapInformation, mapInformation.getMapData().getTile(tile), gameClientState.getPlayer(), entityData, object != null ? object.getEntityId() : null);
+        int manaCost = stateManager.getState(PlayerState.class).getScreen().getSpellManaCost(keeperSpell);
+        return KeeperSpellCastValidator.isValidCast(keeperSpell, kwdFile, mapInformation, mapInformation.getMapData().getTile(tile), gameClientState.getPlayer(), entityData, object != null ? object.getEntityId() : null, manaCost);
     }
 
-    private Set<Point> getConstructionBlockingTiles() {
-        Set<Point> blockedTiles = new HashSet<>();
-        addConstructionBlockingTiles(blockedTiles, constructionBlockingObjects, this::isConstructionBlockingObject);
-        addConstructionBlockingTiles(blockedTiles, constructionBlockingDoors, entity -> true);
-        addConstructionBlockingTiles(blockedTiles, constructionBlockingTraps, entity -> true);
-        return blockedTiles;
+    private boolean isTrapPlacementValid(Point tile) {
+        Set<Point> occupiedTiles = new HashSet<>();
+        addConstructionBlockingTiles(occupiedTiles, constructionBlockingDoors, entity -> true);
+        addConstructionBlockingTiles(occupiedTiles, constructionBlockingTraps, entity -> true);
+        boolean hasWorkshop = gameClientState.getRoomsInformation()
+                .getRoomCount(player.getPlayerId(), TrapPlacementValidator.WORKSHOP_ROOM_ID) > 0;
+        return TrapPlacementValidator.validate(mapInformation, occupiedTiles, tile, player.getPlayerId(),
+                kwdFile.getTrapById(interactionState.getItemId()), hasWorkshop,
+                stateManager.getState(PlayerState.class).getGold()) == TrapPlacementValidator.Failure.NONE;
+    }
+
+    private boolean hasSellableTrap(Point tile) {
+        for (Entity trap : constructionBlockingTraps) {
+            if (TrapSellRules.isSellable(trap.get(Owner.class).ownerId, player.getPlayerId())
+                    && WorldUtils.vectorToPoint(trap.get(Position.class).position).equals(tile)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private boolean isDoorPlacementValid(Point tile) {
+        Set<Point> occupiedTiles = new HashSet<>();
+        addConstructionBlockingTiles(occupiedTiles, constructionBlockingDoors, entity -> true);
+        addConstructionBlockingTiles(occupiedTiles, constructionBlockingTraps, entity -> true);
+        return DoorPlacementValidator.validate(mapInformation, occupiedTiles, tile, player.getPlayerId(),
+                kwdFile.getDoorById(interactionState.getItemId()),
+                stateManager.getState(PlayerState.class).getGold()) == DoorPlacementValidator.Failure.NONE;
+    }
+
+    /**
+     * A keeper sells its own doors, built or blueprints
+     */
+    private boolean hasSellableDoor(Point tile) {
+        for (Entity door : constructionBlockingDoors) {
+            if (door.get(Owner.class).ownerId == player.getPlayerId()
+                    && WorldUtils.vectorToPoint(door.get(Position.class).position).equals(tile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     private boolean isConstructionBlockingObject(Entity entity) {
@@ -952,6 +1062,8 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
     private final class InteractionSelectionHandler extends SelectionHandler {
 
+        private long roomCost;
+
         private InteractionSelectionHandler() {
             super(app);
         }
@@ -970,6 +1082,12 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
                 case SELL, ROOM, DOOR, TRAP -> true;
                 default -> false;
             };
+        }
+
+        @Override
+        protected TerrainDeformer getDeformer() {
+            PlayerMapViewState mapViewState = stateManager.getState(PlayerMapViewState.class);
+            return mapViewState != null ? mapViewState.getTerrainDeformer() : null;
         }
 
         @Override
@@ -992,6 +1110,8 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
         @Override
         protected ColorIndicator getColorIndicator() {
+            roomCost = interactionState.getType() == Type.ROOM ? getRoomCost() : 0;
+            cursorPrice = getPrice();
             Point point = isActive()
                     ? WorldUtils.vectorToPoint(getSelectionArea().getRealStart())
                     : WorldUtils.vectorToPoint(getPointedTilePosition());
@@ -999,8 +1119,14 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
                 return getDropColor(point);
             }
             if (interactionState.getType() == Type.SELL) {
-                return gameClientState.getMapClientService().isSellable(point, player.getPlayerId())
+                return gameClientState.getMapClientService().isSellable(point, player.getPlayerId()) || hasSellableTrap(point) || hasSellableDoor(point)
                         ? ColorIndicator.BLUE : ColorIndicator.RED;
+            }
+            if (interactionState.getType() == Type.TRAP) {
+                return isTrapPlacementValid(point) ? ColorIndicator.BLUE : ColorIndicator.RED;
+            }
+            if (interactionState.getType() == Type.DOOR) {
+                return isDoorPlacementValid(point) ? ColorIndicator.BLUE : ColorIndicator.RED;
             }
             if (isInvalidRoomSelection(point)) {
                 return ColorIndicator.RED;
@@ -1025,12 +1151,70 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
                     && !isRoomSelectionValid();
         }
 
+        /**
+         * The room can be built if it has tiles to build on and the keeper can pay for them
+         */
         private boolean isRoomSelectionValid() {
+            return roomCost > 0 && roomCost <= stateManager.getState(PlayerState.class).getGold();
+        }
+
+        /**
+         * What the room selection costs, validated with any amount of gold so that the price shows even when the
+         * keeper can't afford it
+         *
+         * @return the cost, 0 if nothing can be built there
+         */
+        private long getRoomCost() {
             SelectionArea area = getSelectionArea();
-            return RoomPlacementValidator.validate(kwdFile, mapInformation, getConstructionBlockingTiles(),
-                    area.getRealStart(), area.getRealEnd(), player.getPlayerId(),
-                    (short) interactionState.getItemId(),
-                    gameClientState.getPlayer(player.getPlayerId()).getGold()).isValid();
+            RoomPlacementValidator.Result result = RoomPlacementValidator.validate(kwdFile, mapInformation,
+                    constructionBlockingTiles, area.getRealStart(), area.getRealEnd(), player.getPlayerId(),
+                    (short) interactionState.getItemId(), Integer.MAX_VALUE);
+            if (!result.isValid()) {
+                return 0;
+            }
+            return (long) result.plots().size() * kwdFile.getRoomById(interactionState.getItemId()).getCost();
+        }
+
+        /**
+         * The price the original shows next to the hand for the selection
+         *
+         * @return the price, {@code null} for none
+         */
+        private CursorIcon.Price getPrice() {
+            int gold = stateManager.getState(PlayerState.class).getGold();
+            return switch (interactionState.getType()) {
+                case ROOM ->
+                    CursorIcon.Price.cost(roomCost, gold);
+                case DOOR ->
+                    CursorIcon.Price.cost(kwdFile.getDoorById(interactionState.getItemId()).getGoldCost(), gold);
+                case TRAP ->
+                    CursorIcon.Price.cost(kwdFile.getTrapById(interactionState.getItemId()).getGoldCost(), gold);
+                case SELL ->
+                    CursorIcon.Price.sale(getSellValue());
+                default ->
+                    null;
+            };
+        }
+
+        /**
+         * What selling the own rooms in the selection gives back
+         *
+         * @return the gold
+         */
+        private int getSellValue() {
+            SelectionArea area = getSelectionArea();
+            float percentage = gameClientState.getLevelVariable(MiscType.ROOM_SELL_VALUE_PERCENTAGE_OF_COST);
+            int value = 0;
+            for (int x = (int) Math.min(area.getRealStart().x, area.getRealEnd().x); x <= (int) Math.max(area.getRealStart().x, area.getRealEnd().x); x++) {
+                for (int y = (int) Math.min(area.getRealStart().y, area.getRealEnd().y); y <= (int) Math.max(area.getRealStart().y, area.getRealEnd().y); y++) {
+                    Point point = new Point(x, y);
+                    if (gameClientState.getMapClientService().isSellable(point, player.getPlayerId())) {
+                        IMapTileInformation tile = gameClientState.getMapClientService().getMapData().getTile(point);
+                        value += (int) (kwdFile.getRoomByTerrain(tile.getTerrainId()).getCost() * (percentage / 100));
+                    }
+                }
+            }
+            return value;
         }
     }
 

@@ -42,6 +42,7 @@ import toniarts.openkeeper.game.component.Fearless;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Interaction;
+import toniarts.openkeeper.game.component.JailBreaker;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Objective;
@@ -63,7 +64,9 @@ import toniarts.openkeeper.game.controller.creature.PartyType;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.controller.room.storage.RoomTortureeControl;
 import toniarts.openkeeper.game.event.GameEventType;
+import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
@@ -78,6 +81,7 @@ import java.lang.System.Logger.Level;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -128,6 +132,11 @@ public final class CreaturesController implements ICreaturesController {
     private final static Set<Short> CREATURES_THAT_DIE_INSTANTLY = Set.of((short) 21, (short) 28, (short) 29);
 
     /**
+     * The Hero Lair terrain, the Hero Toolbox creatures stand on it
+     */
+    private final static short HERO_LAIR_TERRAIN_ID = 35;
+
+    /**
      * Load creatures from a KWD file straight (new game)
      *
      * @param kwdFile the KWD file
@@ -155,7 +164,12 @@ public final class CreaturesController implements ICreaturesController {
     private void loadCreatures() {
         for (Thing.GoodCreature creature : kwdFile.getThings(Thing.GoodCreature.class)) {
             try {
-                spawnCreature(creature, new Vector2f(creature.getPosX(), creature.getPosY()));
+                EntityId entityId = spawnCreature(creature, new Vector2f(creature.getPosX(), creature.getPosY()));
+                if (creature.getFlags2() != null && creature.getFlags2().contains(Thing.Creature.CreatureFlag2.I_AM_A_TOOL)) {
+                    CreatureComponent creatureComponent = new CreatureComponent(entityData.getComponent(entityId, CreatureComponent.class));
+                    creatureComponent.tool = true;
+                    entityData.setComponent(entityId, creatureComponent);
+                }
             } catch (Exception ex) {
                 logger.log(Level.WARNING, "Could not load Thing " + creature + "!", ex);
             }
@@ -207,31 +221,62 @@ public final class CreaturesController implements ICreaturesController {
         short objectiveTargetPlayerId = 0;
         int objectiveTargetActionPointId = 0;
         boolean diesInstantly = false;
+        boolean jailBreaker = false;
+        EnumSet<Thing.Creature.CreatureFlag> flags = null;
         if (creature instanceof Thing.GoodCreature goodCreature) {
             triggerId = goodCreature.getTriggerId();
             healthPercentage = goodCreature.getInitialHealth();
             level = goodCreature.getLevel();
+            flags = goodCreature.getFlags();
             ownerId = Player.GOOD_PLAYER_ID;
             objective = goodCreature.getObjective();
             objectiveTargetPlayerId = goodCreature.getObjectiveTargetPlayerId();
             objectiveTargetActionPointId = goodCreature.getObjectiveTargetActionPointId();
             diesInstantly = goodCreature.getFlags2() != null
                     && goodCreature.getFlags2().contains(Thing.Creature.CreatureFlag2.DIES_INSTANTLY);
+            jailBreaker = goodCreature.getFlags() != null
+                    && goodCreature.getFlags().contains(Thing.Creature.CreatureFlag.FREE_FRIENDS_ON_JAIL_BREAK);
         } else if (creature instanceof Thing.NeutralCreature neutralCreature) {
             triggerId = neutralCreature.getTriggerId();
             healthPercentage = neutralCreature.getInitialHealth();
             level = neutralCreature.getLevel();
+            flags = neutralCreature.getFlags();
             ownerId = Player.NEUTRAL_PLAYER_ID;
         } else if (creature instanceof Thing.KeeperCreature keeperCreature) {
             triggerId = keeperCreature.getTriggerId();
             healthPercentage = keeperCreature.getInitialHealth();
             level = keeperCreature.getLevel();
+            flags = keeperCreature.getFlags();
             ownerId = keeperCreature.getPlayerId();
         } else if (creature instanceof Thing.DeadBody deadBody) {
             ownerId = deadBody.getPlayerId();
         }
-        return loadCreature(creature.getCreatureId(), ownerId, level, position.getX(), position.getY(), 0f, healthPercentage, creature.getGoldHeld(),
-                triggerId != null && triggerId != 0 ? triggerId : null, SpawnType.PLACE, objective, objectiveTargetPlayerId, objectiveTargetActionPointId, diesInstantly);
+
+        // Only a creature set to act as dropped is taken in by a prison or a torture chamber it stands in
+        SpawnType spawnType = flags != null && flags.contains(Thing.Creature.CreatureFlag.ACT_AS_DROPPED) ? SpawnType.DROP : SpawnType.PLACE;
+        EntityId entity = loadCreature(creature.getCreatureId(), ownerId, level, position.getX(), position.getY(), 0f, healthPercentage, creature.getGoldHeld(),
+                triggerId != null && triggerId != 0 ? triggerId : null, spawnType, objective, objectiveTargetPlayerId, objectiveTargetActionPointId, diesInstantly);
+        if (isRoomDestroyer(creature)) {
+            CreatureComponent creatureComponent = new CreatureComponent(entityData.getComponent(entity, CreatureComponent.class));
+            creatureComponent.destroysRooms = true;
+            entityData.setComponent(entity, creatureComponent);
+        }
+        if (jailBreaker) {
+            entityData.setComponent(entity, new JailBreaker());
+        }
+        return entity;
+    }
+
+    /**
+     * Does the hero wreck the keepers' rooms on his way, i.e. has he the
+     * DESTROY_ROOMS flag
+     *
+     * @param creature the creature placed on the map or in a hero party
+     * @return true if the creature destroys rooms
+     */
+    static boolean isRoomDestroyer(Thing.Creature creature) {
+        return creature instanceof Thing.GoodCreature goodCreature && goodCreature.getFlags2() != null
+                && goodCreature.getFlags2().contains(Thing.Creature.CreatureFlag2.DESTROY_ROOMS);
     }
 
     @Override
@@ -295,6 +340,7 @@ public final class CreaturesController implements ICreaturesController {
 
         // Set every attribute by the level of the created creature
         setAttributesByLevel(creatureComponent, creatureExperience, healthComponent, goldComponent, sensesComponent, threatComponent, creatureMeleeAttack, regeneration);
+        goldComponent.gold = getStartingGold(money, goldComponent.maxGold);
         setSpells(entity, creature, level);
 
         entityData.setComponent(entity, creatureComponent);
@@ -340,6 +386,21 @@ public final class CreaturesController implements ICreaturesController {
         return entity;
     }
 
+    /**
+     * The gold a new creature carries. Only a creature placed in the editor
+     * carries any: its gold held percentage of its max gold held, like in the
+     * original (0x520180, 0x520460, 0x5208B0). Everything else starts with
+     * none (0x4872A0 clears it), the "initial gold held" attribute of the
+     * creature record is never read
+     *
+     * @param goldHeldPercent the gold held of the placed creature, in percent
+     * @param maxGold the most gold the creature can carry on its level
+     * @return the gold the creature starts with
+     */
+    static int getStartingGold(int goldHeldPercent, int maxGold) {
+        return (int) (goldHeldPercent * 0.01 * maxGold);
+    }
+
     private void setFlagDrivenComponents(EntityId entity, Creature creature) {
 
         // Fearless
@@ -365,11 +426,14 @@ public final class CreaturesController implements ICreaturesController {
                 creatureState = CreatureState.ENTERING_DUNGEON;
             }
             case PLACE -> {
+                creatureState = CreatureState.IDLE;
+            }
+            case DROP -> {
                 creatureState = getCreatureStateByMapLocation(WorldUtils.vectorToPoint(x, y), ownerId, entity);
             }
             case CONJURE -> {
                 creatureState = null;
-                entityData.setComponent(entity, new CreatureFall());
+                entityData.setComponent(entity, new CreatureFall(true));
             }
             default ->
                 throw new RuntimeException("SpawnType " + spawnType + " not handled!");
@@ -445,9 +509,15 @@ public final class CreaturesController implements ICreaturesController {
                 return CreatureState.IMPRISONED;
             }
             if (room.hasObjectControl(AbstractRoomController.ObjectType.TORTUREE)) {
-                room.getObjectControl(AbstractRoomController.ObjectType.TORTUREE).addItem(entityId, location);
-                entityData.setComponent(entityId, new CreatureTortured(0, gameTimer.getGameTime(), gameTimer.getGameTime()));
-                return CreatureState.TORTURED;
+                RoomTortureeControl torturees = room.getObjectControl(AbstractRoomController.ObjectType.TORTUREE);
+                EntityId device = torturees.addItem(entityId, location);
+                if (device != null) {
+                    Position devicePosition = entityData.getComponent(device, Position.class);
+                    entityData.setComponent(entityId, new Position(devicePosition.rotation,
+                            new Vector3f(devicePosition.position.x, WorldUtils.FLOOR_HEIGHT, devicePosition.position.z)));
+                    entityData.setComponent(entityId, new CreatureTortured(0, gameTimer.getGameTime(), gameTimer.getGameTime(), device));
+                    return CreatureState.TORTURED;
+                }
             }
         }
         return CreatureState.IDLE;
@@ -461,6 +531,21 @@ public final class CreaturesController implements ICreaturesController {
         for (Entity entity : entities) {
             levelUpCreature(entity.getId(), level, 0);
         }
+    }
+
+    @Override
+    public void levelUpTools(int level) {
+
+        // The tools still in the Hero Toolbox, i.e. standing on the Hero Lair
+        EntitySet entities = entityData.getEntities(new FieldFilter<>(CreatureComponent.class, "tool", true), CreatureComponent.class, CreatureExperience.class, Health.class, Position.class);
+        for (Entity entity : entities) {
+            Point tile = WorldUtils.vectorToPoint(entity.get(Position.class).position);
+            IMapTileController mapTile = mapController.getMapData().getTile(tile);
+            if (mapTile != null && mapTile.getTerrainId() == HERO_LAIR_TERRAIN_ID && entity.get(CreatureExperience.class).level != level) {
+                levelUpCreature(entity.getId(), level, 0);
+            }
+        }
+        entities.release();
     }
 
     @Override
@@ -505,8 +590,10 @@ public final class CreaturesController implements ICreaturesController {
         creatureExperience.level = level;
         creatureExperience.experience = experience;
 
-        // Update stats
+        // Update stats, the gold carried stays
+        int carriedGold = gold.gold;
         setAttributesByLevel(creatureComponent, creatureExperience, health, gold, senses, threat, creatureMeleeAttack, regeneration);
+        gold.gold = carriedGold;
         setSpells(entityId, kwdFile.getCreature(creatureComponent.creatureId), level);
 
         // Set the new components to the entity
@@ -725,7 +812,7 @@ public final class CreaturesController implements ICreaturesController {
     @Override
     public void spawnCreatures(short creatureId, short playerId, int level, int amount) {
         IRoomController dungeonHeart = gameController.getPlayerController(playerId).getRoomControl().getDungeonHeart();
-        if (!(dungeonHeart instanceof ICreatureEntrance entrance)) {
+        if (!(dungeonHeart instanceof ICreatureEntrance entrance) || entrance.isDestroyed()) {
             logger.log(Level.WARNING, "Player {0} has no dungeon heart to spawn creatures at!", playerId);
             return;
         }
@@ -770,7 +857,7 @@ public final class CreaturesController implements ICreaturesController {
         // Get the spells the creature should have
         Map<Short, toniarts.openkeeper.tools.convert.map.CreatureSpell> availableSpells = creature.getSpells()
                 .stream()
-                .filter((spell) -> spell.getLevelAvailable() >= level)
+                .filter((spell) -> spell.isAvailableAt(level))
                 .collect(Collectors.toMap((spell) -> spell.getCreatureSpellId(), (spell) -> kwdFile.getCreatureSpellById(spell.getCreatureSpellId())));
         List<EntityId> creatureSpellIds = new ArrayList<>(availableSpells.size());
         boolean spellsChanged = false;

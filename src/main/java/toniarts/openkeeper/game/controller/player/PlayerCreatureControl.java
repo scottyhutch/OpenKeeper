@@ -16,7 +16,12 @@
  */
 package toniarts.openkeeper.game.controller.player;
 
+import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.base.DefaultEntityData;
+import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureExperience;
+import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.tools.convert.map.Creature;
 
@@ -30,11 +35,32 @@ import java.util.*;
 public final class PlayerCreatureControl extends AbstractPlayerControl<Creature, Set<EntityId>, Short> {
 
     private final Creature imp;
+    private final EntityData entityData;
     private int creatureCount = 0;
 
+    /**
+     * A creature control that does not know the creature entities, the counts
+     * by level and by state are always 0
+     *
+     * @param keeper the player
+     * @param imp the worker creature type
+     * @param creatures the creature types
+     */
     public PlayerCreatureControl(Keeper keeper, Creature imp, Collection<Creature> creatures) {
+        this(keeper, imp, creatures, new DefaultEntityData());
+    }
+
+    /**
+     * @param keeper the player
+     * @param imp the worker creature type
+     * @param creatures the creature types
+     * @param entityData the entities of the creatures, for the counts by level
+     * and by state
+     */
+    public PlayerCreatureControl(Keeper keeper, Creature imp, Collection<Creature> creatures, EntityData entityData) {
         super(keeper, keeper.getAvailableCreatures(), creatures);
         this.imp = imp;
+        this.entityData = entityData;
     }
 
     @Override
@@ -113,6 +139,49 @@ public final class PlayerCreatureControl extends AbstractPlayerControl<Creature,
     @Override
     public int getTypeCount() {
         return creatureCount;
+    }
+
+    /**
+     * Count the creatures that have at least the given level. The workers are
+     * not counted, like in the original.
+     *
+     * @param level the lowest level that is counted
+     * @return the number of the creatures
+     */
+    public int getCountAtLevel(int level) {
+        int count = 0;
+        for (Set<EntityId> creatureSet : List.copyOf(types.values())) {
+            for (EntityId entityId : List.copyOf(creatureSet)) {
+                CreatureComponent creature = entityData.getComponent(entityId, CreatureComponent.class);
+                CreatureExperience experience = entityData.getComponent(entityId, CreatureExperience.class);
+                if (creature != null && !creature.worker && experience != null && experience.level >= level) {
+                    count++;
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Count the creatures that are in the dying state (unconscious, waiting to
+     * be rescued or captured). The workers are counted too.
+     *
+     * @param creatureId the creature type, 0 = any
+     * @return the number of the creatures
+     */
+    public int getDyingCount(short creatureId) {
+        int count = 0;
+        for (Map.Entry<Creature, Set<EntityId>> entry : List.copyOf(types.entrySet())) {
+            if (creatureId != 0 && entry.getKey().getCreatureId() != creatureId) {
+                continue;
+            }
+            for (EntityId entityId : List.copyOf(entry.getValue())) {
+                if (entityData.getComponent(entityId, Unconscious.class) != null) {
+                    count++;
+                }
+            }
+        }
+        return count;
     }
 
     /**

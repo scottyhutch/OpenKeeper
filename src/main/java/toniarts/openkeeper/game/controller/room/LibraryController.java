@@ -22,6 +22,7 @@ import toniarts.openkeeper.common.RoomInstance;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.room.storage.RoomResearcherControl;
+import toniarts.openkeeper.game.controller.room.storage.RoomSpecialControl;
 import toniarts.openkeeper.game.controller.room.storage.RoomSpellBookControl;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 
@@ -49,7 +50,10 @@ public final class LibraryController extends NormalRoomController {
 
             @Override
             protected int getNumberOfAccessibleTiles() {
-                return getFurnitureCount();
+
+                // One researcher per Book Case, plus one, like in DK II
+                int furnitureCount = getFurnitureCount();
+                return furnitureCount > 0 ? furnitureCount + 1 : 0;
             }
         });
         addObjectControl(new RoomSpellBookControl(kwdFile, this, entityData, gameTimer) {
@@ -57,6 +61,13 @@ public final class LibraryController extends NormalRoomController {
             @Override
             protected int getNumberOfAccessibleTiles() {
                 return getFloorFurnitureCount();
+            }
+        });
+        addObjectControl(new RoomSpecialControl(kwdFile, this, entityData, gameTimer) {
+
+            @Override
+            protected int getNumberOfAccessibleTiles() {
+                return getCoordinates().size();
             }
         });
     }

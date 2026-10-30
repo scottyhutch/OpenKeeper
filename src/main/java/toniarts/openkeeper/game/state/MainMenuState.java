@@ -116,6 +116,8 @@ public final class MainMenuState extends AbstractAppState {
      */
     private IKwdFile debriefingLevel;
     private boolean debriefingIsCampaign;
+    private boolean debriefingLevelWon;
+    private GameResult debriefingResult;
 
     /**
      * The campaign level that was just won and for which the level cutscene (mentor speech + movie)
@@ -183,7 +185,7 @@ public final class MainMenuState extends AbstractAppState {
         // Attach the 3D Front end
         mainMenuEntityData = new DefaultEntityData();
         menuNode = new Node("Main menu");
-        gameController = new GameController(frontEndKwd, Collections.emptyList(), mainMenuEntityData, frontEndKwd.getVariables(), new MainMenuPlayerService());
+        gameController = new GameController(frontEndKwd, Collections.emptyList(), false, mainMenuEntityData, frontEndKwd.getVariables(), new MainMenuPlayerService());
         gameController.createNewGame();
 
         // Create the actual map
@@ -729,12 +731,12 @@ public final class MainMenuState extends AbstractAppState {
     public void doDebriefing(GameResult result, IKwdFile level, boolean campaign) {
         debriefingLevel = level != null ? level : (selectedLevel != null ? selectedLevel.getKwdMap().load() : null);
         debriefingIsCampaign = campaign || selectedLevel instanceof CampaignLevel;
+        debriefingResult = result;
         pendingDebriefing = result != null;
 
-        // FIXME: GameResult has no win/lose data yet (see showDebriefing()), so for now every
-        // completed campaign level is treated as won, same as the debriefing screen does
-        boolean levelWon = true;
-        pendingCutsceneLevel = (pendingDebriefing && debriefingIsCampaign && levelWon
+        // Only a won level gets the level-won cutscene and the winning debriefing
+        debriefingLevelWon = result != null && result.isLevelWon();
+        pendingCutsceneLevel = (pendingDebriefing && debriefingIsCampaign && debriefingLevelWon
                 && selectedLevel instanceof CampaignLevel lvl && lvl.getType() == CampaignLevel.LevelType.Level)
                 ? lvl : null;
 
@@ -777,11 +779,31 @@ public final class MainMenuState extends AbstractAppState {
     }
 
     /**
+     * See if the level of the debriefing being shown was won
+     *
+     * @return {@code true} if the level was won
+     */
+    public boolean isDebriefingLevelWon() {
+        return debriefingLevelWon;
+    }
+
+    /**
+     * Get the result of the game for which the debriefing is shown
+     *
+     * @return the game result, or {@code null}
+     */
+    public GameResult getDebriefingResult() {
+        return debriefingResult;
+    }
+
+    /**
      * Clear the level used for the debriefing screen, called when leaving the debriefing
      */
     void clearDebriefing() {
         debriefingLevel = null;
         debriefingIsCampaign = false;
+        debriefingLevelWon = false;
+        debriefingResult = null;
     }
 
     /**
@@ -878,6 +900,11 @@ public final class MainMenuState extends AbstractAppState {
         }
 
         @Override
+        public void showMentorMessage(int speechId, Vector3f position, short playerId) {
+            throw new UnsupportedOperationException("Not supported yet.");
+        }
+
+        @Override
         public void zoomViewToPoint(Vector3f point, short playerId) {
             throw new UnsupportedOperationException("Not supported yet.");
         }
@@ -893,6 +920,11 @@ public final class MainMenuState extends AbstractAppState {
         }
 
         @Override
+        public void setSystemMessagesEnabled(boolean enabled) {
+            // The menu level has no system messages
+        }
+
+        @Override
         public void showUnitFlower(EntityId entityId, int interval, short playerId) {
             throw new UnsupportedOperationException("Not supported yet.");
         }
@@ -903,7 +935,7 @@ public final class MainMenuState extends AbstractAppState {
         }
 
         @Override
-        public void endGame(boolean win, short playerId) {
+        public void endGame(GameResult result, short playerId) {
             throw new UnsupportedOperationException("Not supported yet.");
         }
 

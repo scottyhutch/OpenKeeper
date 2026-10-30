@@ -91,6 +91,7 @@ public final class SoundState extends AbstractPauseAwareState {
      * music level
      */
     private final MusicLevel musicLevel = new MusicLevel();
+    private volatile float musicVolumeFactor = 1f;
     private boolean levelMusic;
     private AudioNode musicNode;
     private SequencedSoundStream musicStream;
@@ -217,12 +218,21 @@ public final class SoundState extends AbstractPauseAwareState {
         }
     }
 
-    private static float getMusicGain() {
+    /**
+     * Turns the level music down or back up, i.e. while a disco plays in a Casino
+     *
+     * @param factor the share of the music volume of the settings, 0..1
+     */
+    public void setMusicVolumeFactor(float factor) {
+        musicVolumeFactor = factor;
+    }
+
+    private float getMusicGain() {
         SoundEngine engine = SoundManager.getEngine();
         if (engine == null) {
-            return 1.0f;
+            return musicVolumeFactor;
         }
-        return engine.getMasterVolume() / 100f * engine.getChannelVolume(SoundManager.CHANNEL_MUSIC) / 100f;
+        return engine.getMasterVolume() / 100f * engine.getChannelVolume(SoundManager.CHANNEL_MUSIC) / 100f * musicVolumeFactor;
     }
 
     /**

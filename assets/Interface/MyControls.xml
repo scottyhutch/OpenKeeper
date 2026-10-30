@@ -168,13 +168,13 @@
     <!--The tab contents scroll-->
     <controlDefinition style="nifty-panel-style" name="tabScroll" controller="toniarts.openkeeper.gui.nifty.CreaturePortraitScrollControl">
         <panel marginLeft="3px" childLayout="vertical" valign="center" id="tab-scroll">
-            <image filename="Textures/GUI/Pages/page_forward.png" >
+            <image id="#forward" filename="Textures/GUI/Pages/page_forward.png" >
                 <interact onClick="forward()" />
                 <effect>
                     <onHover name="imageOverlay" filename="Textures/GUI/Pages/Page_Forward-Hilight.png" post="true" neverStopRendering="true" />
                 </effect>
             </image>
-            <image filename="Textures/GUI/Pages/page_back.png">
+            <image id="#back" filename="Textures/GUI/Pages/page_back.png">
                 <interact onClick="back()" />
                 <effect>
                     <onHover name="imageOverlay" filename="Textures/GUI/Pages/Page_Back-Hilight.png" post="true" neverStopRendering="true" />
@@ -267,7 +267,7 @@
                             <onHover name="simpleHintEx" hintText="$creatureName" targetElement="tooltip" />
                             <onEndHover name="simpleHintEx" hintText="" targetElement="tooltip" />
                         </effect>
-                        <interact onSecondaryClick="zoomTo(busy)" onPrimaryClick="pickUpCreature(busy)" />
+                        <interact onSecondaryClick="zoomTo(busy)" onPrimaryClick="pickUp(busy)" />
                     </control>
                 </panel>
                 <panel childLayout="vertical" id="#tab-fights" visible="false"
@@ -346,15 +346,14 @@
         </panel>
     </controlDefinition>
 
-    <!-- Reaper -->
-    <controlDefinition style="nifty-panel-style" name="reaperTalisman" controller="de.lessvoid.nifty.controls.DefaultController">
-        <image align="center" valign="center" filename="Textures/GUI/Spells/reaper_talisman-00.png"/>
-    </controlDefinition>
-
     <!-- Fight Icon -->
     <controlDefinition style="nifty-panel-style" name="fight" controller="de.lessvoid.nifty.controls.DefaultController">
-        <image filename="Textures/GUI/Icons/a-fight-00.png" valign="center" visible="$visible">
+        <image filename="Textures/GUI/Icons/a-fight-00.png" valign="center">
+            <interact onSecondaryClick="zoomToBattle()" />
             <effect>
+                <onHover name="hint" hintText="${menu.2165}" hintDelay="200" />
+                <onHover name="simpleHintEx" hintText="${menu.2166}" targetElement="tooltip" />
+                <onEndHover name="simpleHintEx" hintText="" targetElement="tooltip" />
                 <onHover name="imageOverlay" filename="Textures/GUI/Icons/frame.png"
                          post="true" neverStopRendering="true" />
                 <onActive name="imageOverlayPulsate" filename="Textures/GUI/Icons/a-fight-01.png"
@@ -399,9 +398,9 @@
                        name="iconText"
                        controller="toniarts.openkeeper.gui.nifty.icontext.IconTextControl">
         <panel align="left" valign="center" childLayout="horizontal" margin="6px" visibleToMouse="true">
-            <image id="#image" marginRight="6px" align="right" valign="center" filename="$icon">
+            <image id="#image" marginRight="29px" align="right" valign="center" filename="$icon">
                 <effect>
-                    <onCustom customKey="hover" name="imageOverlay" filename="Textures/GUI/Icons/hilight.png" post="true" neverStopRendering="true" />
+                    <onCustom customKey="hover" name="menuIconHighlight" neverStopRendering="true" />
                 </effect>
             </image>
             <text id="#text" style="textNormal" text="$text">
@@ -516,6 +515,8 @@
                 <onEndHover name="simpleHintEx" hintText="" targetElement="tooltip" />
                 <onCustom name="imageOverlay" filename="$activeImage" customKey="select" post="true" neverStopRendering="true" />
                 <onCustom name="colorBar" color="#000000AA" customKey="unaffordable" post="true" neverStopRendering="true" />
+                <onCustom customKey="flash" name="imageOverlayPulsate" filename="$hoverImage" post="true" neverStopRendering="true" timeType="infinite" />
+                <onCustom name="imageOverlayPulsate" filename="Textures/GUI/Icons/hilight.png" customKey="hint" period="500" timeType="infinite" pulsateType="rectangle" post="true" neverStopRendering="true" />
             </effect>
             <interact onClick="$click" />
         </image>
@@ -552,23 +553,25 @@
 
     <controlDefinition name="customScroll" controller="toniarts.openkeeper.gui.nifty.flowlayout.CustomScroll">
         <panel childLayout="horizontal" padding="4px,2px,4px,0px">
-            <image id="#back" filename="Textures/GUI/Pages/page_back.png" valign="center" height="100%">
-                <effect>
-                    <onHover name="imageOverlay" filename="Textures/GUI/Pages/Page_Back-Hilight.png" post="true"/>
-                    <onClick name="imageOverlay" filename="Textures/GUI/Pages/Page_Back-Selected.png" post="true" neverStopRendering="true" />
-                </effect>
-                <interact onClick="back()" />
-            </image>
+            <panel childLayout="vertical" width="32px" height="100%" valign="center">
+                <image id="#forward" filename="Textures/GUI/Pages/page_forward.png" width="100%" height="50%">
+                    <effect>
+                        <onHover name="imageOverlay" filename="Textures/GUI/Pages/Page_Forward-Hilight.png" post="true"/>
+                        <onClick name="imageOverlay" filename="Textures/GUI/Pages/Page_Forward-Selected.png" post="true" neverStopRendering="true" />
+                    </effect>
+                    <interact onClick="forward()" />
+                </image>
+                <image id="#back" filename="Textures/GUI/Pages/page_back.png" width="100%" height="50%">
+                    <effect>
+                        <onHover name="imageOverlay" filename="Textures/GUI/Pages/Page_Back-Hilight.png" post="true"/>
+                        <onClick name="imageOverlay" filename="Textures/GUI/Pages/Page_Back-Selected.png" post="true" neverStopRendering="true" />
+                    </effect>
+                    <interact onClick="back()" />
+                </image>
+            </panel>
             <panel id="#content" childLayout="absolute" childClip="true" width="*" height="*" padding="0px,4px,0px,4px">
                 <panel x="0" y="50%" id="#row-1" childLayout="horizontal" valign="center" height="100%" width="100%" />
             </panel>
-            <image id="#forward" filename="Textures/GUI/Pages/page_forward.png" valign="center" height="100%">
-                <effect>
-                    <onHover name="imageOverlay" filename="Textures/GUI/Pages/Page_Forward-Hilight.png" post="true"/>
-                    <onClick name="imageOverlay" filename="Textures/GUI/Pages/Page_Forward-Selected.png" post="true" neverStopRendering="true" />
-                </effect>
-                <interact onClick="forward()" />
-            </image>
         </panel>
     </controlDefinition>
 

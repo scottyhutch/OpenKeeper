@@ -20,8 +20,24 @@ import com.badlogic.gdx.ai.GdxAI;
 import com.jme3.util.SafeArrayList;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import java.io.IOException;
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import toniarts.openkeeper.Main;
+import toniarts.openkeeper.game.component.CreatureExperience;
+import toniarts.openkeeper.game.component.Gold;
+import toniarts.openkeeper.game.component.KeeperComponent;
+import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.controller.player.PlayerResearchControl;
+import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.data.ActionPoint;
 import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.GameTimer;
@@ -29,9 +45,8 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.ServerGameEventService;
-import toniarts.openkeeper.game.logic.IEntityPositionLookup;
-import toniarts.openkeeper.game.logic.IGameLogicUpdatable;
-import toniarts.openkeeper.game.logic.PositionSystem;
+import toniarts.openkeeper.game.logic.*;
+import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.navigation.NavigationService;
 import toniarts.openkeeper.game.state.session.PlayerService;
@@ -44,9 +59,12 @@ import toniarts.openkeeper.game.trigger.door.DoorTriggerLogicController;
 import toniarts.openkeeper.game.trigger.object.ObjectTriggerLogicController;
 import toniarts.openkeeper.game.trigger.party.PartyTriggerLogicController;
 import toniarts.openkeeper.game.trigger.player.PlayerTriggerLogicController;
+import toniarts.openkeeper.tools.convert.map.GameLevel;
+import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import toniarts.openkeeper.tools.convert.map.Player;
+import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.Thing;
 import toniarts.openkeeper.tools.convert.map.Variable;
 
@@ -71,6 +89,7 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
 
     private final LevelInfo levelInfo;
     private final toniarts.openkeeper.game.data.CampaignLevel levelObject;
+    private final boolean campaign;
 
     private final Map<Short, IPlayerController> playerControllers = HashMap.newHashMap(6);
     private final Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings;
@@ -86,7 +105,8 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
     private PositionSystem positionSystem;
     private GameEventService gameEventService;
 
-    private GameResult gameResult = null;
+    private volatile GameResult gameResult = null;
+    private final Set<Short> playersWithResult = new HashSet<>();
     private TaskManager taskManager;
 
     /**
@@ -94,16 +114,18 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
      *
      * @param level the level to load
      * @param players player participating in this game, can be {@code null}
+     * @param campaign whether this is a campaign level
      * @param entityData
      * @param gameSettings
      * @param playerService
      */
-    public GameController(IKwdFile level, List<Keeper> players, EntityData entityData,
+    public GameController(IKwdFile level, List<Keeper> players, boolean campaign, EntityData entityData,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
             PlayerService playerService) {
 
         levelInfo = new LevelInfo(level);
         levelObject = null;
+        this.campaign = campaign;
         this.entityData = entityData;
         this.gameSettings = gameSettings;
         this.playerService = playerService;
@@ -129,6 +151,8 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
                 gameWorldController.getCreaturesController(), gameWorldController.getDoorsController(),
                 gameWorldController.getObjectsController());
         gameWorldController.setEntityPositionLookup(positionSystem);
+        gameWorldController.setRoomAttackMessages(new RoomAttackMessages(playerService, gameTimer));
+        gameWorldController.getMapController().setBreachMessages(new BreachMessages(playerService, gameTimer));
 
         // Navigation
         navigationService = new NavigationService(gameWorldController.getMapController(), positionSystem);
@@ -140,7 +164,7 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
 
         // The triggers
         controllers.add(new PartyTriggerLogicController(this, levelInfo, gameTimer,
-                gameWorldController.getMapController(), gameWorldController.getCreaturesController()));
+                gameWorldController.getMapController(), gameWorldController.getCreaturesController(), playerService));
         controllers.add(new CreatureTriggerLogicController(this, levelInfo, gameTimer,
                 gameWorldController.getMapController(), gameWorldController.getCreaturesController(),
                 playerService, entityData));
@@ -152,16 +176,16 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
                 playerService, entityData, gameWorldController.getDoorsController()));
         controllers.add(new ActionPointTriggerLogicController(this, levelInfo, gameTimer,
                 gameWorldController.getMapController(), gameWorldController.getCreaturesController(),
-                positionSystem));
+                playerService, positionSystem));
         controllers.add(new PlayerTriggerLogicController(this, levelInfo, gameTimer,
                 gameWorldController.getMapController(), gameWorldController.getCreaturesController(),
-                playerService));
+                playerService, entityData));
         controllers.add(gameTimer);
         controllers.add(positionSystem);
 
         int triggerId = levelInfo.kwdFile.getGameLevel().getTriggerId();
         if (triggerId != 0) {
-            triggerControl = new TriggerControl(this, levelInfo, gameTimer, gameWorldController.getMapController(), gameWorldController.getCreaturesController(), triggerId);
+            triggerControl = new TriggerControl(this, levelInfo, gameTimer, gameWorldController.getMapController(), gameWorldController.getCreaturesController(), playerService, triggerId);
         }
 
     }
@@ -181,6 +205,9 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
 
             // Init
             if (keeper != null) {
+
+                // The player's own entity, the player's state is kept in its components
+                entityData.setComponents(entityData.createEntity(), new KeeperComponent(keeper.getId()), new Gold(0, 0));
                 PlayerController playerController = new PlayerController(levelInfo.kwdFile, keeper, levelInfo.kwdFile.getImp(), entityData, gameSettings);
                 playerControllers.put(entry.getKey(), playerController);
 
@@ -219,6 +246,12 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
             }
         }
 
+        // The Reaper Talisman gives the campaign player one free Reaper on the levels that say so
+        IPlayerController campaignPlayer = playerControllers.get(Player.KEEPER1_ID);
+        if (campaign && campaignPlayer != null && levelInfo.kwdFile.getGameLevel().getLvlFlags().contains(GameLevel.LevFlag.ONE_SHOT_HORNY)) {
+            campaignPlayer.getSpellControl().setTypeAvailable(levelInfo.kwdFile.getKeeperSpellById(ReaperSummoner.ONE_SHOT_REAPER_SPELL_ID), true);
+        }
+
         // Initialize the player research
         for (IPlayerController playerController : playerControllers.values()) {
             PlayerResearchControl researchControl = playerController.getResearchControl();
@@ -238,7 +271,12 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
                 break;
             }
             case ROOM: {
-                playerController.getRoomControl().setTypeAvailable(levelInfo.kwdFile.getRoomById((short) availability.getTypeId()), available, discovered);
+                Room room = levelInfo.kwdFile.getRoomById((short) availability.getTypeId());
+                if (availability.getValue() == Variable.Availability.AvailabilityValue.UNAVAILABLE_ROOM) {
+                    playerController.getRoomControl().setTypeAvailableWhenOwned(room);
+                } else {
+                    playerController.getRoomControl().setTypeAvailable(room, available, discovered);
+                }
                 break;
             }
             case SPELL: {
@@ -273,43 +311,97 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         GdxAI.getTimepiece().update(tpf);
 
         // Time limit is a special timer, it just ticks towards 0 if it is set
-        if (levelInfo.timeLimit != null) {
-            levelInfo.timeLimit -= tpf;
-
-            // We rest on zero
-            if (levelInfo.timeLimit < 0) {
-                levelInfo.timeLimit = 0f;
-            }
-        }
+        updateTimeLimit(tpf);
 
         // Advance game timers
         for (GameTimer timer : levelInfo.timers.getArray()) {
             timer.update(tpf);
         }
 
+        // One failing script trigger or controller must not stop the rest of the tick
         if (triggerControl != null) {
-            triggerControl.update(tpf);
+            try {
+                triggerControl.update(tpf);
+            } catch (RuntimeException ex) {
+                logger.log(Level.ERROR, "Level script failed on this tick!", ex);
+            }
         }
 
-        controllers.stream().forEach(controller -> controller.processTick(tpf));
+        controllers.stream().forEach(controller -> {
+            try {
+                controller.processTick(tpf);
+            } catch (RuntimeException ex) {
+                logger.log(Level.ERROR, "Controller " + controller.getClass().getSimpleName() + " failed on this tick!", ex);
+            }
+        });
 
-        if (levelInfo.timeLimit != null && levelInfo.timeLimit <= 0) {
-            //TODO:
-            throw new RuntimeException("Level time limit exceeded!");
+        // The Horned Reaper comes for the Portal Gem of a won campaign level, on the logic loop. The Reaper
+        // stays marked with FetchPortalGem, so he is only sent once
+        if (levelObject != null && gameResult != null && Boolean.TRUE.equals(gameResult.getData(GameResult.ResultType.LEVEL_WON))) {
+            new PortalGemReaper(levelInfo.getLevelData(), entityData, gameTimer, gameWorldController.getCreaturesController(),
+                    gameWorldController.getObjectsController(), navigationService,
+                    gameWorldController.getMapController()).callForGem(gameResult.<Short>getData(GameResult.ResultType.WINNER));
         }
+    }
+
+    private void updateTimeLimit(float tpf) {
+        Float previous = levelInfo.timeLimit;
+        if (previous == null) {
+            return;
+        }
+
+        levelInfo.timeLimit = advanceTimeLimit(previous, tpf);
+
+        // The game itself does nothing more than note that the time is up,
+        // the level script is what loses or wins the level
+        if (isTimeLimitReached(previous, levelInfo.timeLimit)) {
+            logger.log(Level.INFO, "Level time limit reached");
+        }
+    }
+
+    /**
+     * Counts the level time limit down. It rests on zero
+     *
+     * @param timeLimit the time left
+     * @param tpf the time passed
+     * @return the time left now
+     */
+    static float advanceTimeLimit(float timeLimit, float tpf) {
+        return Math.max(timeLimit - tpf, 0f);
+    }
+
+    /**
+     * Tells if the level time limit ran out just now
+     *
+     * @param previous the time left before
+     * @param current the time left now
+     * @return true on the tick the time ran out, false before and after
+     */
+    static boolean isTimeLimitReached(float previous, float current) {
+        return previous > 0f && current <= 0f;
     }
 
     @Override
     public void endGame(short playerId, boolean win) {
 
+        // A player's game ends only once, the first result stands
+        Keeper keeper = levelInfo.getPlayer(playerId);
+        if (keeper != null && !keeper.claimResult()) {
+            return;
+        }
+
         // Determine what happens to the game & players
-        gameResult = new GameResult();
-        gameResult.setData(GameResult.ResultType.LEVEL_WON, win);
-        gameResult.setData(GameResult.ResultType.TIME_TAKEN, gameTimer.getGameTime());
+        GameResult result = new GameResult();
+        result.setData(GameResult.ResultType.LEVEL_WON, win);
+        result.setData(GameResult.ResultType.TIME_TAKEN, gameTimer.getGameTime());
+        if (win) {
+            result.setData(GameResult.ResultType.WINNER, playerId);
+        }
+        gameResult = result;
+        addPlayerStatistics(playerId);
 
         // Mark the achievement if campaign level
         if (levelObject != null) {
-            Main.getUserSettings().increaseLevelAttempts(levelObject);
             if (win) {
                 Main.getUserSettings().setLevelStatus(levelObject, Settings.LevelStatus.COMPLETED);
             }
@@ -321,7 +413,72 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         }
 
         // Enable the end game state on the player (client)
-        playerService.endGame(win, playerId);
+        playerService.endGame(gameResult, playerId);
+    }
+
+    /**
+     * Adds the player's statistics and the Evil Rating to the game result
+     *
+     * @param playerId the player whose game ends
+     */
+    private void addPlayerStatistics(short playerId) {
+        IPlayerController player = playerControllers.get(playerId);
+        if (player == null) {
+            return;
+        }
+        PlayerStatsControl stats = player.getStatsControl();
+        gameResult.setData(GameResult.ResultType.ENEMY_CREATURES_KILLED, stats.getEnemyCreaturesKilled());
+        gameResult.setData(GameResult.ResultType.HEROES_DESTROYED, stats.getHeroesDestroyed());
+        gameResult.setData(GameResult.ResultType.ITEMS_MANUFACTURED, stats.getItemsManufactured());
+        gameResult.setData(GameResult.ResultType.CREATURES_CONVERTED, stats.getCreaturesConverted());
+        gameResult.setData(GameResult.ResultType.ROOMS_CAPTURED, player.getRoomControl().getRoomsCaptured());
+        gameResult.setData(GameResult.ResultType.GOLD_MINED, player.getKeeper().getGoldMined());
+        gameResult.setData(GameResult.ResultType.MANA_STORED, player.getKeeper().getMana());
+
+        int landOwned = 0;
+        for (IMapTileController tile : gameWorldController.getMapController().getMapData()) {
+            if (tile.getOwnerId() == playerId) {
+                landOwned++;
+            }
+        }
+        gameResult.setData(GameResult.ResultType.LAND_OWNED, landOwned);
+
+        // The creatures at the end, imps included, and their average experience level
+        int creatures = 0;
+        int levels = 0;
+        for (Set<EntityId> entities : player.getCreatureControl().getAllCreatures().values()) {
+            for (EntityId entity : entities) {
+                CreatureExperience experience = entityData.getComponent(entity, CreatureExperience.class);
+                if (experience != null) {
+                    creatures++;
+                    levels += experience.level;
+                }
+            }
+        }
+        gameResult.setData(GameResult.ResultType.CREATURES_COMMANDED, creatures);
+        gameResult.setData(GameResult.ResultType.CREATURE_TRAINING, creatures > 0 ? (float) levels / creatures : 0f);
+
+        // All the specials there were are the ones found by anyone and the ones still left
+        int specials = 0;
+        for (IPlayerController playerController : playerControllers.values()) {
+            specials += playerController.getStatsControl().getSpecialsFound();
+        }
+        for (EntityId entity : entityData.findEntities(null, ObjectComponent.class)) {
+            ObjectComponent object = entityData.getComponent(entity, ObjectComponent.class);
+            if (levelInfo.kwdFile.getObject(object.objectId).getFlags().contains(GameObject.ObjectFlag.OBJECT_TYPE_SPECIAL)) {
+                specials++;
+            }
+        }
+        gameResult.setData(GameResult.ResultType.SPECIALS_FOUND, stats.getSpecialsFound());
+        gameResult.setData(GameResult.ResultType.SPECIALS_MAX, specials);
+
+        gameResult.setData(GameResult.ResultType.TOTAL_RATING, gameResult.calculateEvilRating());
+
+        gameResult.setData(GameResult.ResultType.OWN_CREATURES_KILLED, stats.getOwnCreaturesKilled());
+        gameResult.setData(GameResult.ResultType.LEVEL_RATING, gameResult.calculateLevelRating(
+                gameSettings.get(Variable.MiscVariable.MiscType.LEVEL_RATING).getValue(),
+                gameSettings.get(Variable.MiscVariable.MiscType.AVERAGE_TIME).getValue(),
+                levelInfo.kwdFile.getGameLevel().getTicksPerSec()));
     }
 
     @Override
@@ -446,9 +603,13 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         private final SafeArrayList<GameTimer> timers = new SafeArrayList<>(GameTimer.class, LEVEL_TIMER_MAX_COUNT);
         private final Map<Integer, ActionPoint> actionPointsById = new HashMap<>();
         private final List<ActionPoint> actionPoints = new ArrayList<>();
+        private boolean creatureMoodsEnabled = false;
+        private boolean systemMessagesEnabled = true; // The original turns them on at the start of every level
+        private boolean timerSpeechEnabled = false;
 
         public LevelInfo(IKwdFile kwdFile) {
             this.kwdFile = kwdFile;
+            creatureMoodsEnabled = true; // The original turns them on at the start of every level
         }
 
         public void load() {
@@ -525,6 +686,36 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         @Override
         public List<ActionPoint> getActionPoints() {
             return actionPoints;
+        }
+
+        @Override
+        public boolean isCreatureMoodsEnabled() {
+            return creatureMoodsEnabled;
+        }
+
+        @Override
+        public void setCreatureMoodsEnabled(boolean enabled) {
+            this.creatureMoodsEnabled = enabled;
+        }
+
+        @Override
+        public boolean isSystemMessagesEnabled() {
+            return systemMessagesEnabled;
+        }
+
+        @Override
+        public void setSystemMessagesEnabled(boolean enabled) {
+            this.systemMessagesEnabled = enabled;
+        }
+
+        @Override
+        public boolean isTimerSpeechEnabled() {
+            return timerSpeechEnabled;
+        }
+
+        @Override
+        public void setTimerSpeechEnabled(boolean enabled) {
+            this.timerSpeechEnabled = enabled;
         }
 
         @Override

@@ -207,6 +207,9 @@ public final class ModelViewer extends SimpleApplication {
         settings.setHeight(720);
         settings.setGammaCorrection(false);
 
+        if (Main.isAudioDisabled()) {
+            settings.setAudioRenderer(null);
+        }
         app.setSettings(settings);
 
         app.start();

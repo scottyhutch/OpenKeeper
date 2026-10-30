@@ -35,6 +35,7 @@ import java.util.function.Supplier;
 import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.controller.GameController;
 import toniarts.openkeeper.game.event.GameEventType;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -84,7 +85,7 @@ public final class MapLoaderAppState extends AbstractAppState {
         mapEntityData = new DefaultEntityData();
 
         Node mapNode = new Node("Map");
-        gameController = new GameController(kwdFile, Collections.emptyList(), mapEntityData, kwdFile.getVariables(), new MapLoaderAppState.MapPlayerService());
+        gameController = new GameController(kwdFile, Collections.emptyList(), false, mapEntityData, kwdFile.getVariables(), new MapLoaderAppState.MapPlayerService());
         gameController.createNewGame();
 
         // Create the actual map
@@ -243,6 +244,11 @@ public final class MapLoaderAppState extends AbstractAppState {
         }
 
         @Override
+        public void showMentorMessage(int speechId, Vector3f position, short playerId) {
+            throw new UnsupportedOperationException("Not supported yet.");
+        }
+
+        @Override
         public void zoomViewToPoint(Vector3f point, short playerId) {
             throw new UnsupportedOperationException("Not supported yet.");
         }
@@ -258,6 +264,11 @@ public final class MapLoaderAppState extends AbstractAppState {
         }
 
         @Override
+        public void setSystemMessagesEnabled(boolean enabled) {
+            // The model viewer has no system messages
+        }
+
+        @Override
         public void showUnitFlower(EntityId entityId, int interval, short playerId) {
             throw new UnsupportedOperationException("Not supported yet.");
         }
@@ -268,7 +279,7 @@ public final class MapLoaderAppState extends AbstractAppState {
         }
 
         @Override
-        public void endGame(boolean win, short playerId) {
+        public void endGame(GameResult result, short playerId) {
             throw new UnsupportedOperationException("Not supported yet.");
         }
 

@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.logic;
 
+import com.jme3.math.Vector2f;
 import com.jme3.util.SafeArrayList;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
@@ -25,17 +26,26 @@ import java.util.Collections;
 import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureFall;
+import toniarts.openkeeper.game.component.CreatureMeleeAttack;
+import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.Navigation;
+import toniarts.openkeeper.game.component.ObjectComponent;
+import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.Possessed;
+import toniarts.openkeeper.game.component.PossessedAbility;
+import toniarts.openkeeper.game.component.PossessedMovement;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import static toniarts.openkeeper.game.controller.creature.CreatureState.MELEE_ATTACK;
 import toniarts.openkeeper.game.task.TaskType;
 import static toniarts.openkeeper.game.task.TaskType.TRAIN;
+import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.utils.GameTimeCounter;
 
 /**
@@ -46,14 +56,18 @@ import toniarts.openkeeper.utils.GameTimeCounter;
  */
 public final class CreatureViewSystem extends GameTimeCounter {
 
+    private static final short ELECTRIC_CHAIR_OBJECT_ID = 61;
+
     private final EntityData entityData;
+    private final IKwdFile kwdFile;
     private final EntitySet creatureViewEntities;
 
     // TODO: The creature shouldn't be able to access the world like this, needs breaking up to pieces
     private final SafeArrayList<EntityId> creatureEntities = new SafeArrayList<>(EntityId.class);
 
-    public CreatureViewSystem(EntityData entityData) {
+    public CreatureViewSystem(EntityData entityData, IKwdFile kwdFile) {
         this.entityData = entityData;
+        this.kwdFile = kwdFile;
 
         creatureViewEntities = entityData.getEntities(CreatureViewState.class, Position.class);
         processAddedEntities(creatureViewEntities);
@@ -75,22 +89,36 @@ public final class CreatureViewSystem extends GameTimeCounter {
             CreatureViewState state = entityData.getComponent(entityId, CreatureViewState.class);
             Creature.AnimationType currentState = state.state;
             Creature.AnimationType targetState = currentState;
-            if (entityData.getComponent(entityId, CreatureFall.class) != null) {
-                targetState = Creature.AnimationType.FALLBACK;
+            CreatureFall creatureFall = entityData.getComponent(entityId, CreatureFall.class);
+            if (creatureFall != null) {
+
+                // A conjured creature comes down standing, only a dropped one tumbles and lands dazed
+                targetState = creatureFall.conjured ? Creature.AnimationType.IDLE_1 : Creature.AnimationType.FALLBACK;
             } else if (entityData.getComponent(entityId, Navigation.class) != null) {
-                targetState = Creature.AnimationType.WALK;
+                Navigation navigation = entityData.getComponent(entityId, Navigation.class);
+                targetState = navigation.pursuingAttackTarget ? Creature.AnimationType.RUN : Creature.AnimationType.WALK;
             } else if (entityData.getComponent(entityId, Death.class) != null) {
                 targetState = Creature.AnimationType.DEATH_POSE;
             } else if (entityData.getComponent(entityId, Unconscious.class) != null) {
                 targetState = Creature.AnimationType.DIE;
+            } else if (entityData.getComponent(entityId, Possessed.class) != null) {
+                targetState = getPossessedAnimation(entityId, state);
             } else {
                 TaskComponent taskComponent = entityData.getComponent(entityId, TaskComponent.class);
                 if (taskComponent != null) {
-                    targetState = getAnimation(taskComponent.taskType);
+                    targetState = taskComponent.taskType == TaskType.MANUFACTURE
+                            ? getManufactureAnimation(kwdFile.getCreature(state.creatureId))
+                            : getAnimation(taskComponent.taskType);
                 } else {
                     CreatureAi aiState = entityData.getComponent(entityId, CreatureAi.class);
-                    if (aiState != null) {
+                    if (aiState != null && aiState.getCreatureState() == CreatureState.TORTURED) {
+                        targetState = getTortureAnimation(entityId);
+                    } else if (aiState != null) {
                         targetState = getAnimation(aiState.getCreatureState());
+                    } else if (entityData.getComponent(entityId, PortalGem.class) != null) {
+
+                        // The Reaper picks up the gem. His pick-up animation is in the praying slot
+                        targetState = Creature.AnimationType.PRAYING;
                     }
                 }
             }
@@ -100,6 +128,31 @@ public final class CreatureViewSystem extends GameTimeCounter {
                 entityData.setComponent(entityId, new CreatureViewState(state.creatureId, timeElapsed, targetState));
             }
         }
+    }
+
+    /**
+     * A possessed creature has no AI to tell its animation. It walks or stands
+     * as its keeper steers it, or prays. A melee swing shows for half of the
+     * attack's recharge time, so that the next swing starts the animation
+     * again.
+     */
+    private Creature.AnimationType getPossessedAnimation(EntityId entityId, CreatureViewState state) {
+        CreatureMeleeAttack meleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
+        if (state.state == Creature.AnimationType.MELEE_ATTACK && meleeAttack != null
+                && timeElapsed < state.stateStartTime + meleeAttack.rechargeTime / 2) {
+            return Creature.AnimationType.MELEE_ATTACK;
+        }
+
+        PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
+        if (possessedAbility != null && possessedAbility.ability == Creature.SpecialAbility.PRAY) {
+            return Creature.AnimationType.PRAYING;
+        }
+
+        PossessedMovement movement = entityData.getComponent(entityId, PossessedMovement.class);
+        if (movement != null && !Vector2f.ZERO.equals(movement.direction)) {
+            return Creature.AnimationType.WALK;
+        }
+        return Creature.AnimationType.STAND_STILL;
     }
 
     private void processAddedEntities(Set<Entity> entities) {
@@ -127,6 +180,21 @@ public final class CreatureViewSystem extends GameTimeCounter {
         creatureEntities.clear();
     }
 
+    /**
+     * Get the animation of a torture victim. A victim on the Electric Chair
+     * sits in the chair, the others are on the Torture Wheel
+     */
+    private Creature.AnimationType getTortureAnimation(EntityId entityId) {
+        CreatureTortured tortured = entityData.getComponent(entityId, CreatureTortured.class);
+        if (tortured != null && tortured.device != null) {
+            ObjectComponent device = entityData.getComponent(tortured.device, ObjectComponent.class);
+            if (device != null && device.objectId == ELECTRIC_CHAIR_OBJECT_ID) {
+                return Creature.AnimationType.TORTURED_CHAIR;
+            }
+        }
+        return Creature.AnimationType.TORTURED_WHEEL;
+    }
+
     private static Creature.AnimationType getAnimation(CreatureState creatureState) {
         switch (creatureState) {
             case IDLE:
@@ -150,6 +218,10 @@ public final class CreatureViewSystem extends GameTimeCounter {
                 return Creature.AnimationType.MELEE_ATTACK;
             case CAST_SPELL:
                 return Creature.AnimationType.CAST_SPELL;
+            case DANCING:
+                return Creature.AnimationType.DANCE;
+            case CELEBRATING:
+                return Creature.AnimationType.HAPPY;
             case EATING:
                 return Creature.AnimationType.EATING;
             default:
@@ -165,15 +237,33 @@ public final class CreatureViewSystem extends GameTimeCounter {
             case REPAIR_WALL:
             case CLAIM_WALL:
                 return Creature.AnimationType.SLEEPING;
+            case DESTROY_ROOM_TILE:
             case DIG_TILE:
                 return Creature.AnimationType.DIG;
             case TRAIN:
                 return Creature.AnimationType.MELEE_ATTACK;
             case RESEARCH:
                 return Creature.AnimationType.RESEARCHING;
+            case PRAY:
+                return Creature.AnimationType.PRAYING;
             default:
                 return Creature.AnimationType.STAND_STILL;
         }
+    }
+
+    /**
+     * Only the Bile Demon has an animation of its own for the workshop, the
+     * others, like the Troll, swing their hammer, their melee attack
+     *
+     * @param creature the creature manufacturing
+     * @return the animation to show
+     */
+    static Creature.AnimationType getManufactureAnimation(Creature creature) {
+        ArtResource manufacturing = creature.getAnimation(Creature.AnimationType.MANUFACTURING);
+        if (manufacturing != null && manufacturing.getType() != ArtResource.ArtResourceType.NONE) {
+            return Creature.AnimationType.MANUFACTURING;
+        }
+        return Creature.AnimationType.MELEE_ATTACK;
     }
 
 }

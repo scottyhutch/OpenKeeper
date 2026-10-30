@@ -33,6 +33,7 @@ import de.lessvoid.nifty.builder.ControlBuilder;
 import de.lessvoid.nifty.builder.ControlDefinitionBuilder;
 import de.lessvoid.nifty.builder.EffectBuilder;
 import de.lessvoid.nifty.builder.ImageBuilder;
+import de.lessvoid.nifty.builder.PanelBuilder;
 import de.lessvoid.nifty.controls.Console;
 import de.lessvoid.nifty.controls.Label;
 import de.lessvoid.nifty.controls.Tab;
@@ -55,7 +56,11 @@ import de.lessvoid.nifty.tools.SizeValueType;
 import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.component.*;
 import toniarts.openkeeper.game.controller.ILevelInfo;
+import toniarts.openkeeper.game.controller.KeeperSpellCastValidator;
+import toniarts.openkeeper.game.controller.KeeperSpellCost;
+import toniarts.openkeeper.game.controller.ReaperSummoner;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
+import toniarts.openkeeper.game.controller.player.PlayerResearchControl;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.sound.GlobalCategory;
 import toniarts.openkeeper.game.sound.GlobalType;
@@ -102,12 +107,23 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private PauseMenuSettings pauseMenuSettings;
 
     private static final String NOT_IMPLEMENTED_TEXT = "Currently not implemented";
-
+    private static final String FLASH_EFFECT_KEY = "flash";
+    private static final String ABILITY_ACTIVE_EFFECT_KEY = "active";
+    
     private static final Logger logger = System.getLogger(PlayerScreenController.class.getName());
 
     public static final float SCREEN_UPDATE_INTERVAL = 0.250f;
+
+    /**
+     * The quarters of the Talisman's pieces sheet in the order the pieces are
+     * added: x, y of the quarter on the sheet. The pie grows counter-clockwise
+     * from the top, like in DK II.
+     */
+    private static final int[][] TALISMAN_PIECE_QUARTERS = {{0, 0}, {0, 64}, {64, 64}, {64, 0}};
+    private static final int TALISMAN_BLINK_MS = 500;
     private static final java.awt.Color RESEARCH_COLOR = new java.awt.Color(0.569f, 0.106f, 0.31f, 0.6f);
-    
+    private static final java.awt.Color RECHARGE_COLOR = new java.awt.Color(1f, 1f, 1f, 0.7f);
+
     public float lastUpdate = 0;
 
     private PlayerState state;
@@ -115,18 +131,39 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private Screen screen;
 
     private Element selectedButton;
+    private Element hintedRoomButton;
+    private EntitySet nextRoomHints;
     private final Set<Element> unaffordableSpells = new HashSet<>();
+    private final Set<Element> unaffordableRooms = new HashSet<>();
+    private final Set<Element> workshoplessIcons = new HashSet<>();
     private Label tooltip;
     private boolean initHud = false;
     private String cinematicText;
     private EntityData entityData;
+    private EntitySet battles;
+    private int battleIndex = -1;
     private CreatureCardManager creatureCardManager;
+    private int lastImpCount = -1;
+    private String reaperTalismanState;
+    private EntitySet keeperCreatures;
+    private boolean reaperOwned;
+    private EntitySet summonedReapers;
+    private int reaperSecondsLeft;
+    private Element talismanBlink;
+    private EntitySet spellCasts;
+    private final Map<Short, Float> spellRechargeLeft = new HashMap<>();
+    private EntitySet payDayClocks;
+    private ResearchEffectControl payDayRing;
+    private float payDayTimeLeft;
+    private int payDayCost;
     private PossessionInteractionState.Action possessionAction = PossessionInteractionState.Action.MELEE;
 
     private final TrapIconTextParser trapIconTextParser = new TrapIconTextParser();
     private final DoorIconTextParser doorIconTextParser = new DoorIconTextParser();
-    private final SpellIconTextParser spellIconTextParser = new SpellIconTextParser();
+    private final SpellIconTextParser spellIconTextParser = new SpellIconTextParser(this::getSpellManaCost);
     private final RoomIconTextParser roomIconTextParser = new RoomIconTextParser();
+    private final HudButtonFlasher buttonFlasher = new HudButtonFlasher(this::setButtonFlashing);
+    private final Set<String> flashingButtons = new HashSet<>();
 
     public PlayerScreenController(PlayerState state, Nifty nifty) {
         this.state = state;
@@ -135,31 +172,189 @@ public final class PlayerScreenController implements IPlayerScreenController {
 
     @Override
     public void update(float tpf) {
+        buttonFlasher.update(tpf);
+        updateSpellRecharge(tpf);
         lastUpdate += tpf;
 
         if (lastUpdate >= SCREEN_UPDATE_INTERVAL) {
             if (creatureCardManager != null) {
                 creatureCardManager.update(tpf);
+
+                // Create Imp costs more the more imps we have. The price is baked
+                // into the icon tooltips, so rebuild the tab, which also updates
+                // the affordability
+                int impCount = creatureCardManager.getImpCount();
+                if (impCount != lastImpCount) {
+                    lastImpCount = impCount;
+                    populateSpellTab();
+                }
+                if (talismanBlink != null) {
+                    talismanBlink.setVisible(System.currentTimeMillis() / TALISMAN_BLINK_MS % 2 == 1);
+                }
+                if (keeperCreatures != null && (isReaperOwned() != reaperOwned || getReaperSecondsLeft() != reaperSecondsLeft)) {
+                    updateReaperTalisman();
+                }
+            }
+            if (state != null && screen != null && SCREEN_HUD_ID.equals(screen.getScreenId())) {
+                updateWorkshopAvailability();
+            }
+            if (battles != null && battles.applyChanges()) {
+                showBattleButton();
+            }
+            if (screen != null && SCREEN_POSSESSION_ID.equals(screen.getScreenId())) {
+                updatePossessionHealth();
+                updatePossessionActiveAbilities();
+            }
+            if (nextRoomHints != null && nextRoomHints.applyChanges()) {
+                showNextRoomHint();
+            }
+            if (payDayClocks != null && payDayClocks.applyChanges()) {
+                updatePayDay();
             }
             lastUpdate = 0;
         }
     }
 
+    /**
+     * Sizes the possession HUD health bar by the possessed creature's health.
+     * Called from the render thread, like the rest of the screen update.
+     */
+    private void updatePossessionHealth() {
+        EntityId target = state.stateManager.getState(PossessionInteractionState.class).getTarget();
+        Health health = target != null ? entityData.getComponent(target, Health.class) : null;
+        Element bar = screen.findElementById("creature-health");
+        if (health == null || bar == null || health.maxHealth <= 0) {
+            return;
+        }
+        int percent = Math.clamp(Math.round(100f * health.health / health.maxHealth), 0, 100);
+        bar.setConstraintWidth(new SizeValue(percent, SizeValueType.Percent));
+        bar.getParent().layoutElements();
+    }
+
+    /**
+     * Marks the abilities that are on with the selection frame, DK II draws it
+     * behind their icon (0x420D10). Called from the render thread, like the
+     * rest of the screen update.
+     */
+    private void updatePossessionActiveAbilities() {
+        EntityId target = state.stateManager.getState(PossessionInteractionState.class).getTarget();
+        Creature creature = state.getPossessionCreature();
+        if (target == null || creature == null) {
+            return;
+        }
+        updatePossessionAbilityActive(1, isPossessionAbilityActive(entityData, target, creature.getFirstPersonSpecialAbility1()));
+        updatePossessionAbilityActive(2, isPossessionAbilityActive(entityData, target, creature.getFirstPersonSpecialAbility2()));
+    }
+
+    private void updatePossessionAbilityActive(int index, boolean active) {
+        Element icon = screen.findElementById("creature-ability_" + index);
+        if (icon == null) {
+            return;
+        }
+        if (active) {
+            icon.startEffect(EffectEventId.onCustom, null, ABILITY_ACTIVE_EFFECT_KEY);
+        } else {
+            icon.resetSingleEffect(EffectEventId.onCustom, ABILITY_ACTIVE_EFFECT_KEY);
+        }
+    }
+
+    /**
+     * Is the possessed creature using the ability right now: a bat, a praying
+     * or a worker carrying creature has it in {@link PossessedAbility}, a
+     * disguised one is {@link Disguised} and a hypnotising one has a
+     * {@link Hypnotised} creature.
+     *
+     * @param data the entity data
+     * @param creature the possessed creature
+     * @param ability the ability to check
+     * @return {@code true} if the ability is on
+     */
+    boolean isPossessionAbilityActive(EntityData data, EntityId creature, Creature.SpecialAbility ability) {
+        return switch (ability) {
+            case TURN_TO_BAT, PRAY, PICK_UP_WORKERS -> {
+                PossessedAbility active = data.getComponent(creature, PossessedAbility.class);
+                yield active != null && active.ability == ability;
+            }
+            case DISGUISE_N_STEAL -> data.getComponent(creature, Disguised.class) != null;
+            case HYPNOTISE -> data.findEntity(new FieldFilter<>(Hypnotised.class, "entity", creature), Hypnotised.class) != null;
+            default -> false;
+        };
+    }
+
+    private void updatePayDay() {
+        for (Entity entity : payDayClocks) {
+            PayDayClock payDayClock = entity.get(PayDayClock.class);
+            payDayTimeLeft = payDayClock.getTimeLeftFraction();
+            payDayCost = payDayClock.cost;
+        }
+        if (payDayRing != null) {
+            payDayRing.setResearch(payDayTimeLeft);
+        }
+    }
+
+    /**
+     * The ring round the pay day coin shows the time left to the next pay day,
+     * it empties counterclockwise towards the pay day (DKII.EXE 0x415000).
+     * Like in the original, the ring is behind the coin and shows
+     * through its six windows. Drawn over the HUD, so the coin is drawn again
+     * over the ring, and it is made again each time the HUD comes back.
+     */
+    private void initPayDayRing() {
+        Element payDay = screen.findElementById("payDay");
+        if (payDay == null) {
+            return;
+        }
+        if (payDayRing != null) {
+            payDayRing.getElement().markForRemoval();
+        }
+        payDayRing = new ControlBuilder(ResearchEffectControl.CONTROL_NAME) {
+            {
+                parameter("image", "Textures/GUI/Windows/payday-Hp.png");
+                parameter("frontImage", "Textures/GUI/Windows/payday-BG.png");
+            }
+        }.build(payDay).getControl(ResearchEffectControl.class);
+        payDayRing.initJme(state.app);
+        payDayRing.setResearch(payDayTimeLeft);
+    }
+
     @Override
     public void cleanup() {
+        if (spellCasts != null) {
+            spellCasts.release();
+            spellCasts = null;
+        }
+        spellRechargeLeft.clear();
         if (creatureCardManager != null) {
             creatureCardManager.cleanup();
             creatureCardManager = null;
         }
-
-        // Remove the resource bundle so that we can actually put a new one here
-        nifty.getResourceBundles().remove("level");
+        if (battles != null) {
+            battles.release();
+            battles = null;
+        }
+        if (nextRoomHints != null) {
+            nextRoomHints.release();
+            nextRoomHints = null;
+        }
+        if (payDayClocks != null) {
+            payDayClocks.release();
+            payDayClocks = null;
+        }
+        payDayRing = null;
 
         // The screen controller might sometimes stay in memory
         // So make sure we clean these up or we end up cumulating a lot of uncollectable garbage (memory-leak)
         state = null;
         entityData = null;
         screen = null;
+        reaperTalismanState = null;
+        talismanBlink = null;
+        if (keeperCreatures != null) {
+            keeperCreatures.release();
+            keeperCreatures = null;
+            summonedReapers.release();
+            summonedReapers = null;
+        }
     }
 
     /**
@@ -172,13 +367,76 @@ public final class PlayerScreenController implements IPlayerScreenController {
         this.state = state;
     }
 
+    /**
+     * Make a HUD button flash, or stop it from flashing. Can be called from
+     * any thread, the flashing is applied on the render thread.
+     *
+     * @param buttonType the button type
+     * @param targetId the room, spell, door, trap or button id
+     * @param targetButtonType the misc button type, if the type is a misc button
+     * @param enabled flash on or off
+     * @param time how many seconds to flash, 0 flashes until stopped
+     */
+    public void flashButton(TriggerAction.MakeType buttonType, short targetId, TriggerAction.ButtonType targetButtonType, boolean enabled, int time) {
+        buttonFlasher.flash(buttonType, targetId, targetButtonType, enabled, time);
+    }
+
+    private void setButtonFlashing(String buttonKey, boolean flashing) {
+        Screen hud = nifty.getScreen(SCREEN_HUD_ID);
+        Element button = HudButtonFlasher.CREATURE_TAB.equals(buttonKey)
+                ? getCreatureTabButton(hud) : hud.findElementById(buttonKey);
+        if (button == null) {
+            return;
+        }
+        // The flash is a custom effect of its own, so it neither starts with the button nor stops its other effects
+        if (!flashing) {
+            if (flashingButtons.remove(buttonKey)) {
+                button.resetSingleEffect(EffectEventId.onCustom, FLASH_EFFECT_KEY);
+            }
+        } else if (flashingButtons.add(buttonKey)) {
+            try {
+                button.startEffect(EffectEventId.onCustom, null, FLASH_EFFECT_KEY);
+            } catch (RuntimeException e) {
+
+                // A button whose flash can't be shown mustn't take the game down
+                logger.log(Level.WARNING, "Can't flash button " + buttonKey, e);
+            }
+        }
+    }
+
+    private static Element getCreatureTabButton(Screen hud) {
+        CustomTabGroupControl tabs = hud.findNiftyControl("tabs-hud", CustomTabGroupControl.class);
+        return tabs != null ? tabs.getTabButton(0) : null;
+    }
+
     @Override
     public void select(String iState, String id) {
+        buttonFlasher.stop(iState.trim().toLowerCase() + "_" + id.trim());
         Type type = Type.valueOf(iState.toUpperCase());
         if (type == Type.SELL) {
             this.playButtonSound(GlobalCategory.GUI_SELL);
         }
-        state.interactionState.setInteractionState(type, Integer.parseInt(id));
+        int itemId = Integer.parseInt(id);
+        state.interactionState.setInteractionState(type, itemId);
+        reportSelection(type, itemId);
+    }
+
+    private void reportSelection(Type type, int itemId) {
+        switch (type) {
+            case ROOM ->
+                state.buttonPressed(TriggerAction.MakeType.ROOM, itemId);
+            case SPELL ->
+                state.buttonPressed(TriggerAction.MakeType.KEEPER_SPELL, itemId);
+            case DOOR ->
+                state.buttonPressed(TriggerAction.MakeType.DOOR, itemId);
+            case TRAP ->
+                state.buttonPressed(TriggerAction.MakeType.TRAP, itemId);
+            case SELL ->
+                state.buttonPressed(TriggerAction.ButtonType.SELL_ROOM);
+            default -> {
+                // Not a button the level scripts know
+            }
+        }
     }
 
     public void toggleGui() {
@@ -190,6 +448,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
 
     @Override
     public void togglePanel() {
+        buttonFlasher.stop("toggleButton");
         // FIXME work but not properly. Map should not move with other things. Need HUD redesign
         Element element = nifty.getScreen(SCREEN_HUD_ID).findElementById("bottomPanel");
 
@@ -207,6 +466,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
         element.setUserData("toggle", !toggled);
         element.getParent().layoutElements();
+        state.buttonPressed(TriggerAction.ButtonType.GUI_MIN_MAX);
     }
 
     @Override
@@ -492,7 +752,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
 
     @Override
     public void grabGold() {
+        state.buttonPressed(TriggerAction.ButtonType.GOLD_VALUE);
         state.grabGold(100);
+        buttonFlasher.stop("goldButton");
     }
 
     @Override
@@ -504,7 +766,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
      * "Resize Map" button, left click zoom in one level (or into zoomed mode from fit).
      */
     public void resizeMap() {
+        buttonFlasher.stop("zoomButton");
         playButtonSound("GUI_BUTTON_ZOOM");
+        state.buttonPressed(TriggerAction.ButtonType.ZOOM_IN_OUT);
         MinimapPanelState minimapPanelState = state.stateManager.getState(GameClientState.class).getMinimapPanelState();
         if (minimapPanelState != null) {
             minimapPanelState.zoomIn();
@@ -515,17 +779,77 @@ public final class PlayerScreenController implements IPlayerScreenController {
      * "Resize Map" button, right click: zoom out one level (or back to fit mode).
      */
     public void resizeMapDown() {
+        state.buttonPressed(TriggerAction.ButtonType.ZOOM_IN_OUT);
         MinimapPanelState minimapPanelState = state.stateManager.getState(GameClientState.class).getMinimapPanelState();
         if (minimapPanelState != null) {
             minimapPanelState.zoomOut();
         }
+        buttonFlasher.stop("zoomButton");
     }
 
     @Override
     public String getTooltipText(String bundleId) {
         String result = Utils.getMainTextResourceBundle().getString(bundleId);
 
-        return state.getTooltipText(result);
+        return formatTooltipText(result);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public String formatTooltipText(String text) {
+        return state.getTooltipText(text);
+    }
+
+    /**
+     * What the next pay day costs, for the gold's tooltip
+     *
+     * @return the cost
+     */
+    public int getPayDayCost() {
+        return payDayCost;
+    }
+
+    /**
+     * Battle tab right click: zoom to the next battle of our creatures. Each
+     * click moves on to the next battle.
+     */
+    public void zoomToBattle() {
+        List<Entity> playerBattles = getPlayerBattles();
+        if (!playerBattles.isEmpty()) {
+            battleIndex = (battleIndex + 1) % playerBattles.size();
+            zoomToPosition(playerBattles.get(battleIndex).get(Battle.class).position);
+        }
+    }
+
+    private List<Entity> getPlayerBattles() {
+        short playerId = state.getPlayer().getId();
+        List<Entity> playerBattles = new ArrayList<>();
+        for (Entity battle : battles) {
+            if (battle.get(Battle.class).playerIds.contains(playerId)) {
+                playerBattles.add(battle);
+            }
+        }
+        playerBattles.sort(Comparator.comparing(Entity::getId));
+        return playerBattles;
+    }
+
+    /**
+     * The Battle tab, the flashing crossed blades, shows while our creatures
+     * fight. DK II flies an icon to the tab with two sounds when the first of
+     * our creatures joins a battle, we just play the sounds.
+     */
+    private void showBattleButton() {
+        Element battleButton = nifty.getScreen(SCREEN_HUD_ID).findElementById("battleButton");
+        boolean visible = !getPlayerBattles().isEmpty();
+        if (battleButton != null && battleButton.isVisible() != visible) {
+            battleButton.setVisible(visible);
+            if (visible) {
+                playSound(GlobalCategory.GUI_BUTTON_TAB_NEW_COMBAT, String.valueOf(GlobalType.GUI_BUTTON_TABSLAB.getId()));
+                playSound(GlobalCategory.GUI_BUTTON_TAB_NEW_COMBAT, String.valueOf(GlobalType.GUI_BUTTON_SPINNING.getId()));
+            }
+        }
     }
 
     @Override
@@ -536,6 +860,11 @@ public final class PlayerScreenController implements IPlayerScreenController {
     @Override
     public void zoomToPosition(Vector3f position) {
         state.zoomToPosition(position, false);
+    }
+
+    @Override
+    public Vector3f getEntityPosition(EntityId entityId) {
+        return state.getEntityPosition(entityId);
     }
 
     @Override
@@ -601,6 +930,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
                     initHud = false;
                     initHudItems(state.assetManager, entityData);
                 }
+                initPayDayRing();
 
                 break;
             }
@@ -684,6 +1014,11 @@ public final class PlayerScreenController implements IPlayerScreenController {
             return;
         }
 
+        // The previous possession's icons
+        for (Element element : contentPanel.getChildren()) {
+            element.markForRemoval();
+        }
+
         String ability = getAbilityResourceName(creature.getFirstPersonSpecialAbility1());
         if (ability != null) {
             createCreatureAbilityIcon(ability, 1).build(contentPanel);
@@ -707,9 +1042,17 @@ public final class PlayerScreenController implements IPlayerScreenController {
 
         createCreatureMeleeIcon(creature.getFirstPersonMeleeResource().getName()).build(contentPanel);
 
-        // TODO: creature spells, check creature level availiablity
-        //CreatureSpell cs = state.stateManager.getState(GameState.class).getLevelData().getCreatureSpellById(s.getCreatureSpellId());
-        //createCreatureSpellIcon(cs, index++).build(nifty, screen, contentPanel);
+        // The spells the creature has at its level, the keys pick them in the creature's order
+        EntityId target = state.stateManager.getState(PossessionInteractionState.class).getTarget();
+        CreatureExperience experience = target != null ? entityData.getComponent(target, CreatureExperience.class) : null;
+        int level = experience != null ? experience.level : 1;
+        int index = 1;
+        for (Creature.Spell spell : creature.getSpells()) {
+            if (spell.getLevelAvailable() <= level) {
+                createCreatureSpellIcon(state.getKwdFile().getCreatureSpellById(spell.getCreatureSpellId()), index).build(contentPanel);
+            }
+            index++;
+        }
     }
 
     @Override
@@ -719,11 +1062,18 @@ public final class PlayerScreenController implements IPlayerScreenController {
     @NiftyEventSubscriber(id = "tabs-hud")
     public void onTabChange(String id, TabSelectedEvent event) {
         updateSelectedItem(state.getInteractionState());
+        if ("tab-creature".equals(event.getTab().getId())) {
+            buttonFlasher.stop(HudButtonFlasher.CREATURE_TAB);
+        }
         Tab tab = event.getTab();
+        if ("tab-creature".equals(tab.getId())) {
+            state.buttonPressed(TriggerAction.ButtonType.CREATURE_TAB);
+        }
         if (tab instanceof CustomTabControl) {
             String sound = ((CustomTabControl) event.getTab()).getSound();
             this.playButtonSound(sound);
         }
+        reapplyIconEffects();
     }
 
     protected void initHud(String resource, EntityData entityData) {
@@ -902,10 +1252,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
         hud.findNiftyControl("manaGet", Label.class).setText(Integer.toString(state.getPlayer().getManaGain()));
         hud.findNiftyControl("manaLose", Label.class).setText(Integer.toString(state.getPlayer().getManaLoose()));
 
-        if (state.getGoldControl() != null) {
-            // state.getGoldControl().addListener(hud.findNiftyControl("gold", Label.class));
-        }
-        hud.findNiftyControl("gold", Label.class).setText(Integer.toString(state.getPlayer().getGold()));
+        hud.findNiftyControl("gold", Label.class).setText(Integer.toString(state.getGold()));
 
         // Player creatures
         Element creatureTab = hud.findElementById("tab-creature");
@@ -931,7 +1278,21 @@ public final class PlayerScreenController implements IPlayerScreenController {
         creatureCardManager = new CreatureCardManager(this, state.getKwdFile(), entityData, creaturePanel,
                 creatureTab.findControl("tab-creature-scroll", CreaturePortraitScrollControl.class),
                 workerAmountControl, hud, state.getPlayer().getId());
-        // Rooms
+        battles = entityData.getEntities(Battle.class);
+        showBattleButton();
+
+        // Keeper spell recharge, a cast that is already in the set is not tracked, the changes are
+        spellCasts = entityData.getEntities(new FieldFilter(KeeperSpellCast.class, "keeperId", state.getPlayer().getId()), KeeperSpellCast.class);
+        // Rooms, and the room the level script wants built next
+        if (nextRoomHints != null) {
+            nextRoomHints.release();
+        }
+        nextRoomHints = entityData.getEntities(new FieldFilter(Owner.class, "ownerId", state.getPlayer().getId()), NextRoomHint.class, Owner.class);
+        if (payDayClocks != null) {
+            payDayClocks.release();
+        }
+        payDayClocks = entityData.getEntities(new FieldFilter(Owner.class, "ownerId", state.getPlayer().getId()),
+                PayDayClock.class, Owner.class);
 //        state.getRoomControl().addRoomAvailabilityListener(new PlayerRoomControl.IRoomAvailabilityListener() {
 //
 //            @Override
@@ -973,14 +1334,56 @@ public final class PlayerScreenController implements IPlayerScreenController {
     public void setGold(int gold) {
         Screen hud = nifty.getScreen(SCREEN_HUD_ID);
         hud.findNiftyControl("gold", Label.class).setText(Integer.toString(gold));
+        updateRoomAffordability(gold);
+    }
+
+    /**
+     * Darkens the room icons that the player doesn't have enough gold to
+     * build a single tile of
+     *
+     * @param gold the gold the player has
+     */
+    private void updateRoomAffordability(int gold) {
+        if (state == null) {
+            // The HUD has been taken down, the level has ended
+            return;
+        }
+        Screen hud = nifty.getScreen(SCREEN_HUD_ID);
+        for (ResearchableEntity room : state.getAvailableRoomsToBuild()) {
+            if (!room.isDiscovered()) {
+                continue;
+            }
+            Element icon = hud.findElementById("room_" + room.getId());
+            if (icon == null) {
+                continue;
+            }
+            boolean unaffordable = state.getKwdFile().getRoomById(room.getId()).getCost() > gold;
+            if (unaffordable == unaffordableRooms.contains(icon)) {
+                continue;
+            }
+            if (unaffordable) {
+                unaffordableRooms.add(icon);
+                icon.startEffect(EffectEventId.onCustom, null, "unaffordable");
+            } else {
+                unaffordableRooms.remove(icon);
+                icon.stopEffect(EffectEventId.onCustom);
+                if (icon == selectedButton) {
+                    icon.startEffect(EffectEventId.onCustom, null, "select");
+                }
+            }
+        }
     }
 
     public void setMana(int mana, int manaLoose, int manaGain) {
-        Screen hud = nifty.getScreen(SCREEN_HUD_ID);
-        hud.findNiftyControl("mana", Label.class).setText(Integer.toString(mana));
-        hud.findNiftyControl("manaGet", Label.class).setText(Integer.toString(manaGain));
-        hud.findNiftyControl("manaLose", Label.class).setText(Integer.toString(manaLoose));
-        updateSpellAffordability(mana - manaLoose);
+
+        // The possession screen shows the mana too
+        for (String screenId : new String[]{SCREEN_HUD_ID, SCREEN_POSSESSION_ID}) {
+            Screen manaScreen = nifty.getScreen(screenId);
+            manaScreen.findNiftyControl("mana", Label.class).setText(Integer.toString(mana));
+            manaScreen.findNiftyControl("manaGet", Label.class).setText(Integer.toString(manaGain));
+            manaScreen.findNiftyControl("manaLose", Label.class).setText(Integer.toString(manaLoose));
+        }
+        updateSpellAffordability(mana);
     }
 
     /**
@@ -988,10 +1391,29 @@ public final class PlayerScreenController implements IPlayerScreenController {
      *
      * @param availableMana mana available for casting
      */
+    /**
+     * Get the mana cost of casting a keeper spell, as the server will charge it
+     *
+     * @param keeperSpell the spell
+     * @return the mana cost
+     */
+    public int getSpellManaCost(KeeperSpell keeperSpell) {
+        int impCount = creatureCardManager != null ? creatureCardManager.getImpCount() : 0;
+        return KeeperSpellCost.getManaCost(keeperSpell, impCount,
+                (int) state.getKwdFile().getVariables().get(Variable.MiscVariable.MiscType.MINIMUM_IMP_THRESHOLD).getValue());
+    }
+
     private void updateSpellAffordability(int availableMana) {
+        if (state == null) {
+            // The HUD has been taken down, the level has ended
+            return;
+        }
         Screen hud = nifty.getScreen(SCREEN_HUD_ID);
         for (ResearchableEntity spell : state.getAvailableKeeperSpells()) {
-            if (!spell.isDiscovered()) {
+
+            // DK II doesn't darken the Reaper Talisman for mana
+            if (!spell.isDiscovered() || spell.getId() == ReaperSummoner.SUMMON_REAPER_SPELL_ID
+                    || spell.getId() == ReaperSummoner.ONE_SHOT_REAPER_SPELL_ID) {
                 continue;
             }
             KeeperSpell keeperSpell = state.getKwdFile().getKeeperSpellById(spell.getId());
@@ -999,7 +1421,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
             if (icon == null) {
                 continue;
             }
-            boolean unaffordable = keeperSpell.getManaCost() > availableMana;
+            boolean unaffordable = getSpellManaCost(keeperSpell) > availableMana;
             if (unaffordable == unaffordableSpells.contains(icon)) {
                 continue;
             }
@@ -1016,6 +1438,92 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
     }
 
+    /**
+     * Nifty saves the effects of a tab when it is hidden and starts them again
+     * when the tab is shown, even the ones that were stopped in between. Gives
+     * the room and spell icons their effects again so that an icon that was lit
+     * while its tab was hidden doesn't come back dark.
+     */
+    private void reapplyIconEffects() {
+        if (state == null) {
+            return;
+        }
+        Screen hud = nifty.getScreen(SCREEN_HUD_ID);
+        for (ResearchableEntity room : state.getAvailableRoomsToBuild()) {
+            if (room.isDiscovered()) {
+                reapplyIconEffects(hud.findElementById("room_" + room.getId()), unaffordableRooms);
+            }
+        }
+        for (ResearchableEntity spell : state.getAvailableKeeperSpells()) {
+            if (spell.isDiscovered()) {
+                KeeperSpell keeperSpell = state.getKwdFile().getKeeperSpellById(spell.getId());
+                reapplyIconEffects(hud.findElementById("spell_" + keeperSpell.getKeeperSpellId()), unaffordableSpells);
+            }
+        }
+        for (ResearchableEntity door : state.getAvailableDoors()) {
+            if (door.isDiscovered()) {
+                reapplyIconEffects(hud.findElementById("door_" + state.getKwdFile().getDoorById(door.getId()).getDoorId()), workshoplessIcons);
+            }
+        }
+        for (ResearchableEntity trap : state.getAvailableTraps()) {
+            if (trap.isDiscovered()) {
+                reapplyIconEffects(hud.findElementById("trap_" + state.getKwdFile().getTrapById(trap.getId()).getTrapId()), workshoplessIcons);
+            }
+        }
+    }
+
+    /**
+     * Shows the recharge of the keeper spells the same way DK II does: a
+     * translucent white pie over the icon that shrinks as the spell recharges.
+     * The client has no game timer, so the time left is counted down from the
+     * moment a changed {@link KeeperSpellCast} arrives, not while paused.
+     *
+     * @param tpf time per frame
+     */
+    private void updateSpellRecharge(float tpf) {
+        if (spellCasts == null) {
+            return;
+        }
+        if (spellCasts.applyChanges()) {
+            for (Set<Entity> entities : List.of(spellCasts.getAddedEntities(), spellCasts.getChangedEntities())) {
+                for (Entity entity : entities) {
+                    short spellId = entity.get(KeeperSpellCast.class).keeperSpellId;
+                    spellRechargeLeft.put(spellId, state.getKwdFile().getKeeperSpellById(spellId).getRechargeTime());
+                }
+            }
+        }
+        boolean paused = state.isPaused();
+        for (Iterator<Map.Entry<Short, Float>> it = spellRechargeLeft.entrySet().iterator(); it.hasNext();) {
+            Map.Entry<Short, Float> entry = it.next();
+            float left = paused ? entry.getValue() : entry.getValue() - tpf;
+            setSpellRecharge(entry.getKey(), left);
+            if (left <= 0) {
+                it.remove();
+            } else {
+                entry.setValue(left);
+            }
+        }
+    }
+
+    private void reapplyIconEffects(Element icon, Set<Element> unaffordableIcons) {
+        if (icon == null) {
+            return;
+        }
+        icon.stopEffect(EffectEventId.onCustom);
+        if (unaffordableIcons.contains(icon)) {
+            icon.startEffect(EffectEventId.onCustom, null, "unaffordable");
+        } else if (icon == selectedButton) {
+            icon.startEffect(EffectEventId.onCustom, null, "select");
+        }
+    }
+
+    private void setSpellRecharge(short spellId, float secondsLeft) {
+        Element recharge = nifty.getScreen(SCREEN_HUD_ID).findElementById("recharge_" + spellId);
+        if (recharge != null) {
+            recharge.getControl(ResearchEffectControl.class).setResearch(Math.max(0, secondsLeft) / state.getKwdFile().getKeeperSpellById(spellId).getRechargeTime());
+        }
+    }
+
     public void populateManufactureTab() {
         Screen hud = nifty.getScreen(SCREEN_HUD_ID);
         FlowLayoutControl contentPanel = hud.findElementById("tab-workshop-content").getControl(FlowLayoutControl.class);
@@ -1025,8 +1533,50 @@ public final class PlayerScreenController implements IPlayerScreenController {
             setResearchEffect(door, element);
         }
         for (final ResearchableEntity trap : state.getAvailableTraps()) {
+
+            // DK II leaves out the traps that only doors fire (Magic Door, Spare Door), they are not built on their own
+            if (state.getKwdFile().getTrapById(trap.getId()).getFlags().contains(Trap.TrapFlag.DOOR_TRAP)) {
+                continue;
+            }
             Element element = contentPanel.addElement(createTrapIcon(trap));
             setResearchEffect(trap, element);
+        }
+        workshoplessIcons.clear();
+        updateWorkshopAvailability();
+    }
+
+    /**
+     * Darkens the trap and door icons while the player has no Workshop to
+     * manufacture them in, as DKII.EXE does (0x412FC0)
+     */
+    private void updateWorkshopAvailability() {
+        Screen hud = nifty.getScreen(SCREEN_HUD_ID);
+        boolean hasWorkshop = state.hasWorkshop();
+        for (ResearchableEntity door : state.getAvailableDoors()) {
+            if (door.isDiscovered()) {
+                updateWorkshopIcon(hud.findElementById("door_" + state.getKwdFile().getDoorById(door.getId()).getDoorId()), hasWorkshop);
+            }
+        }
+        for (ResearchableEntity trap : state.getAvailableTraps()) {
+            if (trap.isDiscovered()) {
+                updateWorkshopIcon(hud.findElementById("trap_" + state.getKwdFile().getTrapById(trap.getId()).getTrapId()), hasWorkshop);
+            }
+        }
+    }
+
+    private void updateWorkshopIcon(Element icon, boolean hasWorkshop) {
+        if (icon == null || hasWorkshop != workshoplessIcons.contains(icon)) {
+            return;
+        }
+        if (!hasWorkshop) {
+            workshoplessIcons.add(icon);
+            icon.startEffect(EffectEventId.onCustom, null, "unaffordable");
+        } else {
+            workshoplessIcons.remove(icon);
+            icon.stopEffect(EffectEventId.onCustom);
+            if (icon == selectedButton) {
+                icon.startEffect(EffectEventId.onCustom, null, "select");
+            }
         }
     }
 
@@ -1057,6 +1607,10 @@ public final class PlayerScreenController implements IPlayerScreenController {
         FlowLayoutControl contentPanel = hud.findElementById("tab-spell-content").getControl(FlowLayoutControl.class);
         contentPanel.removeAll();
         for (final ResearchableEntity spell : state.getAvailableKeeperSpells()) {
+            // The Reaper spells are cast from the Reaper Talisman
+            if (spell.getId() == ReaperSummoner.SUMMON_REAPER_SPELL_ID || spell.getId() == ReaperSummoner.ONE_SHOT_REAPER_SPELL_ID) {
+                continue;
+            }
             Element element = contentPanel.addElement(createSpellIcon(spell));
             if (!spell.isUpgraded()) {
                 ResearchEffectControl researchControl = new ControlBuilder(ResearchEffectControl.CONTROL_NAME) {
@@ -1067,9 +1621,165 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 }.build(element).getControl(ResearchEffectControl.class);
                 researchControl.initJme(state.app);
             }
+            KeeperSpell keeperSpell = state.getKwdFile().getKeeperSpellById(spell.getId());
+            if (spell.isDiscovered() && keeperSpell.getRechargeTime() > 0) {
+                new ControlBuilder(ResearchEffectControl.CONTROL_NAME) {
+                    {
+                        id("recharge_" + keeperSpell.getKeeperSpellId());
+                        parameter("color", Integer.toString(RECHARGE_COLOR.getRGB()));
+                        parameter("image", "");
+                    }
+                }.build(element).getControl(ResearchEffectControl.class).initJme(state.app);
+                Float left = spellRechargeLeft.get(keeperSpell.getKeeperSpellId());
+                if (left != null) {
+                    setSpellRecharge(keeperSpell.getKeeperSpellId(), left);
+                }
+            }
         }
         unaffordableSpells.clear();
-        updateSpellAffordability(state.getPlayer().getMana() - state.getPlayer().getManaLoose());
+        updateSpellAffordability(state.getPlayer().getMana());
+        updateReaperTalisman();
+    }
+
+    /**
+     * Does the keeper have a Horned Reaper
+     */
+    private boolean isReaperOwned() {
+        keeperCreatures.applyChanges();
+        return KeeperSpellCastValidator.hasReaper(state.getKwdFile(), keeperCreatures);
+    }
+
+    /**
+     * Shows the Reaper Talisman: the whole Talisman once Summon Reaper is
+     * researched, otherwise its pieces on the levels that have them. Clicking
+     * it picks the spell it casts, as a spell icon does. The pieces are drawn as
+     * a pie of quarters, the last one blinking while the free Reaper is unused,
+     * and dimmed while the Talisman can't be used. The whole Talisman is greyed
+     * with its own texture while it can't be used. Updated when the keeper's
+     * spells change, and when he gets or loses a Reaper.
+     */
+    private void updateReaperTalisman() {
+        if (keeperCreatures == null) {
+            FieldFilter<Owner> keeper = new FieldFilter<>(Owner.class, "ownerId", state.getPlayer().getId());
+            keeperCreatures = entityData.getEntities(keeper, Owner.class, CreatureComponent.class);
+            summonedReapers = entityData.getEntities(keeper, Owner.class, SummonedReaper.class);
+        }
+        reaperOwned = isReaperOwned();
+        KeeperSpell keeperSpell = KeeperSpellCastValidator.getReaperTalismanSpell(state.getKwdFile(), state.getPlayer(), reaperOwned);
+        boolean summonReaperResearched = false;
+        for (ResearchableEntity spell : state.getAvailableKeeperSpells()) {
+            if (spell.getId() == ReaperSummoner.SUMMON_REAPER_SPELL_ID && spell.isDiscovered()) {
+                summonReaperResearched = true;
+            }
+        }
+        String image = "reaper_talisman-00";
+        String activeImage = image;
+        if (summonReaperResearched && keeperSpell != null) {
+            image = "reaper_talisman-02";
+            activeImage = "reaper_talisman-03";
+        }
+        int pieces = summonReaperResearched ? 0 : Math.min(state.getKwdFile().getGameLevel().getTalismanPieces(), TALISMAN_PIECE_QUARTERS.length);
+        String tooltipId = summonReaperResearched ? "2238" : keeperSpell != null ? "2239" : "2244";
+
+        int secondsLeft = getReaperSecondsLeft();
+        String talismanState = image + "_" + tooltipId + "_" + (keeperSpell != null ? keeperSpell.getId() : "") + "_" + pieces + "_" + (secondsLeft > 0);
+        boolean countdownOnly = talismanState.equals(reaperTalismanState) && secondsLeft > 0 && reaperSecondsLeft > 0;
+        if (countdownOnly) {
+            nifty.getScreen(SCREEN_HUD_ID).findNiftyControl("reaper-seconds", Label.class).setText(Integer.toString(secondsLeft));
+        }
+        reaperSecondsLeft = secondsLeft;
+        if (talismanState.equals(reaperTalismanState)) {
+            return;
+        }
+        reaperTalismanState = talismanState;
+
+        // The spell id lets the spell selection and mana checks find the Talisman
+        Element panel = nifty.getScreen(SCREEN_HUD_ID).findElementById("reaper-talisman");
+        removeAllChildElements(panel);
+        String tooltip = Utils.getMainTextResourceBundle().getString(tooltipId);
+        ControlBuilder cb = new GuiIconBuilder(keeperSpell != null ? "spell_" + keeperSpell.getId() : "reaper-talisman-icon",
+                AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER + File.separator + "GUI/Spells/" + image + ".png"),
+                AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER + File.separator + "GUI/Icons/hilight.png"),
+                AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER + File.separator + "GUI/Spells/" + activeImage + ".png"),
+                tooltip, tooltip, keeperSpell != null ? "select(spell, " + keeperSpell.getId() + ")" : "");
+        cb.width("128px");
+        cb.height("128px");
+        cb.build(panel);
+
+        // The pieces of the Talisman, 60% while it can't be used
+        talismanBlink = null;
+        if (pieces > 0) {
+            PanelBuilder piecePanel = new PanelBuilder("reaper-talisman-pieces");
+            piecePanel.width("128px");
+            piecePanel.height("128px");
+            piecePanel.childLayoutAbsolute();
+            for (int i = 0; i < pieces; i++) {
+                int[] quarter = TALISMAN_PIECE_QUARTERS[i];
+
+                piecePanel.image(createTalismanPiece("reaper_talisman-01", quarter, keeperSpell == null, null));
+                if (keeperSpell != null && i == pieces - 1) {
+
+                    // The last piece blinks, the highlighted sheet is shown over it now and then
+                    piecePanel.image(createTalismanPiece("reaper_talisman-04", quarter, false, "reaper-talisman-blink"));
+                }
+            }
+            Element pieceElement = piecePanel.build(panel);
+            talismanBlink = pieceElement.findElementById("reaper-talisman-blink");
+        }
+
+        // The Reaper of the Talisman leaves when the time is up
+        if (secondsLeft > 0) {
+            new LabelBuilder("reaper-seconds", Integer.toString(secondsLeft)) {
+                {
+                    style("text");
+                    color("#27d067");
+                    valignBottom();
+                    alignCenter();
+                }
+            }.build(panel);
+        }
+    }
+
+    private ImageBuilder createTalismanPiece(String sheet, int[] quarter, boolean dimmed, String id) {
+        return new ImageBuilder() {
+            {
+                if (id != null) {
+                    id(id);
+                    visible(false);
+                }
+                filename(AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER + File.separator + "GUI/Spells/" + sheet + ".png"));
+                imageMode("subImage:" + quarter[0] + "," + quarter[1] + ",64,64");
+                x(quarter[0] + "px");
+                y(quarter[1] + "px");
+                width("64px");
+                height("64px");
+                if (dimmed) {
+                    onActiveEffect(new EffectBuilder("fade") {
+                        {
+                            effectParameter("start", "#99");
+                            effectParameter("end", "#99");
+                            effectParameter("neverStopRendering", "true");
+                        }
+                    });
+                }
+            }
+        };
+    }
+
+    /**
+     * Gets the seconds the keeper's timed Reaper has left
+     *
+     * @return the seconds, 0 if the keeper has no timed Reaper
+     */
+    private int getReaperSecondsLeft() {
+        summonedReapers.applyChanges();
+        for (Entity entity : summonedReapers) {
+            SummonedReaper reaper = entity.get(SummonedReaper.class);
+            if (reaper.lifetime > 0 && !reaper.isLeaving()) {
+                return reaper.secondsLeft;
+            }
+        }
+        return 0;
     }
 
     /**
@@ -1079,10 +1789,42 @@ public final class PlayerScreenController implements IPlayerScreenController {
         Screen hud = nifty.getScreen(SCREEN_HUD_ID);
         FlowLayoutControl contentPanel = hud.findElementById("tab-room-content").getControl(FlowLayoutControl.class);
         contentPanel.removeAll();
+        hintedRoomButton = null; // The old buttons are going away
         for (final ResearchableEntity room : state.getAvailableRoomsToBuild()) {
             Element element = contentPanel.addElement(createRoomIcon(room));
             setResearchEffect(room, element);
+            if (nextRoomHints != null) {
+                for (Entity hint : nextRoomHints) {
+                    if (hint.get(NextRoomHint.class).roomId == room.getId()) {
+                        pulseRoomButton(element);
+                    }
+                }
+            }
         }
+    }
+
+    private void pulseRoomButton(Element button) {
+        hintedRoomButton = button;
+        button.startEffect(EffectEventId.onCustom, null, "hint");
+    }
+
+    /**
+     * Pulses the button of the room the server hints at, and stops pulsing the
+     * previous one. Room id 0 means no hint.
+     */
+    private void showNextRoomHint() {
+        if (hintedRoomButton != null) {
+            hintedRoomButton.resetSingleEffect(EffectEventId.onCustom, "hint");
+            hintedRoomButton = null;
+        }
+        for (Entity hint : nextRoomHints) {
+            Element button = nifty.getScreen(SCREEN_HUD_ID).findElementById("room_" + hint.get(NextRoomHint.class).roomId);
+            if (button != null) {
+                pulseRoomButton(button);
+            }
+        }
+        unaffordableRooms.clear();
+        updateRoomAffordability(state.getGold());
     }
 
     /**
@@ -1195,30 +1937,18 @@ public final class PlayerScreenController implements IPlayerScreenController {
     }
 
     public void updateEntityResearch(ResearchableEntity researchableEntity) {
+        if (state == null) {
+            // The HUD has been taken down, the level has ended
+            return;
+        }
         String itemId = getItemTypeId(researchableEntity);
         Element researchableButton = nifty.getScreen(SCREEN_HUD_ID).findElementById(itemId);
         if (researchableButton != null) {
             ResearchEffectControl researchControl = researchableButton.getControl(ResearchEffectControl.class);
             if (researchControl != null) {
-                float percentage = (float) researchableEntity.getResearch() / getResearchTime(researchableEntity);
+                float percentage = (float) researchableEntity.getResearch() / PlayerResearchControl.getResearchPoints(state.getKwdFile(), researchableEntity);
                 researchControl.setResearch(percentage);
             }
-        }
-    }
-
-    private int getResearchTime(ResearchableEntity researchableEntity) {
-        switch (researchableEntity.getResearchableType()) {
-            case SPELL:
-                KeeperSpell keeperSpell = state.getKwdFile().getKeeperSpellById(researchableEntity.getId());
-                return researchableEntity.isDiscovered() ? keeperSpell.getBonusRTime() : keeperSpell.getResearchTime();
-            case TRAP:
-                return state.getKwdFile().getTrapById(researchableEntity.getId()).getResearchTime();
-            case DOOR:
-                return state.getKwdFile().getDoorById(researchableEntity.getId()).getResearchTime();
-            case ROOM:
-                return state.getKwdFile().getRoomById(researchableEntity.getId()).getResearchTime();
-            default:
-                throw new IllegalArgumentException("Invalid type!");
         }
     }
 
@@ -1251,8 +1981,12 @@ public final class PlayerScreenController implements IPlayerScreenController {
     protected void updateSelectedItem(PlayerInteractionState.InteractionState state) {
         if (selectedButton != null) {
             selectedButton.stopEffect(EffectEventId.onCustom);
-            if (unaffordableSpells.contains(selectedButton)) {
+            if (unaffordableSpells.contains(selectedButton) || unaffordableRooms.contains(selectedButton)
+                    || workshoplessIcons.contains(selectedButton)) {
                 selectedButton.startEffect(EffectEventId.onCustom, null, "unaffordable");
+            }
+            if (selectedButton == hintedRoomButton) {
+                selectedButton.startEffect(EffectEventId.onCustom, null, "hint");
             }
         }
 
@@ -1279,6 +2013,15 @@ public final class PlayerScreenController implements IPlayerScreenController {
                         effectParameter("filename", AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER
                                 + File.separator + "GUI/Icons/selected-creature.png"));
                         post(true);
+                    }
+                });
+                onCustomEffect(new EffectBuilder("imageOverlay") {
+                    {
+                        customKey(ABILITY_ACTIVE_EFFECT_KEY);
+                        effectParameter("filename", AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER
+                                + File.separator + "GUI/Icons/selected-creature.png"));
+                        post(true);
+                        effectParameter("neverStopRendering", "true");
                     }
                 });
             }
@@ -1408,6 +2151,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
 
     @Override
     public void playSound(String category, String id) {
+        if (Main.isAudioDisabled())
+            return;
         SoundHandle soundHandler = NiftyUtils.getSoundHandler(nifty, category, Integer.parseInt(id));
         if (soundHandler != null) {
             soundHandler.play();
@@ -1434,6 +2179,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
         private final WorkerAmountControl workerAmountControl;
         private final Screen hud;
         private final short impId;
+        private int impCount;
 
         private final Map<EntityId, WatchedEntity> creatureEntities = new LinkedHashMap<>();
         private final Map<EntityId, Short> creatureIdsByEntityIds = new HashMap<>();
@@ -1478,6 +2224,15 @@ public final class PlayerScreenController implements IPlayerScreenController {
             }
         }
 
+        /**
+         * Get the number of imps the player has
+         *
+         * @return the imp count
+         */
+        public int getImpCount() {
+            return impCount;
+        }
+
         public void cleanup() {
             playerCreatureEntities.release();
 
@@ -1491,7 +2246,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
         private void processAddedPlayerCreatureEntities(Set<Entity> entities) {
             for (Entity entity : entities) {
                 creatureEntities.put(entity.getId(), entityData.watchEntity(entity.getId(), new Class[]{CreatureAi.class, CreatureComponent.class,
-                    AttackTarget.class, TaskComponent.class, Position.class, CreatureImprisoned.class, CreatureImprisoned.class}));
+                    AttackTarget.class, TaskComponent.class, Position.class, CreatureImprisoned.class, CreatureMood.class}));
             }
         }
 
@@ -1541,7 +2296,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
                         creatureCardControls.put(creatureId, card);
                     }
 
-                    card.setTotal(calculateTotal(creatureId));
+                    updateCreatureCardCounts(card, creatureId);
                 }
             }
             if (!creatureTypes.isEmpty()) {
@@ -1629,20 +2384,40 @@ public final class PlayerScreenController implements IPlayerScreenController {
             // Add the event listener
             creatureCardControl.addListener(creatureCardEventListener);
 
+            // New cards show the view that is currently selected
+            creatureCardControl.setState(workerAmountControl.getState());
+
             return creatureCardControl;
         }
 
-        private int calculateTotal(short creatureId) {
+        private void updateCreatureCardCounts(CreatureCardControl card, short creatureId) {
+            int unhappyThreshold = unhappyThreshold(creatureId);
+            int[] counts = new int[CreatureUIState.values().length];
             int total = 0;
-            Set<EntityId> creatureSet = creaturesByTypes.get(creatureId);
-            if (creatureSet != null) {
-                for (EntityId entityId : creatureSet) {
-                    if (isIncludeEntityInCount(creatureEntities.get(entityId))) {
-                        total++;
+            for (EntityId entityId : creaturesByTypes.get(creatureId)) {
+                Entity entity = creatureEntities.get(entityId);
+                if (isIncludeEntityInCount(entity)) {
+                    total++;
+                    for (CreatureUIState uiState : CreatureUIState.values()) {
+                        if (uiState.matches(entity, unhappyThreshold)) {
+                            counts[uiState.ordinal()]++;
+                        }
                     }
                 }
             }
-            return total;
+            card.setTotal(total);
+            card.setIdle(counts[CreatureUIState.IDLE.ordinal()]);
+            card.setBusy(counts[CreatureUIState.BUSY.ordinal()]);
+            card.setWork(counts[CreatureUIState.WORK.ordinal()]);
+            card.setFight(counts[CreatureUIState.FIGHT.ordinal()]);
+            card.setDefence(counts[CreatureUIState.DEFENCE.ordinal()]);
+            card.setHappy(counts[CreatureUIState.HAPPY.ordinal()]);
+            card.setUnhappy(counts[CreatureUIState.UNHAPPY.ordinal()]);
+            card.setAngry(counts[CreatureUIState.ANGRY.ordinal()]);
+        }
+
+        private int unhappyThreshold(short creatureId) {
+            return CreatureMood.toRuntimeThreshold(kwdFile.getCreature(creatureId).getAttributes().getUnhappyThreshold());
         }
 
         /**
@@ -1681,6 +2456,15 @@ public final class PlayerScreenController implements IPlayerScreenController {
                     impBusy++;
                 }
                 impTotal++;
+            }
+
+            // All our living imps count for the Create Imp price, also the ones in hand
+            impCount = 0;
+            for (EntityId entityId : imps) {
+                Entity entity = creatureEntities.get(entityId);
+                if (entity != null && entity.get(Death.class) == null) {
+                    impCount++;
+                }
             }
 
             // Set the amounts
@@ -1732,7 +2516,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
                     EntityId creature = creatureList.get(index);
                     Entity entity = creatureEntities.get(creature);
                     index++;
-                    if (isCreatureState(entity, state) && entity.get(Position.class) != null) {
+                    if (entity.get(Position.class) != null
+                            && (state == null || state.matches(entity, unhappyThreshold(creatureId)))) {
                         selectionIndices.put(creatureId, index);
                         selectedCreature = entity;
                         break;
@@ -1743,22 +2528,6 @@ public final class PlayerScreenController implements IPlayerScreenController {
                     }
                 } while (index != startIndex);
                 return selectedCreature;
-            }
-
-            private boolean isCreatureState(Entity entity, CreatureUIState state) {
-                if (state == null) {
-                    return true;
-                }
-
-                AttackTarget attackTarget = entity.get(AttackTarget.class);
-                CreatureAi creatureAi = entity.get(CreatureAi.class);
-                if (creatureAi != null && creatureAi.getCreatureState() == CreatureState.IDLE) {
-                    return state == CreatureUIState.IDLE;
-                } else if (attackTarget != null) {
-                    return state == CreatureUIState.FIGHT;
-                } else {
-                    return state == CreatureUIState.BUSY;
-                }
             }
 
         }

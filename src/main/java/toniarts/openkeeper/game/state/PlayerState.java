@@ -26,20 +26,32 @@ import com.jme3.math.Vector3f;
 import com.jme3.scene.Spatial;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.EntitySet;
+import com.simsilica.es.filter.FieldFilter;
 import de.lessvoid.nifty.Nifty;
 import toniarts.openkeeper.Main;
+import toniarts.openkeeper.game.component.Gold;
+import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.component.KeeperComponent;
+import toniarts.openkeeper.game.component.ObjectComponent;
+import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.console.ConsoleState;
+import toniarts.openkeeper.game.controller.ReaperSummoner;
+import toniarts.openkeeper.game.controller.TrapPlacementValidator;
 import toniarts.openkeeper.game.controller.player.PlayerCreatureControl;
-import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
 import toniarts.openkeeper.game.controller.player.PlayerSpellControl;
 import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
+import toniarts.openkeeper.game.controller.room.FiveByFiveRotatedController;
 import toniarts.openkeeper.game.data.CampaignLevel;
 import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
+import toniarts.openkeeper.game.data.ResearchableType;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.listener.PlayerListener;
+import toniarts.openkeeper.gui.CursorFactory;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -79,10 +91,12 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     private final short playerId;
     private final IKwdFile kwdFile;
     private final EntityData entityData;
+    private final EntitySet keeperEntity;
     @Nullable
     private final CampaignLevel campaignLevel;
 
     private boolean paused = false;
+    private GameResult gameResult;
 
     private final List<AbstractPauseAwareState> appStates = new ArrayList<>();
     protected PlayerInteractionState interactionState;
@@ -96,6 +110,8 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
 
     private static final String PAUSE_KEY_MAPPING = Settings.Setting.PAUSE_OR_OPTIONS.name();
     private final ActionListener pauseKeyListener = this::onPauseKey;
+    private static final String ZOOM_TO_NEXT_FIGHT_KEY_MAPPING = Settings.Setting.ZOOM_TO_NEXT_FIGHT.name();
+    private final ActionListener zoomToNextFightKeyListener = this::onZoomToNextFightKey;
 
     public PlayerState(int playerId, IKwdFile kwdFile, EntityData entityData, boolean enabled, Main app, @Nullable CampaignLevel campaignLevel) {
         this.playerId = (short) playerId;
@@ -103,6 +119,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         this.entityData = entityData;
         this.app = app;
         this.campaignLevel = campaignLevel;
+        keeperEntity = entityData.getEntities(new FieldFilter(KeeperComponent.class, "playerId", this.playerId), KeeperComponent.class, Gold.class);
 
         screen = new PlayerScreenController(this, app.getNifty());
         app.getNifty().registerScreenController(screen);
@@ -122,6 +139,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     @Override
     public void cleanup() {
         unregisterPauseKey();
+        keeperEntity.release();
 
         // Detach states
         for (AbstractAppState state : appStates) {
@@ -144,6 +162,11 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
             }
         }
         screen = null;
+
+        // Remove the level texts only when we leave the level, so that the next
+        // level can put its own here. After the level has ended it still runs
+        // and its speeches show their texts
+        nifty.getResourceBundles().remove("level");
 
         super.cleanup();
     }
@@ -232,6 +255,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
             appStates.add(interactionState);
             // FIXME add to appStates or directly to stateManager
             appStates.add(new SystemMessageState(screen.getMessages()));
+            appStates.add(new ManufactureProgressState(entityData, playerId));
             // Load the state
             for (AbstractAppState state : appStates) {
                 stateManager.attach(state);
@@ -253,18 +277,25 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
 
     @Override
     public void update(float tpf) {
+        if (keeperEntity.applyChanges()) {
+            screen.setGold(getGold());
+        }
         screen.update(tpf);
     }
 
     /**
      * The pause key opens and closes the game menu. This state stays enabled
-     * during the pause, so the same key also resumes.
+     * during the pause, so the same key also resumes. The zoom to next fight
+     * key is registered with it.
      */
     private void registerPauseKey() {
         if (!pauseKeyRegistered) {
             app.getInputManager().addMapping(PAUSE_KEY_MAPPING,
                     new KeyTrigger(Main.getUserSettings().getInteger(Settings.Setting.PAUSE_OR_OPTIONS)));
             app.getInputManager().addListener(pauseKeyListener, PAUSE_KEY_MAPPING);
+            app.getInputManager().addMapping(ZOOM_TO_NEXT_FIGHT_KEY_MAPPING,
+                    new KeyTrigger(Main.getUserSettings().getInteger(Settings.Setting.ZOOM_TO_NEXT_FIGHT)));
+            app.getInputManager().addListener(zoomToNextFightKeyListener, ZOOM_TO_NEXT_FIGHT_KEY_MAPPING);
             pauseKeyRegistered = true;
         }
     }
@@ -277,10 +308,20 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         }
     }
 
+    private void onZoomToNextFightKey(String name, boolean isPressed, float tpf) {
+        // Same as the Battle tab's right click, from the regular game view only
+        if (isPressed && screen != null
+                && PlayerScreenController.SCREEN_HUD_ID.equals(app.getNifty().getCurrentScreen().getScreenId())) {
+            screen.zoomToBattle();
+        }
+    }
+
     private void unregisterPauseKey() {
         if (pauseKeyRegistered) {
             app.getInputManager().deleteMapping(PAUSE_KEY_MAPPING);
             app.getInputManager().removeListener(pauseKeyListener);
+            app.getInputManager().deleteMapping(ZOOM_TO_NEXT_FIGHT_KEY_MAPPING);
+            app.getInputManager().removeListener(zoomToNextFightKeyListener);
             pauseKeyRegistered = false;
         }
     }
@@ -310,6 +351,16 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         return null;
     }
 
+    /**
+     * Does this player have a Workshop, needed for placing traps and doors
+     *
+     * @return true if the player has at least one Workshop
+     */
+    public boolean hasWorkshop() {
+        GameClientState gs = stateManager.getState(GameClientState.class);
+        return gs == null || gs.getRoomsInformation().getRoomCount(playerId, TrapPlacementValidator.WORKSHOP_ROOM_ID) > 0;
+    }
+
     public PlayerStatsControl getStatsControl() {
         Keeper keeper = getPlayer();
 //        if (keeper != null) {
@@ -318,12 +369,13 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         return null;
     }
 
-    public PlayerGoldControl getGoldControl() {
-        Keeper keeper = getPlayer();
-//        if (keeper != null) {
-//            return keeper.getGoldControl();
-//        }
-        return null;
+    /**
+     * Get the gold of this player, from the player's entity
+     *
+     * @return the amount of gold this player has
+     */
+    public int getGold() {
+        return keeperEntity.isEmpty() ? 0 : keeperEntity.iterator().next().get(Gold.class).gold;
     }
 
     public PlayerCreatureControl getCreatureControl() {
@@ -379,7 +431,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     }
 
     public void flashButton(TriggerAction.MakeType buttonType, short targetId, TriggerAction.ButtonType targetButtonType, boolean enabled, int time) {
-        // TODO make flash button
+        screen.flashButton(buttonType, targetId, targetButtonType, enabled, time);
     }
 
     protected List<ResearchableEntity> getAvailableRoomsToBuild() {
@@ -437,6 +489,11 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
                 state.setEnabled(!paused);
             }
         }
+        // Disabling gameplay interaction resets its cursor. The menu owns it after that.
+        if (paused) {
+            app.getInputManager().setMouseCursor(Main.getUserSettings().getBoolean(Settings.Setting.USE_CURSORS)
+                    ? CursorFactory.getCursor(CursorFactory.CursorType.POINTER, app.getAssetManager()) : null);
+        }
     }
 
     public void quitToMainMenu() {
@@ -448,8 +505,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     }
 
     public void quitToDebriefing() {
-        // TODO copy results of game from GameState
-        GameResult result = new GameResult();
+        GameResult result = gameResult != null ? gameResult : new GameResult();
         stateManager.getState(GameClientState.class).detach();
         stateManager.detach(this);
         stateManager.getState(MainMenuState.class).doDebriefing(result, kwdFile, campaignLevel != null);
@@ -489,6 +545,17 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         } else {
             cameraState.setCameraLookAt(position);
         }
+    }
+
+    /**
+     * Get the current position of an entity
+     *
+     * @param entityId the entity
+     * @return the position, or {@code null} if the entity no longer exists
+     */
+    public Vector3f getEntityPosition(EntityId entityId) {
+        Position position = entityData.getComponent(entityId, Position.class);
+        return position != null ? position.position.clone() : null;
     }
 
     /**
@@ -534,11 +601,32 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     }
 
     public void showMessage(int textId) {
-        stateManager.getState(SystemMessageState.class).addMessage(SystemMessageState.MessageType.INFO, String.format("${level.%d}", textId));
+        SystemMessageState.addMessageIfAttached(stateManager, SystemMessageState.MessageType.INFO, String.format("${level.%d}", textId));
     }
 
     public void zoomToPoint(Vector3f point) {
         cameraState.zoomToPoint(point);
+    }
+
+    /**
+     * Tell the game that the player pressed a HUD button, level scripts can
+     * wait for these
+     *
+     * @param type the button type
+     * @param buttonId the button id inside the type
+     */
+    public void buttonPressed(TriggerAction.MakeType type, int buttonId) {
+        stateManager.getState(GameClientState.class).getGameClientService().buttonPressed((short) type.getValue(), (short) buttonId);
+    }
+
+    /**
+     * Tell the game that the player pressed one of the miscellaneous HUD
+     * buttons
+     *
+     * @param button the button
+     */
+    public void buttonPressed(TriggerAction.ButtonType button) {
+        buttonPressed(TriggerAction.MakeType.MISC_BUTTON, button.getValue());
     }
 
     protected void grabGold(int amount) {
@@ -550,16 +638,25 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     /**
      * End the game for the player
      *
-     * @param win did we win or not
+     * @param result the result and statistics of the game
      */
-    protected void endGame(boolean win) {
+    protected void endGame(GameResult result) {
+        gameResult = result;
+        boolean win = result.isLevelWon();
 
-        // Save campaign progress on win
-        if (win && campaignLevel != null) {
+        // Save campaign progress, the attempts count the lost games
+        if (campaignLevel != null) {
             Settings settings = Main.getUserSettings();
-            settings.increaseLevelAttempts(campaignLevel);
-            settings.setLevelStatus(campaignLevel, Settings.LevelStatus.COMPLETED);
-            settings.setSetting(Settings.Setting.LEVEL_NUMBER, campaignLevel.getLevel() + 1);
+            if (win) {
+                settings.setLevelStatus(campaignLevel, Settings.LevelStatus.COMPLETED);
+                settings.setSetting(Settings.Setting.LEVEL_NUMBER, campaignLevel.getLevel() + 1);
+            } else {
+                settings.increaseLevelAttempts(campaignLevel);
+            }
+            Integer evilRating = result.getData(GameResult.ResultType.TOTAL_RATING);
+            if (evilRating != null && campaignLevel.getType() == CampaignLevel.LevelType.Level) {
+                settings.setLevelEvilRating(campaignLevel, evilRating);
+            }
             try {
                 settings.save();
             } catch (IOException ex) {
@@ -573,16 +670,29 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     }
 
     String getTooltipText(String text) {
-        int dungeonHealth = 0;
-        int paydayCost = 0;
+        int dungeonHealth = getDungeonHeartHealth();
+        int paydayCost = screen.getPayDayCost();
 
         return text.replaceAll("%19%", String.valueOf(dungeonHealth))
                 .replaceAll("%20", String.valueOf(paydayCost));
     }
 
-    @Override
-    public void onGoldChange(short keeperId, int gold) {
-        screen.setGold(gold);
+    /**
+     * The health of our Dungeon Heart in percent. Like the heart icon in DK II
+     * this is the health of the heart object, the one creatures attack
+     *
+     * @return health percentage, 0 if we have no heart
+     */
+    private int getDungeonHeartHealth() {
+        for (EntityId heart : entityData.findEntities(new FieldFilter(ObjectComponent.class, "objectId", FiveByFiveRotatedController.OBJECT_HEART_ID),
+                ObjectComponent.class, Owner.class, Health.class)) {
+            if (entityData.getComponent(heart, Owner.class).ownerId == playerId) {
+                Health health = entityData.getComponent(heart, Health.class);
+                return health.health * 100 / health.maxHealth;
+            }
+        }
+
+        return 0;
     }
 
     @Override
@@ -606,6 +716,10 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     }
 
     private void populateTab(ResearchableEntity researchableEntity) {
+        if (!isEnabled()) {
+            // The HUD has been taken down, the level has ended
+            return;
+        }
         switch (researchableEntity.getResearchableType()) {
             case SPELL: {
                 screen.populateSpellTab();
@@ -626,6 +740,13 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     @Override
     public void onEntityRemoved(short keeperId, ResearchableEntity researchableEntity) {
         populateTab(researchableEntity);
+
+        // The Talisman's free Reaper is gone once it is cast, don't keep it picked
+        if (researchableEntity.getId() == ReaperSummoner.ONE_SHOT_REAPER_SPELL_ID
+                && researchableEntity.getResearchableType() == ResearchableType.SPELL
+                && interactionState != null) {
+            interactionState.setInteractionState(InteractionState.Type.NONE, 0);
+        }
     }
 
     @Override

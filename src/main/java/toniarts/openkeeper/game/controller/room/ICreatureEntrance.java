@@ -16,6 +16,8 @@
  */
 package toniarts.openkeeper.game.controller.room;
 
+import com.simsilica.es.EntityId;
+
 /**
  * Signifies that a room is an entrance for creatures
  *
@@ -23,4 +25,17 @@ package toniarts.openkeeper.game.controller.room;
  */
 public interface ICreatureEntrance extends IEntityGenerator {
 
+    /** Successful Portal arrivals since capture; Dungeon Hearts do not use this counter. */
+    default int getGeneratedCount() {
+        return 0;
+    }
+
+    /** Signal an eligible Portal's build-up, three seconds before its generation check. */
+    default void onPrepareSpawn(double preparationTime) {
+    }
+
+    /** Advance a Portal's generation clock, even when attraction cannot produce a creature. */
+    default void onGenerationCycle(double time) {
+        // Dungeon Hearts have their own free-Imp clock.
+    }
 }

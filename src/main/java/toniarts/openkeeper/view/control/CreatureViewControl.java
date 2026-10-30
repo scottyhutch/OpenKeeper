@@ -32,6 +32,7 @@ import java.util.function.Predicate;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.Interaction;
+import toniarts.openkeeper.game.component.Morphed;
 import toniarts.openkeeper.game.controller.SlapRules;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.sound.FootstepSounds;
@@ -42,6 +43,8 @@ import toniarts.openkeeper.gui.CursorFactory;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Creature.CreatureFlag;
+import toniarts.openkeeper.tools.convert.map.GameObject;
+import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.view.animation.AnimationLoader;
 import toniarts.openkeeper.view.text.EntityTextParser;
@@ -66,9 +69,27 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     private boolean stepWarningLogged;
     private Predicate<Vector3f> waterCheck = position -> false;
 
+    private final GameObject morphObject;
+    private boolean morphed;
+
+    /**
+     * Creates a creature view control
+     *
+     * @param entityId the creature entity
+     * @param entityData the entity data
+     * @param data the creature
+     * @param animation the starting animation
+     * @param morphObject the object the Chicken spell turns creatures into,
+     * can be {@code null}
+     * @param assetManager the asset manager
+     * @param textParser the tooltip parser, can be {@code null}
+     */
     public CreatureViewControl(EntityId entityId, EntityData entityData, Creature data, Creature.AnimationType animation,
-            AssetManager assetManager, EntityTextParser<Creature> textParser) {
+            GameObject morphObject, AssetManager assetManager, EntityTextParser<Creature> textParser) {
         super(entityId, entityData, data, animation, assetManager, textParser);
+        this.morphObject = morphObject;
+
+        morphed = isMorphed();
     }
 
     @Override
@@ -76,6 +97,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         Collection<Class<? extends EntityComponent>> components = super.getWatchedComponents();
         components.add(CreatureAi.class);
         components.add(CreatureImprisoned.class);
+        components.add(Morphed.class);
         return components;
     }
 
@@ -88,6 +110,23 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
         boolean imprisoned = getEntity().get(CreatureImprisoned.class) != null;
         return SlapRules.canSlapCreature(playerId, getOwnerId(), getControlId(), imprisoned);
+    }
+
+    private void updateMorph() {
+
+        // The Chicken spell changes the look, and back again when it wears off
+        boolean nowMorphed = isMorphed();
+        if (nowMorphed != morphed) {
+            ArtResource before = currentState != null ? getAnimationData(currentState) : null;
+            morphed = nowMorphed;
+            if (currentState != null && before != getAnimationData(currentState)) {
+                playAnimation(currentState);
+            }
+        }
+    }
+
+    private boolean isMorphed() {
+        return morphObject != null && getEntity().get(Morphed.class) != null;
     }
 
     @Override
@@ -109,11 +148,17 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     @Override
     public String getTooltip(short playerId) {
+
+        // Like DK II, only own creatures, heroes and neutral creatures have a tooltip, other keepers' creatures have none
         String tooltip;
         if (getOwnerId() == playerId) {
             tooltip = Utils.getMainTextResourceBundle().getString("2841");
+        } else if (getOwnerId() == Player.GOOD_PLAYER_ID) {
+            tooltip = Utils.getMainTextResourceBundle().getString("2412");
+        } else if (getOwnerId() == Player.NEUTRAL_PLAYER_ID) {
+            tooltip = Utils.getMainTextResourceBundle().getString("2415");
         } else {
-            tooltip = Utils.getMainTextResourceBundle().getString(Integer.toString(getDataObject().getTooltipStringId()));
+            return "";
         }
 
         return textParser.parseText(tooltip, getEntity(), getDataObject());
@@ -122,12 +167,12 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     @Override
     public boolean isStopAnimation() {
-        return super.isStopAnimation() || (currentState != Creature.AnimationType.WALK && currentState != Creature.AnimationType.IN_HAND && !isWorkAnimation());
+        return super.isStopAnimation() || (currentState != Creature.AnimationType.WALK && currentState != Creature.AnimationType.RUN && currentState != Creature.AnimationType.IN_HAND && !isWorkAnimation());
     }
 
     private void playAnimation(Creature.AnimationType animation) {
-        AnimationLoader.playAnimation(getSpatial(), getDataObject().getAnimation(animation), assetManager);
-        if (getDataObject().getFlags().contains(CreatureFlag.IS_UNIQUE)) {
+        AnimationLoader.playAnimation(getSpatial(), getAnimationData(animation), assetManager);
+        if (getAnimationData(animation) == getDataObject().getAnimation(getAvailableAnimation(animation)) && getDataObject().getFlags().contains(CreatureFlag.IS_UNIQUE)) {
             CreatureVariantTextures.apply(getSpatial(), assetManager);
         }
         isAnimationPlaying = true;
@@ -155,6 +200,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
         playDigSound();
         playFootsteps();
+        updateMorph();
     }
 
     /**
@@ -178,7 +224,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
      * A walking or running creature steps when the animation passes a footstep mark
      */
     private void playFootsteps() {
-        int[] marks = FootstepSounds.getMarks(getDataObject(), currentState);
+        int[] marks = FootstepSounds.getMarks(getDataObject(), getAvailableAnimation(currentState));
         if (marks == null || spatial == null || spatial.getCullHint() == Spatial.CullHint.Always) {
             previousStepTime = -1;
             return;
@@ -216,7 +262,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     }
 
     private AnimComposer getAnimComposer() {
-        ArtResource animation = getDataObject().getAnimation(currentState);
+        ArtResource animation = getAnimationData(currentState);
         if (animation == null || !(spatial instanceof Node node)) {
             return null;
         }
@@ -271,7 +317,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     @Override
     public ArtResource getInHandMesh() {
-        return getDataObject().getAnimation(Creature.AnimationType.IN_HAND);
+        return getAnimationData(Creature.AnimationType.IN_HAND);
     }
 
     @Override
@@ -281,13 +327,28 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     @Override
     protected ArtResource getAnimationData(Creature.AnimationType state) {
-        return getDataObject().getAnimation(state);
+        // A creature morphed into a chicken is drawn with the chicken object's mesh, also in hand,
+        // but it dies with its own animations
+        if (morphed && state != Creature.AnimationType.DIE && state != Creature.AnimationType.DEATH_POSE) {
+            return state == Creature.AnimationType.IN_HAND ? morphObject.getInHandMeshResource() : morphObject.getMeshResource();
+        }
+        return getDataObject().getAnimation(getAvailableAnimation(state));
+    }
+
+    private Creature.AnimationType getAvailableAnimation(Creature.AnimationType state) {
+        if (state == Creature.AnimationType.RUN && getDataObject().getAnimation(state) == null) {
+            return Creature.AnimationType.WALK;
+        }
+        return state;
     }
 
     private boolean isWorkAnimation() {
         CreatureAi creatureAi = getEntity().get(CreatureAi.class);
         if (creatureAi != null) {
-            return creatureAi.getCreatureState() == CreatureState.WORK;
+            CreatureState state = creatureAi.getCreatureState();
+
+            // Dancing in the Casino and the jackpot celebration go on until the state changes
+            return state == CreatureState.WORK || state == CreatureState.DANCING || state == CreatureState.CELEBRATING;
         }
         return false;
     }

@@ -21,6 +21,7 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
+import com.simsilica.es.filter.FieldFilter;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.ChickenAi;
 import toniarts.openkeeper.game.component.CreatureAi;
@@ -31,21 +32,30 @@ import toniarts.openkeeper.game.component.CreatureRecuperating;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.Death;
+import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.component.Hypnotised;
+import toniarts.openkeeper.game.component.HealthGain;
 import toniarts.openkeeper.game.component.Interaction;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.Navigation;
+import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.Possessed;
+import toniarts.openkeeper.game.component.PossessedAbility;
 import toniarts.openkeeper.game.component.Regeneration;
+import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.RoomAttackMessages;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
+import toniarts.openkeeper.game.controller.creature.DungeonHeartTarget;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
@@ -53,6 +63,7 @@ import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.GameTimeCounter;
+import toniarts.openkeeper.utils.WorldUtils;
 
 import java.util.Collection;
 import java.util.Collections;
@@ -72,9 +83,13 @@ public final class HealthSystem extends GameTimeCounter {
     private final SafeArrayList<EntityId> entityIds;
     private final IEntityPositionLookup entityPositionLookup;
     private final ICreaturesController creaturesController;
+    private final RoomAttackMessages roomAttackMessages;
     private final int timeToDeath;
     private final int healthRegeneratePerSecond;
     private final int healthRegeneratePerSecondImprisoned;
+    private final int deathWhenPossessingManaReduction;
+    private final int healthWhilePrayingPerSecond;
+    private final int stunTimeIncreaseWhenHit;
     private final ILevelInfo levelInfo;
     private final Map<Short, IPlayerController> playerControllersById;
     private final IMapController mapController;
@@ -85,11 +100,13 @@ public final class HealthSystem extends GameTimeCounter {
     private final EntitySet imprisonedEntities;
     private final EntitySet torturedEntities;
     private final EntitySet regeneratedEntities;
+    private final EntitySet healthGainEntities;
     private final EntitySet recuperatingEntities;
+    private final EntitySet prayingEntities;
 
     public HealthSystem(EntityData entityData, IEntityPositionLookup entityPositionLookup,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
-            ICreaturesController creaturesController, ILevelInfo levelInfo,
+            ICreaturesController creaturesController, RoomAttackMessages roomAttackMessages, ILevelInfo levelInfo,
             Collection<IPlayerController> playerControllers, IMapController mapController,
             IGameTimer gameTimer, GameEventService gameEventService) {
 
@@ -97,6 +114,7 @@ public final class HealthSystem extends GameTimeCounter {
         this.gameTimer = gameTimer;
         this.entityPositionLookup = entityPositionLookup;
         this.creaturesController = creaturesController;
+        this.roomAttackMessages = roomAttackMessages;
         this.levelInfo = levelInfo;
         this.mapController = mapController;
         this.gameEventService = gameEventService;
@@ -110,6 +128,12 @@ public final class HealthSystem extends GameTimeCounter {
         timeToDeath = (int) gameSettings.get(Variable.MiscVariable.MiscType.CREATURE_DYING_STATE_DURATION_SECONDS).getValue();
         healthRegeneratePerSecondImprisoned = (int) gameSettings.get(Variable.MiscVariable.MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND).getValue();
         healthRegeneratePerSecond = (int) gameSettings.get(Variable.MiscVariable.MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND).getValue();
+        Variable.MiscVariable manaReduction = gameSettings.get(Variable.MiscVariable.MiscType.DEATH_WHEN_POSSESSING_MANA_REDUCTION);
+        deathWhenPossessingManaReduction = manaReduction != null ? (int) manaReduction.getValue() : 0;
+        Variable.MiscVariable healthWhilePraying = gameSettings.get(Variable.MiscVariable.MiscType.MODIFY_CREATURE_HEALTH_WHILE_PRAYING_PER_SECOND);
+        healthWhilePrayingPerSecond = healthWhilePraying != null ? (int) healthWhilePraying.getValue() : 0;
+        Variable.MiscVariable stunTimeIncrease = gameSettings.get(Variable.MiscVariable.MiscType.STUN_TIME_PERCENTAGE_INCREASE_WHEN_HIT);
+        stunTimeIncreaseWhenHit = stunTimeIncrease != null ? (int) stunTimeIncrease.getValue() : 0;
 
         healthEntities = entityData.getEntities(Health.class);
         processAddedEntities(healthEntities);
@@ -123,7 +147,9 @@ public final class HealthSystem extends GameTimeCounter {
         torturedEntities = entityData.getEntities(CreatureTortured.class, Health.class, CreatureComponent.class, Position.class);
 
         regeneratedEntities = entityData.getEntities(Health.class, Regeneration.class, Owner.class);
+        healthGainEntities = entityData.getEntities(Health.class, HealthGain.class);
         recuperatingEntities = entityData.getEntities(CreatureRecuperating.class, Health.class, CreatureComponent.class);
+        prayingEntities = entityData.getEntities(PossessedAbility.class, Health.class);
     }
 
     @Override
@@ -133,7 +159,6 @@ public final class HealthSystem extends GameTimeCounter {
         if (healthEntities.applyChanges()) {
             processAddedEntities(healthEntities.getAddedEntities());
             processDeletedEntities(healthEntities.getRemovedEntities());
-            processChangedEntities(healthEntities.getChangedEntities());
         }
 
         // Update other monitorable sets
@@ -141,7 +166,9 @@ public final class HealthSystem extends GameTimeCounter {
         imprisonedEntities.applyChanges();
         torturedEntities.applyChanges();
         regeneratedEntities.applyChanges();
+        healthGainEntities.applyChanges();
         recuperatingEntities.applyChanges();
+        prayingEntities.applyChanges();
 
         // Process special recuperating... event
         for (Entity entity : recuperatingEntities.getAddedEntities()) {
@@ -177,22 +204,42 @@ public final class HealthSystem extends GameTimeCounter {
             if (health.health + healthChange <= 0) {
                 processHealthDepleted(entityId, health);
             } else {
-                entityData.setComponent(entityId, new Health(Math.min(health.health + healthChange, health.maxHealth), health.maxHealth));
+                int newHealth = Math.min(health.health + healthChange, health.maxHealth);
+                entityData.setComponent(entityId, new Health(newHealth, health.maxHealth));
+                if (roomAttackMessages != null && DungeonHeartTarget.isDungeonHeart(entityData, entityId)) {
+                    Owner owner = entityData.getComponent(entityId, Owner.class);
+                    if (owner != null) {
+                        roomAttackMessages.heartHealthChanged(owner.ownerId, newHealth, health.maxHealth);
+                    }
+                }
             }
         }
     }
 
     private void processHealthDepleted(EntityId entityId, Health health) {
 
+        // A possessed creature is never knocked out, it dies. The possession
+        // ends and its keeper loses mana for it
+        boolean possessed = entityData.getComponent(entityId, Possessed.class) != null;
+        if (possessed) {
+            endPossessionByDeath(entityId);
+        }
+
         // Death or destruction!!!!
+        if (roomAttackMessages != null && DungeonHeartTarget.isDungeonHeart(entityData, entityId)) {
+            processHeartDestroyed(entityId);
+        }
+
         // No body, just vanish from the world
         if (!isLeaveDeadBody(entityId)) {
+            triggerDestroyedEffect(entityId);
+            countKill(entityId);
             entityPositionLookup.getEntityController(entityId).remove();
             return;
         }
 
         // Some creatures die instantly, skipping the unconscious/dying wait and any skeleton rising, no matter where they are
-        if (isDiesInstantly(entityId)) {
+        if (possessed || isDiesInstantly(entityId)) {
             processDeath(entityId);
             return;
         }
@@ -208,6 +255,7 @@ public final class HealthSystem extends GameTimeCounter {
             Owner owner = entityData.getComponent(entityId, Owner.class);
             Short creatureId = getRoomCreatureId(entityId);
             if (creatureId != null && !damageEntities.containsId(entityId) && canRiseAsSkeleton(owner, creatureId)) {
+                countKill(entityId);
                 creaturesController.turnCreatureIntoAnother(entityId, owner.controlId, creatureId);
                 return;
             }
@@ -217,6 +265,51 @@ public final class HealthSystem extends GameTimeCounter {
 
         // Leave the entity incapacitaded and waiting for death... or rescue
         processUnconscious(entityId, health);
+    }
+
+    private void processHeartDestroyed(EntityId heart) {
+        Owner owner = entityData.getComponent(heart, Owner.class);
+        if (owner == null) {
+            return;
+        }
+
+        // The one attacking the heart destroyed it
+        short destroyerId = 0;
+        for (EntityId attacker : entityData.findEntities(new FieldFilter(AttackTarget.class, "entityId", heart), AttackTarget.class, Owner.class)) {
+            Owner attackerOwner = entityData.getComponent(attacker, Owner.class);
+            if (attackerOwner.ownerId != owner.ownerId) {
+                destroyerId = attackerOwner.ownerId;
+                break;
+            }
+        }
+        roomAttackMessages.heartDestroyed(owner.ownerId, destroyerId);
+    }
+
+    /**
+     * Counts a creature that has died or been destroyed to the statistics of its owner's enemies,
+     * and as a loss to its owner. A knocked out creature is not counted yet, it may still be rescued
+     * or taken prisoner, and it is counted once when it finally dies. FIXME: DK II counts it only
+     * to the player who hit it last, we don't track the attacker yet
+     *
+     * @param entityId the creature
+     */
+    private void countKill(EntityId entityId) {
+        CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        Owner owner = entityData.getComponent(entityId, Owner.class);
+        if (creatureComponent == null || owner == null) {
+            return;
+        }
+
+        Creature creature = levelInfo.getLevelData().getCreature(creatureComponent.creatureId);
+        for (IPlayerController player : playerControllersById.values()) {
+            if (player.getKeeper().isEnemy(owner.ownerId)) {
+                player.getStatsControl().creatureKilled(creature);
+            }
+        }
+        IPlayerController ownerPlayer = playerControllersById.get(owner.ownerId);
+        if (ownerPlayer != null) {
+            ownerPlayer.getStatsControl().ownCreatureKilled();
+        }
     }
 
     private boolean isDiesInstantly(EntityId entityId) {
@@ -268,11 +361,59 @@ public final class HealthSystem extends GameTimeCounter {
         entityData.removeComponent(entityId, Navigation.class);
     }
 
+    private void endPossessionByDeath(EntityId entityId) {
+        Owner owner = entityData.getComponent(entityId, Owner.class);
+        IPlayerController player = owner != null ? playerControllersById.get(owner.ownerId) : null;
+        if (player != null && player.getManaControl() != null) {
+            player.getManaControl().addMana(-deathWhenPossessingManaReduction);
+        }
+        creaturesController.createController(entityId).setPossession(false);
+    }
+
+    /**
+     * A destroyed trap, door or object blows up with its death effect, like the
+     * Trap Explosion, the Wooden Door Group Explosion or the Heart Explosion
+     * Effect
+     *
+     * @param entityId the destroyed entity
+     */
+    private void triggerDestroyedEffect(EntityId entityId) {
+        Position position = entityData.getComponent(entityId, Position.class);
+        if (position != null) {
+            EffectTriggers.trigger(entityData, getDestroyedEffectId(entityId), position.position, timeElapsed);
+        }
+    }
+
+    private int getDestroyedEffectId(EntityId entityId) {
+        Entity entity = entityData.getEntity(entityId, TrapComponent.class, DoorComponent.class, ObjectComponent.class);
+        TrapComponent trapComponent = entity.get(TrapComponent.class);
+        if (trapComponent != null) {
+            return levelInfo.getLevelData().getTrapById(trapComponent.trapId).getDeathEffectId();
+        }
+        DoorComponent doorComponent = entity.get(DoorComponent.class);
+        if (doorComponent != null) {
+            return levelInfo.getLevelData().getDoorById(doorComponent.doorId).getDeathEffectId();
+        }
+        ObjectComponent objectComponent = entity.get(ObjectComponent.class);
+        if (objectComponent != null) {
+            return levelInfo.getLevelData().getObject(objectComponent.objectId).getDeathEffectId();
+        }
+
+        return 0;
+    }
+
     private boolean isLeaveDeadBody(EntityId entityId) {
         CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
         return creatureComponent != null && levelInfo.getLevelData()
                 .getCreature(creatureComponent.creatureId)
                 .getFlags().contains(Creature.CreatureFlag.GENERATE_DEAD_BODY);
+    }
+
+    private boolean isHorny(EntityId entityId) {
+        CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        return creatureComponent != null && levelInfo.getLevelData()
+                .getCreature(creatureComponent.creatureId)
+                .getFlags().contains(Creature.CreatureFlag.IS_HORNY);
     }
 
     private int calculateHealthChange(EntityId entityId, Health health, double elapsedTime, double gameTime) {
@@ -282,13 +423,27 @@ public final class HealthSystem extends GameTimeCounter {
         Entity entity = damageEntities.getEntity(entityId);
         if (entity != null) {
             Damage damage = entity.get(Damage.class);
-            delta -= damage.damage;
-            if (damage.damage > 0) {
-                gameEventService.emit(GameEventType.CREATURE_HURT, entityId);
+
+            // The Horned Reaper can't be hurt, only healed
+            if (damage.damage < 0 || !isHorny(entityId)) {
+                delta -= damage.damage;
+                if (damage.damage > 0) {
+                    gameEventService.emit(GameEventType.CREATURE_HURT, entityId);
+                    extendStun(entityId, gameTime);
+                }
             }
 
             // Remove the damage
             entityData.removeComponent(entityId, Damage.class);
+
+            // The keeper hears of the damage to his Dungeon Heart
+            if (damage.damage > 0 && roomAttackMessages != null && DungeonHeartTarget.isDungeonHeart(entityData, entityId)) {
+                Owner owner = entityData.getComponent(entityId, Owner.class);
+                Position position = entityData.getComponent(entityId, Position.class);
+                if (owner != null && position != null) {
+                    roomAttackMessages.heartAttacked(owner.ownerId, WorldUtils.vectorToPoint(position.position));
+                }
+            }
         }
 
         // Imprisonment
@@ -309,7 +464,7 @@ public final class HealthSystem extends GameTimeCounter {
             CreatureTortured tortured = entity.get(CreatureTortured.class);
             if (elapsedTime - tortured.healthCheckTime >= 1) {
                 int tortureHealthRegeneratePerSecond = levelInfo.getLevelData().getCreature(entity.get(CreatureComponent.class).creatureId).getAttributes().getTortureHpChange();
-                entityData.setComponent(entity.getId(), new CreatureTortured(tortured.timeTortured, tortured.tortureCheckTime, tortured.healthCheckTime + 1));
+                entityData.setComponent(entity.getId(), new CreatureTortured(tortured.timeTortured, tortured.tortureCheckTime, tortured.healthCheckTime + 1, tortured.device));
                 delta += tortureHealthRegeneratePerSecond;
 
                 return delta; // Assume no other states can be
@@ -325,17 +480,32 @@ public final class HealthSystem extends GameTimeCounter {
                 Owner owner = entity.get(Owner.class);
                 if (tile != null && owner != null && tile.getOwnerId() == owner.ownerId) {
 
-                    // In own land
+                    // In own land, every second. Hits don't hold it up (DKII.EXE's creature tick 0x488930)
                     Double lastTimeOnOwnLand = regeneration.timeOnOwnLand;
                     if (lastTimeOnOwnLand == null) {
                         setTimeOwnOwnLand(regeneration, entityId, elapsedTime);
                     } else if (elapsedTime - lastTimeOnOwnLand >= 1) {
+                        setTimeOwnOwnLand(regeneration, entityId, elapsedTime);
                         delta += regeneration.ownLandHealthIncrease;
                     }
                 } else {
 
                     // At someones elses land, reset counter
                     setTimeOwnOwnLand(regeneration, entityId, null);
+                }
+            }
+        }
+
+        // Health gain, every second on a fixed beat that hits don't hold up (DKII.EXE's trap tick 0x4A84E0)
+        entity = healthGainEntities.getEntity(entityId);
+        if (entity != null) {
+            HealthGain healthGain = entity.get(HealthGain.class);
+            if (healthGain.nextGainTime == null) {
+                entityData.setComponent(entityId, new HealthGain(healthGain.healthGain, gameTime + 1));
+            } else if (gameTime >= healthGain.nextGainTime) {
+                entityData.setComponent(entityId, new HealthGain(healthGain.healthGain, healthGain.nextGainTime + 1));
+                if (health.health != health.maxHealth) {
+                    delta += healthGain.healthGain;
                 }
             }
         }
@@ -355,10 +525,56 @@ public final class HealthSystem extends GameTimeCounter {
             }
         }
 
+        // A possessed creature heals as it prays (0x499840)
+        entity = prayingEntities.getEntity(entityId);
+        if (entity != null) {
+            PossessedAbility praying = entity.get(PossessedAbility.class);
+            if (praying.ability == Creature.SpecialAbility.PRAY && gameTime - praying.checkTime >= 1) {
+                entityData.setComponent(entityId, new PossessedAbility(praying.ability, praying.checkTime + 1));
+                delta += healthWhilePrayingPerSecond;
+            }
+        }
+
         return delta;
     }
 
+    /**
+     * A creature hit while it lies stunned stays down longer, if a creature
+     * other than an Imp is fighting it. The stun time left grows by the level's
+     * percentage, but never past a full stun.
+     */
+    private void extendStun(EntityId entityId, double gameTime) {
+        CreatureAi ai = entityData.getComponent(entityId, CreatureAi.class);
+        CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        if (ai == null || creatureComponent == null
+                || (ai.getCreatureState() != CreatureState.FALLEN && ai.getCreatureState() != CreatureState.STUNNED)) {
+            return;
+        }
+
+        double timeStunned = gameTime - ai.stateStartTime;
+        double stunLeft = creatureComponent.stunDuration - timeStunned;
+        if (stunLeft <= 0 || !isFoughtByNonImp(entityId)) {
+            return;
+        }
+
+        double extension = Math.min(stunLeft * stunTimeIncreaseWhenHit / 100, timeStunned);
+        entityData.setComponent(entityId, new CreatureAi(ai.stateStartTime + extension, ai.getCreatureState(),
+                ai.creatureId, ai.getTargetState()));
+    }
+
+    private boolean isFoughtByNonImp(EntityId entityId) {
+        short impId = levelInfo.getLevelData().getImp().getCreatureId();
+        for (EntityId attacker : entityData.findEntities(new FieldFilter<>(AttackTarget.class, "entityId", entityId),
+                AttackTarget.class, CreatureComponent.class)) {
+            if (entityData.getComponent(attacker, CreatureComponent.class).creatureId != impId) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private void processDeath(EntityId entityId) {
+        countKill(entityId);
         if (entityData.getComponent(entityId, Death.class) == null
                 && entityData.getComponent(entityId, CreatureComponent.class) != null) {
             gameEventService.emit(GameEventType.CREATURE_DIE, entityId);
@@ -371,6 +587,7 @@ public final class HealthSystem extends GameTimeCounter {
         entityData.removeComponent(entityId, Interaction.class);
         entityData.removeComponent(entityId, Unconscious.class);
         entityData.removeComponent(entityId, Mana.class);
+        entityData.removeComponent(entityId, Hypnotised.class);
         entityData.removeComponent(entityId, CreatureImprisoned.class);
         entityData.removeComponent(entityId, CreatureTortured.class);
         entityData.removeComponent(entityId, CreatureMood.class);
@@ -388,17 +605,6 @@ public final class HealthSystem extends GameTimeCounter {
         for (Entity entity : entities) {
             int index = Collections.binarySearch(entityIds, entity.getId());
             entityIds.remove(index);
-        }
-    }
-
-    private void processChangedEntities(Set<Entity> entities) {
-        for (Entity entity : entities) {
-            // If the health is changed (either by us or damage)...
-            // Reset the health regen counter
-            Regeneration regeneration = entityData.getComponent(entity.getId(), Regeneration.class);
-            if (regeneration != null && regeneration.timeOnOwnLand != null) {
-                setTimeOwnOwnLand(regeneration, entity.getId(), null);
-            }
         }
     }
 
@@ -420,7 +626,9 @@ public final class HealthSystem extends GameTimeCounter {
         imprisonedEntities.release();
         torturedEntities.release();
         regeneratedEntities.release();
+        healthGainEntities.release();
         recuperatingEntities.release();
+        prayingEntities.release();
         entityIds.clear();
     }
 

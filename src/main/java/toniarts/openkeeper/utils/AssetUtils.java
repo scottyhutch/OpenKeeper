@@ -19,6 +19,7 @@ package toniarts.openkeeper.utils;
 import com.jme3.asset.AssetInfo;
 import com.jme3.asset.AssetKey;
 import com.jme3.asset.AssetManager;
+import com.jme3.asset.AssetNotFoundException;
 import com.jme3.asset.MaterialKey;
 import com.jme3.asset.ModelKey;
 import com.jme3.asset.TextureKey;
@@ -31,6 +32,7 @@ import com.jme3.material.RenderState.BlendMode;
 import com.jme3.math.ColorRGBA;
 import toniarts.openkeeper.view.map.MapViewController;
 import com.jme3.scene.Geometry;
+import com.jme3.scene.Node;
 import com.jme3.scene.SceneGraphVisitor;
 import com.jme3.scene.Spatial;
 import com.jme3.texture.Texture;
@@ -82,6 +84,7 @@ public final class AssetUtils {
 
     // Custom model data keys
     public final static String USER_DATA_KEY_REMOVABLE = "Removable";
+    private final static String USER_DATA_KEY_MATERIAL_BEFORE_BLUEPRINT = "MaterialBeforeBlueprint";
     
     private static volatile boolean preWarmedAssets = false;
 
@@ -392,6 +395,13 @@ public final class AssetUtils {
      */
     public static void assignMapsToMaterial(AssetManager assetManager, Material material) {
 
+        // Also apply the native alpha-pass depth state to already converted
+        // materials; changing the KMF converter alone would require reconversion.
+        // Portal chasm surfaces must not depth-mask additive particles below them.
+        if (material.isTransparent()) {
+            material.getAdditionalRenderState().setDepthWrite(false);
+        }
+
         // Unharmed texture
         String diffuseTexture = ((Texture) material.getParam("DiffuseMap").getValue()).getKey().getName();
 
@@ -458,7 +468,7 @@ public final class AssetUtils {
                 !resource.getFlags().contains(ArtResource.ArtResourceFlag.USE_ANIMATING_TEXTURE_FOR_SELECTION)) {
             return createLightningSpriteMaterial(resource.getName(), 
                     resource.getType() == ArtResource.ArtResourceType.ALPHA, resource.getData("fps"), () -> {
-                        return getTextureFrames(resource);
+                        return getTextureFrames(resource, assetManager);
                     }, assetManager);
         }
         return null;
@@ -474,7 +484,7 @@ public final class AssetUtils {
             List<String> textures = texturesSupplier.get();
             mat = new Material(assetManager, "MatDefs/LightingSprite.j3md");
             mat.setInt("NumberOfTiles", textures.size());
-            mat.setInt("Speed", fps != null ? fps : 30);
+            mat.setInt("Speed", fps != null ? fps : 10); // no fps defined for Water
             
             // Create the texture
             try {
@@ -509,7 +519,9 @@ public final class AssetUtils {
     public static Material createParticleMaterial(ArtResource resource, AssetManager assetManager) {
 
         // Cache
-        MaterialKey assetKey = new MaterialKey(resource.getName());
+        MaterialKey assetKey = new MaterialKey("particle:" + resource.getName() + ":" + resource.getType()
+                + ":" + resource.getFlags() + ":" + resource.getData(ArtResource.KEY_FRAMES)
+                + ":" + resource.getData(ArtResource.KEY_WIDTH));
         Material mat = ASSET_CACHE.getFromCache(assetKey);
 
         if (mat == null) {
@@ -520,15 +532,13 @@ public final class AssetUtils {
                 logger.log(Level.ERROR, "Can't create a texture out of " + resource + "!", e);
             }
 
-            // Particle.j3md hardcodes "Blend AlphaAdditive" in its technique,
-            // which is right for glow/spark-style ADDITIVE_ALPHA art but
-            // washes out plain ALPHA/SPRITE textures (e.g. feathers) to
-            // near-invisibility over lit terrain - use standard alpha
-            // compositing for those instead.
-            if (resource.getType() != ArtResource.ArtResourceType.ADDITIVE_ALPHA) {
-                mat.setTransparent(false);
-                mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
-            }
+            // Native Portal mist/sparkle/Whitedisc draws use ONE + ONE, not
+            // Particle.j3md's SRC_ALPHA + ONE default (AlphaAdditive).
+            mat.getAdditionalRenderState().setBlendMode(
+                    resource.getType() == ArtResource.ArtResourceType.ADDITIVE_ALPHA
+                            ? BlendMode.Additive : BlendMode.Alpha);
+            mat.getAdditionalRenderState().setDepthTest(true);
+            mat.getAdditionalRenderState().setDepthWrite(false);
 
             // Add to cache
             ASSET_CACHE.addToCache(assetKey, mat);
@@ -542,7 +552,7 @@ public final class AssetUtils {
         if (resource.getFlags().contains(ArtResource.ArtResourceFlag.ANIMATING_TEXTURE)) {
             return createAnimatingTexture(resource.getName(),  
                     resource.getType() == ArtResource.ArtResourceType.ALPHA,
-                    getTextureFrames(resource), assetManager);
+                    getTextureFrames(resource, assetManager), assetManager);
         } else {
             if (resource.getType().equals(ArtResource.ArtResourceType.SPRITE)
                     && resource.getData(ArtResource.KEY_WIDTH).intValue() > 1) {
@@ -556,36 +566,81 @@ public final class AssetUtils {
         }
     }
     
-    private static List<String> getTextureFrames(ArtResource resource) {
-        int frames = resource.getData(ArtResource.KEY_FRAMES);
-        String assetFolder = AssetsConverter.TEXTURES_FOLDER + File.separator;
-        List<String> framesList = new ArrayList<>(frames);
-        for (int x = 0; x < frames; x++) {
-            framesList.add(assetFolder + resource.getName() + x + ".png");
+    /**
+     * Returns the available sprite animation length, independently of the KWD
+     * frame count. Native DK II probes consecutive texture names, up to 32.
+     * Non-animated resources always use a single image.
+     */
+    public static int getAnimationFrameCount(ArtResource resource, AssetManager assetManager) {
+        if (!resource.getFlags().contains(ArtResource.ArtResourceFlag.ANIMATING_TEXTURE)) {
+            return 1;
         }
-        
-        return framesList;
+        return Math.max(1, getTextureFrames(resource, assetManager).size());
+    }
+
+    private static List<String> getTextureFrames(ArtResource resource, AssetManager assetManager) {
+        AssetKey<List<String>> key = new AssetKey<>("animation-frames:" + resource.getName());
+        List<String> cached = assetManager.getFromCache(key);
+        if (cached != null) {
+            return cached;
+        }
+        String assetFolder = AssetsConverter.TEXTURES_FOLDER + "/";
+        List<String> frames = new ArrayList<>();
+        for (int frame = 0; frame < 32; frame++) {
+            String name = assetFolder + resource.getName() + frame + ".png";
+            AssetInfo asset = locateAnimationFrame(assetManager, name);
+            if (asset == null) {
+                break;
+            }
+            frames.add(asset.getKey().getName());
+        }
+        List<String> result = List.copyOf(frames);
+        assetManager.addToCache(key, result);
+        return result;
+    }
+
+    private static AssetInfo locateAnimationFrame(AssetManager assetManager, String name) {
+        try {
+            AssetInfo asset = assetManager.locateAsset(new AssetKey<>(name));
+            if (asset != null) {
+                return asset;
+            }
+        } catch (AssetNotFoundException e) {
+            // On case-insensitive file systems, FileLocator finds the file but
+            // rejects mismatched casing. Resolve its actual name below.
+        }
+        // Converted filenames can differ in case. Missing frames are an expected
+        // end-of-animation marker, so do not use the logging canonical-path helper.
+        String root = AssetsConverter.getAssetsFolder();
+        try {
+            String canonical = PathUtils.getRealFileName(root, name).substring(root.length())
+                    .replace(File.separatorChar, '/');
+            return assetManager.locateAsset(new AssetKey<>(canonical));
+        } catch (IOException e) {
+            return null;
+        }
     }
 
     private static Texture createAnimatingTexture(String name, boolean hasAlpha, List<String> textures, AssetManager assetManager) throws IOException {
         
+        if (textures.isEmpty()) {
+            throw new IOException("No animation frames found for " + name);
+        }
         // Get the first frame, the frames need to be same size
-        BufferedImage img = readImageFromAsset(assetManager.locateAsset(new AssetKey(getCanonicalAssetKey(textures.get(0)))));
+        BufferedImage img = readImageFromAsset(locateAnimationFrame(assetManager, textures.get(0)));
         
         // Create image big enough to fit all the frames
         BufferedImage text = new BufferedImage(img.getWidth() * textures.size(), img.getHeight(),
                 hasAlpha ? BufferedImage.TYPE_INT_ARGB : img.getType());
         Graphics2D g = text.createGraphics();
         
-        // If the source image doesn't have an alpha channel but the art resource wants one... Apply 75% opacity. See water
-        if (hasAlpha && !img.getColorModel().hasAlpha()) {
-            AlphaComposite ac = AlphaComposite.getInstance(AlphaComposite.SRC, 0.75f);
-            g.setComposite(ac);
-        }
+        // If the source image doesn't have an alpha channel but the art resource wants one... Apply some opacity. See Water
+        if (hasAlpha && !img.getColorModel().hasAlpha())
+            g.setComposite(AlphaComposite.getInstance(AlphaComposite.SRC, 0.4f));
         
         g.drawImage(img, null, 0, 0);
         for (int x = 1; x < textures.size(); x++) {
-            AssetInfo asset = assetManager.locateAsset(new AssetKey(getCanonicalAssetKey(textures.get(x))));
+            AssetInfo asset = locateAnimationFrame(assetManager, textures.get(x));
             if (asset != null) {
                 img = readImageFromAsset(asset);
             } else {
@@ -869,9 +924,31 @@ public final class AssetUtils {
                             "Common/MatDefs/Misc/Unshaded.j3md");
                     mat.setColor("Color", new ColorRGBA(0, 0, 0.8f, 0.4f));
                     mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+                    if (spatial.getUserData(USER_DATA_KEY_MATERIAL_BEFORE_BLUEPRINT) == null) {
+                        spatial.setUserData(USER_DATA_KEY_MATERIAL_BEFORE_BLUEPRINT, ((Geometry) spatial).getMaterial());
+                    }
                     spatial.setMaterial(mat);
                 } catch (Exception e) {
                     logger.log(Level.WARNING, "Failed to set material color!", e);
+                }
+            }
+        });
+    }
+
+    /**
+     * Gives a blueprint its own materials back, e.g. when the trap gets
+     * armed
+     *
+     * @param spatial the spatial which was turned into a blueprint
+     */
+    public static void removeBlueprint(Spatial spatial) {
+        spatial.depthFirstTraversal(new SceneGraphVisitor() {
+            @Override
+            public void visit(Spatial spatial) {
+                Material material = spatial.getUserData(USER_DATA_KEY_MATERIAL_BEFORE_BLUEPRINT);
+                if (spatial instanceof Geometry && material != null) {
+                    spatial.setMaterial(material);
+                    spatial.setUserData(USER_DATA_KEY_MATERIAL_BEFORE_BLUEPRINT, null);
                 }
             }
         });

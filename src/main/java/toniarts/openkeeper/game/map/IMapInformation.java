@@ -186,6 +186,20 @@ public interface IMapInformation<T extends IMapTileInformation> {
     public boolean isClaimableRoom(T tile, Terrain terrain, short playerId);
 
     /**
+     * Is repairable room tile at tile point, a tile of the player's own room
+     * that is not at full health
+     *
+     * @param p coordinate
+     * @param playerId for the player
+     * @return is the room tile repairable
+     */
+    default boolean isRepairableRoom(Point p, short playerId) {
+        T tile = getMapData().getTile(p);
+        return tile != null && tile.getOwnerId() == playerId && !tile.isAtFullHealth()
+                && getTerrain(tile).getFlags().contains(Terrain.TerrainFlag.ROOM);
+    }
+
+    /**
      * Is water tile at the coordinates
      *
      * @param p coordinate

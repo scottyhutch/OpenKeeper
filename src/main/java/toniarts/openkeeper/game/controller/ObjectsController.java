@@ -26,11 +26,13 @@ import java.lang.ref.WeakReference;
 import java.util.Map;
 import java.util.WeakHashMap;
 import toniarts.openkeeper.game.component.ChickenAi;
+import toniarts.openkeeper.game.component.Crate;
 import toniarts.openkeeper.game.component.Decay;
 import toniarts.openkeeper.game.component.Food;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Interaction;
+import toniarts.openkeeper.game.component.LevelIndicator;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.ObjectComponent;
@@ -217,6 +219,9 @@ public final class ObjectsController implements IObjectsController {
         if (obj.getFlags().contains(GameObject.ObjectFlag.OBJECT_TYPE_FOOD)) {
             entityData.setComponent(entity, new Food());
         }
+        if (obj.getFlags().contains(GameObject.ObjectFlag.OBJECT_TYPE_CRATE) && researchableType != null) {
+            entityData.setComponent(entity, new Crate(researchableType, researchTypeId));
+        }
         if (obj.getHp() > 0) {
             entityData.setComponent(entity, new Health(
                     objectId == OBJECT_HEART_ID ? (int) gameSettings.get(Variable.MiscVariable.MiscType.DUNGEON_HEART_OBJECT_HEALTH).getValue() : obj.getHp(),
@@ -233,6 +238,9 @@ public final class ObjectsController implements IObjectsController {
         }
         if (obj.getFlags().contains(GameObject.ObjectFlag.PLACEABLE)) {
             entityData.setComponent(entity, new Placeable());
+        }
+        if (obj.getStartState() == GameObject.State.MY_PET_DUNGEON_LEVEL_INDICATOR) {
+            entityData.setComponent(entity, new LevelIndicator(1));
         }
 
         // Mana flow
@@ -275,6 +283,11 @@ public final class ObjectsController implements IObjectsController {
     @Override
     public EntityId addRoomSpellBook(short ownerId, int x, int y, ResearchableEntity researchableEntity) {
         return loadObject(OBJECT_SPELL_BOOK_ID, ownerId, x, y, null, researchableEntity.getResearchableType(), researchableEntity.getId());
+    }
+
+    @Override
+    public EntityId addRoomCrate(short crateObjectId, short ownerId, int x, int y, ResearchableType type, short typeId) {
+        return loadObject(crateObjectId, ownerId, x, y, null, type, typeId);
     }
 
     @Override
@@ -355,6 +368,9 @@ public final class ObjectsController implements IObjectsController {
         }
         if (obj.getFlags().contains(GameObject.ObjectFlag.OBJECT_TYPE_FOOD)) {
             return AbstractRoomController.ObjectType.FOOD;
+        }
+        if (obj.getFlags().contains(GameObject.ObjectFlag.OBJECT_TYPE_CRATE)) {
+            return AbstractRoomController.ObjectType.CRATE;
         }
 
         return null;

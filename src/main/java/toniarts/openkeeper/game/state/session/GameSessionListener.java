@@ -20,6 +20,7 @@ import com.jme3.math.Vector3f;
 import com.jme3.network.service.rmi.Asynchronous;
 import com.simsilica.es.EntityId;
 import toniarts.openkeeper.game.event.GameEvent;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.listener.MapListener;
@@ -88,12 +89,20 @@ public interface GameSessionListener extends MapListener, PlayerListener {
     public void onSetWidescreen(boolean enable);
 
     /**
-     * The game has ended for the client
+     * The level script turned the automatic system messages on or off
      *
-     * @param win if true, the client won the game, if not, lost
+     * @param enabled true if the system messages are shown
      */
     @Asynchronous
-    public void onGameEnded(boolean win);
+    public void onSetSystemMessages(boolean enabled);
+
+    /**
+     * The game has ended for the client
+     *
+     * @param result the result and statistics of the game for the client
+     */
+    @Asynchronous
+    public void onGameEnded(GameResult result);
 
     @Asynchronous(reliable = false)
     void onEvent(GameEventType type, GameEvent.ThingFlag subjectKind, int subjectId, GameEvent.ThingFlag targetKind, int targetId,
@@ -127,6 +136,15 @@ public interface GameSessionListener extends MapListener, PlayerListener {
 
     @Asynchronous
     public void onShowMessage(int textId);
+
+    /**
+     * Show a system message with its mentor speech
+     *
+     * @param speechId the mentor speech ID, the text is the speech text
+     * @param position the place the message is about
+     */
+    @Asynchronous
+    public void onShowMentorMessage(int speechId, Vector3f position);
 
     @Asynchronous
     public void onZoomViewToPoint(Vector3f point);

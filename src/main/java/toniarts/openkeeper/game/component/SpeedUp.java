@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014-2017 OpenKeeper
+ * Copyright (C) 2014-2026 OpenKeeper
  *
  * OpenKeeper is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -14,18 +14,29 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenKeeper.  If not, see <http://www.gnu.org/licenses/>.
  */
-package toniarts.openkeeper.game.listener;
+package toniarts.openkeeper.game.component;
 
-import com.jme3.network.service.rmi.Asynchronous;
+import com.simsilica.es.EntityComponent;
 
 /**
- * Listen changes in player gold status change
- *
- * @author Toni Helenius <helenius.toni@gmail.com>
+ * A creature moves faster for a while, like the Imp after its haste. DK II
+ * keeps this as the creature's speed change timer (0x48CAD0)
  */
-public interface PlayerGoldListener {
+public final class SpeedUp implements EntityComponent {
 
-    @Asynchronous
-    public void onGoldChange(short keeperId, int gold);
+    /**
+     * The speed as a percentage of the creature's own speed
+     */
+    public int percentage;
+    public double endTime;
+
+    public SpeedUp() {
+        // For serialization
+    }
+
+    public SpeedUp(int percentage, double endTime) {
+        this.percentage = percentage;
+        this.endTime = endTime;
+    }
 
 }

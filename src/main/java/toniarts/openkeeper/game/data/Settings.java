@@ -69,10 +69,12 @@ public final class Settings {
         // Campaign
         LEVEL_NUMBER(Integer.class, 0, SettingCategory.CAMPAIGN),
         LEVEL_ATTEMPTS(Integer.class, 0, SettingCategory.CAMPAIGN),
+        LEVEL_EVIL_RATING(Integer.class, 0, SettingCategory.CAMPAIGN),
         LEVEL_STATUS(LevelStatus.class, LevelStatus.NOT_COMPLETED, SettingCategory.CAMPAIGN),
         SECRET_LEVEL_STATUS(LevelStatus.class, SecretLevelStatus.NOT_DISCOVED, SettingCategory.CAMPAIGN),
         MPD_LEVEL_STATUS(LevelStatus.class, LevelStatus.NOT_COMPLETED, SettingCategory.CAMPAIGN),
         // Graphic
+        BORDERLESS(Boolean.class, false, SettingCategory.GRAPHICS),
         ANISOTROPY(Integer.class, 0, SettingCategory.GRAPHICS),
         SSAO(Boolean.class, false, SettingCategory.GRAPHICS),
         SSAO_SAMPLE_RADIUS(Float.class, 5.94f, SettingCategory.GRAPHICS),
@@ -280,7 +282,12 @@ public final class Settings {
                 logger.log(Logger.Level.WARNING, "Settings file failed to load from " + USER_SETTINGS_FILE + "!", ex);
             }
         }
-        this.settings.setFrameRate(Math.max(MAX_FPS, settings.getFrequency()));
+        this.settings.setFrameRate(Math.min(MAX_FPS, settings.getFrequency()));
+
+        // Borderless is a window, the exclusive fullscreen would override it
+        if (getBoolean(Setting.BORDERLESS)) {
+            settings.setFullscreen(false);
+        }
 
         // Assing some app level settings
         settings.setTitle(TITLE);
@@ -421,7 +428,7 @@ public final class Settings {
      * @return number of attempts to a level
      */
     public int getLevelAttempts(CampaignLevel level) {
-        return (int) getSetting(Setting.LEVEL_ATTEMPTS.toString() + level.getLevel(), Setting.LEVEL_ATTEMPTS.getDefaultValue());
+        return (int) getSetting(Setting.LEVEL_ATTEMPTS.toString() + level.getLevel() + level.getVariation(), Setting.LEVEL_ATTEMPTS.getDefaultValue());
     }
 
     /**
@@ -461,6 +468,31 @@ public final class Settings {
      */
     public void increaseLevelAttempts(CampaignLevel level) {
         setSetting(Setting.LEVEL_ATTEMPTS.toString() + level.getLevel() + level.getVariation(), getLevelAttempts(level) + 1);
+    }
+
+    /**
+     * Set the Evil Rating of the last game of a campaign level. The variations
+     * of a level share it.
+     *
+     * @param level the campaign level
+     * @param evilRating the Evil Rating
+     */
+    public void setLevelEvilRating(CampaignLevel level, int evilRating) {
+        setSetting(Setting.LEVEL_EVIL_RATING.toString() + level.getLevel(), evilRating);
+    }
+
+    /**
+     * Get the overall Evil Rating of the campaign, the sum of the Evil Ratings
+     * of the campaign levels
+     *
+     * @return the overall Evil Rating
+     */
+    public int getOverallEvilRating() {
+        int evilRating = 0;
+        for (int i = 1; i <= 20; i++) {
+            evilRating += (int) getSetting(Setting.LEVEL_EVIL_RATING.toString() + i, Setting.LEVEL_EVIL_RATING.getDefaultValue());
+        }
+        return evilRating;
     }
 
     /**
@@ -569,12 +601,13 @@ public final class Settings {
         // Reset secret levels
         for (int i = 1; i < 6; i++) {
             CampaignLevel secretLevel = new CampaignLevel(Secret, i);
-            setSetting(Setting.SECRET_LEVEL_STATUS.toString() + secretLevel, SecretLevelStatus.NOT_DISCOVED);
+            setSetting(Setting.SECRET_LEVEL_STATUS.toString() + secretLevel.getLevel(), SecretLevelStatus.NOT_DISCOVED);
         }
     }
 
     private void resetCampaignLevel(CampaignLevel level) {
         setLevelStatus(level, LevelStatus.NOT_COMPLETED);
-        setSetting(Setting.LEVEL_ATTEMPTS.toString() + level, Setting.LEVEL_ATTEMPTS.getDefaultValue());
+        setSetting(Setting.LEVEL_ATTEMPTS.toString() + level.getLevel() + level.getVariation(), Setting.LEVEL_ATTEMPTS.getDefaultValue());
+        setLevelEvilRating(level, 0);
     }
 }

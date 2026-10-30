@@ -29,6 +29,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.client.EntityDataClientService;
 import toniarts.openkeeper.game.event.GameEvent;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.event.GameEventType;
@@ -187,6 +188,11 @@ public final class GameClientService extends AbstractClientService
     }
 
     @Override
+    public void buttonPressed(short buttonType, short buttonId) {
+        getDelegate().buttonPressed(buttonType, buttonId);
+    }
+
+    @Override
     public void pauseGame() {
         getDelegate().pauseGame();
     }
@@ -216,8 +222,33 @@ public final class GameClientService extends AbstractClientService
     }
 
     @Override
-    public void setPossessedMovement(Vector2f direction, float rotation, byte speedMode) {
-        getDelegate().setPossessedMovement(direction, rotation, speedMode);
+    public void triggerAddGoldCheat(int amount) {
+        getDelegate().triggerAddGoldCheat(amount);
+    }
+
+    @Override
+    public void triggerAddManaCheat(int amount) {
+        getDelegate().triggerAddManaCheat(amount);
+    }
+
+    @Override
+    public void setPossessedMovement(Vector2f direction, float rotation, float pitch, byte speedMode) {
+        getDelegate().setPossessedMovement(direction, rotation, pitch, speedMode);
+    }
+
+    @Override
+    public void setPossessedAttack(boolean attacking, int spell) {
+        getDelegate().setPossessedAttack(attacking, spell);
+    }
+
+    @Override
+    public void addPossessedFollower() {
+        getDelegate().addPossessedFollower();
+    }
+
+    @Override
+    public void usePossessedAbility(int ability) {
+        getDelegate().usePossessedAbility(ability);
     }
 
     @Override
@@ -304,13 +335,6 @@ public final class GameClientService extends AbstractClientService
         }
 
         @Override
-        public void onGoldChange(short keeperId, int gold) {
-            for (GameSessionListener l : listeners.getArray()) {
-                l.onGoldChange(keeperId, gold);
-            }
-        }
-
-        @Override
         public void onManaChange(short keeperId, int mana, int manaLoose, int manaGain) {
             for (GameSessionListener l : listeners.getArray()) {
                 l.onManaChange(keeperId, mana, manaLoose, manaGain);
@@ -353,9 +377,16 @@ public final class GameClientService extends AbstractClientService
         }
 
         @Override
-        public void onGameEnded(boolean win) {
+        public void onSetSystemMessages(boolean enabled) {
             for (GameSessionListener l : listeners.getArray()) {
-                l.onGameEnded(win);
+                l.onSetSystemMessages(enabled);
+            }
+        }
+
+        @Override
+        public void onGameEnded(GameResult result) {
+            for (GameSessionListener l : listeners.getArray()) {
+                l.onGameEnded(result);
             }
         }
 
@@ -402,6 +433,13 @@ public final class GameClientService extends AbstractClientService
         }
 
         @Override
+        public void onShowMentorMessage(int speechId, Vector3f position) {
+            for (GameSessionListener l : listeners.getArray()) {
+                l.onShowMentorMessage(speechId, position);
+            }
+        }
+
+        @Override
         public void onZoomViewToPoint(Vector3f point) {
             for (GameSessionListener l : listeners.getArray()) {
                 l.onZoomViewToPoint(point);
@@ -419,6 +457,13 @@ public final class GameClientService extends AbstractClientService
         public void onTilesReveal(List<Point> points, boolean explore, short keeperId) {
             for (GameSessionListener l : listeners.getArray()) {
                 l.onTilesReveal(points, explore, keeperId);
+            }
+        }
+
+        @Override
+        public void onSightOfEvil(Point centre, int radius, int durationTicks, short keeperId) {
+            for (GameSessionListener l : listeners.getArray()) {
+                l.onSightOfEvil(centre, radius, durationTicks, keeperId);
             }
         }
 

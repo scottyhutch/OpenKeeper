@@ -25,9 +25,15 @@ import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.event.EventBus;
+import com.simsilica.event.EventListener;
+import com.simsilica.event.EventType;
 import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.Settings;
+import toniarts.openkeeper.game.event.ClientEvents;
+import toniarts.openkeeper.game.event.GameEvent;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.listener.MapListener;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
 import toniarts.openkeeper.game.map.IMapInformation;
@@ -35,6 +41,7 @@ import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.map.IRoomsInformation;
 import toniarts.openkeeper.game.map.MapInformation;
 import toniarts.openkeeper.game.sound.GameEventSoundPlayer;
+import toniarts.openkeeper.game.state.SoundState;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.modelviewer.Debug;
@@ -47,6 +54,7 @@ import toniarts.openkeeper.view.map.FlashTileViewState;
 import toniarts.openkeeper.view.map.MapRoomContainer;
 import toniarts.openkeeper.view.map.MapTileContainer;
 import toniarts.openkeeper.view.map.MapViewController;
+import toniarts.openkeeper.view.map.TerrainDeformer;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -62,6 +70,9 @@ import java.util.function.Consumer;
  */
 public abstract class PlayerMapViewState extends AbstractAppState implements MapListener, PlayerActionListener {
 
+    private static final int CASINO_JACKPOT_EFFECT = 91;
+    private static final int CASINO_FIREWORKS_EFFECT = 320;
+
     private Main app;
     private AppStateManager stateManager;
     private final IMapInformation mapInformation;
@@ -76,11 +87,18 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private short[][] lastTerrainIds;
     private final FogOfWarController fogOfWarController;
     private final GameEventSoundPlayer gameEventSoundPlayer;
+    private final EventListener<GameEvent> casinoEffectsListener = this::onCasinoEvent;
 
     // Creature vision (and the initial fog seeding) can produce tile updates
     // before MapViewController.load() has built its scene graph - queue those
     // and flush them once the map actually exists, instead of crashing
     private volatile boolean mapLoaded = false;
+
+    // Scripted reveals/conceals (action point triggers) that arrive before the fog has been seeded
+    // would be wiped by the seeding, so they wait for it and are applied right after
+    private final Object fogSeedLock = new Object();
+    private boolean fogSeeded = false;
+    private final List<Runnable> pendingFogChanges = new ArrayList<>();
     private final ConcurrentLinkedQueue<Point> pendingTileUpdates = new ConcurrentLinkedQueue<>();
     private final Object tileUpdateLock = new Object();
 
@@ -106,7 +124,12 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
                 // Fog must be seeded before the initial geometry is built, since
                 // the renderer consults it while assembling the map
-                fogOfWarController.seedLevelStart();
+                synchronized (fogSeedLock) {
+                    fogOfWarController.seedLevelStart();
+                    fogSeeded = true;
+                    pendingFogChanges.forEach(Runnable::run);
+                    pendingFogChanges.clear();
+                }
 
                 // Snapshot the initial terrain of every tile, so we can later detect
                 // claim/repair transitions (terrain type changing to its max-health variant)
@@ -182,7 +205,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
         flashTileControl = new FlashTileViewState(mapLoader);
 
-        gameEventSoundPlayer = new GameEventSoundPlayer(kwdFile);
+        gameEventSoundPlayer = new GameEventSoundPlayer(kwdFile, fogOfWarController::isExplored);
 
         // Start collecting the map entities
         mapRoomContainer.start();
@@ -201,6 +224,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
         // Sounds
         this.gameEventSoundPlayer.register();
+        EventBus.addListener(ClientEvents.GAME_EVENT, casinoEffectsListener);
 
         // Tile flash state
         this.stateManager.attach(flashTileControl);
@@ -232,6 +256,11 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
         // Sounds
         this.gameEventSoundPlayer.unregister();
+        EventBus.removeListener(ClientEvents.GAME_EVENT, casinoEffectsListener);
+        SoundState soundState = stateManager.getState(SoundState.class);
+        if (soundState != null) {
+            soundState.setMusicVolumeFactor(1f);
+        }
 
         // The actual map data
         mapRoomContainer.stop();
@@ -248,6 +277,12 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         mapRoomContainer.update();
         mapTileContainer.update();
         fogOfWarController.update(tpf);
+
+        // The level music is turned down as much as the loudest disco is heard
+        SoundState soundState = stateManager.getState(SoundState.class);
+        if (soundState != null) {
+            soundState.setMusicVolumeFactor(1f - gameEventSoundPlayer.updateDiscoMusic() / 100f);
+        }
 
         // Lighting: pick up live settings changes, advance modulators
         // (pulse/fade/flicker) and re-upload the terrain materials they
@@ -266,6 +301,19 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
     public MapViewController getMapLoader() {
         return mapLoader;
+    }
+
+    /**
+     * The visual effects of the Casino's jackpot party, the sounds are played by {@link GameEventSoundPlayer}.
+     */
+    private void onCasinoEvent(EventType<GameEvent> type, GameEvent event) {
+        if (event.type == GameEventType.CASINO_JACKPOT) {
+            app.enqueue(() -> effectManager.load(worldNode, WorldUtils.pointToVector3f(event.position).addLocal(0, WorldUtils.FLOOR_HEIGHT, 0),
+                    CASINO_JACKPOT_EFFECT, false));
+        } else if (event.type == GameEventType.CASINO_FIREWORKS) {
+            app.enqueue(() -> effectManager.load(worldNode, WorldUtils.pointToVector3f(event.position).addLocal(0, WorldUtils.TILE_HEIGHT, 0),
+                    CASINO_FIREWORKS_EFFECT, false));
+        }
     }
 
     /**
@@ -325,7 +373,20 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
     @Override
     public void onTilesReveal(List<Point> points, boolean explore, short keeperId) {
+        synchronized (fogSeedLock) {
+            if (!fogSeeded) {
+                pendingFogChanges.add(() -> fogOfWarController.revealActionPointTiles(points, explore));
+                return;
+            }
+        }
         fogOfWarController.revealActionPointTiles(points, explore);
+    }
+
+    @Override
+    public void onSightOfEvil(Point centre, int radius, int durationTicks, short keeperId) {
+
+        // Fog of war is only touched on the render thread
+        app.enqueue(() -> fogOfWarController.startSightOfEvil(centre, radius, durationTicks));
     }
 
     public IMapInformation getMapInformation() {
@@ -378,6 +439,10 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
             }
         }
         mapLoader.updateTiles(points);
+    }
+
+    public TerrainDeformer getTerrainDeformer() {
+        return mapLoader.getDeformer();
     }
 
     public IRoomsInformation getRoomsInformation() {

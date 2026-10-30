@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.component.RoomComponent;
 import toniarts.openkeeper.game.fogofwar.FogOfWarRules;
 import toniarts.openkeeper.game.fogofwar.FogState;
 import toniarts.openkeeper.game.fogofwar.LineOfSightTable;
+import toniarts.openkeeper.game.fogofwar.SightOfEvilReveal;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -53,6 +54,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Consumer;
 
 /**
@@ -96,9 +98,30 @@ public final class FogOfWarController implements IFogOfWarInformation {
     private EntitySet doorEntities;
     private EntitySet heartRoomEntities;
 
+    /**
+     * Set once {@link #seedLevelStart()} has run. Until then the fog does
+     * nothing, the seeding would wipe it anyway. Seeding runs on the map
+     * loader thread, updates on the render thread.
+     */
+    private volatile boolean seeded;
+
+    /**
+     * Whether the heart rooms already in the set have been looked at.
+     * Render thread only.
+     */
+    private boolean heartRoomsChecked;
+
     private final Map<Point, Entity> doorsByPosition = new HashMap<>();
     private final Set<Point> closedDoorTiles = new HashSet<>();
     private final Set<EntityId> seenEnemies = new HashSet<>();
+
+    /**
+     * Tiles the level script revealed, and that are still waiting for the
+     * "enemy sighted" check to go past them. A reveal is not a sighting: the
+     * level intros reveal areas that have enemies in them. Scripts run on the
+     * game thread, the fog updates on the render thread.
+     */
+    private final Set<Point> scriptedRevealTiles = ConcurrentHashMap.newKeySet();
     private final List<PendingHeartReveal> pendingHeartReveals = new ArrayList<>();
     private final Set<Point> pendingTaggedTiles = new HashSet<>();
 
@@ -106,6 +129,10 @@ public final class FogOfWarController implements IFogOfWarInformation {
 
     private EntityId possessedCreature;
     private float visionUpdateAccumulator;
+
+    private SightOfEvilReveal sightOfEvil;
+    private double sightOfEvilElapsedTicks;
+    private volatile Set<Point> sightOfEvilTiles = Set.of();
 
     public FogOfWarController(EntityData entityData, IKwdFile kwdFile,
             IMapDataInformation<? extends IMapTileInformation> mapData, short viewerId,
@@ -151,9 +178,25 @@ public final class FogOfWarController implements IFogOfWarInformation {
         heartRoomEntities.release();
     }
 
+    /**
+     * Advances the fog of war: creature vision, possession, the Dungeon
+     * Heart reveal and the "enemy sighted" check. Does nothing until
+     * {@link #seedLevelStart()} has run, so nothing seen or reported before
+     * the seeding gets wiped by it.
+     *
+     * @param tpf time since the last update, in seconds
+     */
     public void update(float tpf) {
+        if (!seeded) {
+            return;
+        }
+
+        // The first time round, every heart room in the set is new to us,
+        // including the ones that were already there when the set was made
         heartRoomEntities.applyChanges();
-        for (Entity e : heartRoomEntities.getAddedEntities()) {
+        Set<Entity> newHeartRooms = heartRoomsChecked ? heartRoomEntities.getAddedEntities() : heartRoomEntities;
+        heartRoomsChecked = true;
+        for (Entity e : newHeartRooms) {
             Owner owner = e.get(Owner.class);
             RoomComponent room = e.get(RoomComponent.class);
             if (owner.ownerId == viewerId && room.location != null) {
@@ -172,6 +215,11 @@ public final class FogOfWarController implements IFogOfWarInformation {
         }
 
         Set<Point> dirty = state.drainDirtyTiles();
+        Set<Point> sightOfEvilChanges = updateSightOfEvil(tpf);
+        if (!sightOfEvilChanges.isEmpty()) {
+            dirty = new HashSet<>(dirty);
+            dirty.addAll(sightOfEvilChanges);
+        }
         if (!dirty.isEmpty()) {
             if (!pendingTaggedTiles.isEmpty()) {
                 // A tile that just became visible is no longer "pending" -
@@ -196,7 +244,9 @@ public final class FogOfWarController implements IFogOfWarInformation {
     public void markPendingTagged(List<Point> points, boolean tagged) {
         List<Point> changed = new ArrayList<>();
         for (Point p : points) {
-            if (isVisible(p)) {
+
+            // A drag can run past the map edge, there is no tile there
+            if (mapData.getTile(p) == null || isVisible(p)) {
                 continue;
             }
             boolean wasPending = pendingTaggedTiles.contains(p);
@@ -219,6 +269,11 @@ public final class FogOfWarController implements IFogOfWarInformation {
         doorsByPosition.clear();
         closedDoorTiles.clear();
         for (Entity e : doorEntities) {
+
+            // A blueprint is no door yet, it doesn't block the view
+            if (e.get(DoorViewState.class).blueprint) {
+                continue;
+            }
             Position position = e.get(Position.class);
             Point p = WorldUtils.vectorToPoint(position.position);
             doorsByPosition.put(p, e);
@@ -273,7 +328,7 @@ public final class FogOfWarController implements IFogOfWarInformation {
         // "Enemy sighted" (§8.5.3): the first time an enemy creature's tile
         // becomes explored, notify once. Checked after our own creatures'
         // vision above so a tile explored this very pass still counts.
-        Set<Point> newlyDirty = state.peekDirtyTiles();
+        Set<Point> newlyDirty = withoutScriptedReveals(state.peekDirtyTiles());
         if (newlyDirty.isEmpty()) {
             return;
         }
@@ -293,6 +348,20 @@ public final class FogOfWarController implements IFogOfWarInformation {
                 onEnemySighted.accept(id);
             }
         }
+    }
+
+    /**
+     * The scripted reveals do not count as sightings, take them out of the
+     * dirty tiles. The mark of a tile goes once the tile has been passed.
+     */
+    private Set<Point> withoutScriptedReveals(Set<Point> dirty) {
+        if (scriptedRevealTiles.isEmpty()) {
+            return dirty;
+        }
+        Set<Point> result = new HashSet<>(dirty);
+        result.removeAll(scriptedRevealTiles);
+        scriptedRevealTiles.removeAll(dirty);
+        return result;
     }
 
     private void updatePossession() {
@@ -355,6 +424,7 @@ public final class FogOfWarController implements IFogOfWarInformation {
         if (!dirty.isEmpty()) {
             fireTilesDirty(dirty.toArray(new Point[0]));
         }
+        seeded = true;
     }
 
     private void seedOwnedAndAlwaysExploredTiles() {
@@ -468,10 +538,65 @@ public final class FogOfWarController implements IFogOfWarInformation {
      */
     public void revealActionPointTiles(List<Point> points, boolean explore) {
         if (explore) {
+            // Not a sighting, even if an enemy stands there. Mark first, so
+            // the check cannot see the tiles dirty without the mark.
+            for (Point p : points) {
+                if (!state.isExplored(p.x, p.y)) {
+                    scriptedRevealTiles.add(p);
+                }
+            }
             FogOfWarRules.exploreTiles(state, points);
         } else {
             FogOfWarRules.unexploreTiles(state, points);
         }
+    }
+
+    /**
+     * The Sight of Evil keeper spell: reveal an area through the fog for a
+     * while, without exploring it. Only one is active at a time, a new cast
+     * replaces the previous one.
+     *
+     * @param centre the cast tile
+     * @param radius the radius of the revealed area, in tiles
+     * @param durationTicks how long the area stays revealed, in game ticks
+     */
+    public void startSightOfEvil(Point centre, int radius, int durationTicks) {
+        sightOfEvil = new SightOfEvilReveal(centre.x, centre.y, radius, durationTicks, mapData.getWidth(), mapData.getHeight());
+        sightOfEvilElapsedTicks = 0;
+    }
+
+    /**
+     * Advances the Sight of Evil reveal
+     *
+     * @param tpf time since the last update, in seconds
+     * @return the tiles that were revealed or hidden again
+     */
+    private Set<Point> updateSightOfEvil(float tpf) {
+        Set<Point> revealed = new HashSet<>();
+        if (sightOfEvil != null) {
+            sightOfEvilElapsedTicks += tpf * kwdFile.getGameLevel().getTicksPerSec();
+            if (sightOfEvil.isOver(sightOfEvilElapsedTicks)) {
+                sightOfEvil = null;
+            } else {
+                for (int x = sightOfEvil.getMinX(); x < sightOfEvil.getMaxX(); x++) {
+                    for (int y = sightOfEvil.getMinY(); y < sightOfEvil.getMaxY(); y++) {
+                        if (sightOfEvil.isRevealed(x, y, sightOfEvilElapsedTicks)) {
+                            revealed.add(new Point(x, y));
+                        }
+                    }
+                }
+            }
+        }
+
+        Set<Point> previous = sightOfEvilTiles;
+        if (revealed.equals(previous)) {
+            return Set.of();
+        }
+        Set<Point> changed = new HashSet<>(revealed);
+        changed.addAll(previous);
+        changed.removeIf(p -> revealed.contains(p) && previous.contains(p));
+        sightOfEvilTiles = Set.copyOf(revealed);
+        return changed;
     }
 
     /**
@@ -504,6 +629,9 @@ public final class FogOfWarController implements IFogOfWarInformation {
     @Override
     public boolean isVisible(Point p) {
         if (possessedCreature != null) {
+            return true;
+        }
+        if (sightOfEvilTiles.contains(p)) {
             return true;
         }
         IMapTileInformation tile = mapData.getTile(p);

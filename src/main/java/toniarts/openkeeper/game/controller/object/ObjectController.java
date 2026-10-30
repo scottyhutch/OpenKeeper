@@ -20,6 +20,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Placeable;
+import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Stored;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IObjectsController;
@@ -61,7 +62,11 @@ public final class ObjectController extends EntityController implements IObjectC
 
     @Override
     public boolean isPickableByPlayerCreature(short playerId) {
-        return entityData.getComponent(entityId, Placeable.class) != null && getTile().getOwnerId() == playerId;
+
+        // An object in the keeper's hand has no position, so it lies on no tile (#717)
+        return entityData.getComponent(entityId, Placeable.class) != null
+                && entityData.getComponent(entityId, Position.class) != null
+                && getTile().getOwnerId() == playerId;
     }
 
     @Override

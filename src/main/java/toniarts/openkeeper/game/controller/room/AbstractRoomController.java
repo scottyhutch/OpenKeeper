@@ -49,7 +49,7 @@ public abstract class AbstractRoomController extends AbstractRoomInformation imp
      */
     public enum ObjectType {
 
-        GOLD, LAIR, SPELL_BOOK, SPECIAL, RESEARCHER, PRISONER, TORTUREE, FOOD, TRAINEE;
+        GOLD, LAIR, SPELL_BOOK, SPECIAL, RESEARCHER, PRISONER, TORTUREE, FOOD, TRAINEE, MANUFACTURER, CRATE, GAMBLER, CORPSE, GUARD, WORSHIPPER;
 
     };
 
@@ -251,6 +251,19 @@ public abstract class AbstractRoomController extends AbstractRoomInformation imp
         return (T) existingControl;
     }
 
+    /**
+     * The room no longer stores this type of objects. The control is
+     * destroyed, which leaves the stored objects on the floor.
+     *
+     * @param objectType the type of objects
+     */
+    protected final void removeObjectControl(ObjectType objectType) {
+        IRoomObjectControl control = objectControls.remove(objectType);
+        if (control != null) {
+            control.destroy();
+        }
+    }
+
     @Override
     public boolean hasObjectControl(ObjectType objectType) {
         return objectControls.containsKey(objectType);
@@ -435,7 +448,8 @@ public abstract class AbstractRoomController extends AbstractRoomInformation imp
             case 1:  // Treasury
                 return 76;
             case 2:  // Lair
-                return 77;
+                // Object 77 exists, but native DK II does not use lair pillars (#607).
+                return null;
             case 4:  // Hatchery
                 return 78;
             case 10:  // Workshop

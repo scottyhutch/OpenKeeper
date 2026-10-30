@@ -56,6 +56,21 @@ class AbstractRoomControllerTest {
         assertTrue(originalControl.destroyed);
     }
 
+    @Test
+    void removedControlIsDestroyedAndNoLongerStores() {
+        EntityData entityData = new DefaultEntityData();
+        RoomInstance roomInstance = new RoomInstance(new Room());
+        roomInstance.addCoordinate(new Point(1, 1));
+        TestRoomController room = new TestRoomController(entityData.createEntity(), entityData, roomInstance);
+        TrackingObjectControl goldControl = new TrackingObjectControl(ObjectType.GOLD);
+        room.register(goldControl);
+
+        room.removeObjectControl(ObjectType.GOLD);
+
+        assertTrue(goldControl.destroyed);
+        assertFalse(room.canStoreGold());
+    }
+
     private static final class TestRoomController extends AbstractRoomController {
 
         private TestRoomController(EntityId entityId, EntityData entityData, RoomInstance roomInstance) {

@@ -19,6 +19,7 @@ package toniarts.openkeeper.game.state.session;
 import com.jme3.math.Vector3f;
 import com.jme3.network.service.rmi.Asynchronous;
 import com.simsilica.es.EntityId;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.event.GameEvent;
 import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
@@ -100,6 +101,16 @@ public interface PlayerService {
     public void showMessage(int textId, short playerId);
 
     /**
+     * Show a system message with its mentor speech, e.g. "Your Lair is under
+     * attack"
+     *
+     * @param speechId the mentor speech ID, the text is the speech text
+     * @param position the place the message is about
+     * @param playerId the player ID who should get the message
+     */
+    public void showMentorMessage(int speechId, Vector3f position, short playerId);
+
+    /**
      * Zoom camera to a point
      *
      * @param point the point to zoom to
@@ -123,6 +134,14 @@ public interface PlayerService {
     public void setGamePaused(boolean paused);
 
     /**
+     * Turn the automatic system messages on or off for all the players. The
+     * scripted speeches and texts are still shown when they are off.
+     *
+     * @param enabled true if the system messages are shown
+     */
+    public void setSystemMessagesEnabled(boolean enabled);
+
+    /**
      * Show unit flower of an entity
      *
      * @param entityId the entity of which flower to show
@@ -142,10 +161,10 @@ public interface PlayerService {
     /**
      * End the game for a player
      *
-     * @param win if true, the player won the game, if not, lost
+     * @param result the result and statistics of the game for the player
      * @param playerId the player whose game ends
      */
-    public void endGame(boolean win, short playerId);
+    public void endGame(GameResult result, short playerId);
 
     @Asynchronous(reliable = false)
     void sendEvent(GameEventType type, GameEvent.ThingFlag subjectKind, int subjectId, GameEvent.ThingFlag targetKind, int targetId,

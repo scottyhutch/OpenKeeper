@@ -16,7 +16,13 @@
  */
 package toniarts.openkeeper.game.controller.player;
 
+import com.simsilica.es.EntityData;
+import com.simsilica.es.EntityId;
+import com.simsilica.es.filter.FieldFilter;
 import java.util.List;
+import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.TrapComponent;
+import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.data.ResearchableType;
@@ -31,9 +37,11 @@ import toniarts.openkeeper.tools.convert.map.Trap;
 public final class PlayerTrapControl extends AbstractResearchablePlayerControl<Trap, ResearchableEntity, PlayerTrapListener> /*implements RoomListener*/ {
 
     private final int trapCount = 0;
+    private final EntityData entityData;
 
-    public PlayerTrapControl(Keeper keeper, List<Trap> traps) {
+    public PlayerTrapControl(Keeper keeper, List<Trap> traps, EntityData entityData) {
         super(keeper, keeper.getAvailableTraps(), traps);
+        this.entityData = entityData;
     }
 
     @Override
@@ -49,6 +57,27 @@ public final class PlayerTrapControl extends AbstractResearchablePlayerControl<T
     @Override
     public int getTypeCount() {
         return trapCount;
+    }
+
+    /**
+     * Count the traps this player has in the world. The doors that hold a trap
+     * are doors, not traps.
+     *
+     * @param trapId the trap type, 0 = any
+     * @param blueprints count the blueprints (placed, not built yet)
+     * @param built count the built traps
+     * @return the number of the traps
+     */
+    public int getPlacedCount(short trapId, boolean blueprints, boolean built) {
+        int count = 0;
+        for (EntityId entityId : entityData.findEntities(new FieldFilter<>(Owner.class, "ownerId", keeper.getId()), Owner.class, TrapComponent.class, TrapViewState.class)) {
+            TrapComponent trap = entityData.getComponent(entityId, TrapComponent.class);
+            TrapViewState viewState = entityData.getComponent(entityId, TrapViewState.class);
+            if (trap != null && viewState != null && (trapId == 0 || trap.trapId == trapId) && (viewState.blueprint ? blueprints : built)) {
+                count++;
+            }
+        }
+        return count;
     }
 
 }

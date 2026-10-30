@@ -26,9 +26,14 @@ import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureExperience;
 import toniarts.openkeeper.game.component.CreatureMood;
+import toniarts.openkeeper.game.component.Disguised;
+import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.PlayerObjective;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.TaskComponent;
+import toniarts.openkeeper.game.component.Turncoat;
+import toniarts.openkeeper.game.component.Unconscious;
+import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Player;
@@ -47,6 +52,7 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
 
     private static final float CHANGE_STATUS_INTERVAL = 0.5f;
     private static final float REDRAW_INTERVAL = 0.1f;
+    private static final long TURNCOAT_BLINK_MILLIS = 333;
 
     private short currentDrawnOwnerId;
     private float timeCurrentStatusVisible = 0;
@@ -69,7 +75,47 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
         components.add(PortalGem.class);
         components.add(CreatureExperience.class);
         components.add(CreatureMood.class);
+        components.add(Turncoat.class);
+        components.add(Disguised.class);
+        components.add(Unconscious.class);
         return components;
+    }
+
+    /**
+     * Get the player whose color the flower shows. A disguised creature shows
+     * the color of the keeper it looks like, a turncoat blinks between its
+     * owner's and the caster's colors
+     *
+     * @return the player id for the flower color
+     */
+    @Override
+    protected short getOwnerId() {
+        Disguised disguised = getEntity().get(Disguised.class);
+        if (disguised != null) {
+            return disguised.ownerId;
+        }
+        return getFlowerColorPlayerId(super.getOwnerId(), getEntity().get(Turncoat.class), System.currentTimeMillis());
+    }
+
+    /**
+     * Get the player whose color the flower shows. A turncoat shows the
+     * caster's color every other {@value #TURNCOAT_BLINK_MILLIS} milliseconds
+     * and its owner's color in between. A neutral creature keeps cycling the
+     * neutral colors
+     *
+     * @param ownerId the creature owner
+     * @param turncoat the turncoat spell on the creature, can be {@code null}
+     * @param timeMillis the current time in milliseconds
+     * @return the player id for the flower color
+     */
+    static short getFlowerColorPlayerId(short ownerId, Turncoat turncoat, long timeMillis) {
+        if (turncoat == null || ownerId == Player.NEUTRAL_PLAYER_ID) {
+            return ownerId;
+        }
+        if ((timeMillis / TURNCOAT_BLINK_MILLIS) % 2 == 1) {
+            return turncoat.playerId;
+        }
+        return ownerId;
     }
 
     @Override
@@ -165,10 +211,31 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
 
     @Override
     protected boolean isPersistentVisibilityRequired() {
-        return getMoodState() > 0;
+        if (isUnconscious()) {
+            return true;
+        }
+        CreatureAi ai = getEntity().get(CreatureAi.class);
+        if (ai != null) {
+            switch (ai.getCreatureState()) {
+                case FIGHT, MELEE_ATTACK, CAST_SPELL:
+                    return true;
+                default:
+                    break;
+            }
+        }
+        Health health = getEntity().get(Health.class);
+        // Native visibility uses a strict comparison with floor(maximum / 6).
+        boolean criticallyHurt = health != null && health.health > 0 && health.maxHealth > 0
+                && health.health < health.maxHealth / 6;
+        return criticallyHurt || getMoodState() > 0;
     }
 
     private int getMoodState() {
+        // Native heroes skip mood cycling; unconsciousness overrides mood for
+        // every other owner, including enemy Keepers and neutral creatures.
+        if (getOwnerId() == Player.GOOD_PLAYER_ID || isUnconscious()) {
+            return 0;
+        }
         CreatureMood mood = getEntity().get(CreatureMood.class);
         if (mood == null) {
             return 0;
@@ -199,6 +266,12 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
     }
 
     private String getStatusIcon() {
+        if (getOwnerId() == Player.GOOD_PLAYER_ID) {
+            return null;
+        }
+        if (isUnconscious()) {
+            return "Textures/GUI/moods/SJ-Unconscious.png";
+        }
         CreatureAi creatureAi = getEntity().get(CreatureAi.class);
 
         if (creatureAi != null) {
@@ -244,19 +317,34 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
         return null;
     }
 
+    private boolean isUnconscious() {
+        if (getEntity().get(Unconscious.class) != null) {
+            return true;
+        }
+        CreatureAi ai = getEntity().get(CreatureAi.class);
+        return ai != null && (ai.getCreatureState() == CreatureState.UNCONSCIOUS
+                || ai.getCreatureState() == CreatureState.DRAGGED);
+    }
+
     private static String getTaskIcon(TaskType taskType) {
         switch (taskType) {
             case CARRY_CREATURE_TO_LAIR:
             case CAPTURE_ENEMY_CREATURE:
             case CARRY_CREATURE_TO_JAIL:
             case CARRY_OBJECT_TO_STORAGE:
+            case CARRY_CORPSE_TO_GRAVEYARD:
             case RESCUE_CREATURE:
+            case FETCH_TRAP_CRATE:
+            case DELIVER_TRAP_CRATE:
+            case FETCH_DOOR_CRATE:
+            case DELIVER_DOOR_CRATE:
                 return "Textures/GUI/moods/SJ-Take_Crate.png";
             case CARRY_GOLD_TO_TREASURY:
                 return "Textures/GUI/moods/SJ-Take_Gold.png";
             case CLAIM_TILE:
             case CLAIM_ROOM:
             case FETCH_OBJECT:
+            case FETCH_CORPSE:
                 return "Textures/GUI/moods/SJ-Claim.png";
             case REPAIR_WALL:
             case CLAIM_WALL:
@@ -268,10 +356,18 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
                 return "Textures/GUI/moods/SJ-Rest.png";
             case RESEARCH:
                 return "Textures/GUI/moods/SJ-Library.png";
+            case MANUFACTURE:
+                return "Textures/GUI/moods/SJ-Workshop.png";
             case GO_TO_EAT:
                 return "Textures/GUI/moods/SJ-Hungry.png";
             case TRAIN:
                 return "Textures/GUI/moods/SJ-Training.png";
+            case GAMBLE:
+                return "Textures/GUI/moods/SJ-Casino.png";
+            case GUARD:
+                return "Textures/GUI/moods/SJ-Guarding.png";
+            case PRAY:
+                return "Textures/GUI/moods/SJ-Temple.png";
             default:
                 return null;
         }
@@ -292,27 +388,30 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
             material.setFloat("Experience", 1f);
         }
 
-        // Set new owner
+        // Set new owner. A creature that is being removed has lost its owner, keep the color it had
         short currentOwnerId = getOwnerId();
-        if (currentDrawnOwnerId != currentOwnerId) {
-            material.setBoolean("FlashColors", false);
+        if (currentDrawnOwnerId != currentOwnerId && hasPlayerColor(currentOwnerId)) {
             currentDrawnOwnerId = currentOwnerId;
             setFlowerColor(getPlayerColor(currentDrawnOwnerId));
         }
+        boolean neutral = currentOwnerId == Player.NEUTRAL_PLAYER_ID;
+        material.setBoolean("FlashColors", neutral);
+        Health health = getEntity().get(Health.class);
+        material.setBoolean("PulseBrightness", !neutral && health != null
+                && health.maxHealth > 0 && health.health >= 0
+                && health.health < health.maxHealth / 6);
     }
 
     @Override
     protected void onMaterialCreated(Material material) {
-        if (currentDrawnOwnerId == Player.NEUTRAL_PLAYER_ID) {
-            material.setColor("Color1", getPlayerColor(Player.GOOD_PLAYER_ID));
-            material.setColor("Color2", getPlayerColor(Player.NEUTRAL_PLAYER_ID));
-            material.setColor("Color3", getPlayerColor(Player.KEEPER1_ID));
-            material.setColor("Color4", getPlayerColor(Player.KEEPER2_ID));
-            material.setColor("Color5", getPlayerColor(Player.KEEPER3_ID));
-            material.setColor("Color6", getPlayerColor(Player.KEEPER4_ID));
-            material.setColor("Color7", getPlayerColor(Player.KEEPER5_ID));
-            material.setBoolean("FlashColors", true);
-        }
+        // Populate the palette even for owned creatures: ownership can change.
+        material.setColor("Color1", getPlayerColor(Player.GOOD_PLAYER_ID));
+        material.setColor("Color2", getPlayerColor(Player.NEUTRAL_PLAYER_ID));
+        material.setColor("Color3", getPlayerColor(Player.KEEPER1_ID));
+        material.setColor("Color4", getPlayerColor(Player.KEEPER2_ID));
+        material.setColor("Color5", getPlayerColor(Player.KEEPER3_ID));
+        material.setColor("Color6", getPlayerColor(Player.KEEPER4_ID));
+        material.setColor("Color7", getPlayerColor(Player.KEEPER5_ID));
     }
 
     @Override

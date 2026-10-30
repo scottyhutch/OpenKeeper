@@ -21,8 +21,11 @@ import com.jme3.app.state.AbstractAppState;
 import com.jme3.app.state.AppStateManager;
 import com.jme3.asset.AssetManager;
 import com.jme3.math.Vector3f;
+import com.jme3.renderer.RenderManager;
+import com.jme3.renderer.ViewPort;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
+import com.jme3.scene.control.AbstractControl;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityContainer;
 import com.simsilica.es.EntityData;
@@ -30,6 +33,7 @@ import com.simsilica.es.EntityId;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -38,11 +42,17 @@ import java.util.Objects;
 import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.DoorViewState;
+import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.ObjectViewState;
+import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.RoomEffect;
+import toniarts.openkeeper.game.component.RoomComponent;
+import toniarts.openkeeper.game.component.PortalViewState;
+import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.ShotViewState;
 import toniarts.openkeeper.game.component.TrapViewState;
+import toniarts.openkeeper.game.controller.ObjectsController;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -57,6 +67,7 @@ import toniarts.openkeeper.tools.convert.map.Trap;
 import toniarts.openkeeper.utils.AssetUtils;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
+import toniarts.openkeeper.view.animation.AnimationLoader;
 import toniarts.openkeeper.view.control.CreatureFlowerControl;
 import toniarts.openkeeper.view.control.CreatureViewControl;
 import toniarts.openkeeper.view.control.DoorFlowerControl;
@@ -65,6 +76,7 @@ import toniarts.openkeeper.view.control.EntityViewControl;
 import toniarts.openkeeper.view.control.IEntityViewControl;
 import toniarts.openkeeper.view.control.IUnitFlowerControl;
 import toniarts.openkeeper.view.control.ObjectViewControl;
+import toniarts.openkeeper.view.control.ShotFlightControl;
 import toniarts.openkeeper.view.control.TrapFlowerControl;
 import toniarts.openkeeper.view.control.TrapViewControl;
 import toniarts.openkeeper.view.effect.EffectManagerState;
@@ -89,6 +101,20 @@ import toniarts.openkeeper.view.text.TextParser;
 public class PlayerEntityViewState extends AbstractAppState {
 
     private static final Logger logger = System.getLogger(PlayerEntityViewState.class.getName());
+
+    /**
+     * "Creature Dazed Effect", the stars over a creature lying stunned after it was dropped
+     */
+    private static final int DAZED_EFFECT_ID = 101;
+    private static final String DAZED_NODE_NAME = "Dazed";
+    /**
+     * The control point of the creature animations at the head
+     */
+    private static final int HEAD_CONTROL_POINT = 5000;
+    /**
+     * "Level up Effect", the sparkles around a creature that gained a level
+     */
+    private static final int LEVEL_UP_EFFECT_ID = 339;
 
     /**
      * Used where no fog of war applies: everything is simply always visible.
@@ -141,7 +167,15 @@ public class PlayerEntityViewState extends AbstractAppState {
     private final DoorModelContainer doorModelContainer;
     private final TrapModelContainer trapModelContainer;
     private final RoomEffectContainer roomEffectContainer;
+    private final PortalEffectContainer portalEffectContainer;
+    private final PortalLightContainer portalLightContainer;
+    private final List<TransientEffect> transientEffects = new ArrayList<>();
+
+    private record TransientEffect(EntityId source, Node node, Point tile, VisualEffect visualEffect) {
+    }
     private final ShotModelContainer shotModelContainer;
+    private final EffectTriggerContainer effectTriggerContainer;
+    private final CreatureLevelUpContainer creatureLevelUpContainer;
 
     private final ILoader<ObjectViewState> objectLoader;
     private final ILoader<CreatureViewState> creatureLoader;
@@ -152,6 +186,7 @@ public class PlayerEntityViewState extends AbstractAppState {
     private final Map<EntityId, IUnitFlowerControl> flowerControls = new HashMap<>();
     private final Map<EntityId, IEntityViewControl> entityViewControls = new HashMap<>();
     private Spatial hiddenSpatial;
+    private final Map<EntityId, VisualEffect> shotTrails = new HashMap<>();
     private final Map<EntityId, Short> lightOwners = new HashMap<>(); // Owner a PLAYER_COLOURED light was built for
     /** Arches, big steps, plug and obstacle */
     private static final Set<Integer> DUNGEON_HEART_PART_IDS = Set.of(86, 88, 96, 100);
@@ -214,7 +249,11 @@ public class PlayerEntityViewState extends AbstractAppState {
         doorModelContainer = new DoorModelContainer(entityData);
         trapModelContainer = new TrapModelContainer(entityData);
         roomEffectContainer = new RoomEffectContainer(entityData);
+        portalEffectContainer = new PortalEffectContainer(entityData);
+        portalLightContainer = new PortalLightContainer(entityData, rootNode, this.fogOfWarInformation);
         shotModelContainer = new ShotModelContainer(entityData);
+        effectTriggerContainer = new EffectTriggerContainer(entityData);
+        creatureLevelUpContainer = new CreatureLevelUpContainer(entityData, this::showLevelUpEffect);
     }
 
     @Override
@@ -232,7 +271,11 @@ public class PlayerEntityViewState extends AbstractAppState {
         doorModelContainer.start();
         trapModelContainer.start();
         roomEffectContainer.start();
+        portalEffectContainer.start();
+        portalLightContainer.start();
         shotModelContainer.start();
+        effectTriggerContainer.start();
+        creatureLevelUpContainer.start();
     }
 
     @Override
@@ -244,7 +287,19 @@ public class PlayerEntityViewState extends AbstractAppState {
         doorModelContainer.update();
         trapModelContainer.update();
         roomEffectContainer.update();
+        portalEffectContainer.update();
+        portalLightContainer.update(tpf);
+        transientEffects.removeIf(effect -> {
+            if (effect.node().getQuantity() == 0) {
+                effect.node().removeFromParent();
+                return true;
+            }
+            applyFogCullHint(effect.node(), effect.tile(), true);
+            return false;
+        });
         shotModelContainer.update();
+        effectTriggerContainer.update();
+        creatureLevelUpContainer.update();
 
         // Lighting: re-derive attached-light positions and bind the
         // vertex-lit models every frame -- lights on other things
@@ -296,7 +351,16 @@ public class PlayerEntityViewState extends AbstractAppState {
         doorModelContainer.stop();
         trapModelContainer.stop();
         roomEffectContainer.stop();
+        portalEffectContainer.stop();
+        portalLightContainer.stop();
+        transientEffects.forEach(effect -> {
+            effect.visualEffect().removeEffect();
+            effect.node().removeFromParent();
+        });
+        transientEffects.clear();
         shotModelContainer.stop();
+        effectTriggerContainer.stop();
+        creatureLevelUpContainer.stop();
 
         // Detach entities
         rootNode.detachChild(root);
@@ -439,7 +503,8 @@ public class PlayerEntityViewState extends AbstractAppState {
             Creature creature = kwdFile.getCreature(creatureViewState.creatureId);
             result = creatureLoader.load(assetManager, creatureViewState);
             if (result != null) {
-                CreatureViewControl control = new CreatureViewControl(e.getId(), entityData, creature, creatureViewState.state, assetManager, textParser != null ? textParser.getCreatureTextParser() : null);
+                CreatureViewControl control = new CreatureViewControl(e.getId(), entityData, creature, creatureViewState.state,
+                        kwdFile.getObject(ObjectsController.OBJECT_CHICKEN_ID), assetManager, textParser != null ? textParser.getCreatureTextParser() : null);
                 control.setWaterCheck(this::isWater);
                 result.addControl(control);
 
@@ -523,14 +588,39 @@ public class PlayerEntityViewState extends AbstractAppState {
         if (result == null) {
             result = new Node("Wat"); // FIXME: Yeah...
         }
+        if (shotViewState.velocity != null) {
+            Node flyingShot = new Node(result.getName());
+            flyingShot.attachChild(result);
+            flyingShot.addControl(new ShotFlightControl(shotViewState.velocity));
+            addShotTrail(e.getId(), kwdFile.getShotById(shotViewState.shotId), flyingShot);
+            result = flyingShot;
+        }
         nodeShots.attachChild(result);
 
+        Shot shot = kwdFile.getShotById(shotViewState.shotId);
         Vector3f position = e.get(Position.class).position;
         if (fogOfWarInformation.isVisible(WorldUtils.vectorToPoint(position))) {
-            playShotEffects(kwdFile.getShotById(shotViewState.shotId), position);
+            playShotEffects(shot, position);
         }
 
         return result;
+    }
+
+    /**
+     * A flying shot drags its general effect along, like the fire trail of the
+     * cannon ball. DKII.EXE moves the effect with the shot every turn
+     * (0x4AB180). The effect lasts as long as the shot flies.
+     */
+    private void addShotTrail(EntityId entityId, Shot shot, Node flyingShot) {
+        EffectManagerState effectManagerState = stateManager.getState(EffectManagerState.class);
+        if (effectManagerState == null) {
+            return;
+        }
+
+        VisualEffect trail = effectManagerState.load(flyingShot, null, shot.getGeneralEffectId(), true);
+        if (trail != null) {
+            shotTrails.put(entityId, trail);
+        }
     }
 
     /**
@@ -560,6 +650,8 @@ public class PlayerEntityViewState extends AbstractAppState {
         boolean wasAlreadyDead = control.getCurrentState() == Creature.AnimationType.DEATH_POSE;
         control.setTargetState(viewState.state);
 
+        updateDazedEffect(object, viewState, e.get(Position.class));
+
         // Trigger the death effect once, when the creature actually dies
         if (!wasAlreadyDead && viewState.state == Creature.AnimationType.DEATH_POSE) {
             int deathEffectId = control.getDeathEffectId();
@@ -575,6 +667,103 @@ public class PlayerEntityViewState extends AbstractAppState {
             CharredOverlay.apply(object, assetManager);
         }
         applyFogCullHint(object, WorldUtils.vectorToPoint(e.get(Position.class).position), true);
+    }
+
+    private void showArrivalEffect(Spatial object, Entity e) {
+        CreatureViewState viewState = e.get(CreatureViewState.class);
+        int effectId = getArrivalEffectId(kwdFile.getCreature(viewState.creatureId), viewState.state);
+        IEntityViewControl control = object.getControl(IEntityViewControl.class);
+        if (effectId != 0 && control != null) {
+            stateManager.getState(EffectManagerState.class).load(nodeCreatures, object.getWorldTranslation(), effectId, false, control.getOwnerId());
+        }
+    }
+
+    /**
+     * Get the effect to show when a creature appears. As in the original, a
+     * creature coming in through a Portal, generated by the Portal or by a
+     * level script, shows its own entrance effect where it comes in.
+     *
+     * @param creature the creature
+     * @param state the animation the creature appears with
+     * @return the effect ID, or 0 if none
+     */
+    static int getArrivalEffectId(Creature creature, Creature.AnimationType state) {
+        if (creature == null || state != Creature.AnimationType.ENTRANCE) {
+            return 0;
+        }
+        return creature.getEntranceEffectId();
+    }
+
+    /**
+     * A creature that lands stunned from the hand gets the dazed stars over its head, once per landing. The
+     * creature gets a new model when it is dropped, so whether the stars were already played is remembered on the
+     * model until the creature gets up.
+     */
+    private void updateDazedEffect(Spatial object, CreatureViewState viewState, Position position) {
+        if (viewState.state != Creature.AnimationType.FALLBACK) {
+            object.setUserData(DAZED_NODE_NAME, null);
+            return;
+        }
+        Creature creature = kwdFile.getCreature(viewState.creatureId);
+        if (position.position.y > WorldUtils.FLOOR_HEIGHT || creature.getAttributes().getStunDuration() == 0
+                || object.getUserData(DAZED_NODE_NAME) != null || !(object instanceof Node creatureNode)) {
+            return;
+        }
+        object.setUserData(DAZED_NODE_NAME, true);
+        Node dazedNode = getDazedEffectNode(creatureNode, creature);
+        stateManager.getState(EffectManagerState.class).load(dazedNode, null, DAZED_EFFECT_ID, false);
+
+        // Like the original, the stars follow the head's control point while the creature falls over
+        HeadFollowControl headFollowControl = dazedNode.getControl(HeadFollowControl.class);
+        headFollowControl.setEnabled(true);
+        headFollowControl.update(0);
+    }
+
+    /**
+     * The node at the creature's head that holds its dazed stars. Changing the animation removes all the
+     * creature's children that aren't marked as kept, so the stars get a kept node of their own.
+     */
+    private static Node getDazedEffectNode(Node creatureNode, Creature creature) {
+        Node dazedNode = (Node) creatureNode.getChild(DAZED_NODE_NAME);
+        if (dazedNode == null) {
+            dazedNode = new Node(DAZED_NODE_NAME);
+            dazedNode.setUserData(AssetUtils.USER_DATA_KEY_REMOVABLE, false);
+            dazedNode.addControl(new HeadFollowControl(creature.getAttributes().getHeight()));
+            creatureNode.attachChild(dazedNode);
+        }
+        return dazedNode;
+    }
+
+    /**
+     * Keeps a node at the head's control point while the creature moves, like the original ties the dazed stars to
+     * the control point. Some creatures, like the knights, have no head point, for them the front of the fallen
+     * body is used. Stops once the effects on the node are gone.
+     */
+    private static final class HeadFollowControl extends AbstractControl {
+
+        private final float height;
+        private final Vector3f head = new Vector3f();
+
+        private HeadFollowControl(float height) {
+            this.height = height;
+        }
+
+        @Override
+        protected void controlUpdate(float tpf) {
+            if (((Node) spatial).getQuantity() == 0) {
+                setEnabled(false);
+                return;
+            }
+            if (AnimationLoader.getControlPoint(spatial.getParent(), HEAD_CONTROL_POINT, head) == null
+                    && AnimationLoader.getFrontPoint(spatial.getParent(), head) == null) {
+                head.set(0, height, 0);
+            }
+            spatial.setLocalTranslation(head);
+        }
+
+        @Override
+        protected void controlRender(RenderManager rm, ViewPort vp) {
+        }
     }
 
     private void updateDoorModelState(Spatial object, Entity e) {
@@ -669,6 +858,17 @@ public class PlayerEntityViewState extends AbstractAppState {
     }
 
     /**
+     * Like the original, the level up effect starts once at the creature's position and doesn't follow it. Not
+     * shown for creatures in the fog of war.
+     */
+    private void showLevelUpEffect(Entity e) {
+        Vector3f location = e.get(Position.class).position;
+        if (fogOfWarInformation.isVisible(WorldUtils.vectorToPoint(location))) {
+            stateManager.getState(EffectManagerState.class).load(nodeCreatures, location.clone(), LEVEL_UP_EFFECT_ID, false);
+        }
+    }
+
+    /**
      * Hides things standing on non-visible tiles.
      * There is no "visible through fog" per-thing flag anywhere in this
      * codebase's creature/object/door/trap data, so this applies uniformly,
@@ -713,9 +913,21 @@ public class PlayerEntityViewState extends AbstractAppState {
                 continue;
             }
             ObjectViewState objectViewState = entityData.getComponent(id, ObjectViewState.class);
-            boolean baseVisible = objectViewState == null || objectViewState.visible;
+            boolean baseVisible = (objectViewState == null || objectViewState.visible) && isTrapShown(id);
             applyFogCullHint(entry.getValue().getSpatial(), tile, baseVisible);
         }
+    }
+
+    /**
+     * Hidden traps and blueprints are shown only to their owner
+     *
+     * @param entityId the entity
+     * @return false if the entity is a trap the player doesn't get to see
+     */
+    private boolean isTrapShown(EntityId entityId) {
+        TrapViewState trapViewState = entityData.getComponent(entityId, TrapViewState.class);
+        Owner owner = entityData.getComponent(entityId, Owner.class);
+        return trapViewState == null || owner == null || trapViewState.isShownTo(owner.ownerId, playerId);
     }
 
     private void updateModelPosition(Spatial object, Entity e) {
@@ -725,6 +937,7 @@ public class PlayerEntityViewState extends AbstractAppState {
     }
 
     private void removeModel(Spatial spatial, Entity e) {
+        removeTransientEffects(e.getId());
         spatial.removeFromParent();
 
         // Stop driving the light first, or update() would re-create it
@@ -803,6 +1016,13 @@ public class PlayerEntityViewState extends AbstractAppState {
             logger.log(Level.TRACE, "CreatureModelContainer.addObject({0})", e);
             Spatial result = createCreatureModel(e);
             updateObject(result, e);
+            CreatureViewState viewState = e.get(CreatureViewState.class);
+            if (viewState.state == Creature.AnimationType.ENTRANCE) {
+                Creature creature = kwdFile.getCreature(viewState.creatureId);
+                Owner owner = entityData.getComponent(e.getId(), Owner.class);
+                loadTransientEffect(e.getId(), e.get(Position.class).position.clone().setY(WorldUtils.UNDERFLOOR_HEIGHT),
+                        creature.getEntranceEffectId(), owner.ownerId, false);
+            }
             return result;
         }
 
@@ -829,8 +1049,16 @@ public class PlayerEntityViewState extends AbstractAppState {
      */
     private final class DoorModelContainer extends EntityContainer<Spatial> {
 
+        private boolean stopped = false;
+
         public DoorModelContainer(EntityData ed) {
             super(ed, Position.class, DoorViewState.class); // Stuff with position is on the map
+        }
+
+        @Override
+        public void stop() {
+            stopped = true;
+            super.stop();
         }
 
         @Override
@@ -850,6 +1078,14 @@ public class PlayerEntityViewState extends AbstractAppState {
 
         @Override
         protected void removeObject(Spatial object, Entity e) {
+
+            // A door that goes, destroyed or sold, leaves its death effect, a blueprint just vanishes
+            DoorViewState viewState = e.get(DoorViewState.class);
+            if (!stopped && viewState != null && !viewState.blueprint) {
+                Door door = kwdFile.getDoorById(viewState.doorId);
+                stateManager.getState(EffectManagerState.class).load(nodeDoors, object.getWorldTranslation().clone(),
+                        door.getDeathEffectId(), false);
+            }
             removeModel(object, e);
         }
 
@@ -878,9 +1114,13 @@ public class PlayerEntityViewState extends AbstractAppState {
         @Override
         protected void updateObject(Spatial object, Entity e) {
             logger.log(Level.TRACE, "TrapModelContainer.updateObject({0})", e);
+            TrapViewControl control = object.getControl(TrapViewControl.class);
+            if (control != null) {
+                control.setTargetState(e.get(TrapViewState.class));
+            }
             updateModelPosition(object, e);
             //updateModelAnimation(object, e);
-            applyFogCullHint(object, WorldUtils.vectorToPoint(e.get(Position.class).position), true);
+            applyFogCullHint(object, WorldUtils.vectorToPoint(e.get(Position.class).position), isTrapShown(e.getId()));
         }
 
         @Override
@@ -890,6 +1130,67 @@ public class PlayerEntityViewState extends AbstractAppState {
 
         Spatial[] getModels() {
             return getArray();
+        }
+    }
+
+    private void loadTransientEffect(EntityId source, Vector3f location, int effectId, short ownerId, boolean continuousGeneration) {
+        if (effectId == 0) {
+            return;
+        }
+        Node anchor = new Node("Portal effect");
+        anchor.setLocalTranslation(location);
+        root.attachChild(anchor);
+        Point tile = WorldUtils.vectorToPoint(location);
+        applyFogCullHint(anchor, tile, true);
+        VisualEffect visualEffect = stateManager.getState(EffectManagerState.class).load(anchor, null, effectId, false, ownerId);
+        if (continuousGeneration) {
+            visualEffect.generateThroughoutLifetime();
+        }
+        transientEffects.add(new TransientEffect(source, anchor, tile, visualEffect));
+    }
+
+    private void removeTransientEffects(EntityId source) {
+        transientEffects.removeIf(effect -> {
+            if (effect.source().equals(source)) {
+                effect.visualEffect().removeEffect();
+                effect.node().removeFromParent();
+                return true;
+            }
+            return false;
+        });
+    }
+
+    private final class PortalEffectContainer extends EntityContainer<double[]> {
+        PortalEffectContainer(EntityData ed) {
+            super(ed, PortalViewState.class, RoomComponent.class, Owner.class);
+        }
+
+        @Override
+        protected double[] addObject(Entity e) {
+            double[] previous = {-1};
+            updateObject(previous, e);
+            return previous;
+        }
+
+        @Override
+        protected void updateObject(double[] previous, Entity e) {
+            double preparationTime = e.get(PortalViewState.class).preparationTime;
+            RoomComponent room = e.get(RoomComponent.class);
+            if (room.destroyed || preparationTime < 0) {
+                removeObject(previous, e);
+            } else if (preparationTime != previous[0]) {
+                List<Integer> effects = kwdFile.getRoomById(room.roomId).getEffects();
+                if (effects.size() > 2) {
+                    loadTransientEffect(e.getId(), WorldUtils.pointToVector3f(room.location),
+                            effects.get(2), e.get(Owner.class).ownerId, true);
+                }
+            }
+            previous[0] = preparationTime;
+        }
+
+        @Override
+        protected void removeObject(double[] previous, Entity e) {
+            removeTransientEffects(e.getId());
         }
     }
 
@@ -933,6 +1234,39 @@ public class PlayerEntityViewState extends AbstractAppState {
     }
 
     /**
+     * Plays the effects the game logic sets off, like a shot hitting a
+     * creature. Each plays once, as long as it lasts, the entity is gone
+     * sooner.
+     */
+    private final class EffectTriggerContainer extends EntityContainer<Boolean> {
+
+        public EffectTriggerContainer(EntityData ed) {
+            super(ed, Position.class, EffectTrigger.class);
+        }
+
+        @Override
+        protected Boolean addObject(Entity e) {
+            logger.log(Level.TRACE, "EffectTriggerContainer.addObject({0})", e);
+            Vector3f position = e.get(Position.class).position;
+            EffectManagerState effectManagerState = stateManager.getState(EffectManagerState.class);
+            if (effectManagerState != null && fogOfWarInformation.isVisible(WorldUtils.vectorToPoint(position))) {
+                effectManagerState.load(nodeShots, position.clone(), e.get(EffectTrigger.class).effectId, false);
+            }
+            return Boolean.TRUE;
+        }
+
+        @Override
+        protected void updateObject(Boolean object, Entity e) {
+            // The effect plays where it was set off
+        }
+
+        @Override
+        protected void removeObject(Boolean object, Entity e) {
+            // The effect plays on until it ends by itself
+        }
+    }
+
+    /**
      * Contains the shots, spells and missiles on their way or striking
      */
     private final class ShotModelContainer extends EntityContainer<Spatial> {
@@ -958,6 +1292,10 @@ public class PlayerEntityViewState extends AbstractAppState {
 
         @Override
         protected void removeObject(Spatial object, Entity e) {
+            VisualEffect trail = shotTrails.remove(e.getId());
+            if (trail != null) {
+                trail.removeEffect();
+            }
             removeModel(object, e);
         }
     }

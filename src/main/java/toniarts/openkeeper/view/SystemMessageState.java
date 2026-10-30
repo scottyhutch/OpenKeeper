@@ -28,6 +28,7 @@ import toniarts.openkeeper.game.sound.GlobalType;
 import toniarts.openkeeper.game.state.AbstractPauseAwareState;
 import toniarts.openkeeper.gui.nifty.NiftyUtils;
 import toniarts.openkeeper.gui.nifty.message.SystemMessageControl;
+import toniarts.openkeeper.gui.nifty.message.SystemMessageTarget;
 import toniarts.openkeeper.utils.AssetUtils;
 
 /**
@@ -81,12 +82,44 @@ public final class SystemMessageState extends AbstractPauseAwareState {
     }
 
     /**
+     * Adds a message to the message queue of the attached message state, if
+     * there is one. The state is gone when the level has ended, or is not yet
+     * loaded.
+     *
+     * @param stateManager the state manager to look the message state up from
+     * @param type message type
+     * @param text message text
+     * @return {@code true} if there was a message state to hand the message to
+     */
+    public static boolean addMessageIfAttached(AppStateManager stateManager, MessageType type, String text) {
+        SystemMessageState systemMessageState = stateManager.getState(SystemMessageState.class);
+        if (systemMessageState == null) {
+            return false;
+        }
+        systemMessageState.addMessage(type, text);
+        return true;
+    }
+
+    /**
      * Adds a message to the message queue
      *
      * @param type message type
      * @param text message text
      */
     public void addMessage(MessageType type, String text) {
+        addMessage(type, text, null);
+    }
+
+    /**
+     * Adds a message about a certain place or thing to the message queue, the
+     * message box then offers to zoom to it
+     *
+     * @param type message type
+     * @param text message text
+     * @param target what the message is about, or {@code null} if nothing in
+     * particular
+     */
+    public void addMessage(MessageType type, String text, SystemMessageTarget target) {
         if (!this.isEnabled() || !isInitialized()) {
             return;
         }
@@ -94,17 +127,21 @@ public final class SystemMessageState extends AbstractPauseAwareState {
             SoundHandle soundHandler = NiftyUtils.getSoundHandler(app.getNifty(),
                         GlobalCategory.GUI_MESSAGE_BAR, GlobalType.GUI_MESSAGE_BAR_SLIDE.getId());
             this.app.enqueue(() -> {
-                this.addMessageIcon(type, text);
+                this.addMessageIcon(type, text, target);
                 if (soundHandler != null) {
                     soundHandler.play();
                 }
             });
         } else {
-            this.addMessageIcon(type, text);
+            this.addMessageIcon(type, text, target);
         }
     }
 
     public void addMessageIcon(MessageType type, String text) {
+        addMessageIcon(type, text, null);
+    }
+
+    private void addMessageIcon(MessageType type, String text, SystemMessageTarget target) {
         final String icon = String.format("Textures/GUI/Tabs/Messages/mt-%s-$index.png", type.getIcon());
         final String normalIcon = AssetUtils.getCanonicalAssetKey(icon.replace("$index", "00"));
         final String hoverIcon = AssetUtils.getCanonicalAssetKey(icon.replace("$index", "01"));
@@ -118,6 +155,10 @@ public final class SystemMessageState extends AbstractPauseAwareState {
                 set("text", text);
             }
         }.build(systemMessagesQueue);
+        SystemMessageControl control = systemMessage.getControl(SystemMessageControl.class);
+        if (control != null) {
+            control.setTarget(target);
+        }
         systemMessage.show();
     }
 

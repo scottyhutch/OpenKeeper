@@ -23,6 +23,7 @@ import java.lang.reflect.Proxy;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.KeeperSpellCast;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.map.FakeMapData;
@@ -84,8 +85,40 @@ class KeeperSpellCastValidatorTest {
         assertFalse(isValidCast(enemyCreature));
     }
 
+    @Test
+    void manaSpentThisSecondIsNotCountedTwice() {
+        EntityId enemyCreature = createThing(ENEMY_ID, true);
+
+        // The loss shows the 6000 just spent, the mana left still pays for another strike
+        player.setMana(6000);
+        player.setManaLoose(6000);
+
+        assertTrue(isValidCast(enemyCreature));
+    }
+
+    @Test
+    void spellWithRechargeCannotBeCastAgainUntilItHasPassed() {
+        KeeperSpell inferno = ShotFixtures.keeperSpell(KeeperSpell.CastRule.OWN_LAND, KeeperSpell.TargetRule.LAND, 0, 60f, (short) 2);
+        KeeperSpell otherSpell = ShotFixtures.keeperSpell(KeeperSpell.CastRule.OWN_LAND, KeeperSpell.TargetRule.LAND, 0, 60f, (short) 3);
+        assertTrue(KeeperSpellCastValidator.isRecharged(inferno, entityData, PLAYER_ID, 10));
+
+        entityData.setComponent(entityData.createEntity(), new KeeperSpellCast(PLAYER_ID, inferno.getId(), 10));
+
+        assertFalse(KeeperSpellCastValidator.isRecharged(inferno, entityData, PLAYER_ID, 69.5));
+        assertTrue(KeeperSpellCastValidator.isRecharged(inferno, entityData, PLAYER_ID, 70));
+        assertTrue(KeeperSpellCastValidator.isRecharged(inferno, entityData, ENEMY_ID, 11));
+        assertTrue(KeeperSpellCastValidator.isRecharged(otherSpell, entityData, PLAYER_ID, 11));
+    }
+
+    @Test
+    void spellWithoutRechargeCanBeCastAtOnce() {
+        entityData.setComponent(entityData.createEntity(), new KeeperSpellCast(PLAYER_ID, thunderbolt.getId(), 10));
+
+        assertTrue(KeeperSpellCastValidator.isRecharged(thunderbolt, entityData, PLAYER_ID, 10));
+    }
+
     private boolean isValidCast(EntityId target) {
-        return KeeperSpellCastValidator.isValidCast(thunderbolt, kwdFile, mapInformation, ownTile, player, entityData, target);
+        return KeeperSpellCastValidator.isValidCast(thunderbolt, kwdFile, mapInformation, ownTile, player, entityData, target, thunderbolt.getManaCost());
     }
 
     private EntityId createThing(short ownerId, boolean creature) {

@@ -24,6 +24,7 @@ import com.simsilica.es.EntityId;
 import toniarts.openkeeper.game.data.CampaignLevel;
 import toniarts.openkeeper.utils.Point;
 import java.lang.System.Logger;
+import java.io.IOException;
 import java.lang.System.Logger.Level;
 import java.util.List;
 import javax.annotation.Nullable;
@@ -34,9 +35,13 @@ import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.NoopCheatController;
+import toniarts.openkeeper.game.controller.ObjectsController;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.data.SecretLevels;
+import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.listener.MapListener;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
+import toniarts.openkeeper.game.listener.SpecialListener;
 import toniarts.openkeeper.game.state.loop.GameLoopManager;
 import toniarts.openkeeper.game.state.session.GameSessionServerService;
 import toniarts.openkeeper.game.state.session.GameSessionServiceListener;
@@ -69,6 +74,7 @@ public final class GameServerState extends AbstractAppState {
     private final MapListener mapListener = new MapListenerImpl();
     private final GameSessionServiceListener gameSessionListener = new GameSessionServiceListenerImpl();
     private final PlayerActionListener playerActionListener = new PlayerActionListenerImpl();
+    private final SpecialListener specialListener = new SpecialListenerImpl();
     private GameLoopManager game;
     private IGameWorldController gameWorldController;
     private ICheatController cheatController;
@@ -170,12 +176,13 @@ public final class GameServerState extends AbstractAppState {
         @Override
         public void run() {
             // Create the central game controller
-            game = new GameLoopManager(kwdFile, gameService, players);
+            game = new GameLoopManager(kwdFile, gameService, players, campaign);
 
             gameWorldController = game.getGameController().getGameWorldController();
             mapController = gameWorldController.getMapController();
             gameWorldController.addListener(playerActionListener);
-            cheatController = multiplayer ? new NoopCheatController() : new CheatController(kwdFile, game.getGameController());
+            gameWorldController.addSpecialListener(specialListener);
+            cheatController = multiplayer ? new NoopCheatController() : new CheatController(kwdFile, game.getGameController(), gameService.getEntityData(), game.getPayDaySystem());
 
             // Send the the initial game data
             gameService.sendGameData(game.getGameController().getLevelInfo().getPlayers().values());
@@ -275,6 +282,11 @@ public final class GameServerState extends AbstractAppState {
         }
 
         @Override
+        public void onButtonPressed(short buttonType, short buttonId, short playerId) {
+            game.getGameController().getPlayerController(playerId).getStatsControl().buttonPressed(buttonType, buttonId);
+        }
+
+        @Override
         public void onPauseRequest(short playerId) {
             // TODO: We should only allow the server owner etc. to pause, otherwise, send a system message that player x wants to pause?
             game.pause();
@@ -309,10 +321,44 @@ public final class GameServerState extends AbstractAppState {
         }
 
         @Override
-        public void onSetPossessedMovement(Vector2f direction, float rotation, byte speedMode, short playerId) {
+        public void onAddGoldCheatTriggered(int amount, short playerId) {
+            cheatController.addGold(amount, playerId);
+        }
+
+        @Override
+        public void onAddManaCheatTriggered(int amount, short playerId) {
+            cheatController.addMana(amount, playerId);
+        }
+
+        @Override
+        public void onSetPossessedMovement(Vector2f direction, float rotation, float pitch, byte speedMode, short playerId) {
             EntityId possessed = gameWorldController.getCreaturesController().getPossessedCreature(playerId);
             if (possessed != null) {
-                gameWorldController.getCreaturesController().createController(possessed).setPossessedMovement(direction, rotation, speedMode);
+                gameWorldController.getCreaturesController().createController(possessed).setPossessedMovement(direction, rotation, pitch, speedMode);
+            }
+        }
+
+        @Override
+        public void onSetPossessedAttack(boolean attacking, int spell, short playerId) {
+            EntityId possessed = gameWorldController.getCreaturesController().getPossessedCreature(playerId);
+            if (possessed != null) {
+                gameWorldController.getCreaturesController().createController(possessed).setPossessedAttack(attacking, spell);
+            }
+        }
+
+        @Override
+        public void onAddPossessedFollower(short playerId) {
+            EntityId possessed = gameWorldController.getCreaturesController().getPossessedCreature(playerId);
+            if (possessed != null) {
+                gameWorldController.getCreaturesController().createController(possessed).addPossessedFollower();
+            }
+        }
+
+        @Override
+        public void onUsePossessedAbility(int ability, short playerId) {
+            EntityId possessed = gameWorldController.getCreaturesController().getPossessedCreature(playerId);
+            if (possessed != null) {
+                gameWorldController.getCreaturesController().createController(possessed).usePossessedAbility(ability);
             }
         }
 
@@ -346,6 +392,11 @@ public final class GameServerState extends AbstractAppState {
         }
 
         @Override
+        public void onSightOfEvil(Point centre, int radius, int durationTicks, short keeperId) {
+            gameService.revealSightOfEvil(centre, radius, durationTicks, keeperId);
+        }
+
+        @Override
         public void onFogOfWarDisabled(short keeperId) {
             gameService.disableFogOfWar(keeperId);
         }
@@ -359,6 +410,30 @@ public final class GameServerState extends AbstractAppState {
     /**
      * Listen for the player actions
      */
+    /**
+     * Locate Hidden Land discovers the secret level of a campaign level. This
+     * is stored right away in the user's campaign progress, as in the original.
+     */
+    private final class SpecialListenerImpl implements SpecialListener {
+
+        @Override
+        public void onSpecialActivated(short playerId, short objectId) {
+            if (levelObject == null || objectId != ObjectsController.OBJECT_SPECIAL_LOCATE_HIDDEN_LAND_ID) {
+                return;
+            }
+
+            Settings settings = Main.getUserSettings();
+            if (SecretLevels.discover(levelObject, settings::getSecredLevelStatus, settings::setSecredLevelStatus).isPresent()) {
+                try {
+                    settings.save();
+                } catch (IOException ex) {
+                    logger.log(Level.ERROR, "Failed to save the discovered secret level!", ex);
+                }
+            }
+        }
+
+    }
+
     private final class PlayerActionListenerImpl implements PlayerActionListener {
 
         @Override

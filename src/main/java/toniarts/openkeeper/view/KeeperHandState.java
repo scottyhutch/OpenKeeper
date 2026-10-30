@@ -47,6 +47,7 @@ import java.util.Objects;
 import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.ObjectViewState;
+import toniarts.openkeeper.game.controller.ObjectsController;
 import toniarts.openkeeper.game.sound.GlobalCategory;
 import toniarts.openkeeper.game.sound.GlobalType;
 import toniarts.openkeeper.game.sound.SoundManager;
@@ -225,7 +226,10 @@ public abstract class KeeperHandState extends AbstractAppState {
         KeeperHandItem handItem = new KeeperHandItem();
         handItem.index = index;
         handItem.item = item;
-        handItem.picture = getIcon(item.getInHandIcon());
+
+        // Some things that can be picked up have no icon, like the Pet Dungeon's level indicator
+        ArtResource icon = item.getInHandIcon();
+        handItem.picture = icon != null ? getIcon(icon) : new Node("No icon");
         queue.add(handItem);
 
         return handItem;
@@ -380,7 +384,8 @@ public abstract class KeeperHandState extends AbstractAppState {
             InHand inHand = entityData.getComponent(e.getId(), InHand.class);
             switch (inHand.type) {
                 case CREATURE: {
-                    viewControl = new CreatureViewControl(e.getId(), entityData, kwdFile.getCreature(inHand.id), Creature.AnimationType.IN_HAND, assetManager, null);
+                    viewControl = new CreatureViewControl(e.getId(), entityData, kwdFile.getCreature(inHand.id), Creature.AnimationType.IN_HAND,
+                            kwdFile.getObject(ObjectsController.OBJECT_CHICKEN_ID), assetManager, null);
                     break;
                 }
                 case OBJECT: {
@@ -413,7 +418,7 @@ public abstract class KeeperHandState extends AbstractAppState {
 
         private int index;
         private IEntityViewControl item;
-        private Picture picture;
+        private Spatial picture;
 
         @Override
         public int compareTo(KeeperHandItem o) {

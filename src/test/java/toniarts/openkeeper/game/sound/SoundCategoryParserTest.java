@@ -193,6 +193,7 @@ class SoundCategoryParserTest {
         assertTrue(category.hasEvent(1));
     }
 
+
     @Test
     void parsesRealFrontEndFile() throws IOException {
         SoundCategory category = parse("front_end", Base64.getDecoder().decode(FRONT_END_SFX_MAP_BASE64));
@@ -218,6 +219,7 @@ class SoundCategoryParserTest {
             }
         }
     }
+
 
     @Test
     void parsesRealGuiButtonDefaultFile() throws IOException {

@@ -60,17 +60,24 @@ public final class Train extends AbstractCapacityCriticalRoomTask {
 
     @Override
     public boolean isValid(ICreatureController creature) {
-        return playerController.getKeeper().getGold() >= trainingCost && creature.getLevel() < trainingRoomMaxExperienceLevel && super.isValid(creature);
+        return playerController.getGoldControl().getGold() >= trainingCost && creature.getLevel() < trainingRoomMaxExperienceLevel && super.isValid(creature);
     }
 
     @Override
     public Vector2f getTarget(ICreatureController creature) {
-        return getAccessibleTargetNextToLocation(creature);
+        return getTargetNextToFurniture(creature);
     }
 
     @Override
     public boolean isFaceTarget() {
         return true;
+    }
+
+    @Override
+    public Vector2f getWorkPosition(ICreatureController creature) {
+
+        // DK II puts the trainee half a tile from the dummy, within reach
+        return getWorkPositionAtFurniture(creature);
     }
 
     @Override
@@ -81,12 +88,10 @@ public final class Train extends AbstractCapacityCriticalRoomTask {
     @Override
     public void executeTask(ICreatureController creature, float executionDuration) {
 
-        // TODO: is this a general case or even smart to do this like this...?
-        if (executionDuration - getExecutionDuration(creature) < 1.0f) {
+        // Once a second
+        if (!isWorkStepDue(creature, executionDuration)) {
             return;
         }
-
-        setExecutionDuration(creature, executionDuration - getExecutionDuration(creature));
         gameWorldController.substractGold(trainingCost, playerId);
     }
 

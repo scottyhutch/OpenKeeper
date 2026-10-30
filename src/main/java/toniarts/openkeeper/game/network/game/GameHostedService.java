@@ -31,6 +31,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.server.EntityDataHostedService;
 import toniarts.openkeeper.game.event.GameEvent;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.event.GameEventType;
@@ -272,6 +273,16 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
     }
 
     @Override
+    public void showMentorMessage(int speechId, Vector3f position, short playerId) {
+        for (Map.Entry<ClientInfo, GameSessionImpl> gameSession : players.entrySet()) {
+            if (gameSession.getKey().getKeeper().getId() == playerId) {
+                gameSession.getValue().onShowMentorMessage(speechId, position);
+                break;
+            }
+        }
+    }
+
+    @Override
     public void zoomViewToPoint(Vector3f point, short playerId) {
         for (Map.Entry<ClientInfo, GameSessionImpl> gameSession : players.entrySet()) {
             if (gameSession.getKey().getKeeper().getId() == playerId) {
@@ -314,6 +325,13 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
     }
 
     @Override
+    public void setSystemMessagesEnabled(boolean enabled) {
+        for (GameSessionImpl gameSession : players.values()) {
+            gameSession.onSetSystemMessages(enabled);
+        }
+    }
+
+    @Override
     public void flashTiles(List<Point> points, boolean enabled, short playerId) {
         for (Map.Entry<ClientInfo, GameSessionImpl> gameSession : players.entrySet()) {
             if (gameSession.getKey().getKeeper().getId() == playerId) {
@@ -328,6 +346,16 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         for (Map.Entry<ClientInfo, GameSessionImpl> gameSession : players.entrySet()) {
             if (gameSession.getKey().getKeeper().getId() == playerId) {
                 gameSession.getValue().onTilesReveal(points, explore, playerId);
+                break;
+            }
+        }
+    }
+
+    @Override
+    public void revealSightOfEvil(Point centre, int radius, int durationTicks, short playerId) {
+        for (Map.Entry<ClientInfo, GameSessionImpl> gameSession : players.entrySet()) {
+            if (gameSession.getKey().getKeeper().getId() == playerId) {
+                gameSession.getValue().onSightOfEvil(centre, radius, durationTicks, playerId);
                 break;
             }
         }
@@ -361,13 +389,6 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
             }
         }
         return false;
-    }
-
-    @Override
-    public void onGoldChange(short keeperId, int gold) {
-        for (GameSessionImpl gameSession : players.values()) {
-            gameSession.onGoldChange(keeperId, gold);
-        }
     }
 
     @Override
@@ -423,10 +444,10 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
     }
 
     @Override
-    public void endGame(boolean win, short playerId) {
+    public void endGame(GameResult result, short playerId) {
         for (Map.Entry<ClientInfo, GameSessionImpl> gameSession : players.entrySet()) {
             if (gameSession.getKey().getKeeper().getId() == playerId) {
-                gameSession.getValue().onGameEnded(win);
+                gameSession.getValue().onGameEnded(result);
                 break;
             }
         }
@@ -615,6 +636,13 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         }
 
         @Override
+        public void buttonPressed(short buttonType, short buttonId) {
+            for (GameSessionServiceListener listener : serverListeners.getArray()) {
+                listener.onButtonPressed(buttonType, buttonId, clientInfo.getKeeper().getId());
+            }
+        }
+
+        @Override
         public void pauseGame() {
             for (GameSessionServiceListener listener : serverListeners.getArray()) {
                 listener.onPauseRequest(clientInfo.getKeeper().getId());
@@ -650,9 +678,44 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         }
 
         @Override
-        public void setPossessedMovement(Vector2f direction, float rotation, byte speedMode) {
+        public void triggerAddGoldCheat(int amount) {
             for (GameSessionServiceListener listener : serverListeners.getArray()) {
-                listener.onSetPossessedMovement(direction, rotation, speedMode, clientInfo.getKeeper().getId());
+                listener.onAddGoldCheatTriggered(amount, clientInfo.getKeeper().getId());
+            }
+        }
+
+        @Override
+        public void triggerAddManaCheat(int amount) {
+            for (GameSessionServiceListener listener : serverListeners.getArray()) {
+                listener.onAddManaCheatTriggered(amount, clientInfo.getKeeper().getId());
+            }
+        }
+
+        @Override
+        public void setPossessedMovement(Vector2f direction, float rotation, float pitch, byte speedMode) {
+            for (GameSessionServiceListener listener : serverListeners.getArray()) {
+                listener.onSetPossessedMovement(direction, rotation, pitch, speedMode, clientInfo.getKeeper().getId());
+            }
+        }
+
+        @Override
+        public void setPossessedAttack(boolean attacking, int spell) {
+            for (GameSessionServiceListener listener : serverListeners.getArray()) {
+                listener.onSetPossessedAttack(attacking, spell, clientInfo.getKeeper().getId());
+            }
+        }
+
+        @Override
+        public void addPossessedFollower() {
+            for (GameSessionServiceListener listener : serverListeners.getArray()) {
+                listener.onAddPossessedFollower(clientInfo.getKeeper().getId());
+            }
+        }
+
+        @Override
+        public void usePossessedAbility(int ability) {
+            for (GameSessionServiceListener listener : serverListeners.getArray()) {
+                listener.onUsePossessedAbility(ability, clientInfo.getKeeper().getId());
             }
         }
 
@@ -690,11 +753,6 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         }
 
         @Override
-        public void onGoldChange(short keeperId, int gold) {
-            getCallback().onGoldChange(keeperId, gold);
-        }
-
-        @Override
         public void onManaChange(short keeperId, int mana, int manaLoose, int manaGain) {
             getCallback().onManaChange(keeperId, mana, manaLoose, manaGain);
         }
@@ -725,6 +783,11 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         }
 
         @Override
+        public void onSetSystemMessages(boolean enabled) {
+            getCallback().onSetSystemMessages(enabled);
+        }
+
+        @Override
         public void onPlaySpeech(int speechId, boolean showText, boolean introduction, int pathId) {
             getCallback().onPlaySpeech(speechId, showText, introduction, pathId);
         }
@@ -751,6 +814,11 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         }
 
         @Override
+        public void onShowMentorMessage(int speechId, Vector3f position) {
+            getCallback().onShowMentorMessage(speechId, position);
+        }
+
+        @Override
         public void onZoomViewToPoint(Vector3f point) {
             getCallback().onZoomViewToPoint(point);
         }
@@ -763,6 +831,11 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         @Override
         public void onTilesReveal(List<Point> points, boolean explore, short keeperId) {
             getCallback().onTilesReveal(points, explore, keeperId);
+        }
+
+        @Override
+        public void onSightOfEvil(Point centre, int radius, int durationTicks, short keeperId) {
+            getCallback().onSightOfEvil(centre, radius, durationTicks, keeperId);
         }
 
         @Override
@@ -806,8 +879,8 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         }
 
         @Override
-        public void onGameEnded(boolean win) {
-            getCallback().onGameEnded(win);
+        public void onGameEnded(GameResult result) {
+            getCallback().onGameEnded(result);
         }
 
         @Override

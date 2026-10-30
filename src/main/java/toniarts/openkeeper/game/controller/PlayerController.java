@@ -23,6 +23,7 @@ import toniarts.openkeeper.game.controller.player.PlayerDoorControl;
 import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
 import toniarts.openkeeper.game.controller.player.PlayerHandControl;
 import toniarts.openkeeper.game.controller.player.PlayerManaControl;
+import toniarts.openkeeper.game.controller.player.PlayerManufactureControl;
 import toniarts.openkeeper.game.controller.player.PlayerResearchControl;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
 import toniarts.openkeeper.game.controller.player.PlayerSpellControl;
@@ -55,28 +56,31 @@ public final class PlayerController implements IPlayerController {
     private final PlayerDoorControl doorControl;
     private final PlayerTrapControl trapControl;
     private final PlayerResearchControl researchControl;
+    private final PlayerManufactureControl manufactureControl;
 
     public PlayerController(IKwdFile kwdFile, Keeper keeper, Creature imp, EntityData entityData, Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings) {
         this.keeper = keeper;
 
         // Create the actual controllers
-        goldControl = new PlayerGoldControl(keeper);
-        creatureControl = new PlayerCreatureControl(keeper, imp, kwdFile.getCreatureList());
+        goldControl = new PlayerGoldControl(keeper, entityData);
+        creatureControl = new PlayerCreatureControl(keeper, imp, kwdFile.getCreatureList(), entityData);
         roomControl = new PlayerRoomControl(keeper, kwdFile.getRooms());
         spellControl = new PlayerSpellControl(keeper, kwdFile.getKeeperSpells());
-        statsControl = new PlayerStatsControl();
-        doorControl = new PlayerDoorControl(keeper, kwdFile.getDoors());
-        trapControl = new PlayerTrapControl(keeper, kwdFile.getTraps());
+        statsControl = new PlayerStatsControl(keeper);
+        doorControl = new PlayerDoorControl(keeper, kwdFile.getDoors(), entityData);
+        trapControl = new PlayerTrapControl(keeper, kwdFile.getTraps(), entityData);
 
         // Don't create certain controls for neutral nor good player
         if (keeper.getId() != Player.GOOD_PLAYER_ID && keeper.getId() != Player.NEUTRAL_PLAYER_ID) {
             manaControl = new PlayerManaControl(keeper, gameSettings);
             handControl = new PlayerHandControl(keeper, (int) gameSettings.get(Variable.MiscVariable.MiscType.MAX_NUMBER_OF_THINGS_IN_HAND).getValue(), entityData);
             researchControl = new PlayerResearchControl(keeper, kwdFile);
+            manufactureControl = new PlayerManufactureControl();
         } else {
             manaControl = null;
             handControl = null;
             researchControl = null;
+            manufactureControl = null;
         }
     }
 
@@ -87,7 +91,6 @@ public final class PlayerController implements IPlayerController {
 
     @Override
     public void addListener(PlayerListener listener) {
-        goldControl.addListener(listener);
         if (manaControl != null) {
             manaControl.addListener(listener);
         }
@@ -111,7 +114,6 @@ public final class PlayerController implements IPlayerController {
 
     @Override
     public void removeListener(PlayerListener listener) {
-        goldControl.removeListener(listener);
         if (manaControl != null) {
             manaControl.removeListener(listener);
         }
@@ -181,6 +183,11 @@ public final class PlayerController implements IPlayerController {
     @Override
     public PlayerResearchControl getResearchControl() {
         return researchControl;
+    }
+
+    @Override
+    public PlayerManufactureControl getManufactureControl() {
+        return manufactureControl;
     }
 
 }

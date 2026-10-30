@@ -27,7 +27,13 @@ import com.jme3.input.event.KeyInputEvent;
 import com.jme3.input.event.MouseButtonEvent;
 import com.jme3.input.event.MouseMotionEvent;
 import com.jme3.input.event.TouchEvent;
+import com.simsilica.es.Entity;
+import com.simsilica.es.EntitySet;
 import toniarts.openkeeper.Main;
+import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.FetchPortalGem;
+import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.view.camera.ReaperChaseCamera;
 
 /**
  * A state that handles ended game actions, such as cinematics and stuff
@@ -39,6 +45,8 @@ public final class EndGameState extends AbstractAppState implements RawInputList
     private Main app;
     private AppStateManager stateManager;
     private final PlayerState playerState;
+    private EntitySet portalGemFetchers;
+    private ReaperChaseCamera chaseCamera;
 
     public EndGameState(PlayerState playerState) {
         this.playerState = playerState;
@@ -57,12 +65,43 @@ public final class EndGameState extends AbstractAppState implements RawInputList
         // Add the texts
         playerState.setWideScreen(true);
         playerState.setGeneralText(2901);
+
+        // The camera follows the Horned Reaper who comes for the Portal Gem
+        portalGemFetchers = playerState.getEntityData().getEntities(FetchPortalGem.class, Position.class, CreatureComponent.class);
+    }
+
+    @Override
+    public void update(float tpf) {
+        super.update(tpf);
+        if (portalGemFetchers == null) {
+            return;
+        }
+
+        portalGemFetchers.applyChanges();
+        for (Entity reaper : portalGemFetchers) {
+            if (chaseCamera == null) {
+                chaseCamera = new ReaperChaseCamera(app.getCamera(), reaper.get(CreatureComponent.class).height);
+            }
+            chaseCamera.update(reaper.get(Position.class).position, tpf);
+            break;
+        }
     }
 
     @Override
     public void cleanup() {
         app.getInputManager().removeRawInputListener(this);
+        stopChase();
         super.cleanup();
+    }
+
+    /**
+     * Gives the camera back, the player looks around again
+     */
+    private void stopChase() {
+        if (portalGemFetchers != null) {
+            portalGemFetchers.release();
+            portalGemFetchers = null;
+        }
     }
 
     @Override

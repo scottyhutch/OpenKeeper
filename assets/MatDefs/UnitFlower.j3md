@@ -8,6 +8,7 @@ MaterialDef UnitFlower {
         Boolean VertexColor (UseVertexColor)
         Float Experience
         Boolean FlashColors : false
+        Boolean PulseBrightness : false
         Float FlashInterval : 2.0
         Color Color1
         Color Color2
@@ -19,8 +20,8 @@ MaterialDef UnitFlower {
     }
 
     Technique {
-        VertexShader GLSL150 GLSL100:   Shaders/UnitFlower.vert
-        FragmentShader GLSL150 GLSL100: Shaders/UnitFlower.frag
+        VertexShader   GLSL330 GLSL300: Shaders/UnitFlower.vert
+        FragmentShader GLSL330 GLSL300: Shaders/UnitFlower.frag
 
         WorldParameters {
             WorldViewProjectionMatrix

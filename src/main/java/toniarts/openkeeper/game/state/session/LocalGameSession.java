@@ -17,6 +17,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.event.GameEvent;
 import toniarts.openkeeper.game.data.CampaignLevel;
+import toniarts.openkeeper.game.data.GameResult;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.event.GameEventType;
@@ -213,6 +214,15 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     }
 
     @Override
+    public void showMentorMessage(int speechId, Vector3f position, short playerId) {
+        if (playerId == PLAYER_ID) {
+            for (GameSessionListener listener : listeners.getArray()) {
+                listener.onShowMentorMessage(speechId, position);
+            }
+        }
+    }
+
+    @Override
     public void zoomViewToPoint(Vector3f point, short playerId) {
         if (playerId == PLAYER_ID) {
             for (GameSessionListener listener : listeners.getArray()) {
@@ -251,6 +261,13 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     }
 
     @Override
+    public void setSystemMessagesEnabled(boolean enabled) {
+        for (GameSessionListener listener : listeners.getArray()) {
+            listener.onSetSystemMessages(enabled);
+        }
+    }
+
+    @Override
     public void flashTiles(List<Point> points, boolean enabled, short playerId) {
         if (playerId == PLAYER_ID) {
             for (GameSessionListener listener : listeners.getArray()) {
@@ -264,6 +281,15 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
         if (playerId == PLAYER_ID) {
             for (GameSessionListener listener : listeners.getArray()) {
                 listener.onTilesReveal(points, explore, playerId);
+            }
+        }
+    }
+
+    @Override
+    public void revealSightOfEvil(Point centre, int radius, int durationTicks, short playerId) {
+        if (playerId == PLAYER_ID) {
+            for (GameSessionListener listener : listeners.getArray()) {
+                listener.onSightOfEvil(centre, radius, durationTicks, playerId);
             }
         }
     }
@@ -371,6 +397,13 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     }
 
     @Override
+    public void buttonPressed(short buttonType, short buttonId) {
+        for (GameSessionServiceListener listener : serverListeners.getArray()) {
+            listener.onButtonPressed(buttonType, buttonId, PLAYER_ID);
+        }
+    }
+
+    @Override
     public void pauseGame() {
         for (GameSessionServiceListener listener : serverListeners.getArray()) {
             listener.onPauseRequest(PLAYER_ID);
@@ -406,9 +439,44 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     }
 
     @Override
-    public void setPossessedMovement(Vector2f direction, float rotation, byte speedMode) {
+    public void triggerAddGoldCheat(int amount) {
         for (GameSessionServiceListener listener : serverListeners.getArray()) {
-            listener.onSetPossessedMovement(direction, rotation, speedMode, PLAYER_ID);
+            listener.onAddGoldCheatTriggered(amount, PLAYER_ID);
+        }
+    }
+
+    @Override
+    public void triggerAddManaCheat(int amount) {
+        for (GameSessionServiceListener listener : serverListeners.getArray()) {
+            listener.onAddManaCheatTriggered(amount, PLAYER_ID);
+        }
+    }
+
+    @Override
+    public void setPossessedMovement(Vector2f direction, float rotation, float pitch, byte speedMode) {
+        for (GameSessionServiceListener listener : serverListeners.getArray()) {
+            listener.onSetPossessedMovement(direction, rotation, pitch, speedMode, PLAYER_ID);
+        }
+    }
+
+    @Override
+    public void setPossessedAttack(boolean attacking, int spell) {
+        for (GameSessionServiceListener listener : serverListeners.getArray()) {
+            listener.onSetPossessedAttack(attacking, spell, PLAYER_ID);
+        }
+    }
+
+    @Override
+    public void addPossessedFollower() {
+        for (GameSessionServiceListener listener : serverListeners.getArray()) {
+            listener.onAddPossessedFollower(PLAYER_ID);
+        }
+    }
+
+    @Override
+    public void usePossessedAbility(int ability) {
+        for (GameSessionServiceListener listener : serverListeners.getArray()) {
+            listener.onUsePossessedAbility(ability, PLAYER_ID);
         }
     }
 
@@ -455,13 +523,6 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     @Override
     public void removeGameSessionServiceListener(GameSessionServiceListener l) {
         serverListeners.remove(l);
-    }
-
-    @Override
-    public void onGoldChange(short keeperId, int gold) {
-        for (GameSessionListener listener : listeners.getArray()) {
-            listener.onGoldChange(keeperId, gold);
-        }
     }
 
     @Override
@@ -516,10 +577,10 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     }
 
     @Override
-    public void endGame(boolean win, short playerId) {
+    public void endGame(GameResult result, short playerId) {
         if (playerId == PLAYER_ID) {
             for (GameSessionListener listener : listeners.getArray()) {
-                listener.onGameEnded(win);
+                listener.onGameEnded(result);
             }
         }
     }

@@ -41,8 +41,12 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
     private boolean ai;
     private AIType aiType = AIType.MASTER_KEEPER;
 
-    private int gold;
     private int goldMined;
+    private int enemyCreaturesKilled;
+    private int heroesDestroyed;
+    private int roomsCaptured;
+    private int specialsFound;
+    private int ownCreaturesKilled;
     private int mana;
     private int manaGain;
     private int manaLoose;
@@ -59,6 +63,8 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
     private transient Player player;
     private short id;
     private boolean destroyed = false;
+    private short killerId;
+    private transient boolean resultSet;
     private Set<Short> allies = HashSet.newHashSet(4);
 
     public Keeper() {
@@ -96,6 +102,46 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
         this.goldMined = goldMined;
     }
 
+    public int getEnemyCreaturesKilled() {
+        return enemyCreaturesKilled;
+    }
+
+    public void setEnemyCreaturesKilled(int enemyCreaturesKilled) {
+        this.enemyCreaturesKilled = enemyCreaturesKilled;
+    }
+
+    public int getHeroesDestroyed() {
+        return heroesDestroyed;
+    }
+
+    public void setHeroesDestroyed(int heroesDestroyed) {
+        this.heroesDestroyed = heroesDestroyed;
+    }
+
+    public int getRoomsCaptured() {
+        return roomsCaptured;
+    }
+
+    public void setRoomsCaptured(int roomsCaptured) {
+        this.roomsCaptured = roomsCaptured;
+    }
+
+    public int getSpecialsFound() {
+        return specialsFound;
+    }
+
+    public void setSpecialsFound(int specialsFound) {
+        this.specialsFound = specialsFound;
+    }
+
+    public int getOwnCreaturesKilled() {
+        return ownCreaturesKilled;
+    }
+
+    public void setOwnCreaturesKilled(int ownCreaturesKilled) {
+        this.ownCreaturesKilled = ownCreaturesKilled;
+    }
+
     public void setManaGain(int manaGain) {
         this.manaGain = manaGain;
     }
@@ -128,6 +174,46 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
      */
     public boolean isDestroyed() {
         return destroyed;
+    }
+
+    /**
+     * Mark the player destroyed, his Dungeon Heart is gone
+     *
+     * @param killerId the player who destroyed the heart, 0 if not known
+     */
+    public void setDestroyed(short killerId) {
+        this.destroyed = true;
+        this.killerId = killerId;
+    }
+
+    /**
+     * Get the player who destroyed this player
+     *
+     * @return the player id, 0 if not known or if the player is not destroyed
+     */
+    public short getKillerId() {
+        return killerId;
+    }
+
+    /**
+     * Check whether the player is destroyed by the given player
+     *
+     * @param playerId the player who destroyed this player, 0 for anyone
+     * @return is destroyed by the player
+     */
+    public boolean isKilledBy(short playerId) {
+        return destroyed && (playerId == 0 || playerId == killerId);
+    }
+
+    /**
+     * A player's game result is only ever set once. Claims the right to set it.
+     *
+     * @return true the first time, false when the result has already been set
+     */
+    public boolean claimResult() {
+        boolean first = !resultSet;
+        resultSet = true;
+        return first;
     }
 
     public AIType getAiType() {
@@ -188,16 +274,8 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
         allies.remove(playerId);
     }
 
-    public int getGold() {
-        return gold;
-    }
-
     public int getMana() {
         return mana;
-    }
-
-    public void setGold(int gold) {
-        this.gold = gold;
     }
 
     public void setMana(int mana) {
@@ -262,8 +340,11 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
         out.write(id, "playerId", Integer.valueOf(0).shortValue());
         out.write(ai, "ai", false);
         out.write(aiType, "aiType", null);
-        out.write(gold, "gold", 0);
         out.write(goldMined, "goldMined", 0);
+        out.write(enemyCreaturesKilled, "enemyCreaturesKilled", 0);
+        out.write(heroesDestroyed, "heroesDestroyed", 0);
+        out.write(roomsCaptured, "roomsCaptured", 0);
+        out.write(specialsFound, "specialsFound", 0);
         out.write(mana, "mana", 0);
         out.write(manaGain, "manaGain", 0);
         out.write(manaLoose, "manaLoose", 0);
@@ -286,8 +367,11 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
         id = in.readShort("playerId", id);
         ai = in.readBoolean("ai", ai);
         aiType = in.readEnum("aiType", AIType.class, aiType);
-        gold = in.readInt("gold", gold);
         goldMined = in.readInt("goldMined", goldMined);
+        enemyCreaturesKilled = in.readInt("enemyCreaturesKilled", enemyCreaturesKilled);
+        heroesDestroyed = in.readInt("heroesDestroyed", heroesDestroyed);
+        roomsCaptured = in.readInt("roomsCaptured", roomsCaptured);
+        specialsFound = in.readInt("specialsFound", specialsFound);
         mana = in.readInt("mana", mana);
         manaGain = in.readInt("manaGain", manaGain);
         manaLoose = in.readInt("manaLoose", manaLoose);

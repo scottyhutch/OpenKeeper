@@ -16,11 +16,18 @@
  */
 package toniarts.openkeeper.game.controller;
 
+import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.EntitySet;
+import com.simsilica.es.filter.AndFilter;
+import com.simsilica.es.filter.FieldFilter;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.KeeperSpellCast;
+import toniarts.openkeeper.game.component.Morphed;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -39,6 +46,7 @@ import static toniarts.openkeeper.tools.convert.map.KeeperSpell.TargetRule.OWN_C
 import static toniarts.openkeeper.tools.convert.map.KeeperSpell.TargetRule.POSESSION;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
+import toniarts.openkeeper.tools.convert.map.Shot;
 
 /**
  * Simple util class to check whether casting is allowed
@@ -51,6 +59,19 @@ public final class KeeperSpellCastValidator {
         // Nope
     }
 
+    /**
+     * Checks whether the player can cast the spell
+     *
+     * @param keeperSpell the spell
+     * @param kwdFile the level
+     * @param mapInformation the map
+     * @param mapTile the tile the spell is cast on
+     * @param player the casting player
+     * @param entityData the entities
+     * @param target the targeted entity, can be {@code null}
+     * @param manaCost the mana the cast costs, see {@link KeeperSpellCost}
+     * @return true if the cast is allowed
+     */
     public static boolean isValidCast(
             KeeperSpell keeperSpell,
             IKwdFile kwdFile,
@@ -58,14 +79,125 @@ public final class KeeperSpellCastValidator {
             IMapTileInformation mapTile,
             Keeper player,
             EntityData entityData,
-            EntityId target) {
-        return checkPlayerMana(keeperSpell, player)
+            EntityId target,
+            int manaCost) {
+        return checkPlayerMana(manaCost, player)
                 && checkCastRule(mapInformation, mapTile, keeperSpell, player)
-                && checkTargetRule(target, entityData, kwdFile, keeperSpell, player);
+                && checkTargetRule(target, entityData, kwdFile, keeperSpell, player)
+                && checkReaperRule(keeperSpell, kwdFile, player, entityData);
     }
 
-    private static boolean checkPlayerMana(KeeperSpell keeperSpell, Keeper player) {
-        return keeperSpell.getManaCost() <= player.getMana() - player.getManaLoose();
+    /**
+     * The spell the Reaper Talisman casts: the free one shot Reaper while the
+     * keeper still has it, otherwise the Summon Reaper spell once it is
+     * researched. The Talisman can't be used while the keeper has a Horned
+     * Reaper.
+     *
+     * @param kwdFile the level
+     * @param player the keeper
+     * @param hasReaper whether the keeper has a Horned Reaper
+     * @return the spell, {@code null} if the Talisman can't be used now
+     */
+    public static KeeperSpell getReaperTalismanSpell(IKwdFile kwdFile, Keeper player, boolean hasReaper) {
+        KeeperSpell keeperSpell = null;
+        for (ResearchableEntity spell : player.getAvailableSpells()) {
+            if (spell.isDiscovered() && (spell.getId() == ReaperSummoner.ONE_SHOT_REAPER_SPELL_ID
+                    || (spell.getId() == ReaperSummoner.SUMMON_REAPER_SPELL_ID && keeperSpell == null))) {
+                keeperSpell = kwdFile.getKeeperSpellById(spell.getId());
+            }
+        }
+
+        // Both spells are Summon Reaper spells, see checkReaperRule
+        return hasReaper ? null : keeperSpell;
+    }
+
+    /**
+     * The Summon Reaper spells, also the Talisman's one shot Reaper, can't be
+     * cast while the keeper has a Horned Reaper
+     *
+     * @param keeperSpell the spell
+     * @param kwdFile the level
+     * @param player the casting player
+     * @param entityData the entities
+     * @return true if the rule allows the cast
+     */
+    static boolean checkReaperRule(KeeperSpell keeperSpell, IKwdFile kwdFile, Keeper player, EntityData entityData) {
+        Shot shot = kwdFile.getShotById(keeperSpell.getShotTypeId());
+        if (shot == null || shot.getProcessType() != Shot.ProcessType.SUMMON_REAPER) {
+            return true;
+        }
+
+        EntitySet creatures = entityData.getEntities(new FieldFilter<>(Owner.class, "ownerId", player.getId()), Owner.class, CreatureComponent.class);
+        try {
+            return !hasReaper(kwdFile, creatures);
+        } finally {
+            creatures.release();
+        }
+    }
+
+    /**
+     * Is there a Horned Reaper among the creatures
+     *
+     * @param kwdFile the level
+     * @param creatures the creatures of a keeper, with the creature component
+     * @return true if one of them is a Horned Reaper
+     */
+    public static boolean hasReaper(IKwdFile kwdFile, Iterable<Entity> creatures) {
+        for (Entity entity : creatures) {
+            Creature creature = kwdFile.getCreature(entity.get(CreatureComponent.class).creatureId);
+            if (creature != null && creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * As in DK II, the spell can be cast when the keeper has the mana, whatever
+     * the ongoing upkeep
+     *
+     * @param manaCost the mana the cast costs, see {@link KeeperSpellCost}
+     * @param player the casting player
+     * @return true if the keeper has the mana
+     */
+    static boolean checkPlayerMana(int manaCost, Keeper player) {
+        return manaCost <= player.getMana();
+    }
+
+    static boolean checkPlayerMana(KeeperSpell keeperSpell, Keeper player) {
+        return checkPlayerMana(keeperSpell.getManaCost(), player);
+    }
+
+    /**
+     * Finds the entity that holds when the keeper last cast the spell
+     *
+     * @param entityData the entity data
+     * @param keeperId the keeper
+     * @param keeperSpellId the spell
+     * @return the entity, or {@code null} if the keeper has never cast the
+     * spell
+     */
+    public static EntityId findLastCast(EntityData entityData, short keeperId, short keeperSpellId) {
+        return entityData.findEntity(AndFilter.create(KeeperSpellCast.class,
+                new FieldFilter<>(KeeperSpellCast.class, "keeperId", keeperId),
+                new FieldFilter<>(KeeperSpellCast.class, "keeperSpellId", keeperSpellId)), KeeperSpellCast.class);
+    }
+
+    /**
+     * The spell can be cast again once its recharge time has passed since the
+     * last cast (DKII.EXE 0x4BBA40)
+     *
+     * @param keeperSpell the spell
+     * @param entityData the entity data
+     * @param keeperId the keeper casting
+     * @param gameTime the current game time
+     * @return true if the spell has recharged
+     */
+    public static boolean isRecharged(KeeperSpell keeperSpell, EntityData entityData, short keeperId, double gameTime) {
+        EntityId lastCast = findLastCast(entityData, keeperId, keeperSpell.getId());
+        return lastCast == null
+                || gameTime - entityData.getComponent(lastCast, KeeperSpellCast.class).castTime >= keeperSpell.getRechargeTime();
     }
 
     private static boolean checkTargetRule(EntityId target, EntityData entityData, IKwdFile kwdFile, KeeperSpell keeperSpell, Keeper player) {
@@ -95,7 +227,7 @@ public final class KeeperSpellCastValidator {
                 }
             }
             case ENEMY_CREATURES -> {
-                if (creature == null || owner == null) {
+                if (creature == null || owner == null || !checkTurncoatRule(keeperSpell, entityData, target)) {
                     return false;
                 }
                 if (!player.isEnemy(owner)) {
@@ -117,7 +249,32 @@ public final class KeeperSpellCastValidator {
             }
         }
 
-        return true;
+        return checkChickenRule(target, entityData, keeperSpell);
+    }
+
+    /**
+     * Spells for all creatures, such as Chicken, can't be cast on neutral
+     * creatures. And a creature that is a chicken can't be possessed
+     *
+     * @param target the spell target, can be null
+     * @param entityData the entities
+     * @param keeperSpell the spell
+     * @return true if the target is fine for the spell
+     */
+    static boolean checkChickenRule(EntityId target, EntityData entityData, KeeperSpell keeperSpell) {
+        if (target == null) {
+            return true;
+        }
+
+        Owner owner = entityData.getComponent(target, Owner.class);
+        return switch (keeperSpell.getTargetRule()) {
+            case ALL_CREATURES ->
+                owner != null && owner.ownerId != Player.NEUTRAL_PLAYER_ID;
+            case POSESSION ->
+                entityData.getComponent(target, Morphed.class) == null;
+            default ->
+                true;
+        };
     }
 
     private static boolean checkCastRule(IMapInformation mapInformation, IMapTileInformation mapTile, KeeperSpell keeperSpell, Keeper player) {
@@ -152,6 +309,23 @@ public final class KeeperSpellCastValidator {
         }
 
         return true;
+    }
+
+    /**
+     * Spells for enemy creatures, such as Turncoat, need a creature to be cast
+     * on. An enemy door or trap won't do
+     *
+     * @param keeperSpell the spell
+     * @param entityData the entities
+     * @param target the spell target, can be null
+     * @return true if the target is fine for the spell
+     */
+    static boolean checkTurncoatRule(KeeperSpell keeperSpell, EntityData entityData, EntityId target) {
+        if (keeperSpell.getTargetRule() != ENEMY_CREATURES) {
+            return true;
+        }
+
+        return target != null && entityData.getComponent(target, CreatureComponent.class) != null;
     }
 
 }
