@@ -643,6 +643,7 @@ class CreatureControllerTest {
                 case "getId" -> id;
                 case "getTaskType" -> type;
                 case "isValid" -> true;
+                case "moveToOtherSpot" -> false;
                 case "getTarget" -> new Vector2f(3, 4);
                 case "getWorkPosition", "getTaskTarget", "getTaskLocation", "executeTask" -> null;
                 case "unassign" -> { oldJobUnassignments++; yield null; }
