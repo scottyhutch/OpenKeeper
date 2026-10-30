@@ -54,7 +54,7 @@ public final class FetchObjectTask extends AbstractTileTask {
     @Override
     public boolean isValid(ICreatureController creature) {
         return !isRemovable() && gameObject.isPickableByPlayerCreature(playerId) && !isPlayerCapacityFull() && !gameObject.isDragged()
-                && !(gameObject.getType() == AbstractRoomController.ObjectType.GOLD && creature.isTooMuchGold());
+                && !(gameObject.getType() == AbstractRoomController.ObjectType.GOLD && creature != null && creature.isTooMuchGold());
     }
 
     @Override
