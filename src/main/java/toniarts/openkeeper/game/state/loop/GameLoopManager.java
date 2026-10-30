@@ -124,6 +124,7 @@ public final class GameLoopManager {
                 new ChickenSpawnSystem(entityData, gameWorldController.getObjectsController(),
                         playerControllers.values(), gameSettings, gameWorldController.getMapController()),
                 new ManaCalculatorLogic(playerControllers.values(), entityData),
+                new LowManaSystem(entityData, level, playerControllers.values(), gameSettings, gameService),
                 new ManufacturePointLossSystem(entityData, playerControllers,
                         (int) gameController.getLevelVariable(Variable.MiscVariable.MiscType.MANUFACTURE_POINT_LOSS_WHILE_NO_WORKERS_PER_SECOND)),
                 new PossessedSystem(playerControllers.values(), entityData, gameController,
