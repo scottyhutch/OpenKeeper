@@ -35,6 +35,7 @@ import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.CombatExperienceFixtures;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Variable;
 
@@ -47,6 +48,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 class CreatureCombatExperienceTest {
 
     private static final float TPF = 0.25f;
+    private static final int TICKS_PER_SECOND = 4;
     private static final int TEN_SECONDS = 40;
     private static final short IMP = 1;
     private static final short GOBLIN = 4;
@@ -70,6 +72,7 @@ class CreatureCombatExperienceTest {
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class}, (proxy, method, args) -> switch (method.getName()) {
             case "getImp" -> creatures.get(IMP);
             case "getCreature" -> creatures.get((Short) args[0]);
+            case "getGameLevel" -> CreatureSleepFixtures.level(TICKS_PER_SECOND);
             default -> throw new UnsupportedOperationException(method.getName());
         });
         ICreaturesController creaturesController = (ICreaturesController) Proxy.newProxyInstance(ICreaturesController.class.getClassLoader(), new Class<?>[]{ICreaturesController.class}, (proxy, method, args) -> {
@@ -107,7 +110,7 @@ class CreatureCombatExperienceTest {
 
         tenSeconds();
 
-        assertEquals(9 * EXPERIENCE_PER_SECOND, experience(dwarf));
+        assertEquals(TEN_SECONDS * EXPERIENCE_PER_SECOND / TICKS_PER_SECOND, experience(dwarf));
     }
 
     @Test
@@ -116,7 +119,7 @@ class CreatureCombatExperienceTest {
 
         tenSeconds();
 
-        assertEquals(9 * EXPERIENCE_PER_SECOND, experience(goblin));
+        assertEquals(TEN_SECONDS * EXPERIENCE_PER_SECOND / TICKS_PER_SECOND, experience(goblin));
     }
 
     /**

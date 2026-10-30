@@ -31,6 +31,7 @@ import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.tools.convert.map.CombatPitFixtures;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
@@ -45,7 +46,7 @@ class CombatPitExperienceTest {
 
     @Test
     void pitFighterBelowTheTopPitLevelLearns() {
-        assertEquals(10, getExperienceAfterASecondOfFighting(MAX_PIT_LEVEL - 1, true));
+        assertEquals(12, getExperienceAfterASecondOfFighting(MAX_PIT_LEVEL - 1, true));
     }
 
     @Test
@@ -55,7 +56,7 @@ class CombatPitExperienceTest {
 
     @Test
     void fighterOutsideThePitStillLearnsAtThatLevel() {
-        assertEquals(10, getExperienceAfterASecondOfFighting(MAX_PIT_LEVEL, false));
+        assertEquals(12, getExperienceAfterASecondOfFighting(MAX_PIT_LEVEL, false));
     }
 
     private static int getExperienceAfterASecondOfFighting(int level, boolean inPit) {
@@ -63,7 +64,7 @@ class CombatPitExperienceTest {
         EntityId entity = entityData.createEntity();
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.creatureId = FIGHTER;
-        entityData.setComponents(entity, creatureComponent, new CreatureExperience(level, 0, 1000, 10, 0),
+        entityData.setComponents(entity, creatureComponent, new CreatureExperience(level, 0, 1000, 12, 0),
                 new CreatureAi(0, CreatureState.MELEE_ATTACK, FIGHTER));
         EntityId foe = entityData.createEntity();
         entityData.setComponents(foe, new CreatureComponent());
@@ -74,7 +75,11 @@ class CombatPitExperienceTest {
 
         Creature imp = CombatPitFixtures.pitCreature(IMP);
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
-                (proxy, method, args) -> "getImp".equals(method.getName()) ? imp : null);
+                (proxy, method, args) -> switch (method.getName()) {
+            case "getImp" -> imp;
+            case "getGameLevel" -> CreatureSleepFixtures.level(4);
+            default -> null;
+        });
         ICreaturesController creaturesController = (ICreaturesController) Proxy.newProxyInstance(ICreaturesController.class.getClassLoader(),
                 new Class<?>[]{ICreaturesController.class}, (proxy, method, args) -> null);
         Map<MiscType, MiscVariable> gameSettings = Map.of(
@@ -82,8 +87,9 @@ class CombatPitExperienceTest {
                 MiscType.COMBAT_PIT_MAX_EXPERIENCE_LEVEL, CombatPitFixtures.pitVariable(MiscType.COMBAT_PIT_MAX_EXPERIENCE_LEVEL, MAX_PIT_LEVEL));
 
         CreatureExperienceSystem system = new CreatureExperienceSystem(entityData, kwdFile, gameSettings, creaturesController);
-        system.processTick(0.5f);
-        system.processTick(1f);
+        for (int i = 0; i < 4; i++) {
+            system.processTick(0.25f);
+        }
         system.stop();
 
         return entityData.getComponent(entity, CreatureExperience.class).experience;
