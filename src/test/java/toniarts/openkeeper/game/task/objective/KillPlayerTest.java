@@ -42,6 +42,7 @@ import toniarts.openkeeper.tools.convert.map.TerrainFixtures;
 import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * Heroes sent to kill a keeper whose dungeon they can't walk to. A hero worker,
@@ -82,7 +83,7 @@ class KillPlayerTest {
     void loneFighterCanNotTunnel() {
         KillPlayer task = createTask(false);
 
-        assertEquals(TaskType.KILL_PLAYER, task.getCurrentTask().getTaskType());
+        assertNull(task.getCurrentTask());
     }
 
     private KillPlayer createTask(boolean worker) {

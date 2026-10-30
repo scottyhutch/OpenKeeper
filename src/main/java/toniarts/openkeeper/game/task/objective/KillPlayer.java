@@ -27,6 +27,7 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.navigation.pathfinding.INavigable;
+import toniarts.openkeeper.game.task.Task;
 import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Thing;
@@ -44,6 +45,7 @@ public final class KillPlayer extends AbstractObjectiveTask {
     protected final short targetPlayerId;
     protected final ICreatureController creature;
     protected final ILevelInfo levelInfo;
+    private final boolean wayFound;
 
     public KillPlayer(final INavigationService navigationService, final IMapController mapController, final ILevelInfo levelInfo, short targetPlayerId, ICreatureController creature) {
         super(navigationService, mapController, levelInfo.getPlayer(targetPlayerId).getDungeonHeartLocation(), creature.getOwnerId());
@@ -51,7 +53,7 @@ public final class KillPlayer extends AbstractObjectiveTask {
         this.targetPlayerId = targetPlayerId;
         this.creature = creature;
         this.levelInfo = levelInfo;
-        createSubTasks();
+        this.wayFound = createSubTasks();
     }
 
     @Override
@@ -118,7 +120,12 @@ public final class KillPlayer extends AbstractObjectiveTask {
         return keeper == null || keeper.isDestroyed();
     }
 
-    private void createSubTasks() {
+    /**
+     * Plans the way to the heart
+     *
+     * @return false if there is no way there at all, not even by digging
+     */
+    private boolean createSubTasks() {
 
         // See if we can navigate there
         GraphPath<IMapTileInformation> outPath = navigationService.findPath(creature.getCreatureCoordinates(), WorldUtils.vectorToPoint(getTarget(creature)), getNavigable());
@@ -152,7 +159,7 @@ public final class KillPlayer extends AbstractObjectiveTask {
                     } else {
 
                         // Hmm, this is it, should we have like attack target type tasks? Or let the AI just figure out itself
-                        return;
+                        return true;
                     }
                 } else {
                     first = true;
@@ -161,6 +168,19 @@ public final class KillPlayer extends AbstractObjectiveTask {
                 i++;
             }
         }
+        return outPath != null;
+    }
+
+    /**
+     * With no way to the heart there is nothing the hero can do for its
+     * objective yet. It doesn't take the task, and tries again the next time it
+     * looks for something to do
+     *
+     * @return the current task, null when there is no way to the heart
+     */
+    @Override
+    public Task getCurrentTask() {
+        return wayFound ? super.getCurrentTask() : null;
     }
 
     /**
