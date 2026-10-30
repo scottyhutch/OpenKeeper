@@ -81,6 +81,7 @@ import java.lang.System.Logger.Level;
 import java.lang.ref.WeakReference;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -221,10 +222,12 @@ public final class CreaturesController implements ICreaturesController {
         int objectiveTargetActionPointId = 0;
         boolean diesInstantly = false;
         boolean jailBreaker = false;
+        EnumSet<Thing.Creature.CreatureFlag> flags = null;
         if (creature instanceof Thing.GoodCreature goodCreature) {
             triggerId = goodCreature.getTriggerId();
             healthPercentage = goodCreature.getInitialHealth();
             level = goodCreature.getLevel();
+            flags = goodCreature.getFlags();
             ownerId = Player.GOOD_PLAYER_ID;
             objective = goodCreature.getObjective();
             objectiveTargetPlayerId = goodCreature.getObjectiveTargetPlayerId();
@@ -237,17 +240,22 @@ public final class CreaturesController implements ICreaturesController {
             triggerId = neutralCreature.getTriggerId();
             healthPercentage = neutralCreature.getInitialHealth();
             level = neutralCreature.getLevel();
+            flags = neutralCreature.getFlags();
             ownerId = Player.NEUTRAL_PLAYER_ID;
         } else if (creature instanceof Thing.KeeperCreature keeperCreature) {
             triggerId = keeperCreature.getTriggerId();
             healthPercentage = keeperCreature.getInitialHealth();
             level = keeperCreature.getLevel();
+            flags = keeperCreature.getFlags();
             ownerId = keeperCreature.getPlayerId();
         } else if (creature instanceof Thing.DeadBody deadBody) {
             ownerId = deadBody.getPlayerId();
         }
+
+        // Only a creature set to act as dropped is taken in by a prison or a torture chamber it stands in
+        SpawnType spawnType = flags != null && flags.contains(Thing.Creature.CreatureFlag.ACT_AS_DROPPED) ? SpawnType.DROP : SpawnType.PLACE;
         EntityId entity = loadCreature(creature.getCreatureId(), ownerId, level, position.getX(), position.getY(), 0f, healthPercentage, creature.getGoldHeld(),
-                triggerId != null && triggerId != 0 ? triggerId : null, SpawnType.PLACE, objective, objectiveTargetPlayerId, objectiveTargetActionPointId, diesInstantly);
+                triggerId != null && triggerId != 0 ? triggerId : null, spawnType, objective, objectiveTargetPlayerId, objectiveTargetActionPointId, diesInstantly);
         if (isRoomDestroyer(creature)) {
             CreatureComponent creatureComponent = new CreatureComponent(entityData.getComponent(entity, CreatureComponent.class));
             creatureComponent.destroysRooms = true;
@@ -418,6 +426,9 @@ public final class CreaturesController implements ICreaturesController {
                 creatureState = CreatureState.ENTERING_DUNGEON;
             }
             case PLACE -> {
+                creatureState = CreatureState.IDLE;
+            }
+            case DROP -> {
                 creatureState = getCreatureStateByMapLocation(WorldUtils.vectorToPoint(x, y), ownerId, entity);
             }
             case CONJURE -> {
