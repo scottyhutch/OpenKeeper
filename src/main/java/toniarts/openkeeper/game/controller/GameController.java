@@ -337,11 +337,22 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
 
         // The Horned Reaper comes for the Portal Gem of a won campaign level, on the logic loop. The Reaper
         // stays marked with FetchPortalGem, so he is only sent once
-        if (levelObject != null && gameResult != null && Boolean.TRUE.equals(gameResult.getData(GameResult.ResultType.LEVEL_WON))) {
+        if (isReaperDue(campaign, gameResult)) {
             new PortalGemReaper(levelInfo.getLevelData(), entityData, gameTimer, gameWorldController.getCreaturesController(),
                     gameWorldController.getObjectsController(), navigationService,
                     gameWorldController.getMapController()).callForGem(gameResult.<Short>getData(GameResult.ResultType.WINNER));
         }
+    }
+
+    /**
+     * Tells if the Horned Reaper should be sent for the Portal Gem
+     *
+     * @param campaign whether this is a campaign level
+     * @param result the game result, {@code null} while the game goes on
+     * @return true if a campaign level has been won
+     */
+    static boolean isReaperDue(boolean campaign, GameResult result) {
+        return campaign && result != null && Boolean.TRUE.equals(result.getData(GameResult.ResultType.LEVEL_WON));
     }
 
     private void updateTimeLimit(float tpf) {
