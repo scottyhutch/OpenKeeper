@@ -28,7 +28,9 @@ import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.AttackTarget;
+import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.controller.IGameController;
@@ -174,7 +176,7 @@ class KeeperDefeatSystemTest {
         system.processTick(0.25f);
 
         // Only the gold in the treasury is left, and only the treasury stores gold
-        assertEquals(3000, keepers.get(RIVAL).getGold());
+        assertEquals(3000, playerControllers.get(RIVAL).getGoldControl().getGold());
         assertEquals(TREASURY_CAPACITY, playerControllers.get(RIVAL).getGoldControl().getGoldMax());
     }
 
@@ -268,7 +270,9 @@ class KeeperDefeatSystemTest {
             keepers.put(keeperId, keeper);
             players.put(keeperId, keeper);
 
-            PlayerGoldControl goldControl = new PlayerGoldControl(keeper);
+            EntityId keeperEntity = entityData.createEntity();
+            entityData.setComponents(keeperEntity, new KeeperComponent(keeperId), new Gold(0, 0));
+            PlayerGoldControl goldControl = new PlayerGoldControl(keeper, entityData);
             goldControl.setGoldMax(HEART_CAPACITY + TREASURY_CAPACITY);
             goldControl.addGold(HEART_GOLD + 3000);
             playerControllers.put(keeperId, stub(IPlayerController.class, (name, args) -> "getGoldControl".equals(name) ? goldControl : null));
