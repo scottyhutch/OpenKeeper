@@ -39,6 +39,7 @@ import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.game.controller.player.PlayerManaControl;
+import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -76,9 +77,11 @@ class PossessedDeathTest {
                 Map.of(MiscType.MAXIMUM_MANA_THRESHOLD, TrapFiringFixtures.miscVariable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000),
                         MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, TrapFiringFixtures.miscVariable(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, 500)));
         keeper.setMana(1000);
+        PlayerStatsControl statsControl = new PlayerStatsControl(keeper);
         IPlayerController player = stub(IPlayerController.class, (name, args) -> switch (name) {
             case "getKeeper" -> keeper;
             case "getManaControl" -> manaControl;
+            case "getStatsControl" -> statsControl;
             default -> null;
         });
 
