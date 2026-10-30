@@ -1377,7 +1377,7 @@ public final class MainMenuScreenController implements IMainMenuScreenController
 
         GameLevel gameLevel = level.getGameLevel();
         levelTitle.setText(gameLevel.getTitle());
-        boolean campaign = state.isDebriefingCampaign();
+        CampaignLevel playedLevel = state.getDebriefingCampaignLevel();
         String objectiveImage = AssetUtils.getCanonicalAssetKey(String.format(OBJECTIVE_IMAGE_URL, gameLevel.getName(), 0));
         try {
             NiftyImage img = nifty.createImage(objectiveImage, true);
@@ -1390,7 +1390,7 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         }
 
         subObjectiveImage.hide();
-        if (campaign && state.selectedLevel instanceof CampaignLevel lvl && lvl.getType().equals(LevelType.Level)) {
+        if (playedLevel != null && playedLevel.getType().equals(LevelType.Level)) {
             objectiveImage = AssetUtils.getCanonicalAssetKey(String.format(OBJECTIVE_IMAGE_URL, gameLevel.getName(), 1));
             try {
                 NiftyImage img = nifty.createImage(objectiveImage, true);
@@ -1442,9 +1442,9 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         // The overall Evil Rating and the attempts are kept with the campaign progress, a won game is an attempt too
         Object overallEvilRating = null;
         Object attempts = null;
-        if (campaign && state.selectedLevel instanceof CampaignLevel lvl && won != null) {
-            attempts = Main.getUserSettings().getLevelAttempts(lvl) + (levelWon ? 1 : 0);
-            if (lvl.getType() == LevelType.Level) {
+        if (playedLevel != null && won != null) {
+            attempts = Main.getUserSettings().getLevelAttempts(playedLevel) + (levelWon ? 1 : 0);
+            if (playedLevel.getType() == LevelType.Level) {
                 overallEvilRating = Main.getUserSettings().getOverallEvilRating();
             }
         }
@@ -1452,8 +1452,8 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         setDebriefingValue(deScreen, "attemptsAtLevel", attempts);
 
         // Play debriefing narration
-        if (campaign && state.selectedLevel instanceof CampaignLevel lvl) {
-            state.setLevelDebriefing(playLevelSpeech(lvl.getLevel(), levelWon ? 1 : 2));
+        if (playedLevel != null) {
+            state.setLevelDebriefing(playLevelSpeech(playedLevel.getLevel(), levelWon ? 1 : 2));
         }
     }
 
