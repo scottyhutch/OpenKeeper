@@ -22,6 +22,7 @@ import java.util.function.Consumer;
 import toniarts.openkeeper.game.controller.entity.IEntityController;
 import toniarts.openkeeper.game.task.Task;
 import toniarts.openkeeper.game.task.TaskType;
+import toniarts.openkeeper.tools.convert.map.Thing;
 
 /**
  * State machine for creature AI. TODO: needs to be hierarchial so that this
@@ -88,6 +89,15 @@ public enum CreatureState implements State<ICreatureController> {
             }
             if (entity.getFollowTarget() != null) {
                 entity.getStateMachine().changeState(CreatureState.FOLLOW);
+                workResult.accept(true);
+                return;
+            }
+
+            // A creature told to wait, or sent to an action point when there is none (it has passed its
+            // last waypoint), stays where it is. The original only shuffles about on the creature's own tile
+            Thing.HeroParty.Objective objective = entity.getObjective();
+            if (objective == Thing.HeroParty.Objective.WAIT || (objective == Thing.HeroParty.Objective.SEND_TO_ACTION_POINT
+                    && entity.getObjectiveTargetActionPointId() == 0)) {
                 workResult.accept(true);
                 return;
             }
