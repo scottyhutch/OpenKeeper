@@ -21,15 +21,19 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntitySet;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureTortured;
+import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.ICreaturesController;
+import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.utils.GameTimeCounter;
+import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.utils.WorldUtils;
 
 /**
- * Handles creatures torturing. When enough... persuasion has been received... join the player army
+ * Handles creatures torturing. When enough... persuasion has been received... join the player army. Or
+ * die, by the level's chance of dying when converted.
  *
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
@@ -38,12 +42,15 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
     private final EntityData entityData;
     private final ICreaturesController creaturesController;
     private final IMapInformation mapInformation;
+    private final int chanceOfDyingWhenConverted;
     private final EntitySet torturedEntities;
 
-    public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapInformation mapInformation) {
+    public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapInformation mapInformation,
+            int chanceOfDyingWhenConverted) {
         this.entityData = entityData;
         this.creaturesController = creaturesController;
         this.mapInformation = mapInformation;
+        this.chanceOfDyingWhenConverted = chanceOfDyingWhenConverted;
 
         // Have the position also here, since the player may move tortured entities between torture rooms, kinda still tortured but not counting towards death at the time
         torturedEntities = entityData.getEntities(CreatureTortured.class, CreatureComponent.class, Position.class, Owner.class);
@@ -68,6 +75,16 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
                 Owner owner = entity.get(Owner.class);
                 short playerId = mapInformation.getMapData().getTile(WorldUtils.vectorToPoint(entity.get(Position.class).position)).getOwnerId();
                 if (owner.ownerId != playerId) {
+
+                    // Some die instead, the torture starts over for them until death comes
+                    if (Utils.getRandom().nextInt(100) < chanceOfDyingWhenConverted) {
+                        Health health = entityData.getComponent(entity.getId(), Health.class);
+                        if (health != null) {
+                            EntityController.setDamage(entityData, entity.getId(), health.health);
+                        }
+                        entity.set(new CreatureTortured(0, timeElapsed, creatureTortured.healthCheckTime));
+                        continue;
+                    }
 
                     // Convert!
                     entityData.removeComponent(entity.getId(), CreatureTortured.class);
