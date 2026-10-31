@@ -18,6 +18,8 @@ package toniarts.openkeeper.game.state;
 
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.EntitySet;
+import com.simsilica.es.WatchedEntity;
 import com.simsilica.es.base.DefaultEntityData;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Disguised;
@@ -36,12 +38,23 @@ public class PossessionAbilityActiveTest {
     private final PlayerScreenController controller = new PlayerScreenController(null, null);
     private final EntityData data = new DefaultEntityData();
 
+    private boolean isActive(EntityId creature, SpecialAbility ability) {
+        WatchedEntity watched = data.watchEntity(creature, PossessedAbility.class, Disguised.class);
+        EntitySet hypnotised = data.getEntities(Hypnotised.class);
+        try {
+            return controller.isPossessionAbilityActive(watched, hypnotised, ability);
+        } finally {
+            hypnotised.release();
+            watched.release();
+        }
+    }
+
     @Test
     public void nothingIsActiveByDefault() {
         EntityId creature = data.createEntity();
 
         for (SpecialAbility ability : SpecialAbility.values()) {
-            assertFalse(controller.isPossessionAbilityActive(data, creature, ability));
+            assertFalse(isActive(creature, ability));
         }
     }
 
@@ -50,8 +63,8 @@ public class PossessionAbilityActiveTest {
         EntityId creature = data.createEntity();
         data.setComponent(creature, new PossessedAbility(SpecialAbility.PRAY, 0));
 
-        assertTrue(controller.isPossessionAbilityActive(data, creature, SpecialAbility.PRAY));
-        assertFalse(controller.isPossessionAbilityActive(data, creature, SpecialAbility.TURN_TO_BAT));
+        assertTrue(isActive(creature, SpecialAbility.PRAY));
+        assertFalse(isActive(creature, SpecialAbility.TURN_TO_BAT));
     }
 
     @Test
@@ -59,7 +72,7 @@ public class PossessionAbilityActiveTest {
         EntityId creature = data.createEntity();
         data.setComponent(creature, new Disguised((short) 3));
 
-        assertTrue(controller.isPossessionAbilityActive(data, creature, SpecialAbility.DISGUISE_N_STEAL));
+        assertTrue(isActive(creature, SpecialAbility.DISGUISE_N_STEAL));
     }
 
     @Test
@@ -68,7 +81,7 @@ public class PossessionAbilityActiveTest {
         EntityId other = data.createEntity();
         data.setComponent(other, new Hypnotised(creature, (short) 4));
 
-        assertTrue(controller.isPossessionAbilityActive(data, creature, SpecialAbility.HYPNOTISE));
-        assertFalse(controller.isPossessionAbilityActive(data, other, SpecialAbility.HYPNOTISE));
+        assertTrue(isActive(creature, SpecialAbility.HYPNOTISE));
+        assertFalse(isActive(other, SpecialAbility.HYPNOTISE));
     }
 }

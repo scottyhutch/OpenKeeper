@@ -153,6 +153,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private EntitySet spellCasts;
     private final Map<Short, Float> spellRechargeLeft = new HashMap<>();
     private EntitySet payDayClocks;
+    private WatchedEntity possessedTarget;
+    private EntitySet hypnotised;
     private ResearchEffectControl payDayRing;
     private float payDayTimeLeft;
     private int payDayCost;
@@ -220,8 +222,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
      * Called from the render thread, like the rest of the screen update.
      */
     private void updatePossessionHealth() {
-        EntityId target = state.stateManager.getState(PossessionInteractionState.class).getTarget();
-        Health health = target != null ? entityData.getComponent(target, Health.class) : null;
+        WatchedEntity target = getPossessedTarget();
+        Health health = target != null ? target.get(Health.class) : null;
         Element bar = screen.findElementById("creature-health");
         if (health == null || bar == null || health.maxHealth <= 0) {
             return;
@@ -237,13 +239,14 @@ public final class PlayerScreenController implements IPlayerScreenController {
      * rest of the screen update.
      */
     private void updatePossessionActiveAbilities() {
-        EntityId target = state.stateManager.getState(PossessionInteractionState.class).getTarget();
+        WatchedEntity target = getPossessedTarget();
         Creature creature = state.getPossessionCreature();
         if (target == null || creature == null) {
             return;
         }
-        updatePossessionAbilityActive(1, isPossessionAbilityActive(entityData, target, creature.getFirstPersonSpecialAbility1()));
-        updatePossessionAbilityActive(2, isPossessionAbilityActive(entityData, target, creature.getFirstPersonSpecialAbility2()));
+        hypnotised.applyChanges();
+        updatePossessionAbilityActive(1, isPossessionAbilityActive(target, hypnotised, creature.getFirstPersonSpecialAbility1()));
+        updatePossessionAbilityActive(2, isPossessionAbilityActive(target, hypnotised, creature.getFirstPersonSpecialAbility2()));
     }
 
     private void updatePossessionAbilityActive(int index, boolean active) {
@@ -264,21 +267,59 @@ public final class PlayerScreenController implements IPlayerScreenController {
      * disguised one is {@link Disguised} and a hypnotising one has a
      * {@link Hypnotised} creature.
      *
-     * @param data the entity data
-     * @param creature the possessed creature
+     * @param creature the possessed creature, with the components it has
+     * @param hypnotised the {@link Hypnotised} entities
      * @param ability the ability to check
      * @return {@code true} if the ability is on
      */
-    boolean isPossessionAbilityActive(EntityData data, EntityId creature, Creature.SpecialAbility ability) {
+    boolean isPossessionAbilityActive(Entity creature, Iterable<Entity> hypnotised, Creature.SpecialAbility ability) {
         return switch (ability) {
             case TURN_TO_BAT, PRAY, PICK_UP_WORKERS -> {
-                PossessedAbility active = data.getComponent(creature, PossessedAbility.class);
+                PossessedAbility active = creature.get(PossessedAbility.class);
                 yield active != null && active.ability == ability;
             }
-            case DISGUISE_N_STEAL -> data.getComponent(creature, Disguised.class) != null;
-            case HYPNOTISE -> data.findEntity(new FieldFilter<>(Hypnotised.class, "entity", creature), Hypnotised.class) != null;
+            case DISGUISE_N_STEAL -> creature.get(Disguised.class) != null;
+            case HYPNOTISE -> {
+                for (Entity entity : hypnotised) {
+                    if (creature.getId().equals(entity.get(Hypnotised.class).entity)) {
+                        yield true;
+                    }
+                }
+                yield false;
+            }
             default -> false;
         };
+    }
+
+    /**
+     * The possessed creature, watched for the components the possession HUD
+     * shows. The client can't look them up from the server
+     *
+     * @return the creature, {@code null} if nothing is possessed
+     */
+    private WatchedEntity getPossessedTarget() {
+        EntityId target = state.stateManager.getState(PossessionInteractionState.class).getTarget();
+        if (target == null) {
+            releasePossessedTarget();
+            return null;
+        }
+        if (possessedTarget == null || !possessedTarget.getId().equals(target)) {
+            releasePossessedTarget();
+            possessedTarget = entityData.watchEntity(target, Health.class, CreatureExperience.class, PossessedAbility.class, Disguised.class);
+            hypnotised = entityData.getEntities(Hypnotised.class);
+        } else {
+            possessedTarget.applyChanges();
+        }
+        return possessedTarget;
+    }
+
+    private void releasePossessedTarget() {
+        if (possessedTarget != null) {
+            possessedTarget.release();
+            possessedTarget = null;
+            hypnotised.release();
+            hypnotised = null;
+        }
     }
 
     private void updatePayDay() {
@@ -340,6 +381,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
             payDayClocks.release();
             payDayClocks = null;
         }
+        releasePossessedTarget();
         payDayRing = null;
 
         // The screen controller might sometimes stay in memory
@@ -1044,7 +1086,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
 
         // The spells the creature has at its level, the keys pick them in the creature's order
         EntityId target = state.stateManager.getState(PossessionInteractionState.class).getTarget();
-        CreatureExperience experience = target != null ? entityData.getComponent(target, CreatureExperience.class) : null;
+        WatchedEntity possessed = target != null ? getPossessedTarget() : null;
+        CreatureExperience experience = possessed != null ? possessed.get(CreatureExperience.class) : null;
         int level = experience != null ? experience.level : 1;
         int index = 1;
         for (Creature.Spell spell : creature.getSpells()) {

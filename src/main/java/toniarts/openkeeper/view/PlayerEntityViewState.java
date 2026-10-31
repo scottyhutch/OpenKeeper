@@ -1014,9 +1014,9 @@ public class PlayerEntityViewState extends AbstractAppState {
             CreatureViewState viewState = e.get(CreatureViewState.class);
             if (viewState.state == Creature.AnimationType.ENTRANCE) {
                 Creature creature = kwdFile.getCreature(viewState.creatureId);
-                Owner owner = entityData.getComponent(e.getId(), Owner.class);
+                short ownerId = entityViewControls.get(e.getId()).getOwnerId();
                 loadTransientEffect(e.getId(), e.get(Position.class).position.clone().setY(WorldUtils.UNDERFLOOR_HEIGHT),
-                        creature.getEntranceEffectId(), owner.ownerId, false);
+                        creature.getEntranceEffectId(), ownerId, false);
             }
             return result;
         }

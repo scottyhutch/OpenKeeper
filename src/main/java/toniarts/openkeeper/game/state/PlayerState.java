@@ -24,6 +24,7 @@ import com.jme3.input.controls.ActionListener;
 import com.jme3.input.controls.KeyTrigger;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Spatial;
+import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
@@ -92,6 +93,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     private final IKwdFile kwdFile;
     private final EntityData entityData;
     private final EntitySet keeperEntity;
+    private final EntitySet hearts;
     @Nullable
     private final CampaignLevel campaignLevel;
 
@@ -120,6 +122,8 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         this.app = app;
         this.campaignLevel = campaignLevel;
         keeperEntity = entityData.getEntities(new FieldFilter(KeeperComponent.class, "playerId", this.playerId), KeeperComponent.class, Gold.class);
+        hearts = entityData.getEntities(new FieldFilter(ObjectComponent.class, "objectId", FiveByFiveRotatedController.OBJECT_HEART_ID),
+                ObjectComponent.class, Owner.class, Health.class);
 
         screen = new PlayerScreenController(this, app.getNifty());
         app.getNifty().registerScreenController(screen);
@@ -140,6 +144,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     public void cleanup() {
         unregisterPauseKey();
         keeperEntity.release();
+        hearts.release();
 
         // Detach states
         for (AbstractAppState state : appStates) {
@@ -554,8 +559,9 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
      * @return the position, or {@code null} if the entity no longer exists
      */
     public Vector3f getEntityPosition(EntityId entityId) {
-        Position position = entityData.getComponent(entityId, Position.class);
-        return position != null ? position.position.clone() : null;
+        PlayerEntityViewState entityViewState = stateManager.getState(GameClientState.class).getEntityViewState();
+        Spatial spatial = entityViewState != null ? entityViewState.getEntitySpatial(entityId) : null;
+        return spatial != null ? spatial.getLocalTranslation().clone() : null;
     }
 
     /**
@@ -675,10 +681,10 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
      * @return health percentage, 0 if we have no heart
      */
     private int getDungeonHeartHealth() {
-        for (EntityId heart : entityData.findEntities(new FieldFilter(ObjectComponent.class, "objectId", FiveByFiveRotatedController.OBJECT_HEART_ID),
-                ObjectComponent.class, Owner.class, Health.class)) {
-            if (entityData.getComponent(heart, Owner.class).ownerId == playerId) {
-                Health health = entityData.getComponent(heart, Health.class);
+        hearts.applyChanges();
+        for (Entity heart : hearts) {
+            if (heart.get(Owner.class).ownerId == playerId) {
+                Health health = heart.get(Health.class);
                 return health.health * 100 / health.maxHealth;
             }
         }
