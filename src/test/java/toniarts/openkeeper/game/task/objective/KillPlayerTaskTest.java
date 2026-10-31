@@ -16,8 +16,6 @@
  */
 package toniarts.openkeeper.game.task.objective;
 
-import com.badlogic.gdx.ai.pfa.DefaultGraphPath;
-import com.badlogic.gdx.ai.pfa.GraphPath;
 import com.jme3.math.Vector2f;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
@@ -29,14 +27,14 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
-import toniarts.openkeeper.game.map.IMapTileInformation;
+import toniarts.openkeeper.game.map.IMapDataInformation;
+import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.Thing;
 import toniarts.openkeeper.utils.Point;
 
-import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -73,7 +71,7 @@ class KillPlayerTaskTest {
     void heroWithNoWayToTheHeartTakesNoTask() {
         ICreatureController hero = hero(true, false, KEEPER);
 
-        assertNull(createTask(hero, null).getCurrentTask());
+        assertNull(createTask(hero, false).getCurrentTask());
     }
 
     @Test
@@ -98,19 +96,20 @@ class KillPlayerTaskTest {
     }
 
     @Test
-    void heroHeadsForTheNearestHeartTile() {
+    void heroHeadsForAHeartTileItCanStandOn() {
         ICreatureController hero = hero(false, false, KEEPER);
 
-        assertEquals(new Vector2f(10, 8), createTask(hero).getTarget(hero));
+        Vector2f target = createTask(hero).getTarget(hero);
+        assertTrue(isOnTheHeartEdge(new Point((int) target.x, (int) target.y)));
     }
 
     private static KillPlayer createTask(ICreatureController hero) {
 
         // A clear way, no step on it needs digging
-        return createTask(hero, new DefaultGraphPath<>());
+        return createTask(hero, true);
     }
 
-    private static KillPlayer createTask(ICreatureController hero, GraphPath<IMapTileInformation> wayToTheHeart) {
+    private static KillPlayer createTask(ICreatureController hero, boolean clearWay) {
         Keeper keeper = new Keeper(false, KEEPER);
         keeper.setDungeonHeartLocation(HEART_CENTRE);
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> "getPlayer".equals(name) ? Map.of(KEEPER, keeper).get((Short) args[0]) : null);
@@ -121,12 +120,41 @@ class KillPlayerTaskTest {
                 heartRoom.addCoordinate(new Point(HEART_CENTRE.x + x, HEART_CENTRE.y + y));
             }
         }
-        IRoomController roomController = stub(IRoomController.class, (name, args) -> "getRoomInstance".equals(name) ? heartRoom : null);
-        IMapController mapController = stub(IMapController.class, (name, args) -> "getRoomControllerByCoordinates".equals(name) ? roomController : null);
+        IRoomController roomController = stub(IRoomController.class, (name, args) -> switch (name) {
+            case "getRoomInstance" -> heartRoom;
+            case "isTileAccessible" -> isOnTheHeartEdge((Point) args[1]);
+            default -> null;
+        });
 
-        INavigationService navigationService = stub(INavigationService.class, (name, args) -> "findPath".equals(name) ? wayToTheHeart : null);
+        // A 20x20 map, every tile next to the other is open on a clear way
+        IMapDataInformation<?> mapData = stub(IMapDataInformation.class, (name, args) -> {
+            if ("getTile".equals(name) && args.length == 2 && (Integer) args[0] >= 0 && (Integer) args[0] < 20 && (Integer) args[1] >= 0 && (Integer) args[1] < 20) {
+                Point p = new Point((Integer) args[0], (Integer) args[1]);
+                return stub(IMapTileController.class, (tileMethod, tileArgs) -> switch (tileMethod) {
+                    case "getLocation" -> p;
+                    case "getX" -> p.x;
+                    case "getY" -> p.y;
+                    default -> null;
+                });
+            }
+            return null;
+        });
+        IMapController mapController = stub(IMapController.class, (name, args) -> switch (name) {
+            case "getRoomControllerByCoordinates" -> roomController;
+            case "getMapData" -> mapData;
+            default -> null;
+        });
+
+        INavigationService navigationService = stub(INavigationService.class, (name, args) -> "isAccessible".equals(name) ? clearWay : null);
 
         return new KillPlayer(navigationService, mapController, levelInfo, KEEPER, hero);
+    }
+
+    /**
+     * The edge of the 5x5 heart room, the centre 3x3 of it can't be walked on
+     */
+    private static boolean isOnTheHeartEdge(Point tile) {
+        return Math.abs(tile.x - HEART_CENTRE.x) == 2 || Math.abs(tile.y - HEART_CENTRE.y) == 2;
     }
 
     private static ICreatureController hero(boolean stopped, boolean atTarget, short objectiveTarget) {
