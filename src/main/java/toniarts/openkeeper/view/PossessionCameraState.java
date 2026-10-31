@@ -173,7 +173,7 @@ public final class PossessionCameraState extends AbstractPauseAwareState impleme
                 entityViewState.setHiddenEntity(target);
             }
             watchedTarget = stateManager.getState(GameClientState.class).getGameClientService().getEntityData()
-                    .watchEntity(target, CreatureViewState.class);
+                    .watchEntity(target, CreatureViewState.class, PossessedAbility.class);
 
             resetMovement();
             registerInput();
@@ -387,8 +387,7 @@ public final class PossessionCameraState extends AbstractPauseAwareState impleme
      * whether it is
      */
     private void updateZoom() {
-        PossessedAbility possessedAbility = stateManager.getState(GameClientState.class).getGameClientService().getEntityData()
-                .getComponent(target, PossessedAbility.class);
+        PossessedAbility possessedAbility = watchedTarget != null ? watchedTarget.get(PossessedAbility.class) : null;
         float wanted = possessedAbility != null && possessedAbility.ability == Creature.SpecialAbility.SNIPER_MODE
                 ? SNIPER_FIELD_OF_VIEW : FIELD_OF_VIEW;
         if (wanted != fieldOfView) {
