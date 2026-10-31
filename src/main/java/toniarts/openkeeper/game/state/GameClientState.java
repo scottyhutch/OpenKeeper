@@ -536,12 +536,18 @@ public final class GameClientState extends AbstractPauseAwareState {
 
         @Override
         public void onTilesChange(List<Point> updatedTiles) {
-            playerMapViewState.onTilesChange(updatedTiles);
+            PlayerMapViewState mapViewState = playerMapViewState;
+            if (mapViewState != null) {
+                mapViewState.onTilesChange(updatedTiles);
+            }
         }
 
         @Override
         public void onTilesReveal(List<Point> points, boolean explore, short keeperId) {
-            playerMapViewState.onTilesReveal(points, explore, keeperId);
+            PlayerMapViewState mapViewState = playerMapViewState;
+            if (mapViewState != null) {
+                mapViewState.onTilesReveal(points, explore, keeperId);
+            }
         }
 
         @Override
@@ -551,12 +557,18 @@ public final class GameClientState extends AbstractPauseAwareState {
 
         @Override
         public void onFogOfWarDisabled(short keeperId) {
-            playerMapViewState.onFogOfWarDisabled(keeperId);
+            PlayerMapViewState mapViewState = playerMapViewState;
+            if (mapViewState != null) {
+                mapViewState.onFogOfWarDisabled(keeperId);
+            }
         }
 
         @Override
         public void onFogOfWarReset(short keeperId) {
-            playerMapViewState.onFogOfWarReset(keeperId);
+            PlayerMapViewState mapViewState = playerMapViewState;
+            if (mapViewState != null) {
+                mapViewState.onFogOfWarReset(keeperId);
+            }
         }
 
         @Override
@@ -576,12 +588,18 @@ public final class GameClientState extends AbstractPauseAwareState {
 
         @Override
         public void onBuild(short keeperId, List<Point> tiles) {
-            playerMapViewState.onBuild(keeperId, tiles);
+            PlayerMapViewState mapViewState = playerMapViewState;
+            if (mapViewState != null) {
+                mapViewState.onBuild(keeperId, tiles);
+            }
         }
 
         @Override
         public void onSold(short keeperId, List<Point> tiles) {
-            playerMapViewState.onSold(keeperId, tiles);
+            PlayerMapViewState mapViewState = playerMapViewState;
+            if (mapViewState != null) {
+                mapViewState.onSold(keeperId, tiles);
+            }
         }
 
         @Override
@@ -715,7 +733,12 @@ public final class GameClientState extends AbstractPauseAwareState {
 
         @Override
         public void onTileFlash(List<Point> points, boolean enabled, short keeperId) {
-            app.enqueue(() -> playerMapViewState.onTileFlash(points, enabled, keeperId));
+            app.enqueue(() -> {
+                PlayerMapViewState mapViewState = playerMapViewState;
+                if (mapViewState != null) {
+                    mapViewState.onTileFlash(points, enabled, keeperId);
+                }
+            });
         }
 
         @Override

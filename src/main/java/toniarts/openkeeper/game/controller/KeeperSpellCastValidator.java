@@ -81,10 +81,51 @@ public final class KeeperSpellCastValidator {
             EntityData entityData,
             EntityId target,
             int manaCost) {
+        Creature creature = null;
+        Short owner = null;
+        if (target != null) {
+            CreatureComponent creatureComponent = entityData.getComponent(target, CreatureComponent.class);
+            if (creatureComponent != null) {
+                creature = kwdFile.getCreature(creatureComponent.creatureId);
+            }
+            Owner ownerComponent = entityData.getComponent(target, Owner.class);
+            if (ownerComponent != null) {
+                owner = ownerComponent.controlId;
+            }
+        }
+        // The rules that need more than the target's creature and owner are checked only here, on the server
+        return isValidCast(keeperSpell, mapInformation, mapTile, player, creature, owner, manaCost)
+                && checkTurncoatRule(keeperSpell, entityData, target)
+                && checkChickenRule(target, entityData, keeperSpell)
+                && checkReaperRule(keeperSpell, kwdFile, player, entityData);
+    }
+
+    /**
+     * Checks the cast with the target already known, the client knows it from
+     * what it shows and must not look it up from the entity data
+     *
+     * @param keeperSpell the spell
+     * @param mapInformation the map
+     * @param mapTile the tile the spell is cast on
+     * @param player the casting keeper
+     * @param creature the targeted creature, {@code null} if the target is no
+     * creature
+     * @param owner the keeper in control of the target, {@code null} if
+     * there is no target or it has no owner
+     * @param manaCost the mana the cast costs, see {@link KeeperSpellCost}
+     * @return whether the cast is allowed
+     */
+    public static boolean isValidCast(
+            KeeperSpell keeperSpell,
+            IMapInformation mapInformation,
+            IMapTileInformation mapTile,
+            Keeper player,
+            Creature creature,
+            Short owner,
+            int manaCost) {
         return checkPlayerMana(manaCost, player)
                 && checkCastRule(mapInformation, mapTile, keeperSpell, player)
-                && checkTargetRule(target, entityData, kwdFile, keeperSpell, player)
-                && checkReaperRule(keeperSpell, kwdFile, player, entityData);
+                && checkTargetRule(creature, owner, keeperSpell, player);
     }
 
     /**
@@ -200,20 +241,8 @@ public final class KeeperSpellCastValidator {
                 || gameTime - entityData.getComponent(lastCast, KeeperSpellCast.class).castTime >= keeperSpell.getRechargeTime();
     }
 
-    private static boolean checkTargetRule(EntityId target, EntityData entityData, IKwdFile kwdFile, KeeperSpell keeperSpell, Keeper player) {
+    private static boolean checkTargetRule(Creature creature, Short owner, KeeperSpell keeperSpell, Keeper player) {
         short playerId = player.getId();
-        Creature creature = null;
-        Short owner = null;
-        if (target != null) {
-            CreatureComponent creatureComponent = entityData.getComponent(target, CreatureComponent.class);
-            if (creatureComponent != null) {
-                creature = kwdFile.getCreature(creatureComponent.creatureId);
-            }
-            Owner ownerComponent = entityData.getComponent(target, Owner.class);
-            if (ownerComponent != null) {
-                owner = ownerComponent.controlId;
-            }
-        }
 
         switch (keeperSpell.getTargetRule()) {
             case ALL, LAND -> {
@@ -227,7 +256,7 @@ public final class KeeperSpellCastValidator {
                 }
             }
             case ENEMY_CREATURES -> {
-                if (creature == null || owner == null || !checkTurncoatRule(keeperSpell, entityData, target)) {
+                if (creature == null || owner == null) {
                     return false;
                 }
                 if (!player.isEnemy(owner)) {
@@ -249,7 +278,7 @@ public final class KeeperSpellCastValidator {
             }
         }
 
-        return checkChickenRule(target, entityData, keeperSpell);
+        return true;
     }
 
     /**
