@@ -283,7 +283,7 @@ public final class GameServerState extends AbstractAppState {
 
         @Override
         public void onButtonPressed(short buttonType, short buttonId, short playerId) {
-            game.getGameController().getPlayerController(playerId).getStatsControl().buttonPressed(buttonType, buttonId);
+            game.runPlayerAction(() -> game.getGameController().getPlayerController(playerId).getStatsControl().buttonPressed(buttonType, buttonId));
         }
 
         @Override
@@ -322,12 +322,12 @@ public final class GameServerState extends AbstractAppState {
 
         @Override
         public void onAddGoldCheatTriggered(int amount, short playerId) {
-            cheatController.addGold(amount, playerId);
+            game.runPlayerAction(() -> cheatController.addGold(amount, playerId));
         }
 
         @Override
         public void onAddManaCheatTriggered(int amount, short playerId) {
-            cheatController.addMana(amount, playerId);
+            game.runPlayerAction(() -> cheatController.addMana(amount, playerId));
         }
 
         @Override
@@ -340,26 +340,32 @@ public final class GameServerState extends AbstractAppState {
 
         @Override
         public void onSetPossessedAttack(boolean attacking, int spell, short playerId) {
-            EntityId possessed = gameWorldController.getCreaturesController().getPossessedCreature(playerId);
-            if (possessed != null) {
-                gameWorldController.getCreaturesController().createController(possessed).setPossessedAttack(attacking, spell);
-            }
+            game.runPlayerAction(() -> {
+                EntityId possessed = gameWorldController.getCreaturesController().getPossessedCreature(playerId);
+                if (possessed != null) {
+                    gameWorldController.getCreaturesController().createController(possessed).setPossessedAttack(attacking, spell);
+                }
+            });
         }
 
         @Override
         public void onAddPossessedFollower(short playerId) {
-            EntityId possessed = gameWorldController.getCreaturesController().getPossessedCreature(playerId);
-            if (possessed != null) {
-                gameWorldController.getCreaturesController().createController(possessed).addPossessedFollower();
-            }
+            game.runPlayerAction(() -> {
+                EntityId possessed = gameWorldController.getCreaturesController().getPossessedCreature(playerId);
+                if (possessed != null) {
+                    gameWorldController.getCreaturesController().createController(possessed).addPossessedFollower();
+                }
+            });
         }
 
         @Override
         public void onUsePossessedAbility(int ability, short playerId) {
-            EntityId possessed = gameWorldController.getCreaturesController().getPossessedCreature(playerId);
-            if (possessed != null) {
-                gameWorldController.getCreaturesController().createController(possessed).usePossessedAbility(ability);
-            }
+            game.runPlayerAction(() -> {
+                EntityId possessed = gameWorldController.getCreaturesController().getPossessedCreature(playerId);
+                if (possessed != null) {
+                    gameWorldController.getCreaturesController().createController(possessed).usePossessedAbility(ability);
+                }
+            });
         }
 
         @Override
