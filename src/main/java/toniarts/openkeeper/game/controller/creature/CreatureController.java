@@ -2295,7 +2295,7 @@ public final class CreatureController extends EntityController implements ICreat
 
     private void addLooseGold(int amount) {
         Point coordinates = getCreatureCoordinates();
-        objectsController.addLooseGold(getOwnerId(), coordinates.x, coordinates.y, amount, (int) gameSettings.get(Variable.MiscVariable.MiscType.MAX_GOLD_PILE_OUTSIDE_TREASURY).getValue());
+        objectsController.addLooseGold(coordinates.x, coordinates.y, amount, (int) gameSettings.get(Variable.MiscVariable.MiscType.MAX_GOLD_PILE_OUTSIDE_TREASURY).getValue());
     }
 
     @Override

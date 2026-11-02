@@ -83,7 +83,6 @@ class SlapSystemTest {
         assertEquals(500, entityData.getComponent(bigWinner, Gold.class).gold);
         assertEquals(2, goldPiles.size());
         for (int[] pile : goldPiles) {
-            assertEquals(KEEPER, pile[0]);
             assertEquals(6, pile[1]);
             assertEquals(6, pile[2]);
             assertEquals(500, pile[3]);
@@ -161,7 +160,7 @@ class SlapSystemTest {
     private IObjectsController objectsController() {
         return (IObjectsController) Proxy.newProxyInstance(IObjectsController.class.getClassLoader(), new Class<?>[]{IObjectsController.class}, (proxy, method, args) -> {
             if ("addLooseGold".equals(method.getName())) {
-                goldPiles.add(new int[]{(short) args[0], (int) args[1], (int) args[2], (int) args[3]});
+                goldPiles.add(new int[]{0, (int) args[0], (int) args[1], (int) args[2]});
                 return null;
             }
             throw new UnsupportedOperationException(method.getName());

@@ -117,7 +117,7 @@ class CreatureDropGoldTest {
                     if (!method.getName().equals("addLooseGold")) {
                         throw new UnsupportedOperationException(method.getName());
                     }
-                    droppedGold.add(new int[]{(int) args[1], (int) args[2], (int) args[3], (int) args[4]});
+                    droppedGold.add(new int[]{(int) args[0], (int) args[1], (int) args[2], (int) args[3]});
                     return entityData.createEntity();
                 });
     }
