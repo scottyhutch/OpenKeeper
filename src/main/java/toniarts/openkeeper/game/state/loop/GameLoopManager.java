@@ -195,10 +195,12 @@ public final class GameLoopManager {
     }
 
     public void start() {
+        ThreadCheck.setRunning(true);
         loops.stream().forEach(GameLoop::start);
     }
 
     public void stop() {
+        ThreadCheck.setRunning(false);
         loops.forEach(GameLoop::stop);
         loops.clear();
     }

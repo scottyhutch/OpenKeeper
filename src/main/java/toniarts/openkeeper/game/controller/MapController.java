@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.controller;
 
+import toniarts.openkeeper.game.state.loop.ThreadCheck;
 import com.jme3.math.Vector2f;
 import com.jme3.util.SafeArrayList;
 import com.simsilica.es.EntityData;
@@ -276,6 +277,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void selectTiles(Vector2f start, Vector2f end, boolean select, short playerId) {
+        ThreadCheck.logic("MapController.selectTiles");
         List<Point> updatableTiles = new ArrayList<>();
         for (int x = (int) Math.max(0, start.x); x < Math.min(kwdFile.getMap().getWidth(), end.x + 1); x++) {
             for (int y = (int) Math.max(0, start.y); y < Math.min(kwdFile.getMap().getHeight(), end.y + 1); y++) {
@@ -343,6 +345,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void setTiles(List<IMapTileController> tiles) {
+        ThreadCheck.logic("MapController.setTiles");
         mapInformation.setTiles(tiles);
     }
 
@@ -395,6 +398,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void removeRoomInstances(EntityId... instances) {
+        ThreadCheck.logic("MapController.removeRoomInstances");
         for (EntityId instance : instances) {
 
             // Signal the room
@@ -443,6 +447,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void updateRooms(Point[] coordinates) {
+        ThreadCheck.logic("MapController.updateRooms");
         for (Point p : coordinates) {
             loadRoom(p, null);
         }
@@ -495,6 +500,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void applyClaimTile(Point point, short playerId, ICreatureController creature) {
+        ThreadCheck.logic("MapController.applyClaimTile");
         IMapTileController tile = getMapData().getTile(point);
         Terrain terrain = getTerrain(tile);
         if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE) && tile.getOwnerId() != playerId) {
@@ -512,6 +518,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public int damageTile(Point point, short playerId, ICreatureController creature) {
+        ThreadCheck.logic("MapController.damageTile");
         IMapTileController tile = getMapData().getTile(point);
         Terrain terrain = getTerrain(tile);
 
@@ -606,6 +613,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void applyTerrainDamage(Point point, int damage) {
+        ThreadCheck.logic("MapController.applyTerrainDamage");
         IMapTileController tile = getMapData().getTile(point);
         if (tile == null) {
             return;
@@ -627,6 +635,7 @@ public final class MapController extends Container implements IMapController {
      */
     @Override
     public void healTile(Point point, short playerId, ICreatureController creature) {
+        ThreadCheck.logic("MapController.healTile");
         IMapTileController tile = getMapData().getTile(point);
         Terrain terrain = getTerrain(tile);
 
@@ -827,6 +836,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void alterTerrain(Point pos, short terrainId, short playerId) {
+        ThreadCheck.logic("MapController.alterTerrain");
         IMapTileController tile = getMapData().getTile(pos.x, pos.y);
         if (tile == null) {
             return;
@@ -845,6 +855,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void transferRoom(IRoomController room, short playerId) {
+        ThreadCheck.logic("MapController.transferRoom");
         short previousOwner = room.getOwnerId();
         List<Point> roomTiles = room.getRoomInstance().getCoordinates();
         for (Point p : roomTiles) {
@@ -863,6 +874,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void flashTiles(List<Point> points, short playerId, int time) {
+        ThreadCheck.logic("MapController.flashTiles");
         List<Point> tilesToUpdate = new ArrayList<>(points.size());
 
         // Mark the tiles as being flashed
@@ -910,6 +922,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void revealTiles(List<Point> points, short playerId) {
+        ThreadCheck.logic("MapController.revealTiles");
         for (MapListener mapListener : mapListeners.getArray()) {
             mapListener.onTilesReveal(points, true, playerId);
         }
@@ -917,6 +930,7 @@ public final class MapController extends Container implements IMapController {
 
     @Override
     public void concealTiles(List<Point> points, short playerId) {
+        ThreadCheck.logic("MapController.concealTiles");
         for (MapListener mapListener : mapListeners.getArray()) {
             mapListener.onTilesReveal(points, false, playerId);
         }

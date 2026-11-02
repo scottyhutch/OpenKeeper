@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.controller;
 
+import toniarts.openkeeper.game.state.loop.ThreadCheck;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.jme3.util.SafeArrayList;
@@ -239,6 +240,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
      */
     @Override
     public int addGold(short playerId, int sum) {
+        ThreadCheck.logic("GameWorldController.addGold");
         return addGold(playerId, null, sum);
     }
 
@@ -252,6 +254,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
      */
     @Override
     public int addGold(short playerId, Point p, int sum) {
+        ThreadCheck.logic("GameWorldController.addGold");
 
         // Gold to specified point/room
         int moneyLeft = sum;
@@ -292,6 +295,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
      */
     @Override
     public int substractGold(int amount, short playerId) {
+        ThreadCheck.logic("GameWorldController.substractGold");
 
         // See if the player has any gold even
         if (playerControllers.get(playerId).getGoldControl().getGold() == 0) {
@@ -326,6 +330,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public int substractGold(int amount, short playerId, Point p) {
+        ThreadCheck.logic("GameWorldController.substractGold");
 
         IRoomController room = mapController.getRoomControllerByCoordinates(p);
         if (room == null || room.getRoomInstance().getOwnerId() != playerId || !room.canStoreGold()) {
@@ -359,6 +364,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void build(Vector2f start, Vector2f end, short playerId, short roomId) {
+        ThreadCheck.logic("GameWorldController.build");
         Keeper player = players.get(playerId);
         if (player == null) {
             return;
@@ -577,6 +583,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void sell(Vector2f start, Vector2f end, short playerId) {
+        ThreadCheck.logic("GameWorldController.sell");
 
         // A trap or a door is sold on its own, one at a time and never together with rooms
         Point startTile = new Point((int) start.x, (int) start.y);
@@ -726,6 +733,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void destroyRoomTiles(Collection<Point> points) {
+        ThreadCheck.logic("GameWorldController.destroyRoomTiles");
         Set<Point> updatableTiles = new HashSet<>();
         Set<EntityId> destroyedInstances = new HashSet<>();
         Map<Short, List<Point>> destroyedTilesByOwner = new java.util.HashMap<>();
@@ -865,6 +873,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void selectTiles(Vector2f start, Vector2f end, boolean select, short playerId) {
+        ThreadCheck.logic("GameWorldController.selectTiles");
         mapController.selectTiles(start, end, select, playerId);
     }
 
@@ -923,6 +932,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void pickUp(EntityId entity, short playerId) {
+        ThreadCheck.logic("GameWorldController.pickUp");
         if (activateSpecialOnOwnLand(entity, playerId) || turnLevelIndicator(entity, 1)) {
             return;
         }
@@ -1244,6 +1254,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void interact(EntityId entity, short playerId) {
+        ThreadCheck.logic("GameWorldController.interact");
 
         // Creatures can only be slapped, also enemies held in our prison
         // TODO: Slap limit
@@ -1291,6 +1302,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void drop(EntityId entity, Point tile, Vector2f coordinates, EntityId dropOnEntity, short playerId) {
+        ThreadCheck.logic("GameWorldController.drop");
         PlayerHandControl playerHandControl = playerControllers.get(playerId).getHandControl();
         IMapTileInformation mapTile = mapController.getMapData().getTile(tile);
         Terrain terrain = mapTile != null ? mapController.getTerrain(mapTile) : null;
@@ -1563,6 +1575,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void getGold(int amount, short playerId) {
+        ThreadCheck.logic("GameWorldController.getGold");
         int maxGold = (int) gameSettings.get(Variable.MiscVariable.MiscType.MAX_GOLD_PILE_OUTSIDE_TREASURY).getValue();
         int realAmount = Math.min(amount, maxGold);
         PlayerHandControl playerHandControl = playerControllers.get(playerId).getHandControl();
@@ -1615,6 +1628,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void castKeeperSpell(short keeperSpellId, EntityId target, Point tile, Vector2f position, short playerId) {
+        ThreadCheck.logic("GameWorldController.castKeeperSpell");
         KeeperSpell keeperSpell = kwdFile.getKeeperSpellById(keeperSpellId);
         if (keeperSpell == null) {
             logger.log(Level.WARNING, "Invalid spell ID for spell casting received, was: {0}", keeperSpellId);
@@ -1681,6 +1695,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void placeDoor(short doorId, Point tile, short playerId) {
+        ThreadCheck.logic("GameWorldController.placeDoor");
         Door door = kwdFile.getDoorById(doorId);
         if (door == null) {
             logger.log(Level.WARNING, "Invalid door ID for door placement received, was: {0}", doorId);
@@ -1730,6 +1745,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     @Override
     public void placeTrap(short trapId, Point tile, short playerId) {
+        ThreadCheck.logic("GameWorldController.placeTrap");
         Trap trap = kwdFile.getTrapById(trapId);
         if (trap == null) {
             logger.log(Level.WARNING, "Invalid trap ID for trap placement received, was: {0}", trapId);

@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.logic;
 
+import toniarts.openkeeper.game.state.loop.ThreadCheck;
 import com.jme3.math.Vector3f;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
@@ -95,6 +96,7 @@ public final class PositionSystem implements IGameLogicUpdatable, IEntityPositio
 
     @Override
     public void processTick(float tpf) {
+        ThreadCheck.loops("PositionSystem.processTick");
         // This is just a cache for a tick
         sensedEntitiesByEntity.clear();
 

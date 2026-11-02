@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.controller.player;
 
+import toniarts.openkeeper.game.state.loop.ThreadCheck;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.filter.FieldFilter;
@@ -42,6 +43,7 @@ public final class PlayerGoldControl implements RoomListener {
     }
 
     public void addGold(int value) {
+        ThreadCheck.logic("PlayerGoldControl.addGold");
         if (value < 0) {
             return;
         }
@@ -51,6 +53,7 @@ public final class PlayerGoldControl implements RoomListener {
     }
 
     public boolean subGold(int value) {
+        ThreadCheck.logic("PlayerGoldControl.subGold");
         Gold gold = getGoldComponent();
         if (gold.gold >= value && value > 0) {
             setGold(gold.gold - value, gold.maxGold);

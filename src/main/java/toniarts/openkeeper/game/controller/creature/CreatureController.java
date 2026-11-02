@@ -299,6 +299,7 @@ public final class CreatureController extends EntityController implements ICreat
         this.stateMachine = new DefaultStateMachine<>(this) {
             @Override
             public void changeState(CreatureState newState) {
+                toniarts.openkeeper.game.state.loop.ThreadCheck.logic("CreatureController.changeState");
                 CreatureAi ai = entityData.getComponent(entityId, CreatureAi.class);
                 CreatureState target = ai == null ? null : ai.getTargetState();
                 if (newState == CreatureState.IDLE && target != null) {

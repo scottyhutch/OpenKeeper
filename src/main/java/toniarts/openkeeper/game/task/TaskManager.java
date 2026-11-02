@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.task;
 
+import toniarts.openkeeper.game.state.loop.ThreadCheck;
 import com.badlogic.gdx.ai.pfa.GraphPath;
 import com.jme3.math.FastMath;
 import com.jme3.math.Vector2f;
@@ -799,6 +800,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     }
 
     public void addTask(short playerId, Task task) {
+        ThreadCheck.logic("TaskManager.addTask");
         Set<Task> tasks = taskQueues.get(playerId);
         if (!tasks.contains(task)) {
             tasks.add(task);
@@ -811,6 +813,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     @Override
     public boolean assignGoldToTreasuryTask(ICreatureController creature) {
+        ThreadCheck.logic("TaskManager.assignGoldToTreasuryTask");
 
         // See if the creature's player lacks of gold
         IPlayerController player = playerControllers.get(creature.getOwnerId());
@@ -822,6 +825,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     @Override
     public boolean assignClosestRoomTask(ICreatureController creature, ObjectType objectType, EntityId target) {
+        ThreadCheck.logic("TaskManager.assignClosestRoomTask");
         return assignClosestRoomTask(creature, objectType, target, true);
     }
 
@@ -836,6 +840,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      * @return true if the creature was given a new task
      */
     public boolean assignFreeRoomTask(ICreatureController creature, IRoomController room, ObjectType objectType) {
+        ThreadCheck.logic("TaskManager.assignFreeRoomTask");
         Collection<Point> takenPoints = roomTasks.getOrDefault(room, Map.of()).values();
         Point currentPosition = creature.getCreatureCoordinates();
         IRoomObjectControl<?> control = room.getObjectControl(objectType);
@@ -1011,6 +1016,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     @Override
     public boolean assignObjectiveTask(ICreatureController creature, Thing.HeroParty.Objective objective) {
+        ThreadCheck.logic("TaskManager.assignObjectiveTask");
         AbstractObjectiveTask task = null;
         try {
             String heroState = objective + " player=" + creature.getObjectiveTargetPlayerId() + " ap=" + creature.getObjectiveTargetActionPointId();
@@ -1130,11 +1136,13 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     @Override
     public boolean isTaskAvailable(ICreatureController creature, Creature.JobType jobType) {
+        ThreadCheck.logic("TaskManager.isTaskAvailable");
         return assignTask(creature, jobType, false);
     }
 
     @Override
     public boolean assignTask(ICreatureController creature, Creature.JobType jobType) {
+        ThreadCheck.logic("TaskManager.assignTask");
         return assignTask(creature, jobType, true);
     }
 
@@ -1165,6 +1173,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     @Override
     public boolean assignSleepTask(ICreatureController creature) {
+        ThreadCheck.logic("TaskManager.assignSleepTask");
         GoToSleep task = new GoToSleep(navigationService, mapController, creature);
         if (task.isReachable(creature)) {
             task.assign(creature, true);
@@ -1176,6 +1185,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     @Override
     public boolean assignDestroyRoomTask(ICreatureController creature, Point tile) {
+        ThreadCheck.logic("TaskManager.assignDestroyRoomTask");
         DestroyRoomTile task = new DestroyRoomTile(navigationService, mapController, gameWorldController, gameSettings,
                 levelInfo.getLevelData().getGameLevel().getTicksPerSec(), tile, creature.getOwnerId());
         if (task.isValid(creature)) {
@@ -1188,6 +1198,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     @Override
     public boolean assignEatTask(ICreatureController creature) {
+        ThreadCheck.logic("TaskManager.assignEatTask");
 
         // The creatures in the original don't seem to make anykind of reservations on the food items, I've seen them "fight over food", first come first serve
         // Hmm, is this a good way to find the food, performance-wise...?
@@ -1225,6 +1236,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     @Override
     public boolean assignCollectWinningsTask(ICreatureController creature) {
+        ThreadCheck.logic("TaskManager.assignCollectWinningsTask");
 
         // The keeper's gold is in the Treasuries and the Dungeon Heart, go to the nearest one we can reach
         Point currentLocation = creature.getCreatureCoordinates();
@@ -1270,11 +1282,13 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     @Override
     public void addToUnemployedWorkerQueue(ICreatureController creature, Consumer<Boolean> workResult) {
+        ThreadCheck.logic("TaskManager.addToUnemployedWorkerQueue");
         unemployedCreatures.put(creature, workResult);
     }
 
     @Override
     public void processUnemployedWorkerQueue() {
+        ThreadCheck.logic("TaskManager.processUnemployedWorkerQueue");
         if (unemployedCreatures.isEmpty()) {
             return;
         }
