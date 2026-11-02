@@ -44,7 +44,6 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
-import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.component.PossessedMovement;
 import toniarts.openkeeper.game.component.SpeedUp;
 import toniarts.openkeeper.game.controller.ICreaturesController;
@@ -291,9 +290,10 @@ class PossessedSpellTest {
         controller.setPossessedAttack(true, 1);
         controller.setPossessedAttack(false, 1);
 
-        PossessedAttack possessedAttack = entityData.getComponent(us, PossessedAttack.class);
-        assertFalse(possessedAttack.held);
-        assertEquals(1, possessedAttack.spell);
+        Possessed possessed = entityData.getComponent(us, Possessed.class);
+        assertFalse(possessed.attackHeld);
+        assertTrue(possessed.isAttackPending());
+        assertEquals(1, possessed.attackSpell);
     }
 
     @Test
@@ -379,7 +379,7 @@ class PossessedSpellTest {
     }
 
     private void cast(CreatureController controller, int spell) {
-        entityData.setComponent(us, new PossessedAttack(true, gameTime, spell));
+        entityData.setComponent(us, new Possessed(0, 0, true, gameTime, spell));
         controller.executePossessedAttack();
     }
 
