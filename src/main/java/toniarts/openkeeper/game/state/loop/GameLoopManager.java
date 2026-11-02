@@ -54,6 +54,8 @@ public final class GameLoopManager {
 
     private final IGameController gameController;
 
+    private final GameLogicManager gameLogicThread;
+
     private final PayDaySystem payDaySystem;
 
     /**
@@ -81,7 +83,7 @@ public final class GameLoopManager {
                 playerControllers.values(), gameWorldController, gameSettings);
 
         // Game logic
-        final GameLogicManager gameLogicThread = new GameLogicManager(
+        gameLogicThread = new GameLogicManager(
                 gameWorldController.getMapController(),
                 new DecaySystem(entityData),
                 new JailBreakSystem(entityData, levelInfo, gameWorldController.getMapController()),
@@ -203,6 +205,17 @@ public final class GameLoopManager {
 
     public IGameController getGameController() {
         return gameController;
+    }
+
+    /**
+     * Runs a player action between the game logic ticks. Player actions come
+     * from the render thread (or the network thread) and change the same
+     * state as the game logic does
+     *
+     * @param action the player action
+     */
+    public void runPlayerAction(Runnable action) {
+        gameLogicThread.runBetweenTicks(action);
     }
 
     public PayDaySystem getPayDaySystem() {
