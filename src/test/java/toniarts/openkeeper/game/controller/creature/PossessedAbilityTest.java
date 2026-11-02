@@ -367,7 +367,8 @@ class PossessedAbilityTest {
         controller.usePossessedAbility(2);
 
         entityData.setComponent(knight, new Unconscious(0));
-        new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null, () -> 0.0, stub(GameEventService.class, (name, args) -> null)).processTick(0.25f);
+        new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null, () -> 0.0,
+                stub(GameEventService.class, (name, args) -> null)).processTick(0.25f);
 
         assertNull(entityData.getComponent(knight, Hypnotised.class));
         assertNull(entityData.getComponent(knight, Mana.class));
