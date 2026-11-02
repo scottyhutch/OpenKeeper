@@ -32,6 +32,23 @@ public final class Possessed implements EntityComponent {
     public int manaDrain;
     public double manaCheckTime;
 
+    /**
+     * Attack intent of the possessing keeper. The swing itself happens on the
+     * game logic thread. Whether the attack button is still held down.
+     */
+    public boolean attackHeld;
+
+    /**
+     * When the attack button was pressed, {@code NaN} if there is no pending
+     * attack. A released attack that hasn't swung yet still swings once.
+     */
+    public double attackPressTime = Double.NaN;
+
+    /**
+     * The keeper picks a creature to join the group instead of swinging
+     */
+    public boolean attackGroup;
+
     public Possessed() {
         // For serialization
     }
@@ -39,6 +56,22 @@ public final class Possessed implements EntityComponent {
     public Possessed(int manaDrain, double manaCheckTime) {
         this.manaDrain = manaDrain;
         this.manaCheckTime = manaCheckTime;
+    }
+
+    public Possessed(int manaDrain, double manaCheckTime, boolean attackHeld, double attackPressTime) {
+        this(manaDrain, manaCheckTime, attackHeld, attackPressTime, false);
+    }
+
+    public Possessed(int manaDrain, double manaCheckTime, boolean attackHeld, double attackPressTime, boolean attackGroup) {
+        this.manaDrain = manaDrain;
+        this.manaCheckTime = manaCheckTime;
+        this.attackHeld = attackHeld;
+        this.attackPressTime = attackPressTime;
+        this.attackGroup = attackGroup;
+    }
+
+    public boolean isAttackPending() {
+        return attackHeld || !Double.isNaN(attackPressTime);
     }
 
 }
