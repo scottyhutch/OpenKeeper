@@ -140,6 +140,7 @@ public final class GameLoopManager {
                 new CasinoSystem(entityData, gameWorldController.getCreaturesController(),
                         gameWorldController.getMapController(), positionSystem, gameController.getGameTimer(), gameEventService, gameSettings),
                 new ChickenAiSystem(entityData, gameWorldController.getObjectsController()),
+                new SeparationSystem(entityData, level, gameWorldController.getMapController(), positionSystem),
                 new TrainingDummySystem(entityData, levelInfo.getLevelData(), gameWorldController.getMapController()),
                 new CreatureViewSystem(entityData, levelInfo.getLevelData()),
                 new DoorSystem(entityData, level, gameWorldController.getMapController(), levelInfo),
@@ -172,7 +173,7 @@ public final class GameLoopManager {
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));
 
         // Steering
-        loops.add(new GameLoop(new GameLogicManager(new MovementSystem(entityData, level, gameWorldController.getMapController(), positionSystem),
+        loops.add(new GameLoop(new GameLogicManager(new MovementSystem(entityData),
                 new PossessedMovementSystem(entityData, gameWorldController.getMapController(),
                         positionSystem, gameWorldController.getCreaturesController(), gameController.getGameTimer())), GameLoop.INTERVAL_FPS_60, "Steering"));
     }
