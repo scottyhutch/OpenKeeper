@@ -28,6 +28,7 @@ import com.simsilica.es.EntityId;
 import java.lang.System.Logger;
 import java.util.Collection;
 import java.util.Objects;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
@@ -58,6 +59,18 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
 
     private static final long IN_HAND_SOUND_INTERVAL_MS = 8000;
     private static final long DIG_SOUND_RETRY_MS = 250;
+    /**
+     * The skeletons DK II shows on the Electric Chair for the creatures that
+     * don't have their own, picked at random for each shock
+     */
+    private static final ArtResource[] ELECTROCUTE_SKELETONS = {
+        new ArtResource("Electrocute1", ArtResource.ArtResourceType.ANIMATING_MESH),
+        new ArtResource("Electrocute2", ArtResource.ArtResourceType.ANIMATING_MESH),
+        new ArtResource("Electrocute3", ArtResource.ArtResourceType.ANIMATING_MESH),
+        new ArtResource("Electrocute4", ArtResource.ArtResourceType.ANIMATING_MESH),
+        new ArtResource("Electrocute5", ArtResource.ArtResourceType.ANIMATING_MESH),
+        new ArtResource("Electrocute6", ArtResource.ArtResourceType.ANIMATING_MESH)
+    };
 
     private long nextInHandSound;
     private int researchSound = SoundEngine.NO_HANDLE;
@@ -332,7 +345,11 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         if (morphed && state != Creature.AnimationType.DIE && state != Creature.AnimationType.DEATH_POSE) {
             return state == Creature.AnimationType.IN_HAND ? morphObject.getInHandMeshResource() : morphObject.getMeshResource();
         }
-        return getDataObject().getAnimation(getAvailableAnimation(state));
+        ArtResource animation = getDataObject().getAnimation(getAvailableAnimation(state));
+        if (animation == null && state == Creature.AnimationType.TORTURED_CHAIR_SKELETON) {
+            return ELECTROCUTE_SKELETONS[ThreadLocalRandom.current().nextInt(ELECTROCUTE_SKELETONS.length)];
+        }
+        return animation;
     }
 
     private Creature.AnimationType getAvailableAnimation(Creature.AnimationType state) {
