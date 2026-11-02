@@ -31,6 +31,7 @@ import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.InHand;
@@ -84,6 +85,7 @@ class ReaperAiTest {
 
         entityData.setComponent(reaper, new Owner(PLAYER_ID, PLAYER_ID));
         entityData.setComponent(reaper, new Position(0, WorldUtils.pointToVector3f(REAPER_TILE)));
+        entityData.setComponent(reaper, new CreatureMeleeAttack(0, 100, 1, 0.65f));
     }
 
     @Test

@@ -153,9 +153,9 @@ class DungeonHeartAttackTest {
 
     @Test
     void creatureNextToTheHeartStaysOnItEvenForAWorkerAttackingIt() {
-        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 12));
+        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 8));
         EntityId heart = createHeart(KEEPER);
-        EntityId worker = createCreature(KEEPER, IMP, new Point(11, 12));
+        EntityId worker = createCreature(KEEPER, IMP, new Point(11, 8));
         sensed.put(hero, Set.of(heart, worker));
         entityData.setComponent(hero, new AttackTarget(heart));
 
@@ -419,18 +419,19 @@ class DungeonHeartAttackTest {
     @Test
     void creatureHittingTheHeartTurnsToFaceIt() {
         EntityId heart = createHeart(KEEPER);
-        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 12));
+        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 8));
+        entityData.setComponent(hero, new Position((float) Math.PI, new Vector3f(10, 0, 8)));
 
         // Arrived on the ring facing away, with no navigation to turn it
         createController(hero).executeAttack(heart);
 
         Navigation navigation = entityData.getComponent(hero, Navigation.class);
         assertEquals(HEART_TILE, navigation.faceTarget);
-        assertEquals(new Point(10, 12), navigation.target);
+        assertEquals(new Point(10, 8), navigation.target);
 
         // Already facing it, nothing to steer
         entityData.removeComponent(hero, Navigation.class);
-        entityData.setComponent(hero, new Position((float) Math.PI, new Vector3f(10, 0, 12)));
+        entityData.setComponent(hero, new Position(0, new Vector3f(10, 0, 8)));
         createController(hero).executeAttack(heart);
 
         assertNull(entityData.getComponent(hero, Navigation.class));
