@@ -171,7 +171,7 @@ public final class GameLoopManager {
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));
 
         // Steering, the hauled things move right along with their haulers
-        loops.add(new GameLoop(new GameLogicManager(new MovementSystem(entityData),
+        loops.add(new GameLoop(new GameLogicManager(new MovementSystem(entityData, level, gameWorldController.getMapController(), positionSystem),
                 new PossessedMovementSystem(entityData, gameWorldController.getMapController(),
                         positionSystem, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
                 new HaulingSystem(entityData)), GameLoop.INTERVAL_FPS_60, "Steering"));

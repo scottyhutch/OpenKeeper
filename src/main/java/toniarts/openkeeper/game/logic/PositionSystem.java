@@ -81,8 +81,9 @@ public final class PositionSystem implements IGameLogicUpdatable, IEntityPositio
         Set<EntityId>[][] obstacles = new Set[width][height];
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
-                entities[x][y] = new HashSet<>();
-                obstacles[x][y] = new HashSet<>();
+                // The steering loop reads these too
+                entities[x][y] = ConcurrentHashMap.newKeySet();
+                obstacles[x][y] = ConcurrentHashMap.newKeySet();
             }
         }
         entitiesByMapTile = entities;
