@@ -92,6 +92,7 @@ class DoorDamageTest {
                 MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND, DoorFixtures.miscVariable(MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND, 0),
                 MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, DoorFixtures.miscVariable(MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, 0)),
                 null, levelInfo, List.of(), mapController,
+                () -> 0.0,
                 (GameEventService) Proxy.newProxyInstance(GameEventService.class.getClassLoader(),
                         new Class<?>[]{GameEventService.class}, (proxy, method, args) -> null));
         healthSystem.processTick(0.25f);

@@ -38,11 +38,11 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
-import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -266,14 +266,15 @@ class PossessedAttackTest {
 
         controller.setPossessedAttack(true);
         controller.setPossessedAttack(false);
-        assertFalse(entityData.getComponent(us, PossessedAttack.class).held);
+        assertFalse(entityData.getComponent(us, Possessed.class).attackHeld);
+        assertTrue(entityData.getComponent(us, Possessed.class).isAttackPending());
 
         controller.executePossessedAttack();
         gameTime += RECHARGE;
         controller.setPossessedAttack(true);
         controller.executePossessedAttack();
         controller.setPossessedAttack(false);
-        assertNull(entityData.getComponent(us, PossessedAttack.class));
+        assertFalse(entityData.getComponent(us, Possessed.class).isAttackPending());
     }
 
     @Test
