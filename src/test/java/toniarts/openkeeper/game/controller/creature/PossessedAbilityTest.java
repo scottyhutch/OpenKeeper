@@ -188,13 +188,15 @@ class PossessedAbilityTest {
         gameSettings.put(Variable.MiscVariable.MiscType.MODIFY_CREATURE_HEALTH_WHILE_PRAYING_PER_SECOND,
                 PossessionFixtures.miscVariable(Variable.MiscVariable.MiscType.MODIFY_CREATURE_HEALTH_WHILE_PRAYING_PER_SECOND, 33));
         entityData.setComponents(us, new Health(100, 1000), new PossessedAbility(Creature.SpecialAbility.PRAY, 0));
-        HealthSystem healthSystem = new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null,
-                stub(GameEventService.class, (name, args) -> null));
+        double[] time = {0.5};
+        HealthSystem healthSystem = new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null, () -> time[0], stub(GameEventService.class, (name, args) -> null));
 
         healthSystem.processTick(0.5f);
         assertEquals(100, entityData.getComponent(us, Health.class).health);
 
+        time[0] = 1;
         healthSystem.processTick(0.5f);
+        time[0] = 1.5;
         healthSystem.processTick(0.5f);
         assertEquals(133, entityData.getComponent(us, Health.class).health);
     }
@@ -360,7 +362,7 @@ class PossessedAbilityTest {
         controller.usePossessedAbility(2);
 
         entityData.setComponent(knight, new Unconscious(0));
-        new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null,
+        new HealthSystem(entityData, null, gameSettings, null, null, List.of(), null, () -> 0.0,
                 stub(GameEventService.class, (name, args) -> null)).processTick(0.25f);
 
         assertNull(entityData.getComponent(knight, Hypnotised.class));
