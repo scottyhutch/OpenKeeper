@@ -30,6 +30,7 @@ import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
+import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.InHand;
@@ -275,7 +276,7 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
 
         for (EntityId heart : hearts) {
             Point heartTile = WorldUtils.vectorToPoint(entityData.getComponent(heart, Position.class).position);
-            Point attackTile = DungeonHeartTarget.getAttackTile(from, heartTile,
+            Point attackTile = DungeonHeartTarget.getAttackTile(from, heartTile, entityData.getComponent(reaper, CreatureMeleeAttack.class).range,
                     tile -> tile.equals(from) || navigationService.findPath(from, tile, reaperController) != null);
             if (attackTile != null) {
                 entityData.setComponent(reaper, new AttackTarget(heart));
