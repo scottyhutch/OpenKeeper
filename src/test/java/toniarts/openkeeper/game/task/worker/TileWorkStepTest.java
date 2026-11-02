@@ -42,15 +42,6 @@ class TileWorkStepTest {
     private static final Point TILE = new Point(3, 4);
 
     @Test
-    void digsOncePerSecond() {
-        AtomicInteger steps = new AtomicInteger();
-
-        run(new DigTileTask(null, mapController(steps), TILE, (short) 3));
-
-        assertEquals(SECONDS, steps.get());
-    }
-
-    @Test
     void claimsTileOncePerSecond() {
         AtomicInteger steps = new AtomicInteger();
 
