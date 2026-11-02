@@ -489,23 +489,23 @@ public final class MapController extends Container implements IMapController {
         IMapTileController tile = getMapData().getTile(point);
         Terrain terrain = getTerrain(tile);
 
-        // Calculate the damage, the work variables are rates per game second
+        // Calculate the damage, the work variables are rates per game second. The same for every digger: DK II
+        // (0x496E00) never reads DWARF_DIGGING_MULTIPLIER
         float rate;
         int returnedGold = 0;
-        int multiplier = (creature != null && kwdFile.getDwarf() == creature.getCreature() ? (int) getLevelVariable(Variable.MiscVariable.MiscType.DWARF_DIGGING_MULTIPLIER) : 1);
         if (terrain.getFlags().contains(Terrain.TerrainFlag.SOLID)) {
             if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE)) {
                 if (tile.getOwnerId() == playerId) {
-                    rate = getLevelVariable(Variable.MiscVariable.MiscType.DIG_OWN_WALL_HEALTH) * multiplier;
+                    rate = getLevelVariable(Variable.MiscVariable.MiscType.DIG_OWN_WALL_HEALTH);
                 } else {
-                    rate = getLevelVariable(Variable.MiscVariable.MiscType.DIG_ENEMY_WALL_HEALTH) * multiplier;
+                    rate = getLevelVariable(Variable.MiscVariable.MiscType.DIG_ENEMY_WALL_HEALTH);
                 }
             } else if (tile.getGold() > 0) {
 
                 // Mining damages the seam like any dig, the gold comes out in proportion, gems included
                 rate = getLevelVariable(Variable.MiscVariable.MiscType.MINE_GOLD_HEALTH);
             } else {
-                rate = getLevelVariable(Variable.MiscVariable.MiscType.DIG_ROCK_HEALTH) * multiplier;
+                rate = getLevelVariable(Variable.MiscVariable.MiscType.DIG_ROCK_HEALTH);
             }
         } else if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE) && tile.getOwnerId() != playerId) {
 
