@@ -74,7 +74,6 @@ import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAbility;
-import toniarts.openkeeper.game.component.PossessedAttack;
 import toniarts.openkeeper.game.component.PossessedMovement;
 import toniarts.openkeeper.game.component.Senses;
 import toniarts.openkeeper.game.component.Slapped;
@@ -3208,34 +3207,38 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public void setPossessedAttack(boolean attacking, int spell) {
-        PossessedAttack possessedAttack = entityData.getComponent(entityId, PossessedAttack.class);
+        Possessed possessed = entityData.getComponent(entityId, Possessed.class);
+        if (possessed == null) {
+            return;
+        }
         if (attacking) {
-            entityData.setComponent(entityId, new PossessedAttack(true, gameTimer.getGameTime(), false, spell));
-        } else if (possessedAttack != null && !possessedAttack.group) {
+
+            entityData.setComponent(entityId, new Possessed(possessed.manaDrain, possessed.manaCheckTime, true, gameTimer.getGameTime(), spell));
+        } else if (possessed.isAttackPending() && !possessed.attackGroup) {
 
             // A click shorter than a logic tick still gets its one swing
-            if (hasSwungSince(possessedAttack)) {
-                entityData.removeComponent(entityId, PossessedAttack.class);
-            } else {
-                entityData.setComponent(entityId, new PossessedAttack(false, possessedAttack.pressTime, false, possessedAttack.spell));
-            }
+            double pressTime = hasSwungSince(possessed) ? Double.NaN : possessed.attackPressTime;
+            entityData.setComponent(entityId, new Possessed(possessed.manaDrain, possessed.manaCheckTime, false, pressTime, possessed.attackSpell));
         }
     }
 
-    private boolean hasSwungSince(PossessedAttack possessedAttack) {
+    private boolean hasSwungSince(Possessed possessed) {
         Attack attack;
-        if (possessedAttack.spell > 0) {
-            EntityId spellEntity = getPossessedSpell(possessedAttack.spell);
+        if (possessed.attackSpell > 0) {
+            EntityId spellEntity = getPossessedSpell(possessed.attackSpell);
             attack = spellEntity != null ? entityData.getComponent(spellEntity, CreatureSpell.class) : null;
         } else {
             attack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
         }
-        return attack == null || (attack.attactStartTime != null && attack.attactStartTime >= possessedAttack.pressTime);
+        return attack == null || (attack.attactStartTime != null && attack.attactStartTime >= possessed.attackPressTime);
     }
 
     @Override
     public void addPossessedFollower() {
-        entityData.setComponent(entityId, new PossessedAttack(false, gameTimer.getGameTime(), true, 0));
+        Possessed possessed = entityData.getComponent(entityId, Possessed.class);
+        if (possessed != null) {
+            entityData.setComponent(entityId, new Possessed(possessed.manaDrain, possessed.manaCheckTime, false, gameTimer.getGameTime(), true));
+        }
     }
 
     @Override
@@ -3247,15 +3250,16 @@ public final class CreatureController extends EntityController implements ICreat
             return;
         }
 
-        PossessedAttack possessedAttack = entityData.getComponent(entityId, PossessedAttack.class);
-        if (possessedAttack != null && possessedAttack.spell > 0) {
-            castPossessedSpell(possessedAttack.spell);
+
+        Possessed possessed = entityData.getComponent(entityId, Possessed.class);
+        if (possessed != null && possessed.attackSpell > 0) {
+            castPossessedSpell(possessed.attackSpell);
             return;
         }
 
         CreatureMeleeAttack meleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
         Position position = entityData.getComponent(entityId, Position.class);
-        if (position != null && possessedAttack != null && possessedAttack.group) {
+        if (position != null && possessed != null && possessed.attackGroup) {
             addFollowerInView(position);
             return;
         }
@@ -4036,7 +4040,6 @@ public final class CreatureController extends EntityController implements ICreat
         // The disguise drops (0x4BE090)
         entityData.removeComponent(entityId, Disguised.class);
         entityData.removeComponent(entityId, PossessedMovement.class);
-        entityData.removeComponent(entityId, PossessedAttack.class);
         entityData.removeComponent(entityId, Possessed.class);
 
         // The group follows us only while we are possessed
