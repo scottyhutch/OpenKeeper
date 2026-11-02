@@ -154,6 +154,7 @@ public final class GameLoopManager {
                 new FreezeSystem(entityData, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
                 new ShotSystem(entityData, level, gameController.getGameTimer(), gameWorldController.getShotsController(), positionSystem,
                         gameWorldController.getMapController(), playerControllers),
+                new HaulingSystem(entityData),
                 (IGameLogicUpdatable) taskManager);
 
         loops.add(new GameLoop(gameLogicThread, 1_000_000_000 / levelInfo.getLevelData().getGameLevel().getTicksPerSec(), "Logic"));
@@ -170,11 +171,10 @@ public final class GameLoopManager {
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.GRAVITY_CONSTANT)));
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));
 
-        // Steering, the hauled things move right along with their haulers
+        // Steering
         loops.add(new GameLoop(new GameLogicManager(new MovementSystem(entityData, level, gameWorldController.getMapController(), positionSystem),
                 new PossessedMovementSystem(entityData, gameWorldController.getMapController(),
-                        positionSystem, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
-                new HaulingSystem(entityData)), GameLoop.INTERVAL_FPS_60, "Steering"));
+                        positionSystem, gameWorldController.getCreaturesController(), gameController.getGameTimer())), GameLoop.INTERVAL_FPS_60, "Steering"));
     }
 
     private static IBlocksSight solidTilesBlockSight(IMapController mapController) {
