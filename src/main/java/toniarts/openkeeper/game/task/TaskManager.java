@@ -29,10 +29,13 @@ import com.simsilica.es.filter.FieldFilter;
 import toniarts.openkeeper.utils.Point;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -1327,10 +1330,19 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             boolean claiming = entityData.getComponent(creature.getEntityId(), ClaimingFloor.class) != null;
             boolean digging = entityData.getComponent(creature.getEntityId(), DiggingTiles.class) != null;
             List<TaskWorkerPriority> workerTasks = new ArrayList<>();
+            Set<Point> reachableArea = getReachableArea(creature, currentLocation);
 
             // Give points by distance and priority. The distance is to the task's own tile: finding the spot to work from, and
             // whether it can be reached, takes path finding, which canAssign() does only for the tasks being handed out (#671)
             for (Task task : taskQueue) {
+
+                // A task is worked on its tile or next to it. One out of the worker's reach would cost a path search that
+                // goes through all of the worker's land before it fails
+                if (Arrays.stream(WorldUtils.getSurroundingTiles(mapController.getMapData(), task.getTaskLocation(), false))
+                        .noneMatch(reachableArea::contains)) {
+                    continue;
+                }
+
                 boolean sameWork = (digging && isDigging(task)) || (claiming && isClaiming(task));
                 int points = WorldUtils.calculateDistance(currentLocation, task.getTaskLocation()) + task.getPriority();
                 int dropRing = dropArea != null ? getDropRing(task, dropArea.center) : Integer.MAX_VALUE;
@@ -1469,6 +1481,32 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      */
     static boolean isClaiming(Task task) {
         return task.getTaskType() == TaskType.CLAIM_TILE || task.getTaskType() == TaskType.CLAIM_ROOM;
+    }
+
+    /**
+     * The tiles a creature can walk to from where it stands, the same steps the
+     * path finding takes. DK II keeps the connected areas of the map, so a path
+     * to somewhere out of reach fails at once (DKII.EXE 0x4C9400, 0x4D0150)
+     *
+     * @param creature the creature
+     * @param start the tile the creature stands on
+     * @return the reachable tiles, the start included
+     */
+    private Set<Point> getReachableArea(ICreatureController creature, Point start) {
+        IMapDataInformation<IMapTileController> mapData = mapController.getMapData();
+        Set<Point> area = new HashSet<>();
+        area.add(start);
+        Deque<Point> open = new ArrayDeque<>(area);
+        while (!open.isEmpty()) {
+            Point p = open.poll();
+            for (Point next : WorldUtils.getSurroundingTiles(mapData, p, false)) {
+                if (!area.contains(next) && navigationService.isAccessible(mapData.getTile(p), mapData.getTile(next), creature)) {
+                    area.add(next);
+                    open.add(next);
+                }
+            }
+        }
+        return area;
     }
 
     /**
