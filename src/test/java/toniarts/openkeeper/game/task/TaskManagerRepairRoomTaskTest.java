@@ -94,7 +94,7 @@ class TaskManagerRepairRoomTaskTest {
             10;
         case "getTile" -> {
             Point p = args.length == 1 ? (Point) args[0] : new Point((int) args[0], (int) args[1]);
-            yield RoomTileWorld.stub(IMapTileController.class, (tile, call, callArgs) -> switch (call.getName()) {
+            yield p.x < 0 || p.y < 0 || p.x >= 10 || p.y >= 10 ? null : RoomTileWorld.stub(IMapTileController.class, (tile, call, callArgs) -> switch (call.getName()) {
                 case "getLocation" -> p;
                 case "getX" -> p.x;
                 case "getY" -> p.y;
