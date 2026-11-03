@@ -158,7 +158,9 @@ public final class GameLoopManager {
                 new HaulingSystem(entityData),
                 (IGameLogicUpdatable) taskManager);
 
-        loops.add(new GameLoop(gameLogicThread, 1_000_000_000 / levelInfo.getLevelData().getGameLevel().getTicksPerSec(), "Logic"));
+        final long logicTickNanos = 1_000_000_000L / levelInfo.getLevelData().getGameLevel().getTicksPerSec();
+        gameLogicThread.enableTickTiming("Game Logic", logicTickNanos);
+        loops.add(new GameLoop(gameLogicThread, logicTickNanos, "Logic"));
 
         // Animation systems
         final GameLogicManager gameAnimationThread = new GameLogicManager(
