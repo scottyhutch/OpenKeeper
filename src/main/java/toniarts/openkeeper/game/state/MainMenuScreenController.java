@@ -300,6 +300,7 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         DropDown bitDepth = screen.findNiftyControl("bitDepth", DropDown.class);
         DropDown refresh = screen.findNiftyControl("refreshRate", DropDown.class);
         CheckBox fullscreen = screen.findNiftyControl("fullscreen", CheckBox.class);
+        CheckBox borderless = screen.findNiftyControl("borderless", CheckBox.class);
         CheckBox vsync = screen.findNiftyControl("verticalSync", CheckBox.class);
         DropDown ogl = screen.findNiftyControl("openGl", DropDown.class);
         DropDown aa = screen.findNiftyControl("antialiasing", DropDown.class);
@@ -315,6 +316,7 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         settings.getAppSettings().setDepthBits((Integer) bitDepth.getSelection());
         settings.getAppSettings().setFrequency((Integer) refresh.getSelection());
         settings.getAppSettings().setFullscreen(fullscreen.isChecked());
+        settings.setSetting(Settings.Setting.BORDERLESS, borderless.isChecked());
         settings.getAppSettings().setVSync(vsync.isChecked());
         settings.getAppSettings().setRenderer((String) ogl.getSelection());
         settings.getAppSettings().setSamples((Integer) aa.getSelection());
@@ -633,8 +635,18 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         DropDown refresh = screen.findNiftyControl("refreshRate", DropDown.class);
         if (event.isChecked()) {
             refresh.enable();
+            screen.findNiftyControl("borderless", CheckBox.class).setChecked(false);
         } else {
             refresh.disable();
+        }
+    }
+
+    @NiftyEventSubscriber(id = "borderless")
+    public void onBorderlessChanged(final String id, final CheckBoxStateChangedEvent event) {
+
+        // Borderless is a window of its own, it replaces the exclusive fullscreen
+        if (event.isChecked()) {
+            screen.findNiftyControl("fullscreen", CheckBox.class).setChecked(false);
         }
     }
 
@@ -828,6 +840,10 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         CheckBox fullscreen = screen.findNiftyControl("fullscreen", CheckBox.class);
         fullscreen.setChecked(settings.isFullscreen());
         fullscreen.setEnabled(DisplayModeUtils.getInstance().isFullScreenSupported());
+
+        // Borderless fullscreen
+        CheckBox borderless = screen.findNiftyControl("borderless", CheckBox.class);
+        borderless.setChecked(Main.getUserSettings().getBoolean(Settings.Setting.BORDERLESS));
 
         // VSync
         CheckBox vsync = screen.findNiftyControl("verticalSync", CheckBox.class);
