@@ -12,6 +12,12 @@ public final class RoomFixtures {
     private RoomFixtures() {
     }
 
+    public static Room roomCreating(short createdCreatureId) {
+        Room room = new Room();
+        room.setCreatedCreatureId(createdCreatureId);
+        return room;
+    }
+
     public static Room researchableRoom(short roomId, int researchTime) {
         Room room = room(roomId, 0);
         room.setResearchTime(researchTime);

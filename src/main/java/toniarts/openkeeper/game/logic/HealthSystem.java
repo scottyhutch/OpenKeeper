@@ -257,6 +257,9 @@ public final class HealthSystem extends GameTimeCounter {
             if (creatureId != null && !damageEntities.containsId(entityId) && canRiseAsSkeleton(owner, creatureId)) {
                 countKill(entityId);
                 creaturesController.turnCreatureIntoAnother(entityId, owner.controlId, creatureId);
+
+                // The mentor tells the keeper of the Prison, like DK II (CRoom_sub_4E30F0, message 0x41)
+                gameEventService.emitToPlayer(GameEventType.PRISON_SKELETON_RISEN, owner.controlId);
                 return;
             }
             processDeath(entityId);
