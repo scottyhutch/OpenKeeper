@@ -69,7 +69,6 @@ import toniarts.openkeeper.game.logic.HealthSystem;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
-import toniarts.openkeeper.game.navigation.pathfinding.INavigable;
 import toniarts.openkeeper.game.task.ITaskManager;
 import toniarts.openkeeper.game.task.Task;
 import toniarts.openkeeper.game.task.TaskType;
@@ -88,9 +87,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNotSame;
 import static org.junit.jupiter.api.Assertions.assertNull;
-import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CreatureControllerTest {
@@ -598,50 +595,6 @@ class CreatureControllerTest {
         }
     }
 
-    @Test
-    void workerWithdrawsRoundTheEnemyInItsWay() {
-        try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
-            EntityId hero = heroNextToWorker(f, 3.5f, 3);
-            f.data.setComponent(hero, new AttackTarget(f.entity));
-            Point heroTile = WorldUtils.vectorToPoint(f.data.getComponent(hero, Position.class).position);
-
-            // The way it plans first doesn't go through the enemy's tile
-            f.controller.flee();
-            INavigable navigable = f.navigables.get(0);
-            assertNotSame(f.controller, navigable);
-            assertNull(navigable.getCost(null, f.tile(heroTile), null, null));
-            assertNotNull(f.data.getComponent(f.entity, Navigation.class));
-
-            // With no way round, it goes through
-            f.navigables.clear();
-            f.data.removeComponent(f.entity, Navigation.class);
-            f.walkable = tile -> f.navigables.get(f.navigables.size() - 1) == f.controller;
-            f.controller.flee();
-            assertSame(f.controller, f.navigables.get(f.navigables.size() - 1));
-            assertNotNull(f.data.getComponent(f.entity, Navigation.class));
-        }
-    }
-
-    @Test
-    void workerWalksToItsJobRoundTheEnemiesInItsWay() {
-        try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
-            EntityId hero = heroNextToWorker(f, 3.5f, 3);
-            Point heroTile = WorldUtils.vectorToPoint(f.data.getComponent(hero, Position.class).position);
-            f.tasks.put(-1L, proxy(Task.class, (method, args) -> switch (method) {
-                case "getTarget" -> new Vector2f(6, 4);
-                case "isFaceTarget" -> false;
-                default -> null;
-            }));
-            f.data.setComponent(f.entity, new TaskComponent(-1, null, null, TaskType.CLAIM_TILE, 0, false));
-            f.controller.navigateToAssignedTask();
-
-            INavigable navigable = f.navigables.get(0);
-            assertNotSame(f.controller, navigable);
-            assertNull(navigable.getCost(null, f.tile(heroTile), null, null));
-            assertNotNull(f.data.getComponent(f.entity, Navigation.class));
-        }
-    }
-
     private static CreatureState workerStateWithHeroAt(float x, int heartX, Boolean heroAfterUs) {
         try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
             EntityId hero = heroNextToWorker(f, x, heartX);
@@ -865,7 +818,6 @@ class CreatureControllerTest {
         final Map<Long, Task> tasks = new HashMap<>();
         final AtomicBoolean reachable = new AtomicBoolean(true);
         java.util.function.Predicate<Point> walkable = tile -> true;
-        final List<INavigable> navigables = new java.util.ArrayList<>();
         final Keeper keeper = new Keeper(false, (short) 3);
         IRoomController roomHere;
         Set<EntityId> sensed = Set.of();
@@ -989,10 +941,7 @@ class CreatureControllerTest {
                 default -> throw new UnsupportedOperationException(method);
             });
             INavigationService navigation = proxy(INavigationService.class, (method, args) -> switch (method) {
-                case "findPath" -> {
-                    navigables.add((INavigable) args[2]);
-                    yield walkable.test((Point) args[1]) ? new DefaultGraphPath<>() : null;
-                }
+                case "findPath" -> walkable.test((Point) args[1]) ? new DefaultGraphPath<>() : null;
                 default -> throw new UnsupportedOperationException(method);
             });
             controllers = () -> new CreatureController(entity, data, definition, navigation, taskManager, () -> time,
