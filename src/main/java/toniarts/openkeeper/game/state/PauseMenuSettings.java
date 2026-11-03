@@ -81,6 +81,7 @@ final class PauseMenuSettings {
         addDropDown(left, "OpenGL", "openGl", "220px");
         addCheckBox(left, " SSAO", "ssao");
         addCheckBox(left, "Gamma correction", "gammaCorrection");
+        addDropDown(left, "Shadow quality", "shadowQuality", "100px");
 
         addDropDown(right, "Bit depth", "bitDepth", "100px");
         addDropDown(right, "Refresh rate", "refreshRate", "100px");
@@ -148,6 +149,10 @@ final class PauseMenuSettings {
 
         find("ssao", CheckBox.class).setChecked(Main.getUserSettings().getBoolean(Settings.Setting.SSAO));
         find("gammaCorrection", CheckBox.class).setChecked(settings.isGammaCorrection());
+
+        DropDown shadows = find("shadowQuality", DropDown.class);
+        shadows.addAllItems(Settings.SHADOW_LEVELS);
+        shadows.selectItem(Math.clamp(Main.getUserSettings().getInteger(Settings.Setting.SHADOW_LEVEL), 0, 3));
     }
 
     /**
@@ -172,6 +177,7 @@ final class PauseMenuSettings {
         app.applyTextureFiltering();
         settings.setSetting(Settings.Setting.SSAO, find("ssao", CheckBox.class).isChecked());
         settings.getAppSettings().setGammaCorrection(find("gammaCorrection", CheckBox.class).isChecked());
+        settings.setSetting(Settings.Setting.SHADOW_LEVEL, find("shadowQuality", DropDown.class).getSelection());
 
         save();
         app.setViewProcessors();

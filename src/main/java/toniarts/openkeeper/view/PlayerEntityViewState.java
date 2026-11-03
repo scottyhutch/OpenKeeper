@@ -39,9 +39,11 @@ import java.util.List;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.EffectTrigger;
@@ -55,6 +57,7 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.ShotViewState;
 import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.controller.ObjectsController;
+import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -95,6 +98,7 @@ import toniarts.openkeeper.view.fogofwar.IFogOfWarInformation;
 import toniarts.openkeeper.view.lighting.LightConstants;
 import toniarts.openkeeper.view.lighting.LightRules;
 import toniarts.openkeeper.view.lighting.LightSource;
+import toniarts.openkeeper.view.shadow.ShadowRenderer;
 import toniarts.openkeeper.view.text.TextParser;
 
 /**
@@ -150,7 +154,9 @@ public class PlayerEntityViewState extends AbstractAppState {
         }
     };
 
+    private Application app;
     private AppStateManager stateManager;
+    private ShadowRenderer shadowRenderer;
     private final IKwdFile kwdFile;
     private final AssetManager assetManager;
     private final EntityData entityData;
@@ -268,11 +274,14 @@ public class PlayerEntityViewState extends AbstractAppState {
     @Override
     public void initialize(final AppStateManager stateManager, final Application app) {
         super.initialize(stateManager, app);
+        this.app = app;
         this.stateManager = stateManager;
+        shadowRenderer = new ShadowRenderer(assetManager);
 
         // Attach the entities
         rootNode.attachChild(root);
         rootNode.attachChild(nodeShots);
+        shadowRenderer.attachTo(rootNode);
 
         // Start loading stuff (maybe we should do this earlier...)
         objectModelContainer.start();
@@ -289,6 +298,7 @@ public class PlayerEntityViewState extends AbstractAppState {
 
     @Override
     public void update(float tpf) {
+        shadowRenderer.updateRange(tpf);
 
         // Update the models
         objectModelContainer.update();
@@ -345,6 +355,47 @@ public class PlayerEntityViewState extends AbstractAppState {
                 AssetUtils.applyVertexLight(assetManager, object, lightRules, false);
             }
         }
+        updateShadows();
+    }
+
+    /**
+     * Places this frame's shadows. Done in the update, as the scene graph must
+     * not be touched after the root's geometric update. The models' world
+     * transforms are those of the previous frame, which is not noticeable.
+     */
+    private void updateShadows() {
+        LightRules lightRules = getLightRules();
+        int level = Main.getUserSettings().getInteger(Settings.Setting.SHADOW_LEVEL);
+        if (lightRules == null || level <= 0) {
+            shadowRenderer.render(0, List.of(), List.of(), null);
+            return;
+        }
+        shadowRenderer.render(level, lightRules.getActiveSources(), getShadowCasters(lightRules), app.getCamera());
+    }
+
+    /**
+     * Creatures always cast a shadow, objects only if their type says so. A
+     * creature in the hand, or dropped from it until it lands, has none.
+     */
+    private List<ShadowRenderer.Caster> getShadowCasters(LightRules lightRules) {
+        List<ShadowRenderer.Caster> casters = new ArrayList<>();
+        for (Spatial creature : creatureModelContainer.getModels()) {
+            CreatureViewControl control = creature.getControl(CreatureViewControl.class);
+            if (control == null || creature == hiddenSpatial || creature.getCullHint() == Spatial.CullHint.Always
+                    || control.getCurrentState() == Creature.AnimationType.IN_HAND) {
+                continue;
+            }
+            casters.add(new ShadowRenderer.Caster(creature, lightRules.getThingLight(control.getEntityId())));
+        }
+        for (Spatial object : objectModelContainer.getModels()) {
+            ObjectViewControl control = object.getControl(ObjectViewControl.class);
+            if (control == null || object.getCullHint() == Spatial.CullHint.Always
+                    || !control.getDataObject().getFlags().contains(GameObject.ObjectFlag.CAST_SHADOWS)) {
+                continue;
+            }
+            casters.add(new ShadowRenderer.Caster(object, lightRules.getThingLight(control.getEntityId())));
+        }
+        return casters;
     }
 
     /**
@@ -408,6 +459,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         // Detach entities
         rootNode.detachChild(root);
         rootNode.detachChild(nodeShots);
+        shadowRenderer.detach();
 
         for (IEntityViewControl entityViewControl : entityViewControls.values()) {
             entityViewControl.cleanup();

@@ -306,6 +306,7 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         DropDown af = screen.findNiftyControl("textureFiltering", DropDown.class);
         CheckBox ssao = screen.findNiftyControl("ssao", CheckBox.class);
         CheckBox gamma = screen.findNiftyControl("gammaCorrection", CheckBox.class);
+        DropDown shadows = screen.findNiftyControl("shadowQuality", DropDown.class);
         DisplayMode mdm = (DisplayMode) res.getSelection();
 
         // TODO: See if we need a restart, but keep in mind that the settings are saved in the restart
@@ -321,6 +322,7 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         state.app.applyTextureFiltering();
         settings.setSetting(Settings.Setting.SSAO, ssao.isChecked());
         settings.getAppSettings().setGammaCorrection(gamma.isChecked());
+        settings.setSetting(Settings.Setting.SHADOW_LEVEL, shadows.getSelection());
 
         // This fails and crashes on invalid settings
         if (needToRestart) {
@@ -858,6 +860,11 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         // Gamma correction
         CheckBox gamma = screen.findNiftyControl("gammaCorrection", CheckBox.class);
         gamma.setChecked(settings.isGammaCorrection());
+
+        // Shadow quality
+        DropDown shadows = screen.findNiftyControl("shadowQuality", DropDown.class);
+        shadows.addAllItems(Settings.SHADOW_LEVELS);
+        shadows.selectItem(Math.clamp(Main.getUserSettings().getInteger(Settings.Setting.SHADOW_LEVEL), 0, 3));
     }
 
     private void setControlSettingsToGUI() {
