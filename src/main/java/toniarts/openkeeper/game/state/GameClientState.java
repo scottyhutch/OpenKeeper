@@ -117,6 +117,7 @@ public final class GameClientState extends AbstractPauseAwareState {
     private EffectManagerState effectManagerState;
     private TextParser textParser;
     private volatile boolean systemMessagesEnabled = true;
+    private GuardPostCounter guardPostCounter;
 
     /**
      * Single use game states
@@ -200,6 +201,7 @@ public final class GameClientState extends AbstractPauseAwareState {
             roomSoundState = null;
         }
         stateManager.detach(effectManagerState);
+        stateManager.detach(guardPostCounter);
         stateManager.detach(playerModelViewState);
         stateManager.detach(playerMapViewState);
         stateManager.detach(playerState);
@@ -437,8 +439,9 @@ public final class GameClientState extends AbstractPauseAwareState {
                 textParser = new TextParserService(mapInformation, playerMapViewState.getRoomsInformation(), gameClientService.getEntityData(),
                         kwdFile.getVariables());
                 playerModelViewState = new PlayerEntityViewState(kwdFile, app.getAssetManager(), gameClientService.getEntityData(), playerId, textParser, app.getRootNode(), mapInformation.getMapData(), fogOfWarInformation);
-                textParser.getRoomTextParser().setPatrolRouteCounter(new GuardPostCounter(gameClientService.getEntityData(),
-                        trapId -> kwdFile.getTrapById(trapId).getFlags().contains(Trap.TrapFlag.GUARD_POST)));
+                guardPostCounter = new GuardPostCounter(gameClientService.getEntityData(),
+                        trapId -> kwdFile.getTrapById(trapId).getFlags().contains(Trap.TrapFlag.GUARD_POST));
+                textParser.getRoomTextParser().setPatrolRouteCounter(guardPostCounter);
                 playerMapViewState.addFogOfWarTilesDirtyListener(playerModelViewState::onTilesDirty);
                 minimapPanelState = new MinimapPanelState(app, mapInformation, fogOfWarInformation, playerMapViewState.getRoomsInformation(),
                         gameClientService.getEntityData(), GameClientState.this.players.get(playerId),
@@ -454,6 +457,7 @@ public final class GameClientState extends AbstractPauseAwareState {
                         gameClientService.getEntityData(), kwdFile, GameClientState.this.players.values(), GameClientState.this::getPlayerName);
                 stateManager.attach(fullscreenMapState);
                 stateManager.attach(effectManagerState);
+                stateManager.attach(guardPostCounter);
 
                 // Wait until loaded
                 if (!mapDataLoaded) {
