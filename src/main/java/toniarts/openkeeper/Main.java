@@ -36,8 +36,8 @@ import com.jme3.post.filters.TranslucentBucketFilter;
 import com.jme3.renderer.RenderManager;
 import com.jme3.renderer.opengl.GLRenderer;
 import com.jme3.system.AppSettings;
-import com.jme3.system.lwjgl.LwjglWindow;
 import com.jme3.system.JmeSystem;
+import com.jme3.system.lwjgl.LwjglWindow;
 import de.lessvoid.nifty.Nifty;
 import de.lessvoid.nifty.render.batch.BatchRenderConfiguration;
 import java.awt.event.WindowAdapter;
@@ -256,7 +256,27 @@ public final class Main extends SimpleApplication {
         }
 
         // Init the user settings (which in JME are app settings)
-        app.settings = Settings.getInstance().getAppSettings();
+        app.settings = getWindowSettings(Settings.getInstance().getAppSettings(),
+                Settings.getInstance().getBoolean(Settings.Setting.BORDERLESS));
+    }
+
+    /**
+     * The settings handed to the window. Borderless is a window of its own, so
+     * the exclusive fullscreen is cleared on a copy. The stored Fullscreen
+     * value is not touched.
+     *
+     * @param appSettings the stored app settings
+     * @param borderless is the borderless window wanted
+     * @return the app settings for the window
+     */
+    static AppSettings getWindowSettings(AppSettings appSettings, boolean borderless) {
+        if (!borderless) {
+            return appSettings;
+        }
+        AppSettings windowSettings = new AppSettings(false);
+        windowSettings.copyFrom(appSettings);
+        windowSettings.setFullscreen(false);
+        return windowSettings;
     }
 
     /**
@@ -394,13 +414,20 @@ public final class Main extends SimpleApplication {
      * switch and the window is not minimised when it loses the focus.
      */
     private void setBorderless() {
-        long window = ((LwjglWindow) context).getWindowHandle();
-        GLFWVidMode mode = GLFW.glfwGetVideoMode(GLFW.glfwGetPrimaryMonitor());
+        if (!Settings.getInstance().getBoolean(Settings.Setting.BORDERLESS) || !(context instanceof LwjglWindow lw)) {
+            return;
+        }
+        long window = lw.getWindowHandle();
+        long monitor = GLFW.glfwGetPrimaryMonitor();
+        GLFWVidMode mode = GLFW.glfwGetVideoMode(monitor);
         if (mode == null) {
             return;
         }
+        int[] x = new int[1];
+        int[] y = new int[1];
+        GLFW.glfwGetMonitorPos(monitor, x, y);
         GLFW.glfwSetWindowAttrib(window, GLFW.GLFW_DECORATED, GLFW.GLFW_FALSE);
-        GLFW.glfwSetWindowPos(window, 0, 0);
+        GLFW.glfwSetWindowPos(window, x[0], y[0]);
         GLFW.glfwSetWindowSize(window, mode.width(), mode.height());
     }
 
@@ -408,9 +435,7 @@ public final class Main extends SimpleApplication {
     public void simpleInitApp() {
 
         // Borderless fullscreen, a monitor sized window without decorations
-        if (Settings.getInstance().getBoolean(Settings.Setting.BORDERLESS)) {
-            setBorderless();
-        }
+        setBorderless();
 
         // Escape opens the game menu (PAUSE_OR_OPTIONS), it must not quit the application
         if (inputManager.hasMapping(INPUT_MAPPING_EXIT)) {
@@ -643,8 +668,12 @@ public final class Main extends SimpleApplication {
     @Override
     public void restart() {
         try {
-            settings = Settings.getInstance().getAppSettings();
+            settings = getWindowSettings(Settings.getInstance().getAppSettings(),
+                Settings.getInstance().getBoolean(Settings.Setting.BORDERLESS));
             super.restart();
+
+            // The window is recreated, so it has no borderless any more
+            enqueue(this::setBorderless);
 
             // FIXME: This should go to handle error
             try {

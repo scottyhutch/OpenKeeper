@@ -283,11 +283,6 @@ public final class Settings {
         }
         this.settings.setFrameRate(Math.max(MAX_FPS, settings.getFrequency()));
 
-        // Borderless is a window, the exclusive fullscreen would override it
-        if (getBoolean(Setting.BORDERLESS)) {
-            settings.setFullscreen(false);
-        }
-
         // Assing some app level settings
         settings.setTitle(TITLE);
         settings.setIcons(getApplicationIcons());

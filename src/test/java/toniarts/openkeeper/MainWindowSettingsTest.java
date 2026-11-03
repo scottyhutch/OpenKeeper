@@ -1,0 +1,45 @@
+/*
+ * Copyright (C) 2014-2015 OpenKeeper
+ *
+ * OpenKeeper is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * OpenKeeper is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with OpenKeeper.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package toniarts.openkeeper;
+
+import com.jme3.system.AppSettings;
+import org.junit.jupiter.api.Test;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+public class MainWindowSettingsTest {
+
+    @Test
+    void borderlessClearsFullscreenOnACopyOnly() {
+        AppSettings stored = new AppSettings(true);
+        stored.setFullscreen(true);
+
+        AppSettings window = Main.getWindowSettings(stored, true);
+
+        assertFalse(window.isFullscreen());
+        assertTrue(stored.isFullscreen());
+    }
+
+    @Test
+    void withoutBorderlessTheSettingsAreUsedAsTheyAre() {
+        AppSettings stored = new AppSettings(true);
+        stored.setFullscreen(true);
+
+        assertSame(stored, Main.getWindowSettings(stored, false));
+    }
+}
