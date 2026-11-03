@@ -1,4 +1,19 @@
-/* SPDX-License-Identifier: GPL-3.0-or-later */
+/*
+ * Copyright (C) 2026 OpenKeeper
+ *
+ * OpenKeeper is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * OpenKeeper is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with OpenKeeper.  If not, see <http://www.gnu.org/licenses/>.
+ */
 package toniarts.openkeeper.tools.convert.map;
 
 import com.jme3.asset.AssetInfo;
@@ -73,7 +88,7 @@ class AnimatedTextureFramesTest {
     }
 
     @Test
-    void caseMismatchExceptionFallsBackToActualFilename() throws Exception {
+    void canonicalFilenameAvoidsCaseMismatchException() throws Exception {
         var resource = resource(16);
         String actualName = resource.getName();
         resource.setName(actualName.toUpperCase(Locale.ROOT));
@@ -100,7 +115,7 @@ class AnimatedTextureFramesTest {
             ImageIO.write(image, "png", first.toFile());
             ImageIO.write(image, "png", second.toFile());
             assertEquals(2, AssetUtils.getAnimationFrameCount(resource, assets));
-            assertEquals(2, mismatches.get());
+            assertEquals(0, mismatches.get());
             Texture atlas = (Texture) AssetUtils.createParticleMaterial(resource, assets)
                     .getParam("Texture").getValue();
             assertEquals(4, atlas.getImage().getWidth());

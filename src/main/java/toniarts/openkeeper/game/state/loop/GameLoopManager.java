@@ -131,6 +131,7 @@ public final class GameLoopManager {
                         (int) gameController.getLevelVariable(Variable.MiscVariable.MiscType.MANUFACTURE_POINT_LOSS_WHILE_NO_WORKERS_PER_SECOND)),
                 new PossessedSystem(playerControllers.values(), entityData, gameController,
                         gameWorldController.getCreaturesController()),
+                new CreatureLeaveSystem(entityData, gameWorldController.getCreaturesController()),
                 new SummonedReaperSystem(entityData, playerControllers.values(), gameWorldController.getCreaturesController(),
                         gameController.getGameTimer(), gameController.getNavigationService()),
                 new PortalGemDropSystem(entityData, levelInfo.getLevelData(), gameWorldController.getObjectsController()),

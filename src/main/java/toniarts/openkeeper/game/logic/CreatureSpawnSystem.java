@@ -127,91 +127,87 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
         }
     }
 
+    /** Dispatches each live entrance to its independent spawn policy. */
     private void evaluateAndSpawnCreature(ICreatureEntrance entrance) {
-
-        // TODO: we should have a listener for destroy that we can remove the room
+        // TODO: listen for destruction so the entrance can be removed from the set.
         if (entrance.isDestroyed()) {
             return;
         }
-
         double timeSinceLastSpawn = timeElapsed - entrance.getLastSpawnTime();
         IPlayerController player = playerControllersById.get(entrance.getOwnerId());
-        boolean spawned = false;
-        EntityId entityId = null;
-        if (timeSinceLastSpawn >= freeImpCoolDownTime && entrance.isDungeonHeart()) {
+        if (entrance.isDungeonHeart()) {
             // A defeated keeper gets no free imps
-            if (player.getCreatureControl().getImpCount() < minimumImpCount && !player.getKeeper().isDestroyed()) {
-
-                // Spawn imp
-                Point entranceCoordinate = entrance.getEntranceCoordinate();
-                Vector2f spot = new Vector2f(entranceCoordinate.x, entranceCoordinate.y);
-                entityId = creaturesController.spawnCreature(kwdFile.getImp().getCreatureId(), player.getKeeper().getId(), 1, spot, ICreaturesController.SpawnType.PLACE);
-                spawned = true;
-
-                // The cast is not gated by the free flag
-                gameEventService.emit(GameEventType.IMPS_CREATED, WorldUtils.vector2fToVector3(spot));
+            if (timeSinceLastSpawn >= freeImpCoolDownTime
+                    && player.getCreatureControl().getImpCount() < minimumImpCount
+                    && !player.getKeeper().isDestroyed()) {
+                spawnFreeImp(entrance, player);
             }
-        } else if (!entrance.isDungeonHeart() && timeSinceLastSpawn >= getGenerationInterval(entrance)) {
+        } else {
+            evaluatePortalSpawn(entrance, player, timeSinceLastSpawn);
+        }
+    }
 
-            // As in the original, the Portal's clock restarts on every check, also when no creature came in
-            entrance.onGenerationCycle(timeElapsed);
-            if (!player.getRoomControl().isPortalsOpen() || isCreatureLimitReached(player)) {
-                return;
-            }
+    /** Creates a Heart's free Imp and announces it before restarting its cooldown. */
+    private void spawnFreeImp(ICreatureEntrance entrance, IPlayerController player) {
+        Point coordinate = entrance.getEntranceCoordinate();
+        Vector2f spot = new Vector2f(coordinate.x, coordinate.y);
+        EntityId entityId = creaturesController.spawnCreature(kwdFile.getImp().getCreatureId(),
+                player.getKeeper().getId(), 1, spot, ICreaturesController.SpawnType.PLACE);
 
-            // Evaluate what creature can we spawn
-            // A unique creature called in by a secret room layout comes first
-            Map<Integer, CreaturePool> pool = kwdFile.getCreaturePool(player.getKeeper().getId());
-            Creature creature = uniqueLayouts
-                    ? creatureChoice.chooseUniqueCreature(player, playerControllersById.values(), creaturesController, kwdFile)
-                    : null;
-            if (creature == null) {
-                creature = creatureChoice.chooseCreature(player, entrance, creaturesController,
-                        type -> isCreatureAvailableFromPool(type, player, pool) && isCreatureRequirementsSatisfied(type, player));
-            }
+        // The cast is not gated by the free flag
+        gameEventService.emit(GameEventType.IMPS_CREATED, WorldUtils.vector2fToVector3(spot));
+        entrance.onSpawn(timeElapsed, entityId);
+    }
 
-            // Spawn by the weights, as the original does
-            // TODO: also get notified about the evicted and newly introduced creatures
-            // Maybe store these under the keeper etc.? For saving purposes
-            // The logic classes shouldn't have anything to save
-            if (creature != null) {
-                short creatureId = creature.getCreatureId();
-                Point entranceCoordinate = entrance.getEntranceCoordinate();
-                entityId = creaturesController.spawnCreature(creatureId, player.getKeeper().getId(), 1, new Vector2f(entranceCoordinate.x, entranceCoordinate.y), ICreaturesController.SpawnType.ENTRANCE);
-                if (entityId != null) {
+    /** Advances due Portal cycles even when attraction is closed or no creature qualifies. */
+    private void evaluatePortalSpawn(ICreatureEntrance entrance, IPlayerController player,
+            double timeSinceLastSpawn) {
 
-                    // Only the attracted creatures count towards the limit
-                    entityData.setComponent(entityId, new PortalAttracted());
-                }
-                spawned = entityId != null;
-            }
-        } else if (!entrance.isDungeonHeart()) {
-
-            // The Portal builds up three seconds before its next generation check
-            double preparationTime = entrance.getLastSpawnTime() + getGenerationInterval(entrance) - 3;
-            if (timeElapsed >= preparationTime && !isCreatureLimitReached(player) && hasPossibleCreature(player)) {
-                entrance.onPrepareSpawn(preparationTime);
-            }
+        // In the original the interval is the level's entrance generation speed plus the square of the
+        // creatures that came in through the Portal since it was claimed, so each Portal slows down on its own
+        double cooldown = entranceCooldownTime
+                + (double) entrance.getGeneratedCount() * entrance.getGeneratedCount();
+        if (timeSinceLastSpawn < cooldown) {
+            preparePortalSpawn(entrance, player, cooldown);
+            return;
         }
 
-        if (spawned) {
+        // As in the original, the Portal's clock restarts on every check, also when no creature came in
+        entrance.onGenerationCycle(timeElapsed);
+        if (!player.getRoomControl().isPortalsOpen() || isCreatureLimitReached(player)) {
+            return;
+        }
 
-            // Reset spawn time
+        // A unique creature called in by a secret room layout comes first, then by the weights, as the original does
+        Map<Integer, CreaturePool> pool = kwdFile.getCreaturePool(player.getKeeper().getId());
+        Creature creature = uniqueLayouts
+                ? creatureChoice.chooseUniqueCreature(player, playerControllersById.values(), creaturesController, kwdFile)
+                : null;
+        if (creature == null) {
+            creature = creatureChoice.chooseCreature(player, entrance, creaturesController,
+                    type -> isCreatureAvailableFromPool(type, player, pool) && isCreatureRequirementsSatisfied(type, player));
+        }
+        if (creature == null) {
+            return;
+        }
+        Point coordinate = entrance.getEntranceCoordinate();
+        EntityId entityId = creaturesController.spawnCreature(creature.getCreatureId(),
+                player.getKeeper().getId(), 1, new Vector2f(coordinate.x, coordinate.y),
+                ICreaturesController.SpawnType.ENTRANCE);
+        if (entityId != null) {
+
+            // Only the attracted creatures count towards the limit
+            entityData.setComponent(entityId, new PortalAttracted());
             entrance.onSpawn(timeElapsed, entityId);
         }
     }
 
-    /**
-     * Get the time between the entrance's creature generation checks. In the original it is the level's
-     * entrance generation speed plus the square of the creatures that came in through the Portal since it was
-     * claimed, so each Portal slows down on its own.
-     *
-     * @param entrance the creature entrance
-     * @return the generation interval, in seconds
-     */
-    private double getGenerationInterval(ICreatureEntrance entrance) {
-        int generatedCount = entrance.getGeneratedCount();
-        return entranceCooldownTime + generatedCount * generatedCount;
+    /** Starts the authored preparation three seconds before an eligible Portal cycle. */
+    private void preparePortalSpawn(ICreatureEntrance entrance, IPlayerController player, double cooldown) {
+        double preparationTime = entrance.getLastSpawnTime() + cooldown - 3;
+        if (timeElapsed >= preparationTime && !isCreatureLimitReached(player) && hasPossibleCreature(player)) {
+            entrance.onPrepareSpawn(preparationTime);
+        }
     }
 
     private boolean hasPossibleCreature(IPlayerController player) {

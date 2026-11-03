@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Death;
+import toniarts.openkeeper.game.component.LeavingDungeon;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.PortalGem;
@@ -106,8 +107,13 @@ public final class CreatureViewSystem extends GameTimeCounter {
             CreatureFall creatureFall = entityData.getComponent(entityId, CreatureFall.class);
             if (creatureFall != null) {
 
+                // Falling into the portal, the creature struggles like in the hand instead of falling over.
                 // A conjured creature comes down standing, only a dropped one tumbles and lands dazed
-                targetState = creatureFall.conjured ? Creature.AnimationType.IDLE_1 : Creature.AnimationType.FALLBACK;
+                if (entityData.getComponent(entityId, LeavingDungeon.class) != null) {
+                    targetState = Creature.AnimationType.IN_HAND;
+                } else {
+                    targetState = creatureFall.conjured ? Creature.AnimationType.IDLE_1 : Creature.AnimationType.FALLBACK;
+                }
             } else if (entityData.getComponent(entityId, Navigation.class) != null) {
                 Navigation navigation = entityData.getComponent(entityId, Navigation.class);
                 targetState = navigation.pursuingAttackTarget ? Creature.AnimationType.RUN : Creature.AnimationType.WALK;
