@@ -178,6 +178,12 @@ public final class PlayerScreenController implements IPlayerScreenController {
         updateSpellRecharge(tpf);
         lastUpdate += tpf;
 
+        // Apply the changes every frame, so they don't pile up in the sets' buffers
+        if (keeperCreatures != null) {
+            keeperCreatures.applyChanges();
+            summonedReapers.applyChanges();
+        }
+
         if (lastUpdate >= SCREEN_UPDATE_INTERVAL) {
             if (creatureCardManager != null) {
                 creatureCardManager.update(tpf);
@@ -1688,7 +1694,6 @@ public final class PlayerScreenController implements IPlayerScreenController {
      * Does the keeper have a Horned Reaper
      */
     private boolean isReaperOwned() {
-        keeperCreatures.applyChanges();
         return KeeperSpellCastValidator.hasReaper(state.getKwdFile(), keeperCreatures);
     }
 
@@ -1815,7 +1820,6 @@ public final class PlayerScreenController implements IPlayerScreenController {
      * @return the seconds, 0 if the keeper has no timed Reaper
      */
     private int getReaperSecondsLeft() {
-        summonedReapers.applyChanges();
         for (Entity entity : summonedReapers) {
             SummonedReaper reaper = entity.get(SummonedReaper.class);
             if (reaper.lifetime > 0 && !reaper.isLeaving()) {
