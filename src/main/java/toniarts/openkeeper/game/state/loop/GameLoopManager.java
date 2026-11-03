@@ -114,7 +114,7 @@ public final class GameLoopManager {
                 new DeathSystem(entityData, gameSettings, positionSystem),
                 new ChickenSpellSystem(entityData, gameController.getGameTimer()),
                 new GraveyardSystem(entityData, levelInfo.getLevelData(), gameSettings,
-                        gameWorldController.getMapController(), gameWorldController.getCreaturesController()),
+                        gameWorldController.getMapController(), gameWorldController.getCreaturesController(), gameEventService),
                 new PlayerCreatureSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
                 new ManufactureProgressSystem(entityData, playerControllers.values(),
                         ManufactureProgressSystem.workshopOrders(new WorkshopOrders(entityData, levelInfo.getLevelData()))),
