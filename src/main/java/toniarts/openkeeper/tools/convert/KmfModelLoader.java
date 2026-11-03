@@ -253,6 +253,7 @@ public final class KmfModelLoader implements AssetLoader {
             index++;
         }
 
+        TransparentSurfaces.prepare(node);
         return node;
     }
 
