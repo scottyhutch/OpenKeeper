@@ -102,6 +102,29 @@ public final class KillPlayer extends AbstractObjectiveTask {
     }
 
     /**
+     * The step of the tunnel the hero is on. Like DK II's tunnelling state
+     * (0x485C10), the hero keeps its target and goes on from the tile it has
+     * just dug, so once a step is done it is given the next one rather than
+     * starting a new tunnel
+     *
+     * @return the current step, or this task once there are none left
+     */
+    @Override
+    public Task getCurrentTask() {
+        boolean stepDone = false;
+        while (!getTaskQueue().isEmpty() && !getTaskQueue().peekFirst().isValid(creature)) {
+            getTaskQueue().removeFirst();
+            stepDone = true;
+        }
+        Task current = super.getCurrentTask();
+        if (stepDone) {
+            creature.unassingCurrentTask();
+            current.assign(creature, true);
+        }
+        return current;
+    }
+
+    /**
      * Tells whether the target keeper takes part in the level and has a
      * Dungeon Heart to go for. Maps can give heroes a keeper to kill whose slot
      * is left empty, or a side, such as the heroes' own, that has no heart. A
