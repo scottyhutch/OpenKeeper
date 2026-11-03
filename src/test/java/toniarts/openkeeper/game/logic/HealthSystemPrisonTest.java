@@ -36,6 +36,7 @@ import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.player.PlayerCreatureControl;
+import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.event.GameEventService;
@@ -108,9 +109,11 @@ class HealthSystemPrisonTest {
         });
         Keeper keeper = new Keeper(false, KEEPER);
         PlayerCreatureControl creatureControl = new PlayerCreatureControl(keeper, null, List.of());
+        PlayerStatsControl stats = new PlayerStatsControl(keeper);
         IPlayerController player = proxy(IPlayerController.class, (method, args) -> switch (method) {
             case "getKeeper" -> keeper;
             case "getCreatureControl" -> creatureControl;
+            case "getStatsControl" -> stats;
             default -> null;
         });
         GameEventService gameEventService = proxy(GameEventService.class, (method, args) -> {
@@ -124,7 +127,7 @@ class HealthSystemPrisonTest {
                 Map.of(MiscType.CREATURE_DYING_STATE_DURATION_SECONDS, CreatureSleepFixtures.variable(MiscType.CREATURE_DYING_STATE_DURATION_SECONDS, 10),
                         MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND, CreatureSleepFixtures.variable(MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND, -5),
                         MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, CreatureSleepFixtures.variable(MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, 10)),
-                creaturesController, levelInfo, List.of(player), mapController, () -> 0.0, gameEventService);
+                creaturesController, null, levelInfo, List.of(player), mapController, () -> 0.0, gameEventService);
     }
 
     @SuppressWarnings("unchecked")
