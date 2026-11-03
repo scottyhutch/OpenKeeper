@@ -92,6 +92,23 @@ class WorkerTaskAssignmentTest {
         assertEquals(1, ((TestTask) Proxy.getInvocationHandler(reachable)).assignees.get());
     }
 
+    @Test
+    void fullTaskGoesToAWorkerItMakesRoomFor() {
+        TaskManager taskManager = taskManager();
+        Task task = task(new Point(5, 10), creature -> true);
+        TestTask handler = (TestTask) Proxy.getInvocationHandler(task);
+        handler.assignees.set(3);
+        handler.makesRoom = true;
+        taskManager.addTask(PLAYER_ID, task);
+        List<Boolean> results = new ArrayList<>();
+        taskManager.addToUnemployedWorkerQueue(imp(new Point(4, 10)), results::add);
+
+        taskManager.processUnemployedWorkerQueue();
+
+        assertEquals(List.of(Boolean.TRUE), results);
+        assertEquals(1, handler.assignees.get());
+    }
+
     private static int assignedCount(List<Task> tasks) {
         int count = 0;
         for (Task task : tasks) {
@@ -146,6 +163,7 @@ class WorkerTaskAssignmentTest {
         private final long id = IDS.incrementAndGet();
         private final Instant created = Instant.now();
         private final AtomicInteger assignees = new AtomicInteger();
+        private boolean makesRoom;
 
         private TestTask(Point location, Predicate<ICreatureController> reachable) {
             this.location = location;
@@ -166,6 +184,12 @@ class WorkerTaskAssignmentTest {
                 case "getAssigneeCount" -> assignees.get();
                 case "isFull" -> assignees.get() >= 3;
                 case "canAssign" -> assignees.get() < 3 && reachable.test((ICreatureController) args[0]);
+                case "makeRoomFor" -> {
+                    if (makesRoom) {
+                        assignees.set(0);
+                    }
+                    yield makesRoom;
+                }
                 case "assign" -> {
                     assignees.incrementAndGet();
                     yield null;
