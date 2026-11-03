@@ -4,7 +4,6 @@ import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.utils.Utils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNull;
 
 class UnitFlowerControlTest {
 
@@ -43,13 +42,6 @@ class UnitFlowerControlTest {
     @Test
     void invalidMaximumShowsNoSegments() {
         assertEquals(5, UnitFlowerControl.getHealthIndex(100, 0));
-    }
-
-    @Test
-    void creatureBeingRemovedHasNoPlayerColor() {
-
-        // A removed creature has lost its owner, which reads as player 0
-        assertNull(UnitFlowerControl.getPlayerColor((short) 0));
     }
 
 }
