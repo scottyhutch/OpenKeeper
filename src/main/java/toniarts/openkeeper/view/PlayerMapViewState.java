@@ -48,6 +48,7 @@ import toniarts.openkeeper.tools.modelviewer.Debug;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 import toniarts.openkeeper.view.effect.EffectManagerState;
+import toniarts.openkeeper.view.effect.RoomActionEffects;
 import toniarts.openkeeper.view.fogofwar.FogOfWarController;
 import toniarts.openkeeper.view.fogofwar.IFogOfWarInformation;
 import toniarts.openkeeper.view.map.FlashTileViewState;
@@ -68,7 +69,7 @@ import java.util.function.Consumer;
  *
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
-public abstract class PlayerMapViewState extends AbstractAppState implements MapListener, PlayerActionListener {
+public abstract class PlayerMapViewState extends AbstractAppState implements MapListener, PlayerActionListener, EventListener<GameEvent> {
 
     private static final int CASINO_JACKPOT_EFFECT = 91;
     private static final int CASINO_FIREWORKS_EFFECT = 320;
@@ -225,6 +226,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         // Sounds
         this.gameEventSoundPlayer.register();
         EventBus.addListener(ClientEvents.GAME_EVENT, casinoEffectsListener);
+        EventBus.addListener(ClientEvents.GAME_EVENT, this);
 
         // Tile flash state
         this.stateManager.attach(flashTileControl);
@@ -238,6 +240,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
     @Override
     public void cleanup() {
+        EventBus.removeListener(ClientEvents.GAME_EVENT, this);
 
         // Lighting
         mapLoader.getLightRules().destroyCursorLight();
@@ -338,6 +341,27 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
      * @param progress current progress from 0.0 to 1.0
      */
     protected abstract void updateProgress(final float progress);
+
+    @Override
+    public void newEvent(EventType<GameEvent> type, GameEvent event) {
+        RoomActionEffects.Request request = RoomActionEffects.resolve(event, kwdFile);
+        if (request == null) {
+            return;
+        }
+        // Events can arrive on the network/logic thread. Scene changes belong to the renderer.
+        app.enqueue(() -> {
+            if (worldNode == null || !mapLoaded || !fogOfWarController.isVisible(event.position)) {
+                return;
+            }
+            var position = WorldUtils.pointToVector3f(event.position);
+            position.y = request.height();
+            if (request.goldValue() != null) {
+                effectManager.loadGoldValue(worldNode, position, request.goldValue(), app.getCamera());
+            } else {
+                effectManager.load(worldNode, position, request.effectId(), false);
+            }
+        });
+    }
 
     @Override
     public void onTilesChange(List<Point> updatedTiles) {

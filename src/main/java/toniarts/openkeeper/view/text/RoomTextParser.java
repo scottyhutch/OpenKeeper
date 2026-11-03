@@ -79,13 +79,12 @@ public class RoomTextParser {
      * as in the original.
      */
     public String parseText(String text, EntityId room, Keeper roomOwner) {
+        // Room entities can disappear before the tile's room reference is replicated.
         IRoomInformation roomInformation = roomsInformation.getRoomInformation(room);
-        if (roomInformation.isDungeonHeart() && roomInformation.isDestroyed()) {
+        if (roomInformation == null || (roomInformation.isDungeonHeart() && roomInformation.isDestroyed())) {
             return "";
         }
-        return TextUtils.parseText(text, (parameter) -> {
-            return getReplacement(parameter, roomInformation, roomOwner);
-        });
+        return TextUtils.parseText(text, parameter -> getReplacement(parameter, roomInformation, roomOwner));
     }
 
     protected String getReplacement(TextParameter parameter, IRoomInformation room, Keeper roomOwner) {
