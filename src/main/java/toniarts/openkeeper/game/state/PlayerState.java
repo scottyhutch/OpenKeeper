@@ -28,6 +28,7 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
+import com.simsilica.es.filter.AndFilter;
 import com.simsilica.es.filter.FieldFilter;
 import de.lessvoid.nifty.Nifty;
 import toniarts.openkeeper.Main;
@@ -285,6 +286,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         if (keeperEntity.applyChanges()) {
             screen.setGold(getGold());
         }
+        hearts.applyChanges();
         screen.update(tpf);
     }
 
@@ -681,7 +683,6 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
      * @return health percentage, 0 if we have no heart
      */
     private int getDungeonHeartHealth() {
-        hearts.applyChanges();
         for (Entity heart : hearts) {
             if (heart.get(Owner.class).ownerId == playerId) {
                 Health health = heart.get(Health.class);

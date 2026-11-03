@@ -369,10 +369,11 @@ public abstract class UnitFlowerControl<T> extends BillboardControl implements I
      * that is being removed and has lost its owner
      */
     protected static ColorRGBA getPlayerColor(short ownerId) {
-        if (!hasPlayerColor(ownerId)) {
+        Color color = MapThumbnailGenerator.getPlayerColor(ownerId);
+        if (color == null) {
             return null;
         }
-        return getColor(MapThumbnailGenerator.getPlayerColor(ownerId));
+        return getColor(color);
     }
 
     /**
