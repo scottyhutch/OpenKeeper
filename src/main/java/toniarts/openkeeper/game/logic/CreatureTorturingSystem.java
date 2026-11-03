@@ -288,7 +288,7 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
         }
 
         EntityId entityId = entityData.createEntity();
-        entityData.setComponent(entityId, new KeeperInformation(playerId, keeperId, Set.of(), Set.of()));
+        entityData.setComponent(entityId, new KeeperInformation(playerId, keeperId, new HashSet<>(), new HashSet<>()));
         keeperInformation.applyChanges();
         return keeperInformation.getEntity(entityId);
     }

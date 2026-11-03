@@ -239,7 +239,7 @@ public final class TrapSystem implements IGameLogicUpdatable {
 
         if (trap.getTriggerType() == Trap.TriggerType.TRIGGER && target != null) {
             entityData.setComponent(entityData.createEntity(), new TriggerWave(trapEntity.getId(), ownerId,
-                    trapEntity.get(Position.class).position.clone(), target, gameTime, Set.of()));
+                    trapEntity.get(Position.class).position.clone(), target, gameTime, new HashSet<>()));
         }
 
         return true;
