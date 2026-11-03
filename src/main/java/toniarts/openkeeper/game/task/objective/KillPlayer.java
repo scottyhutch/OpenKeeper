@@ -111,6 +111,9 @@ public final class KillPlayer extends AbstractObjectiveTask {
      */
     @Override
     public Task getCurrentTask() {
+        if (!wayFound) {
+            return null;
+        }
         boolean stepDone = false;
         while (!getTaskQueue().isEmpty() && !getTaskQueue().peekFirst().isValid(creature)) {
             getTaskQueue().removeFirst();
@@ -448,18 +451,6 @@ public final class KillPlayer extends AbstractObjectiveTask {
             return null;
         }
         return mapController.getTerrain(mapController.getMapData().getTile(point));
-    }
-
-    /**
-     * With no way to the heart there is nothing the hero can do for its
-     * objective yet. It doesn't take the task, and tries again the next time it
-     * looks for something to do
-     *
-     * @return the current task, null when there is no way to the heart
-     */
-    @Override
-    public Task getCurrentTask() {
-        return wayFound ? super.getCurrentTask() : null;
     }
 
     @Override
