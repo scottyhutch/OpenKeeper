@@ -123,6 +123,14 @@ class GameEventTest {
     }
 
     @Test
+    void mentorTellsOfAPrisonerRisenAsASkeleton() {
+        GameEvent event = new GameEvent(GameEventType.PRISON_SKELETON_RISEN, null, 0, null, 0, null, null);
+
+        assertEquals(List.of(new GameEventSounds.Sound(SoundCategory.SPEECH_MENTOR, MentorType.PRISN004.getId(), null)),
+                GameEventSounds.getSounds(event, null));
+    }
+
+    @Test
     void thingWithoutSoundCategoryMakesNoSound() {
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (proxy, method, args) -> method.getName().equals("getRoomById") ? SoundFixtures.room(null) : null);
