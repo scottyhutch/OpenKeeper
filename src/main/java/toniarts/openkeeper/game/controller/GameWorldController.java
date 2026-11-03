@@ -47,6 +47,7 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Interaction;
 import toniarts.openkeeper.game.component.KeeperSpellCast;
+import toniarts.openkeeper.game.component.LeavingDungeon;
 import toniarts.openkeeper.game.component.LevelIndicator;
 import toniarts.openkeeper.game.component.MeleeHit;
 import toniarts.openkeeper.game.component.Navigation;
@@ -70,6 +71,7 @@ import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectTyp
 import toniarts.openkeeper.game.controller.room.CombatPitController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.TempleController;
+import toniarts.openkeeper.game.controller.room.ThreeByThreeController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.controller.room.storage.RoomGoldControl;
 import toniarts.openkeeper.game.controller.room.storage.RoomLairControl;
@@ -1343,7 +1345,18 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             return;
         }
 
-        // TODO: Evict
+        boolean leavingDungeon = false;
+
+        // A creature dropped on the middle of its keeper's portal falls through the floor and leaves the dungeon
+        if (roomController instanceof ThreeByThreeController portal) {
+            Entity creature = entityData.getEntity(entity, Owner.class, CreatureComponent.class);
+            boolean imp = creature.get(CreatureComponent.class).creatureId == kwdFile.getImp().getCreatureId();
+            leavingDungeon = portal.isLeavingDungeon(tile, creature.get(Owner.class).ownerId, imp);
+            if (leavingDungeon) {
+                entityData.setComponent(entity, new LeavingDungeon());
+            }
+        }
+
         // TODO: Duplicated code with CreaturesController
         // TODO: capacities
         if (roomController != null) {
@@ -1386,10 +1399,12 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             targetState = getLairRestTarget(roomController, entity, owner.ownerId, tortureOrImprisonment);
         }
 
-        // Show the fall animation right away, before the position brings the model back to the map
+        // Show the fall animation right away, before the position brings the model back to the map. A creature
+        // falling into the portal doesn't fall over, it struggles and cries for help like in the hand
         if (!tortureOrImprisonment) {
             CreatureViewState viewState = entityData.getComponent(entity, CreatureViewState.class);
-            entityData.setComponent(entity, new CreatureViewState(viewState.creatureId, gameTimer.getGameTime(), Creature.AnimationType.FALLBACK));
+            entityData.setComponent(entity, new CreatureViewState(viewState.creatureId, gameTimer.getGameTime(),
+                    leavingDungeon ? Creature.AnimationType.IN_HAND : Creature.AnimationType.FALLBACK));
         }
 
         // Add position

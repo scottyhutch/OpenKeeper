@@ -23,6 +23,7 @@ import com.simsilica.es.EntitySet;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureFall;
+import toniarts.openkeeper.game.component.LeavingDungeon;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
@@ -62,6 +63,7 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
     private final int ticksPerSecond;
     private final float gravity;
     private final EntitySet fallEntities;
+    private final EntitySet leavingEntities;
 
     /**
      * Creates the system
@@ -83,25 +85,39 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
         this.gravity = gravityConstant * GRAVITY_CONSTANT_SCALE;
 
         fallEntities = entityData.getEntities(CreatureFall.class, Position.class, CreatureComponent.class);
+        leavingEntities = entityData.getEntities(LeavingDungeon.class);
     }
 
     @Override
     public void processTick(float tpf) {
         // Add new & remove old
         fallEntities.applyChanges();
+        leavingEntities.applyChanges();
 
         // Process ticks
         for (Entity entity : fallEntities) {
+
+            // Like in DK II, the floor in the middle of the portal is a level lower, the creature falls through
+            boolean leaving = leavingEntities.containsId(entity.getId());
+            float floorHeight = leaving ? WorldUtils.UNDERFLOOR_HEIGHT : WorldUtils.FLOOR_HEIGHT;
             Position position = entity.get(Position.class);
             CreatureFall creatureFall = entity.get(CreatureFall.class);
             Position newPosition = new Position(position.rotation, position.position);
             if (creatureFall.velocity != null) {
                 fly(entity, creatureFall, newPosition.position, tpf * ticksPerSecond);
             } else {
-                newPosition.position.y = Math.max(newPosition.position.y - tpf * GRAVITY, WorldUtils.FLOOR_HEIGHT);
+                newPosition.position.y = Math.max(newPosition.position.y - tpf * GRAVITY, floorHeight);
             }
             entity.set(newPosition);
-            if (newPosition.position.y == WorldUtils.FLOOR_HEIGHT) {
+            if (newPosition.position.y == floorHeight) {
+
+                // A creature dropped on the middle of its keeper's portal doesn't get up, the
+                // CreatureLeaveSystem sends it out of the dungeon once the fall is over
+                if (leaving) {
+                    gameEventService.emit(GameEventType.CREATURE_LAND, entity.getId(), newPosition.position);
+                    entityData.removeComponent(entity.getId(), CreatureFall.class);
+                    continue;
+                }
 
                 // We'll just remove this and add the AI
                 entityData.removeComponent(entity.getId(), CreatureFall.class);
@@ -163,6 +179,7 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
     @Override
     public void stop() {
         fallEntities.release();
+        leavingEntities.release();
     }
 
 }
