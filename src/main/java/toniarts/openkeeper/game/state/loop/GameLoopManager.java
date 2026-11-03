@@ -108,7 +108,7 @@ public final class GameLoopManager {
                         gameController.getGameTimer(), gameEventService),
                 new InfernoSystem(entityData, positionSystem, levelInfo.getLevelData()),
                 new CreatureTorturingSystem(entityData, gameWorldController.getCreaturesController(),
-                        gameWorldController.getMapController(), playerControllers),
+                        gameWorldController.getMapController(), playerControllers, gameEventService),
                 new KeeperDefeatSystem(entityData, levelInfo, gameController, gameWorldController.getMapController(),
                         gameWorldController.getObjectsController(), players != null && !players.isEmpty()),
                 new DeathSystem(entityData, gameSettings, positionSystem),
