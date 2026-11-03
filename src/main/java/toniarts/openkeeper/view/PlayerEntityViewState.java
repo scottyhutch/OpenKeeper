@@ -1102,6 +1102,7 @@ public class PlayerEntityViewState extends AbstractAppState {
             logger.log(Level.TRACE, "DoorModelContainer.addObject({0})", e);
             Spatial result = createDoorModel(e);
             updateObject(result, e);
+            notifyTerrainOfDoor(e, true);
             return result;
         }
 
@@ -1123,10 +1124,24 @@ public class PlayerEntityViewState extends AbstractAppState {
                         door.getDeathEffectId(), false);
             }
             removeModel(object, e);
+            notifyTerrainOfDoor(e, false);
         }
 
         Spatial[] getModels() {
             return getArray();
+        }
+
+        /**
+         * The terrain next to a door is not bent, tell it about the door
+         */
+        private void notifyTerrainOfDoor(Entity e, boolean present) {
+            PlayerMapViewState mapViewState = stateManager.getState(PlayerMapViewState.class);
+            Position position = e.get(Position.class);
+            if (mapViewState == null || !mapViewState.isMapLoaded() || position == null) {
+                return; // The doors of the map file are known by the map loader itself
+            }
+            toniarts.openkeeper.utils.Point p = WorldUtils.vectorToPoint(position.position);
+            mapViewState.getMapLoader().setDoor(p.x, p.y, present);
         }
     }
 

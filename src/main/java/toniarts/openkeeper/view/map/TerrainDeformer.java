@@ -94,16 +94,15 @@ public final class TerrainDeformer {
      */
     private static final TileShape OFF_MAP = new TileShape(true, 0.1875f, 0.094f, TileShape.NO_LEAN, TileShape.NO_LEAN);
 
-    private static final float DIAGONAL = 1.4f; // ~sqrt(2)
     private static final float SWELL_BASE = 0.15f;
     private static final float SWELL_AMPLITUDE = 0.125f;
 
     // The values of the original look a bit too much here, tone each down. All of them can be
     // scaled further with -Dopenkeeper.deformScale=<factor>, 0 is flat.
     private static final float STRENGTH = Float.parseFloat(System.getProperty("openkeeper.deformScale", "1"));
-    private static final float WIBBLE_SCALE = 0.6f * STRENGTH;
-    private static final float LEAN_SCALE = 0.5f * STRENGTH;
-    private static final float SWELL_SCALE = 0.5f * STRENGTH;
+    private static final float WIBBLE_SCALE = 0.8f * STRENGTH;
+    private static final float LEAN_SCALE = 0.8f * STRENGTH;
+    private static final float SWELL_SCALE = STRENGTH; // The wave is used at full amplitude
     private static final float FLOOR_Y = 1f; // Rest height of lattice level 1, the levels are half a tile apart
     private static final int LEVELS = 3; // The ones that move
     private static final int SEED = 0x4F4B3250;
@@ -115,6 +114,10 @@ public final class TerrainDeformer {
     private final BiFunction<Integer, Integer, TileShape> tiles;
     private final float[] displacements; // x, y, z for each of the levels, for each point
     private final boolean[] valid;
+    private final int[] doorPinned; // How many doors pin the lattice point (the 3 x 3 points of the door tile)
+    private final java.util.Set<Long> doorTiles = new java.util.HashSet<>();
+    private final int[] straightPinned; // The same for the tiles that must be completely straight, the pillars
+    private final java.util.Set<Long> straightTiles = new java.util.HashSet<>();
     private int version; // Changes whenever the shape may have changed
 
     /**
@@ -131,6 +134,55 @@ public final class TerrainDeformer {
         this.tiles = tiles;
         this.displacements = new float[pointsX * pointsY * LEVELS * 3];
         this.valid = new boolean[pointsX * pointsY];
+        this.doorPinned = new int[pointsX * pointsY];
+        this.straightPinned = new int[pointsX * pointsY];
+    }
+
+    /**
+     * A door stands on the tile (or stopped standing there). The lattice points
+     * on the door tile (its corners, edge middles and centre) are not moved: no
+     * wibble and no lean. That is the side of the walls that faces the door, so
+     * the door frame fits its wall, the rest of the wall bends as usual.
+     */
+    public void setDoor(int x, int y, boolean present) {
+        if (x < 0 || y < 0 || x >= width || y >= height) {
+            return;
+        }
+        long key = ((long) x << 32) | (y & 0xFFFFFFFFL);
+        if (present ? !doorTiles.add(key) : !doorTiles.remove(key)) {
+            return; // No change
+        }
+        int delta = present ? 1 : -1;
+        for (int j = 2 * y; j <= 2 * y + 2; j++) {
+            for (int i = 2 * x; i <= 2 * x + 2; i++) {
+                doorPinned[j * pointsX + i] += delta;
+            }
+        }
+        invalidateTile(x, y);
+    }
+
+    /**
+     * A tile must be completely straight (or stops being): no wibble, no
+     * lean and not even the wave over the tops. The lattice points on the tile
+     * (corners, edge middles, centre) stay put, and with them the edges of
+     * the walls next to it. For the pillars, their models are not bent, the
+     * walls must meet them.
+     */
+    public void setStraight(int x, int y, boolean present) {
+        if (x < 0 || y < 0 || x >= width || y >= height) {
+            return;
+        }
+        long key = ((long) x << 32) | (y & 0xFFFFFFFFL);
+        if (present ? !straightTiles.add(key) : !straightTiles.remove(key)) {
+            return; // No change
+        }
+        int delta = present ? 1 : -1;
+        for (int j = 2 * y; j <= 2 * y + 2; j++) {
+            for (int i = 2 * x; i <= 2 * x + 2; i++) {
+                straightPinned[j * pointsX + i] += delta;
+            }
+        }
+        invalidateTile(x, y);
     }
 
     /**
@@ -376,7 +428,8 @@ public final class TerrainDeformer {
         for (int level = 1; level <= LEVELS; level++) {
             int index = 3 - level; // Lean is top, middle, floor
             float x = 0, y = 0, z = 0;
-            boolean pinned = wibbleH == 0 && wibbleV == 0 && params[2 + index] == 0 && params[2 + LEVELS + index] == 0;
+            boolean pinned = doorPinned[j * pointsX + i] > 0
+                    || wibbleH == 0 && wibbleV == 0 && params[2 + index] == 0 && params[2 + LEVELS + index] == 0;
             if (!pinned) {
                 lean(i, j, level, lean);
                 lean.multLocal(LEAN_SCALE);
@@ -389,11 +442,15 @@ public final class TerrainDeformer {
                 x += (random(i, j, level, 0) - 0.5f) * wibbleH + direction.x * wibbleH / 2;
                 z += (random(i, j, level, 1) - 0.5f) * wibbleH + direction.z * wibbleH / 2;
                 y -= random(i, j, level, 2) * wibbleV;
-
-                // The tops of the rock are not a flat plane
-                if (level == 3) {
-                    y += SWELL_SCALE * (SWELL_BASE + SWELL_AMPLITUDE * FastMath.sin((i + j) / 2f));
-                }
+            }
+            if (straightPinned[j * pointsX + i] > 0) {
+                x = 0;
+                y = 0;
+                z = 0;
+            } else if (level == 3) {
+                // The tops of the rock are not a flat plane. A sine wave over the whole map, independent
+                // of the terrain (so it also applies to pinned tiles), raises the tops by 0.025 - 0.275
+                y += SWELL_SCALE * (SWELL_BASE + SWELL_AMPLITUDE * FastMath.sin((i + j) * 0.5f));
             }
             int at = base + (level - 1) * 3;
             displacements[at] = x;
@@ -432,8 +489,9 @@ public final class TerrainDeformer {
     }
 
     /**
-     * Which way the solid side is, x and z (tile y) in the result. Longer on
-     * the diagonals.
+     * Which way the solid side is, x and z (tile y) in the result. Already longer
+     * on the diagonals (sqrt 2), each axis moves as much as the edges next to it,
+     * or the end of a one tile wide tunnel flares out past its walls.
      */
     private void solidDirection(int i, int j, Vector3f result) {
         boolean evenI = i % 2 == 0;
@@ -443,8 +501,7 @@ public final class TerrainDeformer {
             int b = j / 2;
             float dx = Math.signum((solid(a, b - 1) + solid(a, b)) - (solid(a - 1, b - 1) + solid(a - 1, b)));
             float dz = Math.signum((solid(a - 1, b) + solid(a, b)) - (solid(a - 1, b - 1) + solid(a, b - 1)));
-            float k = dx != 0 && dz != 0 ? DIAGONAL : 1f;
-            result.set(dx * k, 0, dz * k);
+            result.set(dx, 0, dz);
         } else if (!evenI && evenJ) { // Edge between the tile above and below
             int a = (i - 1) / 2;
             int b = j / 2;

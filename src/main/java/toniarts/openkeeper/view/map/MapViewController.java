@@ -76,9 +76,9 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
      * and the RedTexture (255, 64, 65).
      */
     private final static ColorRGBA TAG_BASE = new ColorRGBA(128 / 255f, 128 / 255f, 200 / 255f, 1);
-    private final static ColorRGBA TAG_OVERLAY = new ColorRGBA(63 / 255f, 64 / 255f, 1f, 1);
+    public final static ColorRGBA TAG_OVERLAY = new ColorRGBA(63 / 255f, 64 / 255f, 1f, 1);
     private final static ColorRGBA FLASH_BASE = new ColorRGBA(1f, 0f, 0f, 1);
-    private final static ColorRGBA FLASH_OVERLAY = new ColorRGBA(1f, 64 / 255f, 65 / 255f, 1);
+    public final static ColorRGBA FLASH_OVERLAY = new ColorRGBA(1f, 64 / 255f, 65 / 255f, 1);
     private final static int PAGE_SQUARE_SIZE = 8; // Divide the terrain to square "pages"
     private final static int FLOOR_INDEX = 0;
     private final static int WALL_INDEX = 1;
@@ -124,6 +124,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     private final Map<Point, Thing.Room> roomThings = new HashMap<>();
     private final Map<RoomInstance, RoomConstructor> roomActuals = new HashMap<>(); // Rooms by room constructor
     private final Map<Point, EntityInstance<Terrain>> terrainBatchCoordinates = new HashMap<>(); // A quick glimpse whether terrain batch at specific coordinates is already "found"
+    private final Map<RoomInstance, Set<Point>> roomPillars = new HashMap<>(); // The straight tiles of the rooms
     private TerrainDeformer deformer; // Bends the terrain and the rooms, null if turned off
     private final Map<String, Material> randomTextureMaterials = new HashMap<>(); // Alternative terrain materials by asset name, configured once and reused
     private final LightRules lightRules;
@@ -182,11 +183,20 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         if (DEFORM_TERRAIN) {
             deformer = new TerrainDeformer(getMapData().getWidth(), getMapData().getHeight(),
                     (x, y) -> TerrainDeformer.TileShape.of(getTerrain(getMapData().getTile(x, y))));
+
+            // The terrain around a door stays straight
+            for (Thing.Door door : kwdFile.getThings(Thing.Door.class)) {
+                deformer.setDoor(door.getPosX(), door.getPosY(), true);
+            }
         }
         Node terrain = new Node(TERRAIN_NODE);
         generatePages(terrain);
         roomsNode = new Node(ROOM_NODE);
         terrain.attachChild(roomsNode);
+
+        // The walls are built in the order of the tiles, the rock around a room before the room itself.
+        // The tiles of the pillars have to be known by then
+        straightenAllPillars();
 
         // Go through the fixed rooms and construct them
         // We might not need the room list on the client ever, we can draw them without
@@ -237,6 +247,19 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
      */
     public TerrainDeformer getDeformer() {
         return deformer;
+    }
+
+    /**
+     * A door appeared on or vanished from a tile after the load (the ones in
+     * the map file are known already). The terrain around it is rebuilt
+     * straight (or bent again).
+     */
+    public void setDoor(int x, int y, boolean present) {
+        if (deformer == null) {
+            return;
+        }
+        deformer.setDoor(x, y, present);
+        updateTiles(new Point(x, y));
     }
 
     public IMapDataInformation<IMapTileInformation> getMapData() {
@@ -432,7 +455,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         for (Map.Entry<CeilingBatchKey, List<Point>> batch : batchTiles.entrySet()) {
             CeilingBatchKey key = batch.getKey();
             Geometry ceilingGeometry = Ceiling.construct(assetManager, clearanceField,
-                    batchTerrain.get(key), batchResource.get(key), batch.getValue(), deformer);
+                    batchTerrain.get(key), batchResource.get(key), batch.getValue(), deformer, pillarTiles);
             surface.attachChild(ceilingGeometry);
             ceilingMaterials.add(ceilingGeometry.getMaterial());
         }
@@ -1103,6 +1126,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         RoomInstance roomInstance = new RoomInstance(room, thing != null ? thing : roomThings.get(p));
         findRoom(p, roomInstance, thing);
         findRoomWallSections(roomInstance);
+        straightenPillars(roomInstance);
 
         Spatial roomNode = handleRoom(roomInstance);
         if (roomNode != null) {
@@ -1779,6 +1803,79 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
      *
      * @param instances room instances to remove
      */
+    /**
+     * The pillar models are straight, so the terrain around them is too
+     */
+    private void straightenPillars(RoomInstance instance) {
+        if (deformer == null) {
+            return;
+        }
+        Set<Point> pillars = PillarPlacement.getPillarTiles(instance);
+        if (!pillars.isEmpty()) {
+            roomPillars.put(instance, pillars);
+            for (Point p : pillars) {
+                deformer.setStraight(p.x, p.y, true);
+            }
+        }
+    }
+
+    /**
+     * Finds the pillar tiles of all the rooms ahead of the actual room construction, without registering
+     * the rooms. The rooms get registered (and the pillars tracked) as they are met.
+     */
+    private void straightenAllPillars() {
+        if (deformer == null) {
+            return;
+        }
+        Set<Point> visited = new HashSet<>();
+        for (IMapTileInformation tile : getMapData()) {
+            Point start = tile.getLocation();
+            Terrain terrain = getTerrain(tile);
+            if (visited.contains(start) || !terrain.getFlags().contains(Terrain.TerrainFlag.ROOM)) {
+                continue;
+            }
+            Room room = kwdFile.getRoomByTerrain(terrain.getTerrainId());
+            if (room == null) {
+                continue;
+            }
+
+            // Flood the room, like findRoom does
+            RoomInstance instance = new RoomInstance(room, roomThings.get(start));
+            java.util.ArrayDeque<Point> queue = new java.util.ArrayDeque<>();
+            queue.add(start);
+            visited.add(start);
+            while (!queue.isEmpty()) {
+                Point p = queue.poll();
+                instance.addCoordinate(p);
+                for (Point n : new Point[]{new Point(p.x, p.y - 1), new Point(p.x + 1, p.y),
+                    new Point(p.x, p.y + 1), new Point(p.x - 1, p.y)}) {
+                    IMapTileInformation neighbour = getMapData().getTile(n);
+                    if (neighbour == null || visited.contains(n)) {
+                        continue;
+                    }
+                    Terrain neighbourTerrain = getTerrain(neighbour);
+                    if (neighbourTerrain.getFlags().contains(Terrain.TerrainFlag.ROOM)
+                            && room.equals(kwdFile.getRoomByTerrain(neighbourTerrain.getTerrainId()))) {
+                        visited.add(n);
+                        queue.add(n);
+                    }
+                }
+            }
+            for (Point p : PillarPlacement.getPillarTiles(instance)) {
+                deformer.setStraight(p.x, p.y, true);
+            }
+        }
+    }
+
+    private void releasePillars(RoomInstance instance) {
+        Set<Point> pillars = roomPillars.remove(instance);
+        if (pillars != null && deformer != null) {
+            for (Point p : pillars) {
+                deformer.setStraight(p.x, p.y, false);
+            }
+        }
+    }
+
     protected void removeRoomInstances(RoomInstance... instances) {
         for (RoomInstance instance : instances) {
             // A room that has no visuals is registered with no node
@@ -1788,6 +1885,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
             }
 
             roomActuals.remove(instance);
+            releasePillars(instance);
             for (Point p : instance.getCoordinates()) {
                 roomCoordinates.remove(p);
             }
