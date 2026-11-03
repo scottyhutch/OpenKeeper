@@ -89,12 +89,18 @@ class TaskManagerRepairRoomTaskTest {
         default ->
             RoomTileWorld.defaultValue(proxy, method);
     });
-    private final IMapTileController tile = RoomTileWorld.stub(IMapTileController.class, (proxy, method, args) -> RoomTileWorld.defaultValue(proxy, method));
     private final IMapDataInformation<?> mapData = RoomTileWorld.stub(IMapDataInformation.class, (proxy, method, args) -> switch (method.getName()) {
         case "getWidth", "getHeight" ->
             10;
-        case "getTile" ->
-            tile;
+        case "getTile" -> {
+            Point p = args.length == 1 ? (Point) args[0] : new Point((int) args[0], (int) args[1]);
+            yield RoomTileWorld.stub(IMapTileController.class, (tile, call, callArgs) -> switch (call.getName()) {
+                case "getLocation" -> p;
+                case "getX" -> p.x;
+                case "getY" -> p.y;
+                default -> RoomTileWorld.defaultValue(tile, call);
+            });
+        }
         default ->
             RoomTileWorld.defaultValue(proxy, method);
     });
