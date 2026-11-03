@@ -25,6 +25,7 @@ import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.es.filter.FieldFilter;
 import toniarts.openkeeper.game.component.Attack;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.ChaseBackOff;
@@ -955,6 +956,7 @@ public final class CreatureController extends EntityController implements ICreat
                 // Set the damage
                 setDamage(attackTarget, creatureMeleeAttack.damage);
                 gameEventService.emitAt(GameEventType.MELEE_HIT, ThingFlag.CREATURE, creature.getCreatureId(), attackTarget, getPosition());
+                turnOnUs(attackTarget);
             }
         } else {
             Optional<CreatureSpell> attack = getPreferredAttackSpell(attackTarget);
@@ -978,6 +980,28 @@ public final class CreatureController extends EntityController implements ICreat
                 setDamage(attackTarget, creatureSpell.getShotData1());
             }
         }
+    }
+
+    /**
+     * A fighting creature we swing at turns on us, unless it is fighting a
+     * creature no one else fights. So one hitting a heart turns on us
+     * (0x45F030 calls 0x45AA20 when a swing at a creature starts)
+     *
+     * @param target the creature we swing at
+     */
+    private void turnOnUs(EntityId target) {
+        CreatureAi ai = entityData.getComponent(target, CreatureAi.class);
+        if (ai == null || !(ai.getCreatureState() == CreatureState.FIGHT || ai.getCreatureState() == CreatureState.MELEE_ATTACK)) {
+            return;
+        }
+        AttackTarget targetsTarget = entityData.getComponent(target, AttackTarget.class);
+        if (targetsTarget != null && (entityId.equals(targetsTarget.entityId)
+                || !DungeonHeartTarget.isDungeonHeart(entityData, targetsTarget.entityId)
+                && entityData.findEntities(new FieldFilter<>(AttackTarget.class, "entityId", targetsTarget.entityId), AttackTarget.class).size() < 2)) {
+            return;
+        }
+        entityData.setComponent(target, new AttackTarget(entityId, gameTimer.getGameTime(),
+                WorldUtils.vectorToPoint(getPosition(entityData, target)), Double.NaN));
     }
 
     /**
