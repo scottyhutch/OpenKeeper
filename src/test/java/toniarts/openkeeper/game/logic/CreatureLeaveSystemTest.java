@@ -45,7 +45,7 @@ class CreatureLeaveSystemTest {
     private final List<EntityId> left = new ArrayList<>();
     private final List<GameEventType> events = new ArrayList<>();
     private final CreatureFallSystem fallSystem = new CreatureFallSystem(entityData, () -> 0,
-            proxy(GameEventService.class, args -> events.add((GameEventType) args[0])));
+            proxy(GameEventService.class, args -> events.add((GameEventType) args[0])), null, 4, 0f);
     private final CreatureLeaveSystem leaveSystem = new CreatureLeaveSystem(entityData,
             proxy(ICreaturesController.class, args -> {
                 left.add((EntityId) args[0]);
