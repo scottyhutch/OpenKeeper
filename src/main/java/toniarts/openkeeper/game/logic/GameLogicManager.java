@@ -19,6 +19,8 @@ package toniarts.openkeeper.game.logic;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
@@ -35,6 +37,19 @@ public final class GameLogicManager implements IGameLogicUpdatable {
     protected final IGameLogicUpdatable[] updatables;
     private final BlockingQueue<Runnable> actions = new LinkedBlockingQueue<>();
 
+    /**
+     * Debug only: per updatable timing, enable with -Dok.tickTiming=true. Grep for TICKTIMING
+     */
+    private static final boolean TICK_TIMING = Boolean.getBoolean("ok.tickTiming");
+    private static final float SUMMARY_INTERVAL = 60f;
+    private String timingLabel;
+    private long budgetNanos;
+    private long[] tickNanos;
+    private long[] sumNanos;
+    private long[] maxNanos;
+    private int timedTicks;
+    private float windowSeconds;
+
     public GameLogicManager(IGameLogicUpdatable... updatables) {
         this.updatables = updatables;
     }
@@ -46,8 +61,29 @@ public final class GameLogicManager implements IGameLogicUpdatable {
         }
     }
 
+    /**
+     * Debug only: times the updatables of this manager, if -Dok.tickTiming is on
+     *
+     * @param label name of the loop for the log lines
+     * @param budgetNanos the time a tick may take
+     */
+    public void enableTickTiming(String label, long budgetNanos) {
+        if (TICK_TIMING) {
+            timingLabel = label;
+            this.budgetNanos = budgetNanos;
+            int n = updatables.length + 1;
+            tickNanos = new long[n];
+            sumNanos = new long[n];
+            maxNanos = new long[n];
+        }
+    }
+
     @Override
     public void processTick(float tpf) {
+        if (timingLabel != null) {
+            processTimedTick(tpf);
+            return;
+        }
         runQueuedActions();
 
         // Update updatables
@@ -58,6 +94,72 @@ public final class GameLogicManager implements IGameLogicUpdatable {
                 logger.log(Level.ERROR, "Error in game logic tick on " + updatable.getClass() + "!", e);
             }
         }
+    }
+
+    private void processTimedTick(float tpf) {
+        int last = updatables.length;
+        long tickStart = System.nanoTime();
+        long t = tickStart;
+        runQueuedActions();
+        long now = System.nanoTime();
+        tickNanos[last] = now - t;
+        t = now;
+        for (int i = 0; i < last; i++) {
+            try {
+                updatables[i].processTick(tpf);
+            } catch (Exception e) {
+                logger.log(Level.ERROR, "Error in game logic tick on " + updatables[i].getClass() + "!", e);
+            }
+            now = System.nanoTime();
+            tickNanos[i] = now - t;
+            t = now;
+        }
+        long total = t - tickStart;
+        for (int i = 0; i <= last; i++) {
+            sumNanos[i] += tickNanos[i];
+            maxNanos[i] = Math.max(maxNanos[i], tickNanos[i]);
+        }
+        timedTicks++;
+        windowSeconds += tpf;
+        if (total > budgetNanos) {
+            Integer[] order = timingOrder(tickNanos);
+            StringBuilder sb = new StringBuilder("TICKTIMING [").append(timingLabel).append("] tick=")
+                    .append(total / 1_000_000).append(" ms (budget ").append(budgetNanos / 1_000_000).append(")");
+            for (int i = 0; i < Math.min(6, order.length); i++) {
+                sb.append(' ').append(timingName(order[i])).append('=').append(tickNanos[order[i]] / 1_000_000).append("ms");
+            }
+            logger.log(Level.WARNING, sb.toString());
+        }
+        if (windowSeconds >= SUMMARY_INTERVAL) {
+            Integer[] order = timingOrder(sumNanos);
+            StringBuilder sb = new StringBuilder("TICKTIMING summary [").append(timingLabel).append("] ticks=")
+                    .append(timedTicks).append(" window=").append((int) windowSeconds).append("s (avg/max ms, by total)");
+            for (int i : order) {
+                if (sumNanos[i] > 0) {
+                    sb.append("\n    ").append(timingName(i)).append(" avg=")
+                            .append(String.format("%.2f", sumNanos[i] / 1e6 / timedTicks))
+                            .append(" max=").append(String.format("%.1f", maxNanos[i] / 1e6));
+                }
+            }
+            logger.log(Level.WARNING, sb.toString());
+            Arrays.fill(sumNanos, 0);
+            Arrays.fill(maxNanos, 0);
+            timedTicks = 0;
+            windowSeconds = 0;
+        }
+    }
+
+    private String timingName(int index) {
+        return index == updatables.length ? "QueuedActions" : updatables[index].getClass().getSimpleName();
+    }
+
+    private static Integer[] timingOrder(long[] values) {
+        Integer[] order = new Integer[values.length];
+        for (int i = 0; i < order.length; i++) {
+            order[i] = i;
+        }
+        Arrays.sort(order, Comparator.comparingLong((Integer i) -> values[i]).reversed());
+        return order;
     }
 
     /**

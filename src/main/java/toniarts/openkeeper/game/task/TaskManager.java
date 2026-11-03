@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.task;
 
+import toniarts.openkeeper.game.state.loop.ImpDebug;
 import toniarts.openkeeper.game.state.loop.ThreadCheck;
 import com.badlogic.gdx.ai.pfa.GraphPath;
 import com.jme3.math.FastMath;
@@ -182,6 +183,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     private final Set<EntityId> thievesWithLoot = new HashSet<>();
     private final Set<ICreatureController> escapedThieves = new HashSet<>();
     private final TaskWorkerPriorityComparator taskWorkerPriorityComparator = new TaskWorkerPriorityComparator();
+    private final ImpDebug impDebug;
 
     public TaskManager(EntityData entityData, IGameWorldController gameWorldController, IMapController mapController,
             IObjectsController objectsController, ICreaturesController creaturesController, INavigationService navigationService,
@@ -192,6 +194,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         this.gameWorldController = gameWorldController;
         this.objectsController = objectsController;
         this.creaturesController = creaturesController;
+        impDebug = ImpDebug.ENABLED ? new ImpDebug(entityData, creaturesController) : null;
         this.navigationService = navigationService;
         this.levelInfo = levelInfo;
         this.entityPositionLookup = entityPositionLookup;
@@ -287,6 +290,9 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         if (crateEntities.applyChanges() || trapBlueprintsChanged || doorBlueprintsChanged || !crateDeliveryTasksScanned) {
             updateCrateDeliveryTasks();
             crateDeliveryTasksScanned = true;
+        }
+        if (impDebug != null) {
+            impDebug.update(tpf, taskQueues);
         }
     }
 
@@ -1380,6 +1386,9 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
         // Finally anybody without assigment will get feedback
         unemployedWorkers.forEach((t, u) -> {
+            if (impDebug != null) {
+                impDebug.noteUnemployed(t, taskQueue);
+            }
             setCurrentWork(t, null);
             u.accept(Boolean.FALSE);
         });
