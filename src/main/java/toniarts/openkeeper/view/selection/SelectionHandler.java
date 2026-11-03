@@ -9,10 +9,6 @@ import com.jme3.renderer.Camera;
 import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Spatial.CullHint;
-import com.jme3.scene.Mesh;
-import com.jme3.scene.VertexBuffer.Type;
-import com.jme3.util.BufferUtils;
-import java.nio.FloatBuffer;
 import toniarts.openkeeper.view.map.TerrainDeformer;
 import java.util.ArrayList;
 import java.util.List;
@@ -50,6 +46,7 @@ public abstract class SelectionHandler {
 
     /* Visuals for Selection */
     private Geometry wireBoxGeo;
+    private SelectionOutline wireBox;
     private int deformerVersion;
     private Material matWireBox;
     /* The selected Area */
@@ -210,10 +207,27 @@ public abstract class SelectionHandler {
 
     public void updateSelectionBox() {
         if (isVisible()) {
-            Vector2f start = selectionArea.getStart();
-            Vector2f end = selectionArea.getEnd();
-            float half = WorldUtils.TILE_WIDTH / 2;
-            wireBoxGeo.setMesh(createOutline(start.x - half, start.y - half, end.x + half, end.y + half));
+            TerrainDeformer deformer = getDeformer();
+            if (deformer == null) {
+                float dx = selectionArea.getDeltaX();
+                float dy = selectionArea.getDeltaY();
+                float delta = 0.01f;
+
+                Vector2f position = selectionArea.getCenter();
+                wireBoxGeo.setMesh(wireBox);
+                wireBoxGeo.setLocalTranslation(position.x, WorldUtils.FLOOR_HEIGHT, position.y);
+
+                wireBox.updatePositions(WorldUtils.TILE_WIDTH / 2 * dx + delta,
+                        WorldUtils.FLOOR_HEIGHT + delta,
+                        WorldUtils.TILE_WIDTH / 2 * dy + delta);
+            } else {
+                Vector2f start = selectionArea.getStart();
+                Vector2f end = selectionArea.getEnd();
+                float half = WorldUtils.TILE_WIDTH / 2;
+                wireBoxGeo.setLocalTranslation(0, 0, 0);
+                wireBoxGeo.setMesh(new SelectionOutline(createOutline(deformer,
+                        start.x - half, start.y - half, end.x + half, end.y + half)));
+            }
 
             // Selection color indicator
             ColorIndicator newSelectionColor = getColorIndicator();
@@ -232,9 +246,11 @@ public abstract class SelectionHandler {
         matWireBox = new Material(this.app.getAssetManager(), "Common/MatDefs/Misc/Unshaded.j3md");
         matWireBox.getAdditionalRenderState().setFaceCullMode(FaceCullMode.Off);
         matWireBox.setColor("Color", selectionColor.getColor());
-        matWireBox.getAdditionalRenderState().setLineWidth(6); // TODO: GL_INVALID_VALUE on intel driver
 
-        this.wireBoxGeo = new Geometry("wireBox", createOutline(0, 0, WorldUtils.TILE_WIDTH, WorldUtils.TILE_WIDTH));
+        this.wireBox = new SelectionOutline(WorldUtils.TILE_WIDTH, WorldUtils.TILE_WIDTH, WorldUtils.TILE_WIDTH);
+        this.wireBox.setDynamic();
+
+        this.wireBoxGeo = new Geometry("wireBox", wireBox);
         this.wireBoxGeo.setMaterial(matWireBox);
         this.wireBoxGeo.setCullHint(CullHint.Never);
         this.wireBoxGeo.setShadowMode(RenderQueue.ShadowMode.Off);
@@ -243,43 +259,31 @@ public abstract class SelectionHandler {
     }
 
     /**
-     * The edges of the selected area as a column from the floor to the top of
-     * the wall. The lines are cut short and moved the same way as the terrain
-     * is, so they stay on the bent floor and walls.
+     * The top rim and the uprights of the selected area, from the floor to the
+     * top of the wall, as line segments. They are cut short and moved the same
+     * way as the terrain is, so they stay on the bent floor and walls.
+     *
+     * @return pairs of points, one pair per segment
      */
-    private Mesh createOutline(float minX, float minZ, float maxX, float maxZ) {
-        TerrainDeformer deformer = getDeformer();
+    private static List<Vector3f> createOutline(TerrainDeformer deformer, float minX, float minZ, float maxX, float maxZ) {
         List<Vector3f> points = new ArrayList<>();
         float delta = 0.01f;
-        float[] heights = {WorldUtils.FLOOR_HEIGHT, WorldUtils.TOP_HEIGHT};
         float[][] corners = {{minX, minZ}, {maxX, minZ}, {maxX, maxZ}, {minX, maxZ}};
 
-        // The floor and the top, around
-        for (float y : heights) {
-            for (int i = 0; i < corners.length; i++) {
-                float[] from = corners[i];
-                float[] to = corners[(i + 1) % corners.length];
-                addLine(points, deformer, from[0], y, from[1], to[0], y, to[1]);
-            }
+        // The top, around
+        for (int i = 0; i < corners.length; i++) {
+            float[] from = corners[i];
+            float[] to = corners[(i + 1) % corners.length];
+            addLine(points, deformer, from[0], WorldUtils.TOP_HEIGHT, from[1], to[0], WorldUtils.TOP_HEIGHT, to[1]);
         }
 
-        // The corners between
+        // The corners down to the floor
         for (float[] corner : corners) {
-            addLine(points, deformer, corner[0], heights[0], corner[1], corner[0], heights[1], corner[1]);
+            addLine(points, deformer, corner[0], WorldUtils.FLOOR_HEIGHT, corner[1], corner[0], WorldUtils.TOP_HEIGHT, corner[1]);
         }
 
-        FloatBuffer positions = BufferUtils.createFloatBuffer(points.size() * 3);
-        for (Vector3f point : points) {
-            positions.put(point.x).put(point.y + delta).put(point.z);
-        }
-        positions.flip();
-
-        Mesh mesh = new Mesh();
-        mesh.setMode(Mesh.Mode.Lines);
-        mesh.setBuffer(Type.Position, 3, positions);
-        mesh.updateBound();
-        mesh.updateCounts();
-        return mesh;
+        points.replaceAll(point -> point.add(0, delta, 0));
+        return points;
     }
 
     private static void addLine(List<Vector3f> points, TerrainDeformer deformer,
