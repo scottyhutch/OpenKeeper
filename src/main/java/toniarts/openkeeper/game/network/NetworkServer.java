@@ -59,6 +59,7 @@ import toniarts.openkeeper.game.component.DungeonHeart;
 import toniarts.openkeeper.game.component.Fearless;
 import toniarts.openkeeper.game.component.FollowTarget;
 import toniarts.openkeeper.game.component.Food;
+import toniarts.openkeeper.game.component.Frightened;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.HauledBy;
 import toniarts.openkeeper.game.component.Health;
@@ -179,6 +180,7 @@ public final class NetworkServer {
             Serializer.registerClass(CreatureGenerator.class, new FieldSerializer());
             Serializer.registerClass(CreatureSpells.class, new FieldSerializer());
             Serializer.registerClass(DungeonHeart.class, new FieldSerializer());
+            Serializer.registerClass(Frightened.class, new FieldSerializer());
             Serializer.registerClass(ImpGenerator.class, new FieldSerializer());
             Serializer.registerClass(Portal.class, new FieldSerializer());
             Serializer.registerClass(ChickenAi.class, new FieldSerializer());
