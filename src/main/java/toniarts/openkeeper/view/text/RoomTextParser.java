@@ -21,6 +21,7 @@ import com.simsilica.es.EntityId;
 import java.util.Map;
 import java.util.function.ToIntFunction;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
+import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.CreatureSpawnSystem;
 import toniarts.openkeeper.game.map.IRoomInformation;
@@ -124,11 +125,10 @@ public class RoomTextParser {
             case WORKSHOP_MAX_CAPACITY:
                 return Integer.toString(room.getMaxCapacity());
             case PRISON_STATUS:
-                // The Prison's door isn't opened in OpenKeeper, DK II shows "Closed." for a shut one
-                return Utils.getMainTextResourceBundle().getString("2455");
+                return Utils.getMainTextResourceBundle().getString(room.isPrisonOpen() ? "2454" : "2455"); // Open. / Closed.
             case CASINO_PAYOUT:
-                // The pay-out lever can't be pulled yet, so the Casino is a generous one
-                return Utils.getMainTextResourceBundle().getString("2508");
+                // A whole sentence, how generous the Casino is
+                return Utils.getMainTextResourceBundle().getString(room.getCasinoPayOut() == PayOut.MONEY ? "2509" : "2508");
             case PATROL_ROUTE_COUNT:
                 return Integer.toString(patrolRouteCounter.applyAsInt(room.getOwnerId()));
             case DUNGEON_HEART_MANA:
