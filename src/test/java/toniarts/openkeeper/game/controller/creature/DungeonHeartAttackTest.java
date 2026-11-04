@@ -17,6 +17,7 @@
 package toniarts.openkeeper.game.controller.creature;
 
 import com.badlogic.gdx.ai.pfa.DefaultGraphPath;
+import com.badlogic.gdx.math.Vector2;
 import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
@@ -24,6 +25,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -251,6 +253,19 @@ class DungeonHeartAttackTest {
 
         // 0.4 tiles from the south-west pillar and nearer than (8, 11)
         assertEquals(new Point(9, 11), entityData.getComponent(hero, Navigation.class).target);
+    }
+
+    @Test
+    void creaturePushedOutOfReachOnItsAttackTileWalksBackToItsMiddle() {
+        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 8));
+        entityData.setComponent(hero, new Position(0, new Vector3f(10, 0, 7.6f)));
+        EntityId heart = createHeart(KEEPER);
+
+        createController(hero).navigateToAttackTarget(heart);
+
+        Navigation navigation = entityData.getComponent(hero, Navigation.class);
+        assertEquals(new Point(10, 8), navigation.target);
+        assertEquals(List.of(new Vector2(10, 7.6f), new Vector2(10, 8)), navigation.navigationPath);
     }
 
     private boolean isWithinAttackDistance(float x, float y, EntityId heart) {

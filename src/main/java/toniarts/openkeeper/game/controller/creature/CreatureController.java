@@ -19,6 +19,7 @@ package toniarts.openkeeper.game.controller.creature;
 import com.badlogic.gdx.ai.fsm.DefaultStateMachine;
 import com.badlogic.gdx.ai.fsm.StateMachine;
 import com.badlogic.gdx.ai.pfa.GraphPath;
+import com.badlogic.gdx.math.Vector2;
 import com.jme3.math.FastMath;
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
@@ -921,7 +922,14 @@ public final class CreatureController extends EntityController implements ICreat
 
             // Walled off, pick something else to do
             setAttackTarget(null);
-        } else if (!attackTile.equals(getCreatureCoordinates())) {
+        } else if (attackTile.equals(getCreatureCoordinates())) {
+
+            // Pushed out of reach on the attack tile, back to its middle. DK II chases the target whenever it is out
+            // of reach (0x45F030, 0x471D10).
+            Vector3f position = getPosition();
+            entityData.setComponent(entityId, new Navigation(attackTile, heartTile,
+                    new ArrayList<>(List.of(new Vector2(position.x, position.z), WorldUtils.pointToVector2(attackTile)))));
+        } else {
             createNavigation(getCreatureCoordinates(), attackTile, heartTile);
         }
     }
