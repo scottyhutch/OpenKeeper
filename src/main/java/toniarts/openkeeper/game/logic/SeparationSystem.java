@@ -31,6 +31,7 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.SeparationPush;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
+import toniarts.openkeeper.game.navigation.steering.FollowWaypoints;
 import toniarts.openkeeper.game.navigation.steering.SteeringUtils;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -49,9 +50,8 @@ import toniarts.openkeeper.utils.WorldUtils;
  * blocker), is shared by mass, and is stronger when moving away from the other
  * one. A blocker is never pushed itself.
  * <br>
- * DK II adds the weighted push to a velocity that is capped at the walking
- * speed of a tick, so the push is measured against that speed: it can hold a
- * walker back or turn it round a blocker, but it doesn't push into walls.
+ * DK II adds the weighted push to the velocity of a tick next to the path
+ * following (see {@link FollowWaypoints}). The push doesn't push into walls.
  */
 public final class SeparationSystem implements IGameLogicUpdatable {
 
@@ -62,9 +62,9 @@ public final class SeparationSystem implements IGameLogicUpdatable {
     private static final float MAX_FORCE = 1.5f;
 
     /**
-     * DK II weighs the separation 0.13 and the path following 0.35 (0x4D56E0)
+     * DK II weighs the separation 0.13 (0x4D56E0)
      */
-    private static final float SEPARATION_WEIGHT = 0x2147 / (float) 0x5999;
+    private static final float SEPARATION_WEIGHT = 0x2147 / 65536f;
 
     /**
      * A creature stands its ground while it fights a target in reach (the
@@ -170,9 +170,8 @@ public final class SeparationSystem implements IGameLogicUpdatable {
             separation.y = 0;
         }
 
-        // As a share of the path following, that turns the velocity towards the walking speed of a tick
-        float speedPerTick = entity.get(Mobile.class).maxSpeed / kwdFile.getGameLevel().getTicksPerSec();
-        return separation.multLocal(SEPARATION_WEIGHT / speedPerTick);
+        // Weighed, it is a change of the velocity of a tick
+        return separation.multLocal(SEPARATION_WEIGHT);
     }
 
     /**

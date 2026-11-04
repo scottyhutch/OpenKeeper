@@ -157,7 +157,7 @@ class CreatureSeparationTest {
      */
     private void run(int frames, IntConsumer afterFrame) {
         SeparationSystem separationSystem = new SeparationSystem(entityData, kwdFile(), map(), positionLookup());
-        MovementSystem movementSystem = new MovementSystem(entityData);
+        MovementSystem movementSystem = new MovementSystem(entityData, kwdFile(), map());
         for (int frame = 0; frame < frames; frame++) {
             if (frame % 15 == 0) {
                 separationSystem.processTick(1 / 4f);
