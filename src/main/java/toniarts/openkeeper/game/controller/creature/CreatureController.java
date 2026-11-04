@@ -525,12 +525,16 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget) {
+        return createNavigation(currentLocation, destination, faceTarget, false);
+    }
+
+    private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget, boolean pursuingAttackTarget) {
         GraphPath<IMapTileInformation> path = navigationService.findPath(currentLocation, destination, this);
         if (path == null) {
             logger.log(Level.WARNING, "No path from {0} to {1}", getCreatureCoordinates(), destination);
             return true;
         }
-        entityData.setComponent(entityId, new Navigation(destination, faceTarget, getWaypoints(path)));
+        entityData.setComponent(entityId, new Navigation(destination, faceTarget, getWaypoints(path), pursuingAttackTarget));
         return false;
     }
 
@@ -798,7 +802,7 @@ public final class CreatureController extends EntityController implements ICreat
             // Just now simply go where the target currently is
             Point ourPosition = getCreatureCoordinates();
             if (destination != null && !destination.equals(ourPosition)) {
-                createNavigation(ourPosition, destination, null);
+                createNavigation(ourPosition, destination, null, true);
             }
         }
     }
