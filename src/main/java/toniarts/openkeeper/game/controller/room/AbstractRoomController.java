@@ -36,6 +36,7 @@ import toniarts.openkeeper.view.map.WallSection;
 import toniarts.openkeeper.view.map.WallSection.WallDirection;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -119,6 +120,7 @@ public abstract class AbstractRoomController extends AbstractRoomInformation imp
     protected final Set<EntityId> floorFurniture = new HashSet<>();
     protected final Set<EntityId> wallFurniture = new HashSet<>();
     private final Set<EntityId> pillars;
+    private boolean furnitureLoaded = false;
 
     protected AbstractRoomController(EntityId entityId, EntityData entityData, IKwdFile kwdFile,
             RoomInstance roomInstance, IObjectsController objectsController, ObjectType defaultStorageType) {
@@ -156,12 +158,27 @@ public abstract class AbstractRoomController extends AbstractRoomInformation imp
     public void construct() {
         setupCoordinates();
 
-        // Construct the room objects
+        // Construct the room objects, a loaded room has them already
+        if (furnitureLoaded) {
+            furnitureLoaded = false;
+            return;
+        }
         removeObjects();
         constructObjects();
         if (hasPillars()) {
             pillars.addAll(constructPillars());
         }
+    }
+
+    @Override
+    public void construct(Collection<EntityId> floorFurniture, Collection<EntityId> wallFurniture, Collection<EntityId> pillars) {
+        this.floorFurniture.addAll(floorFurniture);
+        this.wallFurniture.addAll(wallFurniture);
+        if (hasPillars()) {
+            this.pillars.addAll(pillars);
+        }
+        furnitureLoaded = true;
+        construct();
     }
 
     private boolean hasPillars() {
@@ -573,6 +590,11 @@ public abstract class AbstractRoomController extends AbstractRoomInformation imp
     @Override
     public Set<EntityId> getWallFurniture() {
         return wallFurniture;
+    }
+
+    @Override
+    public Set<EntityId> getPillars() {
+        return pillars;
     }
 
     /**

@@ -54,6 +54,8 @@ import toniarts.openkeeper.game.data.ResearchableType;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.listener.PlayerListener;
 import toniarts.openkeeper.gui.CursorFactory;
+import toniarts.openkeeper.game.state.session.LocalGameSession;
+import toniarts.openkeeper.game.state.session.SaveGame;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -509,6 +511,17 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         stateManager.getState(GameClientState.class).detach();
         stateManager.detach(this);
         stateManager.getState(MainMenuState.class).setEnabled(true);
+    }
+
+    /**
+     * Ends this game and loads a saved one in its place
+     *
+     * @param saveGame the saved game
+     */
+    public void loadGame(SaveGame saveGame) {
+        stateManager.getState(GameClientState.class).detach();
+        stateManager.detach(this);
+        LocalGameSession.createLocalGame(saveGame, stateManager, app);
     }
 
     public void quitToDebriefing() {

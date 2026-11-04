@@ -94,7 +94,7 @@ class DoorsControllerTest {
                 DoorFixtures.miscVariable(Variable.MiscVariable.MiscType.ROOM_SELL_VALUE_PERCENTAGE_OF_COST, 50),
                 Variable.MiscVariable.MiscType.DOOR_SELL_VALUE_PERCENTAGE_OF_COST,
                 DoorFixtures.miscVariable(Variable.MiscVariable.MiscType.DOOR_SELL_VALUE_PERCENTAGE_OF_COST, 75));
-        doorsController = new DoorsController(kwdFile, entityData, gameSettings, mapController, null, null);
+        doorsController = new DoorsController(kwdFile, entityData, gameSettings, mapController, null, null, null);
     }
 
     @Test

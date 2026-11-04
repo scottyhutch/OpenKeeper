@@ -130,7 +130,7 @@ class PortalGenerationClockTest {
         RoomInstance roomInstance = new RoomInstance(portalDefinition);
         roomInstance.setOwnerId(PLAYER_ID);
         roomInstance.addCoordinate(new Point(5, 5));
-        portal = (ICreatureEntrance) RoomControllerFactory.constructRoom(entities, level, roomInstance, null, settings, new GameTimeController());
+        portal = (ICreatureEntrance) RoomControllerFactory.constructRoom(entities.createEntity(), entities, level, roomInstance, null, settings, new GameTimeController());
         rooms.onBuild(portal);
         listeners.forEach(listener -> listener.onBuild(portal));
     }

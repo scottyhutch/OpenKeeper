@@ -81,7 +81,7 @@ class DugOutWallTest {
         ILevelInfo levelInfo = proxy(ILevelInfo.class, (name, args) -> "getPlayer".equals(name) ? keeper : Map.of(KEEPER_ID, keeper));
         MapController mapController = new MapController(kwdFile, null,
                 Map.of(MiscType.DIG_ENEMY_WALL_HEALTH, CreatureSleepFixtures.variable(MiscType.DIG_ENEMY_WALL_HEALTH, 100)),
-                null, new DefaultEntityData(), levelInfo, proxy(GameEventService.class, (name, args) -> null));
+                null, new DefaultEntityData(), levelInfo, proxy(GameEventService.class, (name, args) -> null), null);
 
         mapController.damageTile(new Point(0, 0), HERO_ID, null);
 

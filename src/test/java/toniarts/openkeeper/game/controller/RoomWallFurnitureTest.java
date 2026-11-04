@@ -190,7 +190,7 @@ class RoomWallFurnitureTest {
                 keeper;
         });
         return new MapController(kwdFile, objectsController(), Map.of(), null, entityData, levelInfo,
-                proxy(GameEventService.class, (name, args) -> null));
+                proxy(GameEventService.class, (name, args) -> null), null);
     }
 
     private IObjectsController objectsController() {
