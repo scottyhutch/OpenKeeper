@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.controller.room;
 
+import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityComponent;
 import com.simsilica.es.EntityData;
@@ -38,7 +39,6 @@ import toniarts.openkeeper.view.map.WallSection.WallDirection;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -102,12 +102,6 @@ public abstract class AbstractRoomController extends AbstractRoomInformation imp
         ISOLATED;
     }
 
-    /**
-     * The walls in the order DK II tries them: to the north, east, south and
-     * west of the room tile, given as the way they face
-     */
-    private static final WallDirection[] WALL_FURNITURE_DIRECTIONS = {WallDirection.SOUTH, WallDirection.WEST,
-        WallDirection.NORTH, WallDirection.EAST};
     private static final float WALL_OBJECT_DISTANCE = 0x700 / 4096f;
 
     protected final EntityData entityData;
@@ -269,61 +263,12 @@ public abstract class AbstractRoomController extends AbstractRoomInformation imp
             }
             wallObjects.add(objectId);
         }
-        if (!wallObjects.isEmpty() && room.getFlags().contains(Room.RoomFlag.SPECIAL_WALLS)
-                && roomInstance.getWallSections() != null) {
-            constructWallObjects(wallObjects);
-        }
-    }
 
-    /**
-     * Lays out the wall furniture like DK II (MyRooms_RoomManager_cpp_4EDFC0,
-     * 0x4EDFC0, and MyMapElement_sub_454230, 0x454230). Only the inner tiles
-     * of a straight wall get furniture, not its ends, and only every second
-     * one: the first such tile sets the spacing for all the walls running the
-     * same way. A tile gets one at most, the walls are tried in the order
-     * north, east, south and west. The object is picked from the list by a
-     * random number seeded from the tile.
-     *
-     * @param objects the wall objects of the room
-     */
-    private void constructWallObjects(List<Short> objects) {
-
-        // The inner tiles of each wall section
-        Map<Point, Set<WallDirection>> innerWallTiles = new HashMap<>();
-        for (WallSection section : roomInstance.getWallSections()) {
-            List<Point> coordinates = section.coordinates();
-            for (int i = 1; i < coordinates.size() - 1; i++) {
-                innerWallTiles.computeIfAbsent(coordinates.get(i), p -> EnumSet.noneOf(WallDirection.class)).add(section.direction());
-            }
-        }
-
-        Integer xParity = null;
-        Integer yParity = null;
-        for (Point p : roomInstance.getCoordinates()) {
-            Set<WallDirection> walls = innerWallTiles.get(p);
-            if (walls == null) {
-                continue;
-            }
-            for (WallDirection direction : WALL_FURNITURE_DIRECTIONS) {
-                if (!walls.contains(direction)) {
-                    continue;
-                }
-                if (direction == WallDirection.NORTH || direction == WallDirection.SOUTH) {
-                    xParity = (xParity == null ? p.x & 1 : xParity);
-                    if ((p.x & 1) != xParity) {
-                        continue;
-                    }
-                } else {
-                    yParity = (yParity == null ? p.y & 1 : yParity);
-                    if ((p.y & 1) != yParity) {
-                        continue;
-                    }
-                }
-
-                int seed = random(nextSeed(p.y), 0x2286) ^ random(nextSeed(p.x), 0x16F2);
-                wallFurniture.addAll(constructWallObject(objects.get(random(nextSeed(seed), objects.size())), p, direction));
-                break;
-            }
+        // DK II (0x4EDFC0) picks each tile's object by a random number seeded from the tile
+        for (Map.Entry<Point, WallDirection> tile : WallSection.findWallFurnitureTiles(roomInstance).entrySet()) {
+            Point p = tile.getKey();
+            int seed = random(nextSeed(p.y), 0x2286) ^ random(nextSeed(p.x), 0x16F2);
+            wallFurniture.addAll(constructWallObject(wallObjects.get(random(nextSeed(seed), wallObjects.size())), p, tile.getValue()));
         }
     }
 
@@ -353,9 +298,14 @@ public abstract class AbstractRoomController extends AbstractRoomInformation imp
     protected final EntityId loadWallObject(short objectId, Point p, WallDirection direction, float distance, float height) {
         Point wall = WallSection.getWallNeighbour(p, direction);
         Vector3f position = WorldUtils.pointToVector3f(p).addLocal((wall.x - p.x) * distance, 0, (wall.y - p.y) * distance);
-        EntityId object = objectsController.loadObject(objectId, (short) 0, position.clone(), direction.getAngle());
+
+        // DK II turns the object the way the wall faces, into the room (yaw ((k + 2) & 3) << 9).
+        // A model looks down its +Z, south at angle 0, but a wall facing north has angle 0, so
+        // the object is half a turn round from the wall's angle
+        float rotation = direction.getAngle() + FastMath.PI;
+        EntityId object = objectsController.loadObject(objectId, (short) 0, position.clone(), rotation);
         if (height != 0) {
-            entityData.setComponent(object, new Position(direction.getAngle(), position.setY(WorldUtils.FLOOR_HEIGHT + height)));
+            entityData.setComponent(object, new Position(rotation, position.setY(WorldUtils.FLOOR_HEIGHT + height)));
         }
         return object;
     }

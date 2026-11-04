@@ -471,12 +471,13 @@ public class PlayerEntityViewState extends AbstractAppState {
 
     /**
      * The way a wheel on the wall faces: away from the wall, which it is moved
-     * towards from the centre of its tile
+     * towards from the centre of its tile. A model looks down its +Z, so the
+     * angle is that of the way from the wheel back to the centre
      */
     private static float getFacing(Spatial object) {
         Vector3f position = object.getLocalTranslation();
         Point tile = WorldUtils.vectorToPoint(position);
-        return FastMath.atan2(position.x - tile.x, position.z - tile.y);
+        return FastMath.atan2(tile.x - position.x, tile.y - position.z);
     }
 
     /**
