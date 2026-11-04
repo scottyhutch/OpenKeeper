@@ -20,12 +20,16 @@ import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
+import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -44,7 +48,11 @@ class MovementSystemTest {
         EntityId creature = entityData.createEntity();
         entityData.setComponents(creature, new Position(rotation, new Vector3f(15, 0, 23)), new Mobile(false, false, false, 1),
                 new Navigation(new Point(15, 23), new Point(16, 25), new ArrayList<>()));
-        MovementSystem movementSystem = new MovementSystem(entityData);
+        IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
+                (proxy, method, args) -> CreatureSleepFixtures.level(4));
+        IMapController mapController = (IMapController) Proxy.newProxyInstance(IMapController.class.getClassLoader(), new Class<?>[]{IMapController.class},
+                (proxy, method, args) -> false);
+        MovementSystem movementSystem = new MovementSystem(entityData, kwdFile, mapController);
 
         for (int frame = 0; frame < 180 && entityData.getComponent(creature, Navigation.class) != null; frame++) {
             movementSystem.processTick(1 / 60f);

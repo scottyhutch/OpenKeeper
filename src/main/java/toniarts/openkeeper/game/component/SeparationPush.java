@@ -26,7 +26,8 @@ import com.simsilica.es.EntityComponent;
 public final class SeparationPush implements EntityComponent {
 
     /**
-     * The push on the map's x and z axes, at most DK II's pilot max force
+     * The push on the map's x and z axes, the change it makes to the velocity
+     * of a tick (tiles a tick, a tick)
      */
     public Vector2f push;
 
