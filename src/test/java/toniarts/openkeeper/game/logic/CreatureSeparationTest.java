@@ -217,6 +217,7 @@ class CreatureSeparationTest {
             case "getMapData" -> mapData;
             case "getTerrain" -> solidTiles.contains(tileLocations.get(args[0])) ? rock : floor;
             case "isSolid" -> solidTiles.contains((Point) args[0]);
+            case "isWater", "isLava" -> false;
             default -> throw new UnsupportedOperationException(method.getName());
         });
     }

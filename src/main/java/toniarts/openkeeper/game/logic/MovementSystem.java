@@ -29,6 +29,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Position;
@@ -105,6 +106,9 @@ public final class MovementSystem implements IGameLogicUpdatable {
 
         // Process ticks
         for (EntitySteeringBehavior steeringBehavior : steeringBehaviors.getArray()) {
+            EntityId entityId = entityIdsBySteeringBehavior.get(steeringBehavior);
+            ISteerableEntity steerableEntity = steerableEntitiesBySteeringBehavior.get(steeringBehavior);
+            steerableEntity.setMaxLinearSpeed(getMaxSpeed(entityId, movableEntities.getEntity(entityId).get(Mobile.class), steerableEntity.getPosition()));
 
             // Calculate steering acceleration
             SteeringAcceleration<Vector2> steeringOutput = steeringOutputsBySteeringBehaviors.get(steeringBehavior);
@@ -117,8 +121,6 @@ public final class MovementSystem implements IGameLogicUpdatable {
              * faster it moves, the slower it can turn (without going into a skid); it can brake much more quickly than it can
              * accelerate; and it only moves in the direction it is facing (ignoring power slides).
              */
-            EntityId entityId = entityIdsBySteeringBehavior.get(steeringBehavior);
-            ISteerableEntity steerableEntity = steerableEntitiesBySteeringBehavior.get(steeringBehavior);
             if (!steeringOutput.linear.isZero()) {
                 separate(entityId, steerableEntity, steeringOutput.linear);
             }
@@ -126,6 +128,34 @@ public final class MovementSystem implements IGameLogicUpdatable {
             // Apply steering acceleration
             applySteering(entityId, steerableEntity, steeringOutput, tpf);
         }
+    }
+
+    /**
+     * Get the speed of the entity for this step. A creature other than a worker
+     * walks at half speed below a fifth of its health. Walking through water
+     * halves the speed and lava speeds it up by half, flying is not affected
+     *
+     * @param entityId the entity
+     * @param mobile the mobility of the entity
+     * @param position the position of the entity
+     * @return the maximum speed
+     */
+    private float getMaxSpeed(EntityId entityId, Mobile mobile, Vector2 position) {
+        float speed = mobile.maxSpeed;
+        Health health = entityData.getComponent(entityId, Health.class);
+        CreatureComponent creature = entityData.getComponent(entityId, CreatureComponent.class);
+        if (health != null && creature != null && !creature.worker && health.health < health.maxHealth * 20 / 100) {
+            speed *= 0.5f;
+        }
+        if (!mobile.canFly) {
+            Point p = WorldUtils.vectorToPoint(position);
+            if (mapController.isWater(p)) {
+                speed *= 0.5f;
+            } else if (mapController.isLava(p)) {
+                speed *= 1.5f;
+            }
+        }
+        return speed;
     }
 
     private void processAddedEntities(Set<Entity> addedEntities) {

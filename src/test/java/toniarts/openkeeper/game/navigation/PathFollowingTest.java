@@ -221,6 +221,7 @@ class PathFollowingTest {
         return (IEntityPositionLookup) Proxy.newProxyInstance(IEntityPositionLookup.class.getClassLoader(), new Class<?>[]{IEntityPositionLookup.class},
                 (proxy, method, args) -> switch (method.getName()) {
             case "isTileBlocked" -> false;
+            case "getBlockingDoor" -> null;
             default -> throw new UnsupportedOperationException(method.getName());
         });
     }
@@ -241,6 +242,8 @@ class PathFollowingTest {
                 (proxy, method, args) -> switch (method.getName()) {
             case "getMapData" -> mapData;
             case "isSolid" -> MAP[((Point) args[0]).y].charAt(((Point) args[0]).x) == '#';
+            case "isWater" -> MAP[((Point) args[0]).y].charAt(((Point) args[0]).x) == '~';
+            case "isLava" -> false;
             case "getTerrain" -> {
                 Point p = ((IMapTileInformation) args[0]).getLocation();
                 yield switch (MAP[p.y].charAt(p.x)) {
