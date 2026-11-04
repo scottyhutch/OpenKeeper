@@ -32,15 +32,21 @@ import toniarts.openkeeper.game.fogofwar.IBlocksSight;
 import toniarts.openkeeper.game.logic.*;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.state.session.GameSessionServerService;
+import toniarts.openkeeper.game.state.session.SaveGame;
 import toniarts.openkeeper.game.task.ITaskManager;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.GameLoop;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.function.Supplier;
 
 /**
  *
@@ -207,6 +213,55 @@ public final class GameLoopManager {
         ThreadCheck.setRunning(false);
         loops.forEach(GameLoop::stop);
         loops.clear();
+    }
+
+    /**
+     * Saves the game. The game is collected at the start of the next logic
+     * tick, queued like the player actions, so no player action runs in the
+     * middle of it. The animation and steering loops are held between frames
+     * meanwhile. The file is then written in the background. This doesn't
+     * wait for the save, so it can be called from the render thread.
+     *
+     * @param file the save file
+     * @return completes when the file is written
+     */
+    public CompletableFuture<Void> save(Path file) {
+        CompletableFuture<SaveGame> saveGame = new CompletableFuture<>();
+        Runnable collect = () -> hold(0, () -> {
+            if (!saveGame.isDone()) {
+                try {
+                    saveGame.complete(new SaveGame(
+                            gameController.getLevelInfo().getLevelData().getGameLevel().getName(),
+                            gameController.getGameTimer().getGameTime(),
+                            gameController.getLevelInfo().getPlayers().values(),
+                            gameService.getServerEntityData()));
+                } catch (RuntimeException ex) {
+                    saveGame.completeExceptionally(ex);
+                }
+            }
+            return null;
+        });
+        gameLogicThread.enqueueAction(collect);
+
+        // A paused logic loop doesn't run the queue, but then no player action runs either
+        if (loops.get(0).isPaused()) {
+            collect.run();
+        }
+
+        return saveGame.thenAcceptAsync(save -> {
+            try {
+                save.write(file);
+            } catch (IOException ex) {
+                throw new UncheckedIOException(ex);
+            }
+        });
+    }
+
+    private <T> T hold(int loop, Supplier<T> action) {
+        if (loop == loops.size()) {
+            return action.get();
+        }
+        return loops.get(loop).hold(() -> hold(loop + 1, action));
     }
 
     public IGameController getGameController() {
