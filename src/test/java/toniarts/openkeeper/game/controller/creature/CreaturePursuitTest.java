@@ -60,6 +60,9 @@ class CreaturePursuitTest {
         eventService = new ServerGameEventService(data, players);
         navigation = (INavigationService) Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[]{INavigationService.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("smoothPath")) {
+                        return args[0];
+                    }
                     if (!method.getName().equals("findPath")) {
                         throw new UnsupportedOperationException(method.getName());
                     }
