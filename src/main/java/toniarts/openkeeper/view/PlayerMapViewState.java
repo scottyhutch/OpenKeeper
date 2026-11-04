@@ -84,7 +84,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private final ConcurrentLinkedQueue<Point> pendingTileUpdates = new ConcurrentLinkedQueue<>();
     private final Object tileUpdateLock = new Object();
 
-    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, boolean ceilingEnabled, ILoadCompleteNotifier loadCompleteNotifier, Consumer<EntityId> enemySightedNotifier) {
+    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, boolean ceilingEnabled, boolean loadedGame, ILoadCompleteNotifier loadCompleteNotifier, Consumer<EntityId> enemySightedNotifier) {
         this.app = app;
         this.kwdFile = kwdFile;
         this.assetManager = assetManager;
@@ -106,7 +106,11 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
                 // Fog must be seeded before the initial geometry is built, since
                 // the renderer consults it while assembling the map
-                fogOfWarController.seedLevelStart();
+                if (loadedGame) {
+                    fogOfWarController.seedLoadedGame();
+                } else {
+                    fogOfWarController.seedLevelStart();
+                }
 
                 // Snapshot the initial terrain of every tile, so we can later detect
                 // claim/repair transitions (terrain type changing to its max-health variant)
