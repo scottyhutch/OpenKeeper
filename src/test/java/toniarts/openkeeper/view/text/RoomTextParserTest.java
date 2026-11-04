@@ -18,8 +18,8 @@ package toniarts.openkeeper.view.text;
 
 import com.simsilica.es.EntityId;
 import java.lang.reflect.Proxy;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -75,7 +75,6 @@ class RoomTextParserTest {
                     case "getUsedCapacity" -> 2;
                     case "getMaxCapacity" -> 9;
                     case "isDungeonHeart" -> false;
-                    case "getDefaultStorageType" -> null;
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         var rooms = new IRoomsInformation<IRoomInformation>() {
@@ -140,19 +139,13 @@ class RoomTextParserTest {
             Map<ObjectType, int[]> capacities) {
         IRoomInformation room = (IRoomInformation) Proxy.newProxyInstance(RoomTextParserTest.class.getClassLoader(),
                 new Class<?>[]{IRoomInformation.class}, (proxy, method, args) -> {
-                    ObjectType type = args == null ? defaultStorageType : (ObjectType) args[0];
-                    int[] capacity = type == null ? new int[2] : capacities.getOrDefault(type, new int[2]);
-                    switch (method.getName()) {
-                        case "getOwnerId":
-                            return OWNER;
-                        case "getDefaultStorageType":
-                            return defaultStorageType;
-                        case "getUsedCapacity":
-                            return capacity[0];
-                        case "getMaxCapacity":
-                            return capacity[1];
-                        default:
-                            throw new UnsupportedOperationException(method.getName());
+                    if ("getUsedCapacity".equals(method.getName()) || "getMaxCapacity".equals(method.getName())) {
+                        ObjectType type = args == null ? defaultStorageType : (ObjectType) args[0];
+                        int[] capacity = type == null ? new int[2] : capacities.getOrDefault(type, new int[2]);
+                        return "getUsedCapacity".equals(method.getName()) ? capacity[0] : capacity[1];
+                    }
+                    if ("getOwnerId".equals(method.getName())) {
+                        return OWNER;
                     }
                     if ("isDungeonHeart".equals(method.getName())) {
                         return false;
