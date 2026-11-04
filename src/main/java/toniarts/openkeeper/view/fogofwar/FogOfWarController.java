@@ -101,6 +101,7 @@ public final class FogOfWarController implements IFogOfWarInformation {
     private final Map<Point, Entity> doorsByPosition = new HashMap<>();
     private final Set<Point> closedDoorTiles = new HashSet<>();
     private final Set<EntityId> seenEnemies = new HashSet<>();
+    private boolean seeded = false;
     private final List<PendingHeartReveal> pendingHeartReveals = new ArrayList<>();
     private final Set<Point> pendingTaggedTiles = new HashSet<>();
 
@@ -258,6 +259,18 @@ public final class FogOfWarController implements IFogOfWarInformation {
         imprisonedCreatures.applyChanges();
         deadCreatures.applyChanges();
 
+        // The enemies already on the land the seeding explored are known, they aren't sighted. In a loaded game
+        // these are the prisoners, the torture victims and the invaders in the dungeon
+        if (seeded) {
+            seeded = false;
+            for (Entity e : creatureEntities) {
+                Point tile = WorldUtils.vectorToPoint(e.get(Position.class).position);
+                if (isEnemy(e.get(Owner.class)) && state.isExplored(tile.x, tile.y)) {
+                    seenEnemies.add(e.getId());
+                }
+            }
+        }
+
         for (Entity e : creatureEntities) {
             Owner owner = e.get(Owner.class);
             if (owner.ownerId != viewerId) {
@@ -287,8 +300,7 @@ public final class FogOfWarController implements IFogOfWarInformation {
             return;
         }
         for (Entity e : creatureEntities) {
-            Owner owner = e.get(Owner.class);
-            if (owner.ownerId == viewerId || owner.ownerId == Player.NEUTRAL_PLAYER_ID) {
+            if (!isEnemy(e.get(Owner.class))) {
                 continue;
             }
             EntityId id = e.getId();
@@ -302,6 +314,10 @@ public final class FogOfWarController implements IFogOfWarInformation {
                 onEnemySighted.accept(id);
             }
         }
+    }
+
+    private boolean isEnemy(Owner owner) {
+        return owner.ownerId != viewerId && owner.ownerId != Player.NEUTRAL_PLAYER_ID;
     }
 
     private void updatePossession() {
@@ -359,6 +375,7 @@ public final class FogOfWarController implements IFogOfWarInformation {
         seedOwnedAndAlwaysExploredTiles();
         clearBorder();
         seedActionPoints();
+        seeded = true;
 
         Set<Point> dirty = state.drainDirtyTiles();
         if (!dirty.isEmpty()) {
