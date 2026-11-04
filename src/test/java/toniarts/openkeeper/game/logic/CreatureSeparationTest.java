@@ -118,6 +118,33 @@ class CreatureSeparationTest {
     }
 
     @Test
+    void aCreatureSwingingAtItsTargetDoesNotPushHarder() {
+        EntityId standing = standing(KNIGHT, 5 + KNIGHT_WIDTH / 4, 5, CreatureState.IDLE);
+        EntityId walker = creature(KNIGHT, new Point(5, 5), new Point(5, 4));
+        SeparationSystem separationSystem = new SeparationSystem(entityData, kwdFile(), map(), positionLookup());
+
+        separationSystem.processTick(1 / 4f);
+        float push = entityData.getComponent(walker, SeparationPush.class).push.length();
+        entityData.setComponent(standing, new CreatureAi(0, CreatureState.MELEE_ATTACK, KNIGHT));
+        separationSystem.processTick(1 / 4f);
+
+        // DK II's fight state sets the blocker flag only while no action runs (0x45F030, 0x496D00)
+        assertEquals(push, entityData.getComponent(walker, SeparationPush.class).push.length(), 0.001f);
+    }
+
+    @Test
+    void aCreatureSwingingAtItsTargetIsPushedWhereItStands() {
+        EntityId swinging = standing(KNIGHT, 5 + KNIGHT_WIDTH / 4, 5, CreatureState.MELEE_ATTACK);
+        entityData.setComponent(swinging, new Mobile(false, false, false, KNIGHT_SPEED));
+        creature(KNIGHT, new Point(5, 5), new Point(5, 4));
+
+        run(15, frame -> {});
+
+        assertTrue(position(swinging).x > 5 + KNIGHT_WIDTH / 4 + 0.01f, "Not pushed: " + position(swinging));
+        assertEquals(5, position(swinging).y, 0.01f);
+    }
+
+    @Test
     void theHornedReaperIsNeverPushed() {
         standing(KNIGHT, 5 + KNIGHT_WIDTH / 4, 5, CreatureState.IDLE);
         EntityId reaper = creature(REAPER, new Point(5, 5), new Point(5, 4));
@@ -217,6 +244,7 @@ class CreatureSeparationTest {
             case "getMapData" -> mapData;
             case "getTerrain" -> solidTiles.contains(tileLocations.get(args[0])) ? rock : floor;
             case "isSolid" -> solidTiles.contains((Point) args[0]);
+            case "getRoomControllerByCoordinates" -> null;
             default -> throw new UnsupportedOperationException(method.getName());
         });
     }
