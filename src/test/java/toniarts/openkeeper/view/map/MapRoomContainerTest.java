@@ -22,13 +22,18 @@ import com.simsilica.es.base.DefaultEntityData;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.component.CasinoPayOut;
 import toniarts.openkeeper.game.component.DungeonHeart;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.PrisonStatus;
 import toniarts.openkeeper.game.component.RoomComponent;
+import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
 import toniarts.openkeeper.utils.Point;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MapRoomContainerTest {
@@ -66,6 +71,24 @@ class MapRoomContainerTest {
         entityData.removeComponent(other, DungeonHeart.class);
         container.update();
         assertFalse(container.getRoomInformation(other).isDungeonHeart());
+    }
+
+    @Test
+    void prisonStatusAndCasinoPayOutAreReadFromTheRoomEntity() {
+        EntityId prison = createRoom((short) 11);
+        entityData.setComponent(prison, new PrisonStatus(true));
+        EntityId casino = createRoom((short) 15);
+        entityData.setComponent(casino, new CasinoPayOut(PayOut.MONEY));
+
+        container.start();
+
+        assertTrue(container.getRoomInformation(prison).isPrisonOpen());
+        assertNull(container.getRoomInformation(prison).getCasinoPayOut());
+        assertEquals(PayOut.MONEY, container.getRoomInformation(casino).getCasinoPayOut());
+        assertFalse(container.getRoomInformation(casino).isPrisonOpen());
+
+        entityData.setComponent(prison, new PrisonStatus(false));
+        assertFalse(container.getRoomInformation(prison).isPrisonOpen());
     }
 
     private EntityId createRoom(short roomId) {

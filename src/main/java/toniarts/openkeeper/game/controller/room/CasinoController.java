@@ -90,8 +90,8 @@ public final class CasinoController extends NormalRoomController {
      * @return the pay out setting
      */
     public PayOut getPayOut() {
-        CasinoPayOut casinoPayOut = getEntityComponent(CasinoPayOut.class);
-        return casinoPayOut != null ? casinoPayOut.payOut : PayOut.SMILES;
+        PayOut payOut = getCasinoPayOut();
+        return payOut != null ? payOut : PayOut.SMILES;
     }
 
     /**
