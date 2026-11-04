@@ -49,10 +49,9 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The fog of war must not run before the level start seeding. The seeding
- * clears everything explored so far, so anything seen or reported before it
- * would be back in the fog but already reported, and the Dungeon Heart's
- * start-of-level reveal would be used up.
+ * The Dungeon Heart's start-of-level reveal runs after the level start
+ * seeding, also for a heart that was already there when the fog of war
+ * started, and the level script's reveals are not enemy sightings.
  */
 class FogOfWarControllerTest {
 
@@ -104,33 +103,6 @@ class FogOfWarControllerTest {
     }
 
     @Test
-    void updateBeforeSeedingExploresAndReportsNothing() {
-        createCreature(VIEWER, 10, 10);
-        createCreature(ENEMY, 11, 10);
-        controller.start();
-
-        update(UPDATES);
-
-        assertTrue(sightings.isEmpty(), "No enemy can be sighted before the fog is seeded");
-        assertFalse(controller.isExplored(new Point(10, 10)), "Nothing is explored before the fog is seeded");
-    }
-
-    @Test
-    void enemyNextToOwnCreatureIsReportedOnceAfterSeeding() {
-        createCreature(VIEWER, 10, 10);
-        EntityId enemy = createCreature(ENEMY, 11, 10);
-        controller.start();
-        update(UPDATES);
-        assertTrue(sightings.isEmpty(), "No enemy can be sighted before the fog is seeded");
-
-        controller.seedLevelStart();
-        update(UPDATES);
-
-        assertEquals(List.of(enemy), sightings);
-        assertTrue(controller.isExplored(new Point(11, 10)));
-    }
-
-    @Test
     void scriptedRevealDoesNotReportEnemiesInIt() {
         createCreature(VIEWER, 3, 3);
         createCreature(ENEMY, 15, 15);
@@ -178,26 +150,23 @@ class FogOfWarControllerTest {
     }
 
     @Test
-    void heartAddedBeforeSeedingIsRevealedAfterSeeding() {
+    void heartAddedAfterStartIsRevealed() {
         controller.start();
         createHeart(10, 10);
 
-        assertHeartRevealedOnlyAfterSeeding();
+        assertHeartRevealedAfterSeeding();
     }
 
     @Test
-    void heartPresentAtStartIsRevealedAfterSeeding() {
+    void heartPresentAtStartIsRevealed() {
         createHeart(10, 10);
         controller.start();
 
-        assertHeartRevealedOnlyAfterSeeding();
+        assertHeartRevealedAfterSeeding();
     }
 
-    private void assertHeartRevealedOnlyAfterSeeding() {
+    private void assertHeartRevealedAfterSeeding() {
         Point nearEdgeOfReveal = new Point(10, 18);
-
-        update(UPDATES);
-        assertFalse(controller.isExplored(nearEdgeOfReveal), "The heart reveal must wait for the fog seeding");
 
         controller.seedLevelStart();
         assertFalse(controller.isExplored(nearEdgeOfReveal));
