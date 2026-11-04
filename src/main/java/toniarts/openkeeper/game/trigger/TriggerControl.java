@@ -18,8 +18,11 @@ package toniarts.openkeeper.game.trigger;
 
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.game.HeroLog;
 import toniarts.openkeeper.game.control.Control;
@@ -93,6 +96,7 @@ public class TriggerControl extends Control {
             Room.TileConstruction.HERO_GATE_2_BY_2, Room.TileConstruction.HERO_GATE_3_BY_1);
 
     protected final TriggerGenericData root;
+    private final int triggerId;
 
     protected final ILevelInfo levelInfo;
     protected final IGameTimer gameTimer;
@@ -115,10 +119,70 @@ public class TriggerControl extends Control {
         this.mapController = mapController;
         this.creaturesController = creaturesController;
         this.playerService = playerService;
+        this.triggerId = triggerId;
 
         root = new TriggerLoader(levelInfo.getLevelData()).load(triggerId);
         if (root == null) {
             throw new IllegalArgumentException("trigger can not be null");
+        }
+    }
+
+    /**
+     * Get the first trigger of the tree in the level, it tells the trees apart
+     *
+     * @return the trigger ID
+     */
+    public int getTriggerId() {
+        return triggerId;
+    }
+
+    /**
+     * Get the state of the trigger tree: whether it is armed, and which
+     * triggers and actions are enabled with what repeats. The tree itself
+     * comes from the level.
+     *
+     * @return the state
+     */
+    public State getState() {
+        State state = new State();
+        state.armed = armed;
+        addNodes(root, state.nodes);
+        return state;
+    }
+
+    /**
+     * Set the trigger tree to a saved state. The tree must be as it was loaded
+     * from the level.
+     *
+     * @param state the state from {@link #getState()}
+     */
+    public void setState(State state) {
+        armed = state.armed;
+        restoreNodes(root, state.nodes);
+    }
+
+    private static void addNodes(TriggerGenericData container, Map<Integer, State.Node> nodes) {
+        for (TriggerData child : container.getChildren().getArray()) {
+            State.Node node = new State.Node();
+            node.enabled = child.isEnabled();
+            node.repeatTimes = child.getRepeatTimes();
+            nodes.put(child.getId(), node);
+            if (child instanceof TriggerGenericData condition) {
+                addNodes(condition, nodes);
+            }
+        }
+    }
+
+    private static void restoreNodes(TriggerGenericData container, Map<Integer, State.Node> nodes) {
+        for (TriggerData child : container.getChildren().getArray()) {
+            State.Node node = nodes.get(child.getId());
+            if (node != null) {
+                child.setEnabled(node.enabled);
+                child.setRepeatTimes(node.repeatTimes);
+            }
+            if (child instanceof TriggerGenericData condition) {
+                restoreNodes(condition, nodes);
+            }
         }
     }
 
@@ -887,6 +951,24 @@ public class TriggerControl extends Control {
             return gameController.getPlayerController(Player.KEEPER1_ID); // Current player
         } else {
             return gameController.getPlayerController(playerId);
+        }
+    }
+
+    /**
+     * The state of a trigger tree, for saving the game
+     */
+    public static final class State {
+
+        private boolean armed;
+        private final Map<Integer, Node> nodes = new HashMap<>();
+
+        /**
+         * A trigger or an action in the tree
+         */
+        private static final class Node {
+
+            private boolean enabled;
+            private short repeatTimes;
         }
     }
 }

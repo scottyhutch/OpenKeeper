@@ -26,20 +26,23 @@ import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 
 /**
- * A class to hold player's miscellaneous statistics
+ * A class to hold player's miscellaneous statistics. The counts are kept by
+ * creature ID, so that they can be saved with the game.
  *
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
 public final class PlayerStatsControl {
 
     private int payDays;
-    private final Map<Creature, Integer> slapsMap = new HashMap<>();
-    private final Map<Creature, Integer> pickUpsMap = new HashMap<>();
-    private final Map<Creature, Integer> dropsMap = new HashMap<>();
-    private final Map<PressedButton, Integer> buttonPressesMap = new ConcurrentHashMap<>();
+    private final Map<Short, Integer> slapsMap = new HashMap<>();
+    private final Map<Short, Integer> pickUpsMap = new HashMap<>();
+    private final Map<Short, Integer> dropsMap = new HashMap<>();
+    // TODO save game: Gson 2.9 can't read the record keys back, so these aren't saved yet
+    private final transient Map<PressedButton, Integer> buttonPressesMap = new ConcurrentHashMap<>();
     private int itemsManufactured = 0;
     private int creaturesConverted = 0;
-    private final Keeper keeper;
+    // Saved with the players
+    private final transient Keeper keeper;
 
     public PlayerStatsControl(Keeper keeper) {
         this.keeper = keeper;
@@ -50,7 +53,7 @@ public final class PlayerStatsControl {
     }
 
     public boolean hasSlapped(Creature creature) {
-        return slapsMap.containsKey(creature);
+        return slapsMap.containsKey(creature.getCreatureId());
     }
 
     /**
@@ -73,13 +76,8 @@ public final class PlayerStatsControl {
         increaseMapCount(creature, slapsMap);
     }
 
-    private void increaseMapCount(Creature creature, Map<Creature, Integer> map) {
-        Integer count = map.get(creature);
-        if (count == null) {
-            count = 0;
-        }
-        count++;
-        map.put(creature, count);
+    private void increaseMapCount(Creature creature, Map<Short, Integer> map) {
+        map.merge(creature.getCreatureId(), 1, Integer::sum);
     }
 
     public boolean hasPickedUp() {
@@ -87,7 +85,7 @@ public final class PlayerStatsControl {
     }
 
     public boolean hasPickedUp(Creature creature) {
-        return pickUpsMap.containsKey(creature);
+        return pickUpsMap.containsKey(creature.getCreatureId());
     }
 
     public void creaturePickedUp(Creature creature) {
@@ -99,7 +97,7 @@ public final class PlayerStatsControl {
     }
 
     public boolean hasDropped(Creature creature) {
-        return dropsMap.containsKey(creature);
+        return dropsMap.containsKey(creature.getCreatureId());
     }
 
     public void creatureDropped(Creature creature) {
@@ -202,29 +200,29 @@ public final class PlayerStatsControl {
     }
 
     /**
-     * Get how many times each creature type has been slapped
+     * Get how many times each creature type has been slapped, by creature ID
      *
      * @return read only view
      */
-    public Map<Creature, Integer> getSlaps() {
+    public Map<Short, Integer> getSlaps() {
         return Collections.unmodifiableMap(slapsMap);
     }
 
     /**
-     * Get how many times each creature type has been picked up
+     * Get how many times each creature type has been picked up, by creature ID
      *
      * @return read only view
      */
-    public Map<Creature, Integer> getPickUps() {
+    public Map<Short, Integer> getPickUps() {
         return Collections.unmodifiableMap(pickUpsMap);
     }
 
     /**
-     * Get how many times each creature type has been dropped
+     * Get how many times each creature type has been dropped, by creature ID
      *
      * @return read only view
      */
-    public Map<Creature, Integer> getDrops() {
+    public Map<Short, Integer> getDrops() {
         return Collections.unmodifiableMap(dropsMap);
     }
 

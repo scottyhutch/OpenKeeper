@@ -92,6 +92,7 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
     private final PlayerService playerService;
 
     private TriggerControl triggerControl = null;
+    private final List<TriggerControl> triggerControls = new ArrayList<>();
     private final List<IGameLogicUpdatable> controllers = new ArrayList<>();
 
     private GameWorldController gameWorldController;
@@ -157,30 +158,43 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
                 navigationService, playerControllers.values(), levelInfo, positionSystem, gameSettings);
 
         // The triggers
-        controllers.add(new PartyTriggerLogicController(this, levelInfo, gameTimer,
-                gameWorldController.getMapController(), gameWorldController.getCreaturesController(), playerService));
-        controllers.add(new CreatureTriggerLogicController(this, levelInfo, gameTimer,
+        PartyTriggerLogicController partyTriggers = new PartyTriggerLogicController(this, levelInfo, gameTimer,
+                gameWorldController.getMapController(), gameWorldController.getCreaturesController(), playerService);
+        CreatureTriggerLogicController creatureTriggers = new CreatureTriggerLogicController(this, levelInfo, gameTimer,
                 gameWorldController.getMapController(), gameWorldController.getCreaturesController(),
-                playerService, entityData));
-        controllers.add(new ObjectTriggerLogicController(this, levelInfo, gameTimer,
+                playerService, entityData);
+        ObjectTriggerLogicController objectTriggers = new ObjectTriggerLogicController(this, levelInfo, gameTimer,
                 gameWorldController.getMapController(), gameWorldController.getCreaturesController(),
-                playerService, entityData, gameWorldController.getObjectsController()));
-        controllers.add(new DoorTriggerLogicController(this, levelInfo, gameTimer,
+                playerService, entityData, gameWorldController.getObjectsController());
+        DoorTriggerLogicController doorTriggers = new DoorTriggerLogicController(this, levelInfo, gameTimer,
                 gameWorldController.getMapController(), gameWorldController.getCreaturesController(),
-                playerService, entityData, gameWorldController.getDoorsController()));
-        controllers.add(new ActionPointTriggerLogicController(this, levelInfo, gameTimer,
+                playerService, entityData, gameWorldController.getDoorsController());
+        ActionPointTriggerLogicController actionPointTriggers = new ActionPointTriggerLogicController(this, levelInfo, gameTimer,
                 gameWorldController.getMapController(), gameWorldController.getCreaturesController(),
-                playerService, positionSystem));
-        controllers.add(new PlayerTriggerLogicController(this, levelInfo, gameTimer,
+                playerService, positionSystem);
+        PlayerTriggerLogicController playerTriggers = new PlayerTriggerLogicController(this, levelInfo, gameTimer,
                 gameWorldController.getMapController(), gameWorldController.getCreaturesController(),
-                playerService, entityData));
+                playerService, entityData);
+        controllers.add(partyTriggers);
+        controllers.add(creatureTriggers);
+        controllers.add(objectTriggers);
+        controllers.add(doorTriggers);
+        controllers.add(actionPointTriggers);
+        controllers.add(playerTriggers);
         controllers.add(gameTimer);
         controllers.add(positionSystem);
 
         int triggerId = levelInfo.kwdFile.getGameLevel().getTriggerId();
         if (triggerId != 0) {
             triggerControl = new TriggerControl(this, levelInfo, gameTimer, gameWorldController.getMapController(), gameWorldController.getCreaturesController(), playerService, triggerId);
+            triggerControls.add(triggerControl);
         }
+        triggerControls.addAll(partyTriggers.getTriggerControls());
+        triggerControls.addAll(creatureTriggers.getTriggerControls());
+        triggerControls.addAll(objectTriggers.getTriggerControls());
+        triggerControls.addAll(doorTriggers.getTriggerControls());
+        triggerControls.addAll(actionPointTriggers.getTriggerControls());
+        triggerControls.addAll(playerTriggers.getTriggerControls());
 
     }
 
@@ -585,18 +599,20 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         return gameTimer;
     }
 
-    private static class LevelInfo implements ILevelInfo {
+    @Override
+    public List<TriggerControl> getTriggerControls() {
+        return triggerControls;
+    }
 
-        private static final int LEVEL_TIMER_MAX_COUNT = 16;
-        private static final int LEVEL_FLAG_MAX_COUNT = 128;
+    private static class LevelInfo implements ILevelInfo {
 
         private final IKwdFile kwdFile;
         private int levelScore = 0;
         private Float timeLimit = null;
 
         private final SortedMap<Short, Keeper> players = new TreeMap<>();
-        private final List<Integer> flags = new ArrayList<>(LEVEL_FLAG_MAX_COUNT);
-        private final SafeArrayList<GameTimer> timers = new SafeArrayList<>(GameTimer.class, LEVEL_TIMER_MAX_COUNT);
+        private final List<Integer> flags = new ArrayList<>(FLAG_COUNT);
+        private final SafeArrayList<GameTimer> timers = new SafeArrayList<>(GameTimer.class, TIMER_COUNT);
         private final Map<Integer, ActionPoint> actionPointsById = new HashMap<>();
         private final List<ActionPoint> actionPoints = new ArrayList<>();
         private boolean creatureMoodsEnabled = false;
@@ -612,11 +628,11 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
             // Action points
             loadActionPoints();
             // Triggers data
-            for (short i = 0; i < LEVEL_FLAG_MAX_COUNT; i++) {
+            for (short i = 0; i < FLAG_COUNT; i++) {
                 flags.add(i, 0);
             }
             // Timers data
-            for (byte i = 0; i < LEVEL_TIMER_MAX_COUNT; i++) {
+            for (byte i = 0; i < TIMER_COUNT; i++) {
                 timers.add(i, new GameTimer());
             }
         }

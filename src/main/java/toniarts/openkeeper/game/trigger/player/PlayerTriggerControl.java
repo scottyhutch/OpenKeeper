@@ -80,7 +80,7 @@ public class PlayerTriggerControl extends TriggerControl {
     private int seenEnemyBreaches;
 
     // The statistics seen on the previous poll, the difference is what has happened since
-    private final Map<TriggerGeneric.TargetType, Map<Creature, Integer>> seenStats = new EnumMap<>(TriggerGeneric.TargetType.class);
+    private final Map<TriggerGeneric.TargetType, Map<Short, Integer>> seenStats = new EnumMap<>(TriggerGeneric.TargetType.class);
     private final Map<PlayerStatsControl.PressedButton, Integer> seenButtonPresses = new HashMap<>();
 
     public PlayerTriggerControl(final IGameController gameController, final ILevelInfo levelInfo, final IGameTimer gameTimer, final IMapController mapController,
@@ -193,12 +193,12 @@ public class PlayerTriggerControl extends TriggerControl {
         return true;
     }
 
-    private void pollStatEvent(TriggerGeneric.TargetType event, Map<Creature, Integer> current) {
-        Map<Creature, Integer> previous = seenStats.computeIfAbsent(event, key -> new HashMap<>());
-        for (Map.Entry<Creature, Integer> entry : Map.copyOf(current).entrySet()) {
+    private void pollStatEvent(TriggerGeneric.TargetType event, Map<Short, Integer> current) {
+        Map<Short, Integer> previous = seenStats.computeIfAbsent(event, key -> new HashMap<>());
+        for (Map.Entry<Short, Integer> entry : Map.copyOf(current).entrySet()) {
             if (entry.getValue() > previous.getOrDefault(entry.getKey(), 0)) {
                 previous.put(entry.getKey(), entry.getValue());
-                fire(event, entry.getKey().getCreatureId(), 0);
+                fire(event, entry.getKey(), 0);
             }
         }
     }

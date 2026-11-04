@@ -233,7 +233,10 @@ public final class GameLoopManager {
                     saveGame.complete(new SaveGame(
                             gameController.getLevelInfo().getLevelData().getGameLevel().getName(),
                             gameController.getGameTimer().getGameTime(),
-                            gameController.getLevelInfo().getPlayers().values(),
+                            gameController.getLevelInfo(),
+                            gameController.getPlayerControllers().values(),
+                            gameController.getTriggerControls(),
+                            gameController.getGameWorldController().getCreaturesController().getCreatedParties(),
                             gameService.getServerEntityData()));
                 } catch (RuntimeException ex) {
                     saveGame.completeExceptionally(ex);
