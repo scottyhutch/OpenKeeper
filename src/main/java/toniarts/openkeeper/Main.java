@@ -468,6 +468,9 @@ public final class Main extends SimpleApplication {
         // Distribution locator
         getAssetManager().registerLocator(AssetsConverter.getAssetsFolder(), FileLocator.class);
 
+        // Debug only: log cursor visibility changes, -Dok.cursorDebug=true
+        toniarts.openkeeper.utils.CursorDebug.install(inputManager);
+
         // Init nifty while in render thread so it will get initialized before it is updated, otherwise we might hit a rare race-condition
         Nifty nifty = getNifty();
 
