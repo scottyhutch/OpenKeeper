@@ -204,9 +204,11 @@ public final class GameLoopManager {
      * @param file the save file
      * @param campaignLevel the campaign level, or {@code null} for
      * non-campaign
+     * @param client the client's own part of the save, see
+     * {@link SaveGame#setClient(Object)}, or {@code null} for none
      * @return completes when the file is written
      */
-    public CompletableFuture<Void> save(Path file, @Nullable CampaignLevel campaignLevel) {
+    public CompletableFuture<Void> save(Path file, @Nullable CampaignLevel campaignLevel, @Nullable Object client) {
         CompletableFuture<SaveGame> saveGame = new CompletableFuture<>();
         Runnable collect = () -> hold(0, () -> {
             if (!saveGame.isDone()) {
@@ -236,6 +238,9 @@ public final class GameLoopManager {
 
         return saveGame.thenAcceptAsync(save -> {
             try {
+                if (client != null) {
+                    save.setClient(client);
+                }
                 save.write(file);
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
