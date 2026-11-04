@@ -861,7 +861,21 @@ public final class PlayerScreenController implements IPlayerScreenController {
             return;
         }
 
-        Path file = saveGameFolder.getFile(savedGames.get(selection.get(0)).name());
+        loadGame(saveGameFolder.getFile(savedGames.get(selection.get(0)).name()));
+    }
+
+    /**
+     * Quick load, like DK II's: loads the quick save without asking, and does
+     * nothing if there is none
+     */
+    public void quickLoad() {
+        Path file = saveGameFolder.getFile(SaveGameFolder.QUICK_SAVE_NAME);
+        if (getSinglePlayerServer() != null && Files.exists(file)) {
+            loadGame(file);
+        }
+    }
+
+    private void loadGame(Path file) {
         SaveGame saveGame;
         try {
             saveGame = SaveGame.read(file);
@@ -871,6 +885,13 @@ public final class PlayerScreenController implements IPlayerScreenController {
             return;
         }
         state.loadGame(saveGame);
+    }
+
+    /**
+     * Quick save, like DK II's: saves over the quick save without asking
+     */
+    public void quickSave() {
+        writeSaveGame(SaveGameFolder.QUICK_SAVE_NAME);
     }
 
     @Override
@@ -887,16 +908,17 @@ public final class PlayerScreenController implements IPlayerScreenController {
             return;
         }
         writeSaveGame(name);
+        pauseMenu();
     }
 
     @Override
     public void overwriteSaveGame() {
         writeSaveGame(overwriteSaveName);
+        pauseMenu();
     }
 
     /**
-     * Saves the game and goes back to it. Says "Game Saved." when the file is
-     * written.
+     * Saves the game. Says "Game Saved." when the file is written.
      */
     private void writeSaveGame(String name) {
         GameServerState gameServerState = getSinglePlayerServer();
@@ -913,7 +935,6 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 showSystemMessage("${menu.562}");
             }
         }));
-        pauseMenu();
     }
 
     private void showSystemMessage(String text) {
