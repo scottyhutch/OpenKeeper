@@ -105,7 +105,7 @@ public final class GameServerState extends AbstractAppState {
      * ones
      */
     public GameServerState(IKwdFile level, SaveGame saveGame, GameSessionServerService gameService) {
-        this(level, saveGame.getPlayers(), false, gameService, null, saveGame);
+        this(level, saveGame.getPlayers(), saveGame.getCampaignLevel() != null, gameService, saveGame.getCampaignLevel(), saveGame);
     }
 
     private GameServerState(IKwdFile level, List<Keeper> players, boolean campaign, GameSessionServerService gameService,
@@ -144,7 +144,25 @@ public final class GameServerState extends AbstractAppState {
     }
 
     /**
-     * Saves the game, see {@link GameLoopManager#save(Path)}
+     * Whether the game has loaded and can be saved
+     *
+     * @return {@code true} when the game has loaded
+     */
+    public boolean isGameLoaded() {
+        return gameLoaded;
+    }
+
+    /**
+     * Gets the game time
+     *
+     * @return the game time in seconds, 0 until the game has loaded
+     */
+    public double getGameTime() {
+        return gameLoaded ? game.getGameController().getGameTimer().getGameTime() : 0;
+    }
+
+    /**
+     * Saves the game, see {@link GameLoopManager#save(Path, CampaignLevel)}
      *
      * @param file the save file
      * @return completes when the file is written, or right away with an
@@ -154,7 +172,7 @@ public final class GameServerState extends AbstractAppState {
         if (!gameLoaded) {
             return CompletableFuture.failedFuture(new IllegalStateException("The game hasn't loaded yet!"));
         }
-        return game.save(file);
+        return game.save(file, levelObject);
     }
 
     private void loadGame(List<Keeper> players) {

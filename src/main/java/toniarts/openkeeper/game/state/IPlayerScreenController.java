@@ -85,6 +85,22 @@ public interface IPlayerScreenController extends ScreenController {
     public void quitToOS();
 
     /**
+     * Loads the save selected in the list of saves
+     */
+    public void loadSavedGame();
+
+    /**
+     * Saves the game with the name typed in, asks first if a save with the
+     * name exists
+     */
+    public void saveGame();
+
+    /**
+     * Saves the game over the save that was asked about
+     */
+    public void overwriteSaveGame();
+
+    /**
      *
      * @param tpf
      */

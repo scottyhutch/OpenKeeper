@@ -26,6 +26,7 @@ import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.WorkshopOrders;
 import toniarts.openkeeper.game.controller.trap.TrapEffects;
 import toniarts.openkeeper.game.controller.room.FiveByFiveRotatedController;
+import toniarts.openkeeper.game.data.CampaignLevel;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.fogofwar.IBlocksSight;
@@ -47,6 +48,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
+import javax.annotation.Nullable;
 
 /**
  *
@@ -240,15 +242,18 @@ public final class GameLoopManager {
      * wait for the save, so it can be called from the render thread.
      *
      * @param file the save file
+     * @param campaignLevel the campaign level, or {@code null} for
+     * non-campaign
      * @return completes when the file is written
      */
-    public CompletableFuture<Void> save(Path file) {
+    public CompletableFuture<Void> save(Path file, @Nullable CampaignLevel campaignLevel) {
         CompletableFuture<SaveGame> saveGame = new CompletableFuture<>();
         Runnable collect = () -> hold(0, () -> {
             if (!saveGame.isDone()) {
                 try {
                     saveGame.complete(new SaveGame(
                             gameController.getLevelInfo().getLevelData().getGameLevel().getName(),
+                            campaignLevel,
                             gameController.getGameTimer().getGameTime(),
                             gameController.getLevelInfo(),
                             gameController.getPlayerControllers().values(),

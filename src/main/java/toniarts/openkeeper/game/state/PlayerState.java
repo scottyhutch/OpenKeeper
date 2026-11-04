@@ -53,9 +53,11 @@ import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.data.ResearchableType;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.listener.PlayerListener;
+import toniarts.openkeeper.game.state.session.AutoSave;
 import toniarts.openkeeper.gui.CursorFactory;
 import toniarts.openkeeper.game.state.session.LocalGameSession;
 import toniarts.openkeeper.game.state.session.SaveGame;
+import toniarts.openkeeper.game.state.session.SaveGameFolder;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -112,6 +114,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     private boolean transitionEnd = true;
     private PlayerScreenController screen;
     private boolean pauseKeyRegistered = false;
+    private final AutoSave autoSave = new AutoSave(new SaveGameFolder());
 
     private static final String PAUSE_KEY_MAPPING = Settings.Setting.PAUSE_OR_OPTIONS.name();
     private final ActionListener pauseKeyListener = this::onPauseKey;
@@ -290,6 +293,26 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         }
         hearts.applyChanges();
         screen.update(tpf);
+        autoSave();
+    }
+
+    /**
+     * Auto-saves a single player game, from the regular game view only: not
+     * while paused, in a cutscene or possessing a creature
+     */
+    private void autoSave() {
+        GameServerState gameServerState = stateManager.getState(GameServerState.class);
+        if (paused || gameServerState == null || gameServerState.isMultiplayer() || !gameServerState.isGameLoaded()
+                || !PlayerScreenController.SCREEN_HUD_ID.equals(app.getNifty().getCurrentScreen().getScreenId())) {
+            return;
+        }
+
+        autoSave.update(gameServerState.getGameTime(), Main.getUserSettings().getInteger(Settings.Setting.AUTO_SAVE_INTERVAL),
+                file -> gameServerState.save(file).whenComplete((result, ex) -> {
+                    if (ex != null) {
+                        logger.log(System.Logger.Level.ERROR, "Failed to auto-save to " + file + "!", ex);
+                    }
+                }));
     }
 
     /**
