@@ -849,6 +849,13 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void update(ICreatureController entity) {
+
+            // The fear is checked during the cast too, and a scared caster backs off at once, cutting its cast short
+            // (DK II 0x45F030, 0x471890)
+            if (entity.isScared()) {
+                entity.getStateMachine().changeState(BACK_OFF);
+                return;
+            }
             entity.releaseCastShot();
             if (entity.isStateTimeExceeded()) {
                 entity.getStateMachine().changeState(FIGHT);
