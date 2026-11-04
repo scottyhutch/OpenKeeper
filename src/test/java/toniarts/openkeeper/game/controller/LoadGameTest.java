@@ -24,6 +24,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.Reader;
+import java.lang.reflect.Field;
 import java.lang.reflect.Proxy;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -50,6 +51,7 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.IGameLogicUpdatable;
 import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.game.state.session.SaveGame;
+import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.GameMap;
 import toniarts.openkeeper.tools.convert.map.GameObject;
@@ -185,6 +187,13 @@ class LoadGameTest {
         Room treasury = HeroGateFixtures.heroGateRoom((short) 1, "Treasury", Room.TileConstruction.NORMAL);
         GameObject pillar = GameObjectFixtures.gameObject("Treasury Pillar");
         GameObject gold = GameObjectFixtures.gameObject("Gold", GameObject.ObjectFlag.OBJECT_TYPE_GOLD);
+        try {
+            Field resources = GameObject.class.getDeclaredField("additionalResources");
+            resources.setAccessible(true);
+            resources.set(gold, List.of(new ArtResource(), new ArtResource(), new ArtResource()));
+        } catch (ReflectiveOperationException ex) {
+            throw new IllegalStateException(ex);
+        }
         Player player = new Player();
         GameMap map = new GameMap(5, 5);
         for (int x = 0; x < 5; x++) {
