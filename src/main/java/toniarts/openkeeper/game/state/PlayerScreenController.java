@@ -122,6 +122,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private final SaveGameFolder saveGameFolder = new SaveGameFolder();
     private List<SaveGameFolder.Entry> savedGames = List.of();
     private String overwriteSaveName;
+    private String deleteSaveName;
 
     private static final String NOT_IMPLEMENTED_TEXT = "Currently not implemented";
     private static final String FLASH_EFFECT_KEY = "flash";
@@ -686,6 +687,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
         buildSavedGamesList(page.columnOne, true);
         if (!savedGames.isEmpty()) {
             page.items.add(new GameMenu("i-load", "${menu.143}", "loadSavedGame()", page.columnTwo));
+            addDeleteSavedGame(page, PauseMenuState.LOAD);
         }
         addContinueAndBack(page, PauseMenuState.MAIN);
     }
@@ -701,10 +703,20 @@ public final class PlayerScreenController implements IPlayerScreenController {
             }
         }.build(page.columnOne);
         page.items.add(new GameMenu("i-save", "${menu.201}", "saveGame()", page.columnTwo));
+        if (!savedGames.isEmpty()) {
+            addDeleteSavedGame(page, PauseMenuState.SAVE);
+        }
 
         pauseMenuSettings = new PauseMenuSettings(nifty, state.app, nifty.getScreen(SCREEN_HUD_ID));
         pauseMenuSettings.buildAutoSave(page.columnTwo);
         addContinueAndBack(page, PauseMenuState.MAIN);
+    }
+
+    /**
+     * Deleting a save isn't in DK II, it's an addition
+     */
+    private static void addDeleteSavedGame(MenuPage page, PauseMenuState listPage) {
+        page.items.add(new GameMenu("I-Delete", "${menu.202}", String.format("deleteSavedGame(%s)", listPage.name()), page.columnTwo));
     }
 
     private void buildGraphicsPage(MenuPage page) {
@@ -861,7 +873,21 @@ public final class PlayerScreenController implements IPlayerScreenController {
             return;
         }
 
-        Path file = saveGameFolder.getFile(savedGames.get(selection.get(0)).name());
+        loadGame(saveGameFolder.getFile(savedGames.get(selection.get(0)).name()));
+    }
+
+    /**
+     * Quick load, like DK II's: loads the quick save without asking, and does
+     * nothing if there is none
+     */
+    public void quickLoad() {
+        Path file = saveGameFolder.getFile(SaveGameFolder.QUICK_SAVE_NAME);
+        if (getSinglePlayerServer() != null && Files.exists(file)) {
+            loadGame(file);
+        }
+    }
+
+    private void loadGame(Path file) {
         SaveGame saveGame;
         try {
             saveGame = SaveGame.read(file);
@@ -871,6 +897,35 @@ public final class PlayerScreenController implements IPlayerScreenController {
             return;
         }
         state.loadGame(saveGame);
+    }
+
+    /**
+     * Quick save, like DK II's: saves over the quick save without asking
+     */
+    public void quickSave() {
+        writeSaveGame(SaveGameFolder.QUICK_SAVE_NAME);
+    }
+
+    @Override
+    public void deleteSavedGame(String listPage) {
+        List<Integer> selection = nifty.getScreen(SCREEN_HUD_ID).findNiftyControl("savedGames", ListBox.class).getSelectedIndices();
+        if (selection.isEmpty()) {
+            return;
+        }
+
+        deleteSaveName = savedGames.get(selection.get(0)).name();
+        pauseMenuNavigate(PauseMenuState.CONFIRMATION.name(), listPage, "${menu.202}", String.format("confirmDeleteSavedGame(%s)", listPage));
+    }
+
+    @Override
+    public void confirmDeleteSavedGame(String listPage) {
+        try {
+            saveGameFolder.delete(deleteSaveName);
+        } catch (IOException ex) {
+            logger.log(Level.ERROR, "Failed to delete " + deleteSaveName + "!", ex);
+            showSystemMessage(ex.getMessage());
+        }
+        pauseMenuNavigate(listPage, null, null, null);
     }
 
     @Override
@@ -887,16 +942,17 @@ public final class PlayerScreenController implements IPlayerScreenController {
             return;
         }
         writeSaveGame(name);
+        pauseMenu();
     }
 
     @Override
     public void overwriteSaveGame() {
         writeSaveGame(overwriteSaveName);
+        pauseMenu();
     }
 
     /**
-     * Saves the game and goes back to it. Says "Game Saved." when the file is
-     * written.
+     * Saves the game. Says "Game Saved." when the file is written.
      */
     private void writeSaveGame(String name) {
         GameServerState gameServerState = getSinglePlayerServer();
@@ -913,7 +969,6 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 showSystemMessage("${menu.562}");
             }
         }));
-        pauseMenu();
     }
 
     private void showSystemMessage(String text) {

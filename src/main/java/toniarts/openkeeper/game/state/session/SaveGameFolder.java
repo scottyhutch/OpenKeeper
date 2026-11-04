@@ -36,6 +36,11 @@ import toniarts.openkeeper.Main;
  */
 public final class SaveGameFolder {
 
+    /**
+     * The quick save's name, DK II's quick save also writes over one save
+     */
+    public static final String QUICK_SAVE_NAME = "quicksave";
+
     private static final Logger logger = System.getLogger(SaveGameFolder.class.getName());
 
     private static final String EXTENSION = ".json.gz";
@@ -74,6 +79,18 @@ public final class SaveGameFolder {
      */
     public Path getFile(String name) {
         return folder.resolve(name + EXTENSION);
+    }
+
+    /**
+     * Deletes a save. DK II can't delete saves, this is an addition.
+     *
+     * @param name the save name
+     * @return {@code true} if the save was deleted, {@code false} if there
+     * was none
+     * @throws IOException if the file can't be deleted
+     */
+    public boolean delete(String name) throws IOException {
+        return Files.deleteIfExists(getFile(name));
     }
 
     /**

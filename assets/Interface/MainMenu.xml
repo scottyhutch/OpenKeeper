@@ -162,6 +162,10 @@
                 <text id="noSavedGames" style="menuTextSmall" text="${menu.2128}" align="center" />
             </panel>
             <panel childLayout="horizontal" align="right" valign="bottom">
+                <!-- Not in DK II, an addition -->
+                <text id="deleteSavedGame" style="menuText" text="${menu.202}" valign="center" marginRight="20px">
+                    <interact onClick="deleteSavedGame()" />
+                </text>
                 <control name="cancelButton" click="goToScreen(singlePlayer)" />
                 <control name="okButton" click="loadSavedGame()" />
             </panel>
@@ -828,6 +832,20 @@
                 <panel childLayout="horizontal" align="center" valign="center" marginTop="20px">
                     <control name="okButton" align="right" click="confirmNewCampaign()" />
                     <control name="cancelButton" align="left" click="cancelNewCampaign()" />
+                </panel>
+            </panel>
+        </panel>
+    </popup>
+
+    <!-- Confirmation dialog for deleting a save -->
+    <popup id="confirmDeleteSavedGame" childLayout="center" backgroundColor="#000a">
+        <panel childLayout="center" height="*" align="center" valign="center">
+            <panel childLayout="vertical" align="center" valign="center" visibleToMouse="true">
+                <text style="menuTitleText" text="${menu.202}" align="center" />
+                <text style="menuTextSmall" text="${menu.15}" align="center" />
+                <panel childLayout="horizontal" align="center" valign="center" marginTop="20px">
+                    <control name="okButton" align="right" click="confirmDeleteSavedGame()" />
+                    <control name="cancelButton" align="left" click="cancelDeleteSavedGame()" />
                 </panel>
             </panel>
         </panel>
