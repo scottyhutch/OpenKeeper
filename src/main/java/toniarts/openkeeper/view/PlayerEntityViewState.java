@@ -196,6 +196,13 @@ public class PlayerEntityViewState extends AbstractAppState {
     private static final Quaternion LYING_ON_THE_FLOOR = new Quaternion().fromAngleAxis(-FastMath.HALF_PI, Vector3f.UNIT_X);
     /** DK II lifts the victim on a torture wheel by 0x200 (1/8 tile) */
     private static final float TORTURE_WHEEL_VICTIM_LIFT = 0.125f;
+    /** DK II hangs the victim on a wheel on the wall 0x1C2 in front of the wheel */
+    private static final float WALL_WHEEL_VICTIM_DISTANCE = 0x1C2 / 4096f;
+    /** The coals and water troughs under the wheels on the wall, and their effects (DK II 0x499300) */
+    private static final short TORTURE_COALS_OBJECT_ID = 62;
+    private static final short TORTURE_WATER_OBJECT_ID = 63;
+    private static final int TORTURE_COALS_EFFECT_ID = 274;
+    private static final int TORTURE_WATER_EFFECT_ID = 279;
     private float tortureWheelTime = 0;
 
     /**
@@ -387,33 +394,110 @@ public class PlayerEntityViewState extends AbstractAppState {
      * The torture wheels spin all the time, and their victims with them
      */
     private void spinTortureWheels(float tpf) {
+        boolean newSecond = (int) (tortureWheelTime + tpf) > (int) tortureWheelTime;
         tortureWheelTime += tpf;
+        Map<Point, Spatial> wallWheels = new HashMap<>();
+        Map<Point, Spatial> troughs = new HashMap<>();
         for (Spatial object : objectModelContainer.getModels()) {
             ObjectViewControl control = object.getControl(ObjectViewControl.class);
-            if (control != null && control.getCurrentState() != null
-                    && control.getCurrentState().state == GameObject.State.TORTURE_WHEEL_SPIN) {
-                spinOnTortureWheel(object);
+            if (control == null || control.getCurrentState() == null) {
+                continue;
+            }
+            Point tile = WorldUtils.vectorToPoint(object.getLocalTranslation());
+            if (control.getCurrentState().state == GameObject.State.TORTURE_WHEEL_SPIN) {
+                boolean onTheWall = isOnTheWall(object);
+                spinOnTortureWheel(object, onTheWall);
+                if (onTheWall) {
+                    wallWheels.put(tile, object);
+                }
+            } else if (control.getCurrentState().objectId == TORTURE_COALS_OBJECT_ID
+                    || control.getCurrentState().objectId == TORTURE_WATER_OBJECT_ID) {
+                troughs.put(tile, object);
             }
         }
         for (Spatial object : creatureModelContainer.getModels()) {
             CreatureViewControl control = object.getControl(CreatureViewControl.class);
-            if (control != null && control.getCurrentState() == Creature.AnimationType.TORTURED_WHEEL) {
-                spinOnTortureWheel(object);
+            if (control == null || control.getCurrentState() != Creature.AnimationType.TORTURED_WHEEL) {
+                continue;
+            }
+            Point tile = WorldUtils.vectorToPoint(object.getLocalTranslation());
+            Spatial wallWheel = wallWheels.get(tile);
+            if (wallWheel == null) {
+                spinOnTortureWheel(object, false);
+                continue;
+            }
+            hangOnWallWheel(object, wallWheel, tile);
+            Spatial trough = troughs.get(tile);
+            if (newSecond && trough != null && isUpsideDown(tile)) {
+                ObjectViewControl troughControl = trough.getControl(ObjectViewControl.class);
+                stateManager.getState(EffectManagerState.class).load(nodeObjects, trough.getWorldTranslation().clone(),
+                        troughControl.getCurrentState().objectId == TORTURE_COALS_OBJECT_ID ? TORTURE_COALS_EFFECT_ID : TORTURE_WATER_EFFECT_ID, false);
             }
         }
+    }
+
+    /**
+     * A wheel hangs on the wall above the floor, DK II 0x4EDFC0
+     */
+    private static boolean isOnTheWall(Spatial object) {
+        return object.getLocalTranslation().y > WorldUtils.FLOOR_HEIGHT;
     }
 
     /**
      * DK II turns a torture wheel by 4 to 7 2048ths of a turn per game tick,
      * depending on the tile, and the wheels on every other tile the other way
      */
-    private void spinOnTortureWheel(Spatial object) {
-        Point tile = WorldUtils.vectorToPoint(object.getLocalTranslation());
+    private float getTortureWheelAngle(Point tile) {
         int sum = tile.x + tile.y;
         float ticksPerSecond = kwdFile.getVariables().get(Variable.MiscVariable.MiscType.GAME_TICKS).getValue();
         float speed = (4 + (sum & 3)) * ((sum & 1) != 0 ? 1 : -1) * ticksPerSecond * FastMath.TWO_PI / 2048;
-        float angle = (tortureWheelTime * speed) % FastMath.TWO_PI;
-        object.setLocalRotation(new Quaternion().fromAngleAxis(angle, Vector3f.UNIT_Y).multLocal(LYING_ON_THE_FLOOR));
+        return (tortureWheelTime * speed) % FastMath.TWO_PI;
+    }
+
+    /**
+     * A wheel on the floor lies flat and turns around, a wheel on the wall
+     * faces the room and turns in its plane
+     */
+    private void spinOnTortureWheel(Spatial object, boolean onTheWall) {
+        Point tile = WorldUtils.vectorToPoint(object.getLocalTranslation());
+        float angle = getTortureWheelAngle(tile);
+        if (onTheWall) {
+            Quaternion facing = new Quaternion().fromAngles(0, getFacing(object), 0);
+            object.setLocalRotation(facing.multLocal(new Quaternion().fromAngleAxis(angle, Vector3f.UNIT_Z)));
+        } else {
+            object.setLocalRotation(new Quaternion().fromAngleAxis(angle, Vector3f.UNIT_Y).multLocal(LYING_ON_THE_FLOOR));
+        }
+    }
+
+    /**
+     * The way a wheel on the wall faces: away from the wall, which it is moved
+     * towards from the centre of its tile
+     */
+    private static float getFacing(Spatial object) {
+        Vector3f position = object.getLocalTranslation();
+        Point tile = WorldUtils.vectorToPoint(position);
+        return FastMath.atan2(position.x - tile.x, position.z - tile.y);
+    }
+
+    /**
+     * Like DK II (CState_sub_484CE0), the victim of a wheel on the wall hangs
+     * in front of the wheel and turns with it
+     */
+    private void hangOnWallWheel(Spatial victim, Spatial wheel, Point tile) {
+        Vector3f wheelPosition = wheel.getLocalTranslation();
+        Vector3f towardsRoom = WorldUtils.pointToVector3f(tile).subtractLocal(wheelPosition.x, 0, wheelPosition.z).normalizeLocal();
+        victim.setLocalTranslation(wheelPosition.add(towardsRoom.multLocal(WALL_WHEEL_VICTIM_DISTANCE)));
+        victim.setLocalRotation(wheel.getLocalRotation());
+    }
+
+    /**
+     * DK II splashes a victim from the trough once a second while it hangs
+     * upside down (turned 0x3A0 to 0x45F of 0x800)
+     */
+    private boolean isUpsideDown(Point tile) {
+        float turn = getTortureWheelAngle(tile) / FastMath.TWO_PI * 2048;
+        int angle = Math.floorMod((int) turn, 2048);
+        return angle >= 0x3A0 && angle <= 0x45F;
     }
 
     protected LightRules getLightRules() {

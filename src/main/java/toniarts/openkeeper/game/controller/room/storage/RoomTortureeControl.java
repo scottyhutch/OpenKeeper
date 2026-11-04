@@ -21,7 +21,9 @@ import com.simsilica.es.EntityId;
 import toniarts.openkeeper.utils.Point;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.ObjectComponent;
@@ -42,6 +44,8 @@ import toniarts.openkeeper.utils.WorldUtils;
 public abstract class RoomTortureeControl extends AbstractRoomObjectControl<EntityId> {
 
     private static final short ELECTRIC_CHAIR_OBJECT_ID = 61;
+    private static final short TORTURE_COALS_OBJECT_ID = 62;
+    private static final short TORTURE_WATER_OBJECT_ID = 63;
 
     public RoomTortureeControl(IKwdFile kwdFile, IRoomController parent, EntityData entityData, IGameTimer gameTimer) {
         super(kwdFile, parent, entityData, gameTimer, ObjectType.TORTUREE);
@@ -170,6 +174,13 @@ public abstract class RoomTortureeControl extends AbstractRoomObjectControl<Enti
     private List<EntityId> getDevices() {
         List<EntityId> devices = new ArrayList<>(parent.getFloorFurniture());
         devices.addAll(parent.getWallFurniture());
+
+        // The coals and water troughs under the wheels on the wall hold no victim
+        devices.removeIf(device -> {
+            ObjectComponent objectComponent = entityData.getComponent(device, ObjectComponent.class);
+            return objectComponent != null && (objectComponent.objectId == TORTURE_COALS_OBJECT_ID
+                    || objectComponent.objectId == TORTURE_WATER_OBJECT_ID);
+        });
         return devices;
     }
 
@@ -185,8 +196,8 @@ public abstract class RoomTortureeControl extends AbstractRoomObjectControl<Enti
     @Override
     protected Collection<Point> getCoordinates() {
 
-        // Only furniture
-        List<Point> coordinates = new ArrayList<>(parent.getFloorFurnitureCount() + parent.getWallFurnitureCount());
+        // Only furniture, once per tile
+        Set<Point> coordinates = new LinkedHashSet<>(parent.getFloorFurnitureCount() + parent.getWallFurnitureCount());
         for (EntityId oc : parent.getFloorFurniture()) {
             coordinates.add(WorldUtils.vectorToPoint(entityData.getComponent(oc, Position.class).position));
         }
