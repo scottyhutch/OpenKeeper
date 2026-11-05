@@ -792,6 +792,11 @@ public final class CreatureController extends EntityController implements ICreat
 
     private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget, Vector2f workPosition,
             boolean pursuingAttackTarget) {
+        return createNavigation(currentLocation, destination, faceTarget, workPosition, pursuingAttackTarget, false);
+    }
+
+    private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget, Vector2f workPosition,
+            boolean pursuingAttackTarget, boolean endInObstacle) {
         GraphPath<IMapTileInformation> path = navigationService.findPath(currentLocation, destination, this);
         if (path == null) {
             pathRetryBackoff.failed(destination, gameTimer.getGameTime());
@@ -823,7 +828,7 @@ public final class CreatureController extends EntityController implements ICreat
         if (navigationPath.size() > 1) {
             navigationPath = navigationService.smoothPath(navigationPath, creature.getAttributes().getWidth() / 2, this);
         }
-        entityData.setComponent(entityId, new Navigation(destination, faceTarget, navigationPath, pursuingAttackTarget));
+        entityData.setComponent(entityId, new Navigation(destination, faceTarget, navigationPath, pursuingAttackTarget, endInObstacle));
         return false;
     }
 
@@ -1966,7 +1971,8 @@ public final class CreatureController extends EntityController implements ICreat
                     destination = FastMath.rand.nextBoolean() ? new Point(destination.x + 1, destination.y) : new Point(destination.x, destination.y + 1);
                 }
             }
-            if (createNavigation(getCreatureCoordinates(), destination, null)) {
+            // The walk may end inside the heart's obstacle (0x4611D0 asks for it with 0x20 / 0x40)
+            if (createNavigation(getCreatureCoordinates(), destination, null, null, false, true)) {
                 navigateToRandomPoint();
             }
         } else {
