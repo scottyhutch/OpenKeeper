@@ -37,13 +37,16 @@ import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.SeparationPush;
+import toniarts.openkeeper.common.RoomInstance;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
+import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.tools.convert.map.RoomFixtures;
 import toniarts.openkeeper.tools.convert.map.ShotFixtures;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.TerrainFixtures;
@@ -77,6 +80,7 @@ class CreatureSeparationTest {
             new Point(2, 3), new Point(3, 3), new Point(4, 3), new Point(5, 3), new Point(6, 3));
     private final Map<Point, IMapTileInformation> tiles = new HashMap<>();
     private final Map<IMapTileInformation, Point> tileLocations = new HashMap<>();
+    private IRoomController heartRoom;
 
     @Test
     void creaturesSentToTheSameSpotEndApartByTheirWidth() {
@@ -142,6 +146,29 @@ class CreatureSeparationTest {
 
         assertTrue(position(swinging).x > 5 + KNIGHT_WIDTH / 4 + 0.01f, "Not pushed: " + position(swinging));
         assertEquals(5, position(swinging).y, 0.01f);
+    }
+
+    @Test
+    void aFighterTouchingTheHeartRunsAlongItsEdge() {
+        RoomInstance heart = new RoomInstance(RoomFixtures.room((short) 14, 0));
+        for (int x = 3; x <= 7; x++) {
+            for (int y = 5; y <= 9; y++) {
+                heart.addCoordinate(new Point(x, y));
+            }
+        }
+        heartRoom = (IRoomController) Proxy.newProxyInstance(IRoomController.class.getClassLoader(), new Class<?>[]{IRoomController.class},
+                (proxy, method, args) -> switch (method.getName()) {
+            case "isDungeonHeart" -> true;
+            case "getRoomInstance" -> heart;
+            default -> throw new UnsupportedOperationException(method.getName());
+        });
+        EntityId fighter = standing(KNIGHT, 5.3f, 5.4f, CreatureState.FIGHT);
+        entityData.setComponent(fighter, new Mobile(false, false, false, KNIGHT_SPEED));
+
+        run(15, frame -> assertTrue(position(fighter).dst(5, 7) > 1.49f, "Inside the heart at frame " + frame));
+
+        // Against the solid Dungeon Heart Obstacle (0x4D12B0) DK II's pilot adds a full force along its edge (0x4D4760)
+        assertTrue(position(fighter).x > 5.3f + 0.05f, "Not sliding: " + position(fighter));
     }
 
     @Test
@@ -244,7 +271,7 @@ class CreatureSeparationTest {
             case "getMapData" -> mapData;
             case "getTerrain" -> solidTiles.contains(tileLocations.get(args[0])) ? rock : floor;
             case "isSolid" -> solidTiles.contains((Point) args[0]);
-            case "getRoomControllerByCoordinates" -> null;
+            case "getRoomControllerByCoordinates" -> heartRoom != null && heartRoom.getRoomInstance().getCoordinates().contains((Point) args[0]) ? heartRoom : null;
             default -> throw new UnsupportedOperationException(method.getName());
         });
     }
