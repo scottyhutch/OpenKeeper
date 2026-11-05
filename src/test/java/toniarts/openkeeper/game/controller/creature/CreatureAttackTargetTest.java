@@ -32,7 +32,9 @@ import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.controller.ICreaturesController;
+import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -92,8 +94,9 @@ class CreatureAttackTargetTest {
         });
         return new CreatureController(entity, entityData, creature, navigationService, null, () -> 0, Map.of(),
                 creaturesController, stub(IEntityPositionLookup.class,
-                        (name, args) -> "getSensedEntities".equals(name) ? Set.of() : null),
-                null, null, null, null, null);
+                        (name, args) -> "getSensedEntities".equals(name) ? Set.of(entityData.getComponent(entity, AttackTarget.class).entityId) : null),
+                null, stub(ILevelInfo.class, (name, args) -> "getPlayer".equals(name) ? new Keeper(false, (Short) args[0]) : null),
+                null, null, null);
     }
 
     @FunctionalInterface
