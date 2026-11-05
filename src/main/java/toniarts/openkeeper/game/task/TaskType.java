@@ -53,5 +53,6 @@ public enum TaskType {
     CARRY_CORPSE_TO_GRAVEYARD,
     GUARD,
     PRAY,
-    COLLECT_WINNINGS
+    COLLECT_WINNINGS,
+    TORTURE
 }
