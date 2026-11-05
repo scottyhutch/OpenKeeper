@@ -1133,7 +1133,8 @@ public final class CreatureController extends EntityController implements ICreat
                     && !(isFleeing(entity) && isBackingOff() && !isWithinAttackDistance(entity))
                     && hasRoomForAttacker(entity)
                     && !(fightersOnly && creaturesController.createController(entity).isWorker())
-                    && isNoticed(entity)) {
+                    && isNoticed(entity)
+                    && (hasPathToEntity(entity) || isWithinAttackDistance(entity))) {
                 float distance = getDistanceToCreature(entity);
                 if (distance < nearestDistance) {
                     nearestDistance = distance;
