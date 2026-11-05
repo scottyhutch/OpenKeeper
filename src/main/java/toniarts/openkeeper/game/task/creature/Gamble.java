@@ -20,6 +20,8 @@ import com.jme3.math.Vector2f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.filter.FieldFilter;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.random.RandomGenerator;
@@ -27,27 +29,34 @@ import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.CasinoDisco;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureMood;
+import toniarts.openkeeper.game.component.ObjectComponent;
+import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
+import toniarts.openkeeper.game.controller.room.CasinoController;
 import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.AbstractCapacityCriticalRoomTask;
 import toniarts.openkeeper.game.task.TaskManager;
 import toniarts.openkeeper.game.task.TaskType;
+import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 import toniarts.openkeeper.utils.Point;
+import toniarts.openkeeper.utils.WorldUtils;
 
 /**
  * Gambles in the Casino, the room for the Drink job. Once a second the
  * gambler's mood and gold change by the pay out setting of the casino and it
  * may hit the jackpot. Every four seconds the keeper pays out the casino's
- * losses or gets its takings.
+ * losses or gets its takings, and a gambler at a roulette table spins one of
+ * its wheels.
  */
 public final class Gamble extends AbstractCapacityCriticalRoomTask {
 
@@ -190,12 +199,31 @@ public final class Gamble extends AbstractCapacityCriticalRoomTask {
                 objectsController.addLooseGold(centre.x, centre.y,
                         CASINO_SHARE_INTERVAL_SECONDS * Math.abs(moneyGoldPerSecond), maxGoldPile);
             }
+
+            // At a roulette table the gambler spins one of its wheels, as in the original (0x456980)
+            spinRouletteWheel();
         }
 
         // The jackpot
         int chance = (smiles ? smilesJackpotChance : moneyJackpotChance);
         if (chance > 0 && random.nextInt(chance) == JACKPOT_NUMBER) {
             hitJackpot(creature);
+        }
+    }
+
+    private void spinRouletteWheel() {
+        List<EntityId> wheels = new ArrayList<>(2);
+        for (EntityId wheel : entityData.findEntities(new FieldFilter<>(ObjectComponent.class, "objectId", CasinoController.ROULETTE_WHEEL_OBJECT_ID),
+                ObjectComponent.class, Position.class)) {
+            if (getTaskLocation().equals(WorldUtils.vectorToPoint(entityData.getComponent(wheel, Position.class).position))) {
+                wheels.add(wheel);
+            }
+        }
+        if (!wheels.isEmpty()) {
+            EntityId wheel = wheels.get(random.nextInt(wheels.size()));
+            ObjectViewState viewState = entityData.getComponent(wheel, ObjectViewState.class);
+            entityData.setComponent(wheel, new ObjectViewState(viewState.objectId, GameObject.State.SPINNING,
+                    viewState.animState, viewState.visible));
         }
     }
 

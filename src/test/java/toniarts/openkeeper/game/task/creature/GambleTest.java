@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.task.creature;
 
+import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
@@ -33,15 +34,20 @@ import toniarts.openkeeper.game.component.CasinoDisco;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.Gold;
+import toniarts.openkeeper.game.component.ObjectComponent;
+import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.controller.room.CasinoController;
 import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.CasinoVariableFixtures;
+import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
@@ -228,6 +234,34 @@ class GambleTest {
         entityData.setComponent(casinoId, new CasinoDisco(0));
 
         assertFalse(gamble.isValid(creature));
+    }
+
+    @Test
+    void theGamblerSpinsOneOfTheWheelsOfItsRouletteTableEveryFourSeconds() {
+        EntityId wheel1 = rouletteWheel(5, 5.49f);
+        EntityId wheel2 = rouletteWheel(5, 4.51f);
+        EntityId otherTable = rouletteWheel(7, 7.49f);
+        Gamble gamble = gamble(PayOut.MONEY, NO_JACKPOT);
+
+        gamble.executeTask(creature, 3f);
+        assertFalse(isSpinning(wheel1) || isSpinning(wheel2));
+
+        gamble.executeTask(creature, 4f);
+        assertTrue(isSpinning(wheel1) ^ isSpinning(wheel2));
+        assertFalse(isSpinning(otherTable));
+    }
+
+    private EntityId rouletteWheel(float x, float z) {
+        EntityId wheel = entityData.createEntity();
+        entityData.setComponents(wheel, new ObjectComponent(CasinoController.ROULETTE_WHEEL_OBJECT_ID, null),
+                new Position(0, new Vector3f(x, 1, z)),
+                new ObjectViewState(CasinoController.ROULETTE_WHEEL_OBJECT_ID, GameObject.State.NONE,
+                        ObjectViewState.GameObjectAnimState.MESH_RESOURCE, true));
+        return wheel;
+    }
+
+    private boolean isSpinning(EntityId wheel) {
+        return entityData.getComponent(wheel, ObjectViewState.class).state == GameObject.State.SPINNING;
     }
 
     private Gamble gamble(PayOut payOut, int jackpotRoll) {
