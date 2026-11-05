@@ -67,16 +67,16 @@ public final class SeparationSystem implements IGameLogicUpdatable {
     private static final float SEPARATION_WEIGHT = 0x2147 / 65536f;
 
     /**
-     * A creature stands its ground while it fights a target in reach (the
-     * fight state 0x45F030 sets the blocker flag +0x232 0x80)
+     * A creature swinging or casting at its target, DK II's fight state with an
+     * action running (0x45F030, 0x496D00)
      */
-    private static final EnumSet<CreatureState> FIGHTING = EnumSet.of(CreatureState.FIGHT, CreatureState.MELEE_ATTACK, CreatureState.CAST_SPELL);
+    private static final EnumSet<CreatureState> ATTACKING = EnumSet.of(CreatureState.MELEE_ATTACK, CreatureState.CAST_SPELL);
 
     private final EntityData entityData;
     private final IKwdFile kwdFile;
     private final IMapController mapController;
     private final IEntityPositionLookup entityPositionLookup;
-    private final EntitySet walkingCreatures;
+    private final EntitySet creatures;
 
     public SeparationSystem(EntityData entityData, IKwdFile kwdFile, IMapController mapController,
             IEntityPositionLookup entityPositionLookup) {
@@ -84,18 +84,18 @@ public final class SeparationSystem implements IGameLogicUpdatable {
         this.kwdFile = kwdFile;
         this.mapController = mapController;
         this.entityPositionLookup = entityPositionLookup;
-        walkingCreatures = entityData.getEntities(CreatureComponent.class, Position.class, Navigation.class, Mobile.class);
+        creatures = entityData.getEntities(CreatureComponent.class, Position.class, Mobile.class);
     }
 
     @Override
     public void processTick(float tpf) {
-        if (walkingCreatures.applyChanges()) {
-            for (Entity entity : walkingCreatures.getRemovedEntities()) {
+        if (creatures.applyChanges()) {
+            for (Entity entity : creatures.getRemovedEntities()) {
                 entityData.removeComponent(entity.getId(), SeparationPush.class);
             }
         }
 
-        for (Entity entity : walkingCreatures) {
+        for (Entity entity : creatures) {
             Vector2f push = getPush(entity);
             if (push.equals(Vector2f.ZERO)) {
                 if (entityData.getComponent(entity.getId(), SeparationPush.class) != null) {
@@ -114,9 +114,17 @@ public final class SeparationSystem implements IGameLogicUpdatable {
             return separation;
         }
 
-        // A walking creature faces where it goes
+        // A walking creature faces where it goes. DK II's pilot also runs in the fight state, so a creature that
+        // swings or casts where it stands is pushed too, as one that doesn't move (0x488930, 0x4D2B80).
         Position position = entity.get(Position.class);
-        Vector2 heading = SteeringUtils.calculateAngleToVector(new Vector2(), -position.rotation);
+        Vector2 heading;
+        if (entityData.getComponent(entity.getId(), Navigation.class) != null) {
+            heading = SteeringUtils.calculateAngleToVector(new Vector2(), -position.rotation);
+        } else if (isAttacking(entity.getId())) {
+            heading = new Vector2();
+        } else {
+            return separation;
+        }
         float radius = creature.getAttributes().getWidth() / 2;
         float mass = Math.max(1, creature.getUnkea8()); // Mass 1-5, 0x4D2A60
         Point tile = WorldUtils.vectorToPoint(position.position);
@@ -177,7 +185,9 @@ public final class SeparationSystem implements IGameLogicUpdatable {
     /**
      * Does the creature stand its ground against the separation of others. DK
      * II marks a creature that fights a target in reach (0x45F030) and the
-     * Horned Reaper always (0x488930).
+     * Horned Reaper always (0x488930). The fight state clears the mark while
+     * the creature swings or casts (it returns before setting it while an
+     * action runs, 0x496D00).
      *
      * @param entityId the creature
      * @param creature its type
@@ -188,13 +198,17 @@ public final class SeparationSystem implements IGameLogicUpdatable {
             return true;
         }
         CreatureAi creatureAi = entityData.getComponent(entityId, CreatureAi.class);
-        if (creatureAi == null || !FIGHTING.contains(creatureAi.getCreatureState())) {
-            return false;
-        }
+        return creatureAi != null && creatureAi.getCreatureState() == CreatureState.FIGHT && !isWalking(entityId);
+    }
 
-        // Not while it still walks to its target
+    private boolean isAttacking(EntityId entityId) {
+        CreatureAi creatureAi = entityData.getComponent(entityId, CreatureAi.class);
+        return creatureAi != null && ATTACKING.contains(creatureAi.getCreatureState());
+    }
+
+    private boolean isWalking(EntityId entityId) {
         Navigation navigation = entityData.getComponent(entityId, Navigation.class);
-        return navigation == null || navigation.navigationPath.isEmpty();
+        return navigation != null && !navigation.navigationPath.isEmpty();
     }
 
     @Override
@@ -204,7 +218,7 @@ public final class SeparationSystem implements IGameLogicUpdatable {
 
     @Override
     public void stop() {
-        walkingCreatures.release();
+        creatures.release();
     }
 
 }

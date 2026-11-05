@@ -1864,8 +1864,11 @@ public final class CreatureController extends EntityController implements ICreat
 
             // Walled off, pick something else to do
             setAttackTarget(null);
-        } else if (!attackTile.equals(getCreatureCoordinates())) {
-            createNavigation(getCreatureCoordinates(), attackTile, heartTile);
+        } else {
+
+            // Pushed out of reach on the attack tile, back to its middle
+            createNavigation(getCreatureCoordinates(), attackTile, heartTile,
+                    attackTile.equals(getCreatureCoordinates()) ? WorldUtils.pointToVector2f(attackTile) : null, true);
         }
     }
 
