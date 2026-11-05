@@ -34,6 +34,7 @@ import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.map.IRoomsInformation;
 import toniarts.openkeeper.game.map.MapInformation;
+import toniarts.openkeeper.game.state.PlayerState;
 import toniarts.openkeeper.game.sound.GameEventSoundPlayer;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Terrain;
@@ -54,6 +55,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.function.Consumer;
+import javax.annotation.Nullable;
 
 /**
  * Handles the handling of game world for a player, visually
@@ -84,7 +86,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private final ConcurrentLinkedQueue<Point> pendingTileUpdates = new ConcurrentLinkedQueue<>();
     private final Object tileUpdateLock = new Object();
 
-    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, boolean ceilingEnabled, boolean loadedGame, ILoadCompleteNotifier loadCompleteNotifier, Consumer<EntityId> enemySightedNotifier) {
+    protected PlayerMapViewState(Main app, final IKwdFile kwdFile, final AssetManager assetManager, Collection<Keeper> players, EntityData entityData, short playerId, boolean ceilingEnabled, @Nullable PlayerState.ClientSave savedGame, ILoadCompleteNotifier loadCompleteNotifier, Consumer<EntityId> enemySightedNotifier) {
         this.app = app;
         this.kwdFile = kwdFile;
         this.assetManager = assetManager;
@@ -106,8 +108,8 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
                 // Fog must be seeded before the initial geometry is built, since
                 // the renderer consults it while assembling the map
-                if (loadedGame) {
-                    fogOfWarController.seedLoadedGame();
+                if (savedGame != null) {
+                    fogOfWarController.seedLoadedGame(savedGame.exploredTiles);
                 } else {
                     fogOfWarController.seedLevelStart();
                 }
