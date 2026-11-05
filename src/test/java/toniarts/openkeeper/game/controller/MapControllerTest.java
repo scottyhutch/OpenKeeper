@@ -56,7 +56,10 @@ class MapControllerTest {
             {NEUTRAL, NEUTRAL, NEUTRAL}
         }));
 
-        mapController.healTile(new Point(1, 0), KEEPER, null);
+        // Reinforcing goes a tick's worth at a time (fix/claim-per-tick)
+        for (int i = 0; i < 10000 && mapController.getMapData().getTile(1, 0).getTerrainId() != REINFORCED_WALL; i++) {
+            mapController.healTile(new Point(1, 0), KEEPER, null);
+        }
 
         assertWall(mapController, 1, 0, REINFORCED_WALL, KEEPER);
         assertWall(mapController, 0, 0, REINFORCED_WALL, KEEPER);
@@ -84,6 +87,7 @@ class MapControllerTest {
             case "getMap" -> map;
             case "getTerrain" -> terrains.get((Short) args[0]);
             case "getThings" -> List.of();
+            case "getGameLevel" -> CreatureSleepFixtures.level(4);
             default -> throw new UnsupportedOperationException(method.getName());
         });
         Map<Short, Keeper> players = Map.of(NEUTRAL, new Keeper(false, NEUTRAL), KEEPER, new Keeper(false, KEEPER));

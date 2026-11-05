@@ -1037,7 +1037,7 @@ public final class CreatureController extends EntityController implements ICreat
         if (DungeonHeartTarget.isDungeonHeart(entityData, target)) {
             return isHeartToAttack(target);
         }
-        return !(isIncapacitated(target) || isCaptive(target) || isUnreachable(target)) && isEnemy(target);
+        return isEnemy(target) && !(isIncapacitated(target) || isCaptive(target) || isUnreachable(target));
     }
 
     private boolean isTimeToPickTarget(AttackTarget attackTarget) {
