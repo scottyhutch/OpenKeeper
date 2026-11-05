@@ -314,6 +314,7 @@ class CreatureSeparationTest {
             case "getMapData" -> mapData;
             case "getTerrain" -> solidTiles.contains(tileLocations.get(args[0])) ? rock : floor;
             case "isSolid" -> solidTiles.contains((Point) args[0]);
+            case "isWater", "isLava" -> false;
             case "getRoomControllerByCoordinates" -> heartRoom != null && heartRoom.getRoomInstance().getCoordinates().contains((Point) args[0]) ? heartRoom : null;
             default -> throw new UnsupportedOperationException(method.getName());
         });
