@@ -73,8 +73,8 @@ class PlayerCreaturesTriggerTest {
         IGameController gameController = (IGameController) Proxy.newProxyInstance(IGameController.class.getClassLoader(), new Class<?>[]{IGameController.class},
                 (proxy, method, args) -> method.getName().equals("getPlayerController") ? playerController : null);
 
-        CreaturesController creaturesController = new CreaturesController(kwdFile[0], entityData, Map.of(), null, gameController, null, levelInfo);
-        triggerControl = new PlayerTriggerControl(gameController, levelInfo, null, null, creaturesController, 1, GOOD_PLAYER, null);
+        CreaturesController creaturesController = new CreaturesController(kwdFile[0], entityData, Map.of(), null, gameController, null, levelInfo, null);
+        triggerControl = new PlayerTriggerControl(gameController, levelInfo, null, null, creaturesController, 1, GOOD_PLAYER, null, entityData);
     }
 
     @Test
