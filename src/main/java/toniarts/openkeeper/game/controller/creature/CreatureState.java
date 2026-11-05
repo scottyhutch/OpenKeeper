@@ -650,6 +650,13 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void update(ICreatureController entity) {
+
+            // The fear is checked during the swing too. Stepping back keeps the swing going, so its hit still lands,
+            // but walking away at once cuts it short (DK II 0x45F030, 0x4602E0, 0x471890)
+            if (entity.isScared() && !entity.canStepBack()) {
+                entity.getStateMachine().changeState(BACK_OFF);
+                return;
+            }
             if (entity.isStateTimeExceeded()) {
                 entity.getStateMachine().changeState(FIGHT);
             }
@@ -674,9 +681,9 @@ public enum CreatureState implements State<ICreatureController> {
         @Override
         public void update(ICreatureController entity) {
 
-            // The fear is checked during the cast too, and a scared caster backs off at once, cutting its cast short
-            // (DK II 0x45F030, 0x471890)
-            if (entity.isScared()) {
+            // The fear is checked during the cast too. Stepping back keeps the cast going, but walking away at once
+            // cuts it short (DK II 0x45F030, 0x4602E0, 0x471890)
+            if (entity.isScared() && !entity.canStepBack()) {
                 entity.getStateMachine().changeState(BACK_OFF);
                 return;
             }
