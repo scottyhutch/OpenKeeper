@@ -918,6 +918,8 @@ class CreatureControllerTest {
                 case "getSensedEntities" -> sensed;
                 case "getBlockingDoor" -> null;
                 case "getEntityLocation" -> tile((EntityId) args[0]);
+                case "getEntitiesInLocation" -> sensed.stream()
+                        .filter(entity -> tile(entity) != null && tile(entity).getLocation().equals(args[0])).toList();
                 default -> throw new UnsupportedOperationException(method);
             });
             IKwdFile kwd = proxy(IKwdFile.class, (method, args) -> switch (method) {

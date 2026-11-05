@@ -358,7 +358,7 @@ public final class CreatureController extends EntityController implements ICreat
             // A non-fighter withdraws as soon as an enemy fighter picks it as its target
             if ((fighter ? threatToUs - threatCaused > fear && (getFellowFighters() == 0
                     || creature.getFlags().contains(Creature.CreatureFlag.ALWAYS_FLEE))
-                    : isTargetedByEnemyFighter()) || isFrightened(fear)) {
+                    : isTargetedByEnemyFighter() && !isCornered()) || isFrightened(fear)) {
                 if (!stateMachine.isInState(CreatureState.FLEE)) {
 
                     stateMachine.changeState(CreatureState.FLEE);
@@ -2591,6 +2591,35 @@ public final class CreatureController extends EntityController implements ICreat
             Keeper keeper = levelInfo.getPlayer(getSideId(entityId, getOwnerId()));
             if (keeper != null) {
                 return keeper.isEnemy(getSideId(entity, otherOwner.ownerId));
+            }
+        }
+
+        return false;
+    }
+
+    @Override
+    public boolean isCornered() {
+        Point location = getCreatureCoordinates();
+        for (int x = -1; x <= 1; x++) {
+            for (int y = -1; y <= 1; y++) {
+                Point tile = new Point(location.x + x, location.y + y);
+                if ((x != 0 || y != 0) && navigationService.findPath(location, tile, this) != null && !isHeldAgainstUs(tile)) {
+                    return false;
+                }
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether an enemy that fights us stands on the tile
+     */
+    private boolean isHeldAgainstUs(Point tile) {
+        for (EntityId entity : entityPositionLookup.getEntitiesInLocation(tile)) {
+            AttackTarget target = entityData.getComponent(entity, AttackTarget.class);
+            if (target != null && entityId.equals(target.entityId) && isEnemy(entity)) {
+                return true;
             }
         }
 
