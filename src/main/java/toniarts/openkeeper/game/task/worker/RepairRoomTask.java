@@ -28,8 +28,9 @@ import toniarts.openkeeper.utils.Point;
  */
 public final class RepairRoomTask extends ClaimTileTask {
 
-    public RepairRoomTask(final INavigationService navigationService, final IMapController mapController, Point p, short playerId) {
-        super(navigationService, mapController, p, playerId);
+    public RepairRoomTask(final INavigationService navigationService, final IMapController mapController, Point p, short playerId,
+            int ticksPerSecond) {
+        super(navigationService, mapController, p, playerId, ticksPerSecond);
     }
 
     @Override

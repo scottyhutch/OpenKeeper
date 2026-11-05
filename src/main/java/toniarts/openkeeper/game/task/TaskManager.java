@@ -148,6 +148,7 @@ import toniarts.openkeeper.utils.WorldUtils;
 public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
     private static final Logger logger = System.getLogger(TaskManager.class.getName());
+    private static final int MAX_WORKERS_LOOKING_FOR_WORK = 4;
 
     /**
      * How far around the drop a dropped worker looks for work first, in tiles
@@ -182,7 +183,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     private final Map<EntityId, ICreatureController> creaturesByEntities = new HashMap<>();
     private final Map<Short, IPlayerController> playerControllers;
     private final Map<IRoomController, Map<Long, Point>> roomTasks = new HashMap<>();
-    private final Map<ICreatureController, Consumer<Boolean>> unemployedCreatures = new HashMap<>();
+    private final Map<ICreatureController, Consumer<Boolean>> unemployedCreatures = new LinkedHashMap<>();
     private final Map<EntityId, Point> thiefEntrances = new HashMap<>();
     private final Set<EntityId> thievesWithLoot = new HashSet<>();
     private final Set<ICreatureController> escapedThieves = new HashSet<>();
@@ -409,7 +410,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     private void addRepairRoomTasks(IRoomController room, short ownerId) {
         for (Point p : room.getRoomInstance().getCoordinates()) {
             if (mapController.isRepairableRoom(p, ownerId)) {
-                Task task = new RepairRoomTask(navigationService, mapController, p, ownerId);
+                Task task = new RepairRoomTask(navigationService, mapController, p, ownerId, levelInfo.getLevelData().getGameLevel().getTicksPerSec());
                 if (!taskQueues.get(ownerId).contains(task)) {
                     addTask(ownerId, task);
                 }
@@ -781,13 +782,13 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             addTask(playerId, new ClaimWallTileTask(navigationService, mapController, tile, playerId));
         } // Claim
         else if (mapController.isClaimableTile(mapTile, terrain, playerId)) {
-            addTask(playerId, new ClaimTileTask(navigationService, mapController, tile, playerId));
+            addTask(playerId, new ClaimTileTask(navigationService, mapController, tile, playerId, levelInfo.getLevelData().getGameLevel().getTicksPerSec()));
         } // Repair wall
         else if (mapController.isRepairableWall(mapTile, terrain, playerId)) {
             addTask(playerId, new RepairWallTileTask(navigationService, mapController, tile, playerId));
         } // Claim room
         else if (mapController.isClaimableRoom(mapTile, terrain, playerId)) {
-            addTask(playerId, new ClaimRoomTask(navigationService, mapController, tile, playerId));
+            addTask(playerId, new ClaimRoomTask(navigationService, mapController, tile, playerId, levelInfo.getLevelData().getGameLevel().getTicksPerSec()));
         }
     }
 
@@ -1337,20 +1338,30 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             return;
         }
 
-        unemployedCreatures
+        // The queue is from the last tick, workers that have got something else to do since don't look for work
+        Map<Short, List<Entry<ICreatureController, Consumer<Boolean>>>> workersByOwnerId = unemployedCreatures
                 .entrySet()
                 .stream()
-                .collect(Collectors.groupingBy((creature) -> creature.getKey().getOwnerId()))
-                .entrySet()
-                .forEach((creaturesByOwnerId) -> {
-                    processUnemployedWorkers(taskQueues.getOrDefault(creaturesByOwnerId.getKey(), Collections.emptySet()), creaturesByOwnerId.getValue());
-                });
+                .filter((creature) -> creature.getKey().getStateMachine().isInState(CreatureState.IDLE))
+                .collect(Collectors.groupingBy((creature) -> creature.getKey().getOwnerId()));
         unemployedCreatures.clear();
+        workersByOwnerId.forEach((ownerId, workers) -> {
+            processUnemployedWorkers(taskQueues.getOrDefault(ownerId, Collections.emptySet()), workers);
+        });
     }
 
     private void processUnemployedWorkers(Set<Task> tasks, List<Entry<ICreatureController, Consumer<Boolean>>> workers) {
+
+        // Only so many of a player's workers look for work on one tick, the others wander off and look again later. In
+        // DK II the idle imp state (0x463DF0) counts the searches of the player's imps (CPlayer +0x7a, reset every tick
+        // in 0x4B9EC0) and sends the fifth and the next ones to wander
+        int searching = Math.min(workers.size(), MAX_WORKERS_LOOKING_FOR_WORK);
+        for (Entry<ICreatureController, Consumer<Boolean>> worker : workers.subList(searching, workers.size())) {
+            worker.getValue().accept(Boolean.FALSE);
+        }
         Set<Task> taskQueue = new HashSet<>(tasks);
         Map<ICreatureController, Consumer<Boolean>> unemployedWorkers = workers
+                .subList(0, searching)
                 .stream()
                 .collect(Collectors.toMap((entry) -> entry.getKey(), (entry) -> entry.getValue()));
 

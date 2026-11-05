@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
@@ -72,6 +73,8 @@ class TaskManagerRepairRoomTaskTest {
             new Point(0, 0);
         case "getEntityId" ->
             new EntityId(1);
+        case "getStateMachine" ->
+            new com.badlogic.gdx.ai.fsm.DefaultStateMachine<ICreatureController, CreatureState>(null, CreatureState.IDLE);
         case "getPosition" ->
             new Vector3f(0, 0, 0);
         case "setAssignedTask" -> {
