@@ -529,12 +529,17 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget, boolean pursuingAttackTarget) {
+        return createNavigation(currentLocation, destination, faceTarget, pursuingAttackTarget, false);
+    }
+
+    private boolean createNavigation(Point currentLocation, Point destination, Point faceTarget, boolean pursuingAttackTarget,
+            boolean endInObstacle) {
         GraphPath<IMapTileInformation> path = navigationService.findPath(currentLocation, destination, this);
         if (path == null) {
             logger.log(Level.WARNING, "No path from {0} to {1}", getCreatureCoordinates(), destination);
             return true;
         }
-        entityData.setComponent(entityId, new Navigation(destination, faceTarget, getWaypoints(path), pursuingAttackTarget));
+        entityData.setComponent(entityId, new Navigation(destination, faceTarget, getWaypoints(path), pursuingAttackTarget, endInObstacle));
         return false;
     }
 
@@ -891,7 +896,9 @@ public final class CreatureController extends EntityController implements ICreat
         Keeper keeper = levelInfo.getPlayer(getOwnerId());
         if (keeper != null && keeper.getDungeonHeartLocation() != null) {
             Point p = keeper.getDungeonHeartLocation();
-            createNavigation(getCreatureCoordinates(), new Point(p.x - 2, p.y - 2), null);
+
+            // The walk may end inside the heart's obstacle (DK II's withdraw 0x4611D0 asks for it with 0x20 / 0x40)
+            createNavigation(getCreatureCoordinates(), new Point(p.x - 2, p.y - 2), null, false, true);
         } else {
             navigateToRandomPoint();
         }
