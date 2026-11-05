@@ -133,6 +133,7 @@ class WorkerTaskAssignmentTest {
     void droppedWorkerLooksForWorkPastTheFourOfATick() {
 
         // DK II's idle imp state (0x463DF0) lets a just dropped imp (+0x99) look without counting it
+        addLand(0, 19, 10);
         TaskManager taskManager = taskManager();
         List<Task> tasks = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
