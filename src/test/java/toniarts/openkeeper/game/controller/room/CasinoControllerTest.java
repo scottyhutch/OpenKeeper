@@ -48,8 +48,10 @@ class CasinoControllerTest {
     void everyRouletteTableGetsTwoWheelsThatGoWithTheRoom() {
         RoomInstance roomInstance = new RoomInstance(RoomFixtures.roomWithObjects((short) 15,
                 (short) 87, (short) 59, (short) 67, (short) 68, (short) 0, (short) 0));
-        for (int x = 5; x <= 7; x++) {
-            for (int y = 5; y <= 7; y++) {
+        // The pay out adjuster takes the place of the first piece of furniture with none above it, so the room is
+        // big enough to keep a table
+        for (int x = 5; x <= 9; x++) {
+            for (int y = 5; y <= 9; y++) {
                 roomInstance.addCoordinate(new Point(x, y));
             }
         }
@@ -57,14 +59,30 @@ class CasinoControllerTest {
                 objectsController(), null);
 
         casino.construct();
-        assertEquals(Set.of(new Vector3f(6, 1, 6 + 2000f / 4096), new Vector3f(6, 1, 6 - 2000f / 4096)), wheels());
+        Set<Vector3f> tables = tables();
+        assertTrue(!tables.isEmpty());
+        Set<Vector3f> expected = new HashSet<>();
+        for (Vector3f table : tables) {
+            expected.add(new Vector3f(table.x, 1, table.z + 2000f / 4096));
+            expected.add(new Vector3f(table.x, 1, table.z - 2000f / 4096));
+        }
+        assertEquals(expected, wheels());
 
         // Built again, as when the room grows
         casino.construct();
-        assertEquals(2, wheels().size());
+        assertEquals(2 * tables().size(), wheels().size());
 
         casino.remove();
         assertTrue(wheels().isEmpty());
+    }
+
+    private Set<Vector3f> tables() {
+        Set<Vector3f> tables = new HashSet<>();
+        for (EntityId table : entityData.findEntities(new FieldFilter<>(ObjectComponent.class, "objectId",
+                CasinoController.ROULETTE_TABLE_OBJECT_ID), ObjectComponent.class, Position.class)) {
+            tables.add(entityData.getComponent(table, Position.class).position);
+        }
+        return tables;
     }
 
     private Set<Vector3f> wheels() {

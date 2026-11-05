@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.controller.room;
 
+import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
@@ -56,7 +57,7 @@ class CasinoPayOutTest {
         // The furniture stands on (2, 2), (2, 4), (3, 3), (4, 2) and (4, 4)
         assertEquals(new Point(2, 2), getTile(findObject(PAY_OUT_ADJUSTER)));
         assertEquals(4, casino.getFloorFurnitureCount());
-        assertEquals(4, casino.getMaxCapacity(ObjectType.GAMBLER));
+        assertEquals(5, casino.getMaxCapacity(ObjectType.GAMBLER)); // One more than the furniture (my-build)
     }
 
     @Test
@@ -123,7 +124,7 @@ class CasinoPayOutTest {
                     EntityId entityId = entityData.createEntity();
                     entityData.setComponents(entityId,
                             new ObjectComponent((short) args[0], null),
-                            new Position(0, WorldUtils.pointToVector3f((int) args[2], (int) args[3])));
+                            new Position(0, args[2] instanceof Vector3f vector ? vector : WorldUtils.pointToVector3f((int) args[2], (int) args[3])));
                     return entityId;
                 });
 
