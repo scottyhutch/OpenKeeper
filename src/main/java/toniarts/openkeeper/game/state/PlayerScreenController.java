@@ -356,7 +356,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
             payDayTimeLeft = payDayClock.getTimeLeftFraction();
             payDayCost = payDayClock.cost;
         }
-        if (payDayRing != null) {
+        // Only while the HUD shows: the ring draws itself on its first progress, and the possession screen can
+        // come up before that (a game loaded into possession), leaving it over the possession HUD
+        if (payDayRing != null && screen != null && SCREEN_HUD_ID.equals(screen.getScreenId())) {
             payDayRing.setResearch(payDayTimeLeft);
         }
     }
