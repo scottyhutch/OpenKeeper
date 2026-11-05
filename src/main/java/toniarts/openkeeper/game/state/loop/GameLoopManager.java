@@ -204,6 +204,12 @@ public final class GameLoopManager {
         loops.add(new GameLoop(new GameLogicManager(new MovementSystem(entityData, level, gameWorldController.getMapController()),
                 new PossessedMovementSystem(entityData, gameWorldController.getMapController(),
                         positionSystem, gameWorldController.getCreaturesController(), gameController.getGameTimer())), GameLoop.INTERVAL_FPS_60, "Steering"));
+
+        // A loaded game goes on from the time it was saved at, the times in its components are from that clock
+        if (saveGame != null) {
+            gameLogicThread.setTimeElapsed(saveGame.getGameTime());
+            gameAnimationThread.setTimeElapsed(saveGame.getGameTime());
+        }
     }
 
     private static IBlocksSight solidTilesBlockSight(IMapController mapController) {
@@ -244,9 +250,11 @@ public final class GameLoopManager {
      * @param file the save file
      * @param campaignLevel the campaign level, or {@code null} for
      * non-campaign
+     * @param client the client's own part of the save, see
+     * {@link SaveGame#setClient(Object)}, or {@code null} for none
      * @return completes when the file is written
      */
-    public CompletableFuture<Void> save(Path file, @Nullable CampaignLevel campaignLevel) {
+    public CompletableFuture<Void> save(Path file, @Nullable CampaignLevel campaignLevel, @Nullable Object client) {
         CompletableFuture<SaveGame> saveGame = new CompletableFuture<>();
         Runnable collect = () -> hold(0, () -> {
             if (!saveGame.isDone()) {
@@ -276,6 +284,9 @@ public final class GameLoopManager {
 
         return saveGame.thenAcceptAsync(save -> {
             try {
+                if (client != null) {
+                    save.setClient(client);
+                }
                 save.write(file);
             } catch (IOException ex) {
                 throw new UncheckedIOException(ex);
