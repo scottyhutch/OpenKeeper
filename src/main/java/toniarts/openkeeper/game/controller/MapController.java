@@ -564,7 +564,7 @@ public final class MapController extends Container implements IMapController {
         } else if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE) && tile.getOwnerId() != playerId) {
 
             // Attack enemy tile, the work variables are rates per game second
-            damage = TileWork.perApplication(getLevelVariable(Variable.MiscVariable.MiscType.ATTACK_TILE_HEALTH), getEfficiency(creature));
+            damage = TileWork.perSwing((int) getLevelVariable(Variable.MiscVariable.MiscType.ATTACK_TILE_HEALTH) / kwdFile.getGameLevel().getTicksPerSec(), getEfficiency(creature));
         } else {
             throw new UnsupportedOperationException("Wat?! Tried to damage tile " + terrain.getName() + " at " + point + "!");
         }
@@ -641,6 +641,45 @@ public final class MapController extends Container implements IMapController {
     }
 
     /**
+     * How much one application of work damages a tile
+     *
+     * @param tile the tile
+     * @param terrain the tile's terrain
+     * @param playerId the player doing the damage
+     * @param creature the worker, {@code null} if nobody is working
+     * @return the damage
+     */
+    private int getDamage(IMapTileController tile, Terrain terrain, short playerId, ICreatureController creature) {
+        // Calculate the damage, the work variables are rates per game second
+        float rate;
+        int multiplier = (creature != null && kwdFile.getDwarf() == creature.getCreature() ? (int) getLevelVariable(Variable.MiscVariable.MiscType.DWARF_DIGGING_MULTIPLIER) : 1);
+        if (terrain.getFlags().contains(Terrain.TerrainFlag.SOLID)) {
+            if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE)) {
+                if (tile.getOwnerId() == playerId) {
+                    rate = getLevelVariable(Variable.MiscVariable.MiscType.DIG_OWN_WALL_HEALTH) * multiplier;
+                } else {
+                    rate = getLevelVariable(Variable.MiscVariable.MiscType.DIG_ENEMY_WALL_HEALTH) * multiplier;
+                }
+            } else if (tile.getGold() > 0) {
+
+                // Mining damages the seam like any dig, the gold comes out in proportion, gems included
+                rate = getLevelVariable(Variable.MiscVariable.MiscType.MINE_GOLD_HEALTH);
+            } else {
+                rate = getLevelVariable(Variable.MiscVariable.MiscType.DIG_ROCK_HEALTH) * multiplier;
+            }
+        } else if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE) && tile.getOwnerId() != playerId) {
+
+            // Attack enemy tile, which goes on every tick (DK II 0x497670)
+            rate = (int) getLevelVariable(Variable.MiscVariable.MiscType.ATTACK_TILE_HEALTH) / kwdFile.getGameLevel().getTicksPerSec();
+        } else {
+            throw new UnsupportedOperationException("Wat?! Tried to damage tile " + terrain.getName() + " at " + tile.getLocation() + "!");
+        }
+        return terrain.getFlags().contains(Terrain.TerrainFlag.SOLID)
+                ? TileWork.perApplication(rate, getEfficiency(creature))
+                : TileWork.perSwing((int) rate, getEfficiency(creature));
+    }
+
+    /**
      * Heal a tile
      *
      * @param point the point
@@ -655,27 +694,38 @@ public final class MapController extends Container implements IMapController {
 
         // See the amount of healing, the work variables are rates per game second
         float rate;
+        boolean oneTicksWorth = false;
         if (terrain.getFlags().contains(Terrain.TerrainFlag.SOLID)) {
 
             if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE)) {
                 if (tile.getOwnerId() == playerId) {
+
+                    // Repairing, which goes on every tick (DK II 0x497AC0)
                     rate = getLevelVariable(Variable.MiscVariable.MiscType.REPAIR_WALL_HEALTH);
+                    oneTicksWorth = true;
                 } else {
                     rate = getLevelVariable(Variable.MiscVariable.MiscType.CLAIM_TILE_HEALTH);
                 }
             } else {
+
+                // Reinforcing, which goes on every tick (DK II 0x497960)
                 rate = getLevelVariable(Variable.MiscVariable.MiscType.REINFORCE_WALL_HEALTH);
+                oneTicksWorth = true;
             }
         } else if (TileWork.convertsAtFullHealth(terrain)) {
 
-            // Claiming ground nobody owns
+            // Claiming ground nobody owns, which goes on every tick (DK II 0x4974C0)
             rate = getLevelVariable(Variable.MiscVariable.MiscType.CLAIM_TILE_HEALTH);
+            oneTicksWorth = true;
         } else {
             rate = getLevelVariable(Variable.MiscVariable.MiscType.REPAIR_TILE_HEALTH);
         }
 
         // Apply
-        if (applyHealing(tile, TileWork.perApplication(rate, getEfficiency(creature)))) {
+        int healing = oneTicksWorth
+                ? TileWork.perTick((int) rate / kwdFile.getGameLevel().getTicksPerSec(), getEfficiency(creature))
+                : TileWork.perApplication(rate, getEfficiency(creature));
+        if (applyHealing(tile, healing)) {
 
             // TODO: checks
             // The tile is upgraded; the claim effect (terrain.getMaxHealthEffectId()) is
@@ -753,7 +803,7 @@ public final class MapController extends Container implements IMapController {
     private void damageRoom(Point point, short playerId, ICreatureController creature) {
         IMapTileController tile = getMapData().getTile(point);
         short owner = tile.getOwnerId();
-        int damage = TileWork.perApplication(getLevelVariable(RoomWork.claimVariable(owner)), getEfficiency(creature));
+        int damage = TileWork.perSwing((int) getLevelVariable(RoomWork.claimVariable(owner)) / kwdFile.getGameLevel().getTicksPerSec(), getEfficiency(creature));
 
         // Get the room
         IRoomController room = getRoomControllerByCoordinates(point);
@@ -793,7 +843,7 @@ public final class MapController extends Container implements IMapController {
     private void repairRoom(Point point, ICreatureController creature) {
         IRoomController room = getRoomControllerByCoordinates(point);
         List<Point> roomTiles = room.getRoomInstance().getCoordinates();
-        int healing = TileWork.perApplication(getLevelVariable(Variable.MiscVariable.MiscType.REPAIR_ROOM_HEALTH), getEfficiency(creature));
+        int healing = TileWork.perTick((int) getLevelVariable(Variable.MiscVariable.MiscType.REPAIR_ROOM_HEALTH) / kwdFile.getGameLevel().getTicksPerSec(), getEfficiency(creature));
         RoomWork.heal(getTiles(roomTiles), healing);
         room.setHealth(getHealth(roomTiles));
     }
