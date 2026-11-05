@@ -1037,7 +1037,7 @@ public final class CreatureController extends EntityController implements ICreat
         if (DungeonHeartTarget.isDungeonHeart(entityData, target)) {
             return isHeartToAttack(target);
         }
-        return !(isIncapacitated(target) || isCaptive(target)) && isEnemy(target);
+        return !(isIncapacitated(target) || isCaptive(target) || isUnreachable(target)) && isEnemy(target);
     }
 
     private boolean isTimeToPickTarget(AttackTarget attackTarget) {
@@ -1363,6 +1363,20 @@ public final class CreatureController extends EntityController implements ICreat
                 ? Creature.CreatureFlag.IS_EVIL : Creature.CreatureFlag.IS_GOOD;
 
         return levelInfo.getLevelData().getCreature(otherCreature.creatureId).getFlags().contains(otherAlignment);
+    }
+
+    /**
+     * Tells if a target is out of reach with no way to it. DK II's fight
+     * state picks a target again whenever its target is out of reach, and only
+     * one it can walk to (0x45F030, 0x45CB00), so such a target is dropped.
+     * One already walked to has a way to it.
+     *
+     * @param entity the target
+     * @return true if it can't be hit nor walked to
+     */
+    private boolean isUnreachable(EntityId entity) {
+        return entityData.getComponent(entityId, Navigation.class) == null && !isWithinAttackDistance(entity)
+                && !hasPathToEntity(entity);
     }
 
     private boolean hasPathToEntity(EntityId entity) {
