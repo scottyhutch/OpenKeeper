@@ -23,11 +23,13 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.filter.FieldFilter;
+import toniarts.openkeeper.game.component.CasinoPayOut;
 import toniarts.openkeeper.game.component.DungeonHeart;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.PrisonStatus;
 import toniarts.openkeeper.game.component.RoomComponent;
 import toniarts.openkeeper.game.component.Storage;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
@@ -63,6 +65,8 @@ public class MapRoomContainer extends EntityContainer<IRoomInformation> implemen
     private final EntitySet dungeonHearts;
     private final Set<EntityId> dungeonHeartIds = new HashSet<>();
     private final EntitySet heartObjects;
+    private final EntitySet prisonStatuses;
+    private final EntitySet casinoPayOuts;
 
     public MapRoomContainer(EntityData entityData, IKwdFile kwdFile) {
         super(entityData, RoomComponent.class, Owner.class, Health.class);
@@ -72,6 +76,8 @@ public class MapRoomContainer extends EntityContainer<IRoomInformation> implemen
         dungeonHearts = entityData.getEntities(DungeonHeart.class);
         heartObjects = entityData.getEntities(new FieldFilter(ObjectComponent.class, "objectId", FiveByFiveRotatedController.OBJECT_HEART_ID),
                 ObjectComponent.class, Position.class, Health.class);
+        prisonStatuses = entityData.getEntities(PrisonStatus.class);
+        casinoPayOuts = entityData.getEntities(CasinoPayOut.class);
     }
 
     @Override
@@ -140,6 +146,8 @@ public class MapRoomContainer extends EntityContainer<IRoomInformation> implemen
             dungeonHearts.getAddedEntities().forEach(e -> dungeonHeartIds.add(e.getId()));
         }
         heartObjects.applyChanges();
+        prisonStatuses.applyChanges();
+        casinoPayOuts.applyChanges();
 
         return changes;
     }
@@ -154,6 +162,8 @@ public class MapRoomContainer extends EntityContainer<IRoomInformation> implemen
         dungeonHearts.applyChanges();
         dungeonHearts.forEach(e -> dungeonHeartIds.add(e.getId()));
         heartObjects.applyChanges();
+        prisonStatuses.applyChanges();
+        casinoPayOuts.applyChanges();
     }
 
     @Override
@@ -168,6 +178,8 @@ public class MapRoomContainer extends EntityContainer<IRoomInformation> implemen
         dungeonHearts.release();
         dungeonHeartIds.clear();
         heartObjects.release();
+        prisonStatuses.release();
+        casinoPayOuts.release();
 
         super.stop();
     }
@@ -217,9 +229,15 @@ public class MapRoomContainer extends EntityContainer<IRoomInformation> implemen
         @Override
         protected <T extends EntityComponent> T getEntityComponent(Class<T> type) {
 
-            // The container entity only carries RoomComponent, Owner and Health, the rest are looked up
+            // The container entity only carries RoomComponent, Owner and Health. The client can't look components up
+            // (ClientEntityData), so the room states come from their own entity sets
             T component = entity.get(type);
-            return component != null ? component : entityData.getComponent(getEntityId(), type);
+            if (component != null) {
+                return component;
+            }
+            EntitySet states = type == PrisonStatus.class ? prisonStatuses : type == CasinoPayOut.class ? casinoPayOuts : null;
+            Entity state = states != null ? states.getEntity(getEntityId()) : null;
+            return state != null ? state.get(type) : null;
         }
 
         /**

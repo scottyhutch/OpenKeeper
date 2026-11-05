@@ -34,6 +34,7 @@ import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
 import toniarts.openkeeper.game.controller.room.FiveByFiveRotatedController;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
+import toniarts.openkeeper.view.ClientEntityData;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -48,7 +49,8 @@ class MapRoomContainerTest {
     @BeforeEach
     void setUp() {
         entityData = new DefaultEntityData();
-        container = new MapRoomContainer(entityData, null);
+        // As in the game, the view reads through the client entity data, which refuses lookups
+        container = new MapRoomContainer(new ClientEntityData(entityData), null);
     }
 
     @AfterEach
@@ -114,6 +116,7 @@ class MapRoomContainerTest {
         assertFalse(container.getRoomInformation(casino).isPrisonOpen());
 
         entityData.setComponent(prison, new PrisonStatus(false));
+        container.update();
         assertFalse(container.getRoomInformation(prison).isPrisonOpen());
     }
 
