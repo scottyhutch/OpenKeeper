@@ -59,6 +59,7 @@ import toniarts.openkeeper.gui.CursorFactory;
 import toniarts.openkeeper.game.state.session.LocalGameSession;
 import toniarts.openkeeper.game.state.session.SaveGame;
 import toniarts.openkeeper.game.state.session.SaveGameFolder;
+import toniarts.openkeeper.game.sound.LateNightNarration;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.GameMap;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -82,6 +83,7 @@ import toniarts.openkeeper.view.fogofwar.IFogOfWarInformation;
 import javax.annotation.Nullable;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -109,6 +111,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     @Nullable
     private final ClientSave savedGame;
 
+    private final LateNightNarration lateNightNarration = new LateNightNarration(Clock.systemDefaultZone());
     private boolean paused = false;
     private GameResult gameResult;
 
@@ -323,6 +326,21 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         }
         screen.update(tpf);
         autoSave();
+        var reminder = lateNightNarration.poll(canPlayLateNightNarration());
+        if (reminder != null) {
+            stateManager.getState(SoundState.class).attachTimedMentorSpeech(reminder.speech(),
+                    () -> canPlayLateNightNarration() && lateNightNarration.isCurrent(reminder));
+        }
+    }
+
+    private boolean canPlayLateNightNarration() {
+        SoundState sound = stateManager.getState(SoundState.class);
+        SystemMessageState messages = stateManager.getState(SystemMessageState.class);
+        return isInitialized() && isEnabled() && !paused && sound != null && sound.isEnabled()
+                && messages != null && messages.isEnabled()
+                && Main.getUserSettings().getBoolean(Settings.Setting.VOICE_ENABLED)
+                && app.getNifty().getCurrentScreen() != null
+                && IPlayerScreenController.SCREEN_HUD_ID.equals(app.getNifty().getCurrentScreen().getScreenId());
     }
 
     /**
