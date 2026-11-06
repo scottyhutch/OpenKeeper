@@ -20,14 +20,13 @@ import com.jme3.app.Application;
 import com.jme3.app.state.AbstractAppState;
 import com.jme3.app.state.AppStateManager;
 import com.jme3.asset.AssetManager;
-import com.jme3.math.FastMath;
-import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.renderer.RenderManager;
 import com.jme3.renderer.ViewPort;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
 import com.jme3.scene.control.AbstractControl;
+import com.jme3.system.Timer;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityContainer;
 import com.simsilica.es.EntityData;
@@ -43,6 +42,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import toniarts.openkeeper.Main;
+import java.util.function.Predicate;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.EffectTrigger;
@@ -80,6 +80,7 @@ import toniarts.openkeeper.view.control.IEntityViewControl;
 import toniarts.openkeeper.view.control.IUnitFlowerControl;
 import toniarts.openkeeper.view.control.ObjectViewControl;
 import toniarts.openkeeper.view.control.ShotFlightControl;
+import toniarts.openkeeper.view.control.TortureWheelSpinControl;
 import toniarts.openkeeper.view.control.TrapFlowerControl;
 import toniarts.openkeeper.view.control.TrapViewControl;
 import toniarts.openkeeper.view.effect.EffectManagerState;
@@ -153,6 +154,7 @@ public class PlayerEntityViewState extends AbstractAppState {
     private Application app;
     private AppStateManager stateManager;
     private ShadowRenderer shadowRenderer;
+    private Timer timer; // The clock the torture wheels and their victims share
     private final IKwdFile kwdFile;
     private final AssetManager assetManager;
     private final EntityData entityData;
@@ -192,18 +194,13 @@ public class PlayerEntityViewState extends AbstractAppState {
     /** Arches, big steps, plug and obstacle */
     private static final Set<Integer> DUNGEON_HEART_PART_IDS = Set.of(86, 88, 96, 100);
     private final Map<EntityId, TrackedLight> trackedLights = new HashMap<>(); // Things with a light, driven every frame
-    /** DK II lays the torture wheels on the floor, and their victims on them */
-    private static final Quaternion LYING_ON_THE_FLOOR = new Quaternion().fromAngleAxis(-FastMath.HALF_PI, Vector3f.UNIT_X);
     /** DK II lifts the victim on a torture wheel by 0x200 (1/8 tile) */
     private static final float TORTURE_WHEEL_VICTIM_LIFT = 0.125f;
-    /** DK II hangs the victim on a wheel on the wall 0x1C2 in front of the wheel */
-    private static final float WALL_WHEEL_VICTIM_DISTANCE = 0x1C2 / 4096f;
     /** The coals and water troughs under the wheels on the wall, and their effects (DK II 0x499300) */
     private static final short TORTURE_COALS_OBJECT_ID = 62;
     private static final short TORTURE_WATER_OBJECT_ID = 63;
     private static final int TORTURE_COALS_EFFECT_ID = 274;
     private static final int TORTURE_WATER_EFFECT_ID = 279;
-    private float tortureWheelTime = 0;
 
     /**
      * A thing whose light is created and positioned every frame (see
@@ -274,6 +271,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         this.app = app;
         this.stateManager = stateManager;
         shadowRenderer = new ShadowRenderer(assetManager);
+        this.timer = app.getTimer();
 
         // Attach the entities
         rootNode.attachChild(root);
@@ -311,7 +309,6 @@ public class PlayerEntityViewState extends AbstractAppState {
         shotModelContainer.update();
         effectTriggerContainer.update();
         creatureLevelUpContainer.update();
-        spinTortureWheels(tpf);
 
         // Lighting: re-derive attached-light positions and bind the
         // vertex-lit models every frame -- lights on other things
@@ -391,114 +388,45 @@ public class PlayerEntityViewState extends AbstractAppState {
     }
 
     /**
-     * The torture wheels spin all the time, and their victims with them
+     * The torture wheels spin all the time, and their victims with them. Each
+     * gets a control, and they share the same clock so they stay at the same
+     * angle.
      */
-    private void spinTortureWheels(float tpf) {
-        boolean newSecond = (int) (tortureWheelTime + tpf) > (int) tortureWheelTime;
-        tortureWheelTime += tpf;
-        Map<Point, Spatial> wallWheels = new HashMap<>();
-        Map<Point, Spatial> troughs = new HashMap<>();
+    private void setTortureWheelSpin(Spatial object, boolean spinning, boolean victim) {
+        TortureWheelSpinControl control = object.getControl(TortureWheelSpinControl.class);
+        if (spinning && control == null) {
+            float ticksPerSecond = kwdFile.getVariables().get(Variable.MiscVariable.MiscType.GAME_TICKS).getValue();
+            object.addControl(victim
+                    ? new TortureWheelSpinControl(timer::getTimeInSeconds, ticksPerSecond,
+                            () -> findObjectOnTile(object, o -> o.getCurrentState().state == GameObject.State.TORTURE_WHEEL_SPIN),
+                            () -> findObjectOnTile(object, o -> o.getCurrentState().objectId == TORTURE_COALS_OBJECT_ID
+                                    || o.getCurrentState().objectId == TORTURE_WATER_OBJECT_ID),
+                            this::splashTrough)
+                    : new TortureWheelSpinControl(timer::getTimeInSeconds, ticksPerSecond));
+        } else if (!spinning && control != null) {
+            object.removeControl(control);
+        }
+    }
+
+    /**
+     * Finds an object on the same tile as the given one
+     */
+    private Spatial findObjectOnTile(Spatial like, Predicate<ObjectViewControl> filter) {
+        Point tile = WorldUtils.vectorToPoint(like.getLocalTranslation());
         for (Spatial object : objectModelContainer.getModels()) {
             ObjectViewControl control = object.getControl(ObjectViewControl.class);
-            if (control == null || control.getCurrentState() == null) {
-                continue;
-            }
-            Point tile = WorldUtils.vectorToPoint(object.getLocalTranslation());
-            if (control.getCurrentState().state == GameObject.State.TORTURE_WHEEL_SPIN) {
-                boolean onTheWall = isOnTheWall(object);
-                spinOnTortureWheel(object, onTheWall);
-                if (onTheWall) {
-                    wallWheels.put(tile, object);
-                }
-            } else if (control.getCurrentState().objectId == TORTURE_COALS_OBJECT_ID
-                    || control.getCurrentState().objectId == TORTURE_WATER_OBJECT_ID) {
-                troughs.put(tile, object);
+            if (control != null && control.getCurrentState() != null && filter.test(control)
+                    && WorldUtils.vectorToPoint(object.getLocalTranslation()).equals(tile)) {
+                return object;
             }
         }
-        for (Spatial object : creatureModelContainer.getModels()) {
-            CreatureViewControl control = object.getControl(CreatureViewControl.class);
-            if (control == null || control.getCurrentState() != Creature.AnimationType.TORTURED_WHEEL) {
-                continue;
-            }
-            Point tile = WorldUtils.vectorToPoint(object.getLocalTranslation());
-            Spatial wallWheel = wallWheels.get(tile);
-            if (wallWheel == null) {
-                spinOnTortureWheel(object, false);
-                continue;
-            }
-            hangOnWallWheel(object, wallWheel, tile);
-            Spatial trough = troughs.get(tile);
-            if (newSecond && trough != null && isUpsideDown(tile)) {
-                ObjectViewControl troughControl = trough.getControl(ObjectViewControl.class);
-                stateManager.getState(EffectManagerState.class).load(nodeObjects, trough.getWorldTranslation().clone(),
-                        troughControl.getCurrentState().objectId == TORTURE_COALS_OBJECT_ID ? TORTURE_COALS_EFFECT_ID : TORTURE_WATER_EFFECT_ID, false);
-            }
-        }
+        return null;
     }
 
-    /**
-     * A wheel hangs on the wall above the floor, DK II 0x4EDFC0
-     */
-    private static boolean isOnTheWall(Spatial object) {
-        return object.getLocalTranslation().y > WorldUtils.FLOOR_HEIGHT;
-    }
-
-    /**
-     * DK II turns a torture wheel by 4 to 7 2048ths of a turn per game tick,
-     * depending on the tile, and the wheels on every other tile the other way
-     */
-    private float getTortureWheelAngle(Point tile) {
-        int sum = tile.x + tile.y;
-        float ticksPerSecond = kwdFile.getVariables().get(Variable.MiscVariable.MiscType.GAME_TICKS).getValue();
-        float speed = (4 + (sum & 3)) * ((sum & 1) != 0 ? 1 : -1) * ticksPerSecond * FastMath.TWO_PI / 2048;
-        return (tortureWheelTime * speed) % FastMath.TWO_PI;
-    }
-
-    /**
-     * A wheel on the floor lies flat and turns around, a wheel on the wall
-     * faces the room and turns in its plane
-     */
-    private void spinOnTortureWheel(Spatial object, boolean onTheWall) {
-        Point tile = WorldUtils.vectorToPoint(object.getLocalTranslation());
-        float angle = getTortureWheelAngle(tile);
-        if (onTheWall) {
-            Quaternion facing = new Quaternion().fromAngles(0, getFacing(object), 0);
-            object.setLocalRotation(facing.multLocal(new Quaternion().fromAngleAxis(angle, Vector3f.UNIT_Z)));
-        } else {
-            object.setLocalRotation(new Quaternion().fromAngleAxis(angle, Vector3f.UNIT_Y).multLocal(LYING_ON_THE_FLOOR));
-        }
-    }
-
-    /**
-     * The way a wheel on the wall faces: away from the wall, which it is moved
-     * towards from the centre of its tile. A model looks down its +Z, so the
-     * angle is that of the way from the wheel back to the centre
-     */
-    private static float getFacing(Spatial object) {
-        Vector3f position = object.getLocalTranslation();
-        Point tile = WorldUtils.vectorToPoint(position);
-        return FastMath.atan2(tile.x - position.x, tile.y - position.z);
-    }
-
-    /**
-     * Like DK II (CState_sub_484CE0), the victim of a wheel on the wall hangs
-     * in front of the wheel and turns with it
-     */
-    private void hangOnWallWheel(Spatial victim, Spatial wheel, Point tile) {
-        Vector3f wheelPosition = wheel.getLocalTranslation();
-        Vector3f towardsRoom = WorldUtils.pointToVector3f(tile).subtractLocal(wheelPosition.x, 0, wheelPosition.z).normalizeLocal();
-        victim.setLocalTranslation(wheelPosition.add(towardsRoom.multLocal(WALL_WHEEL_VICTIM_DISTANCE)));
-        victim.setLocalRotation(wheel.getLocalRotation());
-    }
-
-    /**
-     * DK II splashes a victim from the trough once a second while it hangs
-     * upside down (turned 0x3A0 to 0x45F of 0x800)
-     */
-    private boolean isUpsideDown(Point tile) {
-        float turn = getTortureWheelAngle(tile) / FastMath.TWO_PI * 2048;
-        int angle = Math.floorMod((int) turn, 2048);
-        return angle >= 0x3A0 && angle <= 0x45F;
+    private void splashTrough(Spatial trough) {
+        ObjectViewControl control = trough.getControl(ObjectViewControl.class);
+        stateManager.getState(EffectManagerState.class).load(nodeObjects, trough.getWorldTranslation().clone(),
+                control.getCurrentState().objectId == TORTURE_COALS_OBJECT_ID ? TORTURE_COALS_EFFECT_ID : TORTURE_WATER_EFFECT_ID, false);
     }
 
     protected LightRules getLightRules() {
@@ -809,6 +737,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         IEntityViewControl control = object.getControl(IEntityViewControl.class);
         boolean wasAlreadyDead = control.getCurrentState() == Creature.AnimationType.DEATH_POSE;
         control.setTargetState(viewState.state);
+        setTortureWheelSpin(object, viewState.state == Creature.AnimationType.TORTURED_WHEEL, true);
 
         updateDazedEffect(object, viewState, e.get(Position.class));
 
@@ -945,6 +874,7 @@ public class PlayerEntityViewState extends AbstractAppState {
 
             control.setTargetState(viewState);
         }
+        setTortureWheelSpin(object, viewState.state == GameObject.State.TORTURE_WHEEL_SPIN, false);
         applyFogCullHint(object, WorldUtils.vectorToPoint(e.get(Position.class).position), viewState.visible);
 
         GameObject gameObject = kwdFile.getObject(viewState.objectId);
