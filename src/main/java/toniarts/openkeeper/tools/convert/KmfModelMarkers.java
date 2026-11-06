@@ -29,6 +29,9 @@ public final class KmfModelMarkers {
 
     public static void addStatic(Node model, toniarts.openkeeper.tools.convert.kmf.Mesh mesh) {
         model.setUserData(VERSION, 1);
+        if (mesh.getControls() == null) {
+            return;
+        }
         for (var control : mesh.getControls()) {
             if (control.getUnknown2() == PORTAL_GEM) {
                 addMarker(model, convert(mesh.getGeometries().get(control.getUnknown1())));
