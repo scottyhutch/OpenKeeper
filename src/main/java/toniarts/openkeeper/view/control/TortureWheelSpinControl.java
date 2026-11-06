@@ -117,6 +117,10 @@ public class TortureWheelSpinControl extends AbstractControl {
                 if (trough == null || trough.getParent() == null) {
                     trough = troughFinder.get();
                 }
+                if (Boolean.getBoolean("ok.tortureDebug")) {
+                    System.out.println("TORTUREDEBUG upside down at " + spatial.getLocalTranslation() + " turn=" + turn
+                            + " trough=" + (trough != null ? trough.getName() + " " + trough.getWorldTranslation() : "none"));
+                }
                 if (trough != null) {
                     troughSplash.accept(trough);
                 }
