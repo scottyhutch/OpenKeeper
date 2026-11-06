@@ -44,6 +44,11 @@ public class SoundEngine {
 
     private static final Logger logger = System.getLogger(SoundEngine.class.getName());
 
+    /**
+     * Debug only: -Dok.soundDebug=true logs every sound that is asked of the engine
+     */
+    private static final boolean SOUND_DEBUG = Boolean.getBoolean("ok.soundDebug");
+
     public static final int NO_HANDLE = 0;
     public static final int MAX_VOICES = 32;
     public static final int MAX_AUDIBLE_VOICES = 24;
@@ -112,6 +117,9 @@ public class SoundEngine {
             return NO_HANDLE;
         }
         SoundEvent event = category.getEvent(eventId);
+        if (SOUND_DEBUG) {
+            logSoundDebug(category, eventId, position, property, event != null);
+        }
         if (event == null) {
             logger.log(Level.DEBUG, "Sound event 0x{0} is not defined in category {1}",
                     new Object[]{Integer.toHexString(eventId), category.getName()});
@@ -138,6 +146,33 @@ public class SoundEngine {
         // register immediately, so that handles can be stopped or queried before the voice is realised
         voices.put(voice.getHandle(), voice);
         return voice.getHandle();
+    }
+
+    /**
+     * Debug only, see {@link #SOUND_DEBUG}. One line per request:
+     * {@code SOUNDDEBUG t=<ms> thread=<name> cat=<category> event=0x<id> defined=<bool> pos=<x,y|-> prop=<n> from=<Class.method:line> < <Class.method:line> < <Class.method:line>}
+     * (the first three callers outside the sound package's engine and manager)
+     */
+    private static void logSoundDebug(SoundCategory category, int eventId, @Nullable Point position, int property, boolean defined) {
+        StringBuilder from = new StringBuilder();
+        int found = 0;
+        for (StackTraceElement frame : new Throwable().getStackTrace()) {
+            String cls = frame.getClassName();
+            if (cls.endsWith(".SoundEngine") || cls.endsWith(".SoundManager")) {
+                continue;
+            }
+            if (found > 0) {
+                from.append(" < ");
+            }
+            from.append(cls.substring(cls.lastIndexOf('.') + 1)).append('.').append(frame.getMethodName()).append(':').append(frame.getLineNumber());
+            if (++found == 3) {
+                break;
+            }
+        }
+        System.out.println("SOUNDDEBUG t=" + System.currentTimeMillis() + " thread=" + Thread.currentThread().getName()
+                + " cat=" + category.getName() + " event=0x" + Integer.toHexString(eventId) + " defined=" + defined
+                + " pos=" + (position != null ? position.x + "," + position.y : "-") + " prop=" + property
+                + " from=" + from);
     }
 
     /**
