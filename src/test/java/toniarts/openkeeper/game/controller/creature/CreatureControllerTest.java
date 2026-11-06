@@ -914,6 +914,8 @@ class CreatureControllerTest {
                     CreatureSleepFixtures.variable(MiscType.GAMBLING_MODIFY_CREATURE_MONEY_MONEY_PER_SECOND, -8));
             settings.put(MiscType.MODIFY_ANGER_OF_CREATURE_IN_LAIR_PER_SECOND,
                     CreatureSleepFixtures.variable(MiscType.MODIFY_ANGER_OF_CREATURE_IN_LAIR_PER_SECOND, -550));
+            settings.put(MiscType.CANNOT_SLEEP_MODIFY_CREATURE_HEALTH_PER_SECOND,
+                    CreatureSleepFixtures.variable(MiscType.CANNOT_SLEEP_MODIFY_CREATURE_HEALTH_PER_SECOND, 0));
             IEntityPositionLookup lookup = proxy(IEntityPositionLookup.class, (method, args) -> switch (method) {
                 case "getSensedEntities" -> sensed;
                 case "getBlockingDoor" -> null;
@@ -926,6 +928,7 @@ class CreatureControllerTest {
                 case "getCreature" -> definition;
                 case "getGameLevel" -> CreatureSleepFixtures.level(4);
                 case "getRoomById" -> new Room();
+                case "getVariables" -> settings;
                 default -> throw new UnsupportedOperationException(method);
             });
             ILevelInfo levelInfo = proxy(ILevelInfo.class, (method, args) -> switch (method) {
