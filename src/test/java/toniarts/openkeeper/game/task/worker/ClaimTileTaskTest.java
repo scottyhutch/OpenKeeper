@@ -196,7 +196,7 @@ class ClaimTileTaskTest {
             default ->
                 throw new UnsupportedOperationException(method.getName());
         });
-        ClaimRoomTask task = new ClaimRoomTask(null, mapController, new Point(1, 1), PLAYER);
+        ClaimRoomTask task = new ClaimRoomTask(null, mapController, new Point(1, 1), PLAYER, TICKS_PER_SECOND);
         List<GameEventType> events = new ArrayList<>();
         ICreatureController imp = creature(CreatureSleepFixtures.claimer(Creature.AnimationType.EATING, 11, 20), events);
         task.assign(imp, false);
