@@ -56,6 +56,8 @@ import toniarts.openkeeper.game.controller.ObjectsController;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
+import toniarts.openkeeper.game.sound.SoundManager;
+import toniarts.openkeeper.game.sound.ThingSounds;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Creature.CreatureFlag;
 import toniarts.openkeeper.tools.convert.map.Door;
@@ -401,7 +403,7 @@ public class PlayerEntityViewState extends AbstractAppState {
                             () -> findObjectOnTile(object, o -> o.getCurrentState().state == GameObject.State.TORTURE_WHEEL_SPIN),
                             () -> findObjectOnTile(object, o -> o.getCurrentState().objectId == TORTURE_COALS_OBJECT_ID
                                     || o.getCurrentState().objectId == TORTURE_WATER_OBJECT_ID),
-                            this::splashTrough)
+                            trough -> splashTrough(object, trough))
                     : new TortureWheelSpinControl(timer::getTimeInSeconds, ticksPerSecond));
         } else if (!spinning && control != null) {
             object.removeControl(control);
@@ -423,10 +425,18 @@ public class PlayerEntityViewState extends AbstractAppState {
         return null;
     }
 
-    private void splashTrough(Spatial trough) {
-        ObjectViewControl control = trough.getControl(ObjectViewControl.class);
+    private void splashTrough(Spatial victim, Spatial trough) {
+        boolean coals = trough.getControl(ObjectViewControl.class).getCurrentState().objectId == TORTURE_COALS_OBJECT_ID;
         stateManager.getState(EffectManagerState.class).load(nodeObjects, trough.getWorldTranslation().clone(),
-                control.getCurrentState().objectId == TORTURE_COALS_OBJECT_ID ? TORTURE_COALS_EFFECT_ID : TORTURE_WATER_EFFECT_ID, false);
+                coals ? TORTURE_COALS_EFFECT_ID : TORTURE_WATER_EFFECT_ID, false);
+
+        // And the victim cries out, from its own sounds (DK II 0x499300)
+        CreatureViewControl creature = victim.getControl(CreatureViewControl.class);
+        if (creature != null && creature.getDataObject() != null) {
+            SoundManager.playSound(creature.getDataObject().getSoundCategory(),
+                    coals ? ThingSounds.CREATURE_TORTURE_FIRE : ThingSounds.CREATURE_TORTURE_WATER,
+                    WorldUtils.vectorToPoint(victim.getWorldTranslation()));
+        }
     }
 
     protected LightRules getLightRules() {
