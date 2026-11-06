@@ -128,6 +128,19 @@ class PathFollowingTest {
     }
 
     @Test
+    void goesOnFromTheLegItIsOnWhenTheWalkIsRebuilt() {
+
+        // Like a walk loaded from a saved game: the creature is on the last leg of a walk round a wall
+        SteerableEntity knight = new SteerableEntity(entityData.createEntity(), 0.5f, KNIGHT_RADIUS, 8, 3, 0);
+        FollowWaypoints followWaypoints = new FollowWaypoints(knight,
+                List.of(new Vector2(1, 1), new Vector2(1, 5), new Vector2(8, 5), new Vector2(8, 1)), waypoint -> 0, waypoint -> false, false, false, 4);
+
+        Vector2 steering = followWaypoints.calculateSteering(new SteeringAcceleration<>(new Vector2())).linear;
+
+        assertEquals(0, new Vector2(0, -1).angle(steering), 0.01f, "Not heading for the end of the walk: " + steering);
+    }
+
+    @Test
     void nearlyStopsForACrowdRoundTheWaypoint() {
         List<Vector2> waypoints = List.of(new Vector2(1, 2), new Vector2(2, 2), new Vector2(2, 6));
 
