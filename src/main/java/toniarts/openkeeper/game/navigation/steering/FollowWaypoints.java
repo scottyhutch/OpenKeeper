@@ -19,6 +19,7 @@ package toniarts.openkeeper.game.navigation.steering;
 import com.badlogic.gdx.ai.steer.Steerable;
 import com.badlogic.gdx.ai.steer.SteeringAcceleration;
 import com.badlogic.gdx.ai.steer.SteeringBehavior;
+import com.badlogic.gdx.math.Intersector;
 import com.badlogic.gdx.math.Vector2;
 import java.util.List;
 
@@ -87,11 +88,15 @@ public final class FollowWaypoints extends SteeringBehavior<Vector2> {
         this.worker = worker;
         this.ticksPerSecond = ticksPerSecond;
 
-        // Rebuilt half way, the creature is already past the waypoints it is nearer to the next one than they are
+        // Rebuilt half way, as for a loaded game: go on along the leg of the walk the creature is nearest to
         Vector2 position = owner.getPosition();
-        while (waypoint < waypoints.size() - 1
-                && position.dst2(waypoints.get(waypoint + 1)) < waypoints.get(waypoint).dst2(waypoints.get(waypoint + 1))) {
-            waypoint++;
+        float nearest = Float.MAX_VALUE;
+        for (int i = 1; i < waypoints.size(); i++) {
+            float distance = Intersector.distanceSegmentPoint(waypoints.get(i - 1), waypoints.get(i), position);
+            if (distance < nearest) {
+                nearest = distance;
+                waypoint = i;
+            }
         }
     }
 
