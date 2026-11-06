@@ -968,6 +968,12 @@ public final class CreatureController extends EntityController implements ICreat
         AttackTarget attackTarget = entityData.getComponent(entityId, AttackTarget.class);
         EntityId target = attackTarget != null && isTargetToKeep(attackTarget.entityId) ? attackTarget.entityId : null;
 
+        // A Horned Reaper picks his prey over the whole map and hunts it down even when it runs (DKII.EXE 0x45E1B0)
+        if (target != null && creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)) {
+            return DungeonHeartTarget.isDungeonHeart(entityData, target) ? objectsController.createController(target)
+                    : creaturesController.createController(target);
+        }
+
         // The original picks its target again when it steps onto another tile or every 10 turns, and keeps the one it
         // has when it finds none (0x45E9F0). Chasing a creature, it drops it and picks again every turn, so it only
         // chases on while it picks the same one (0x470E30). Fighting a creature in reach, it keeps it: 0x45E9F0 does
