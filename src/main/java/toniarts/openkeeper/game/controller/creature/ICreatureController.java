@@ -67,6 +67,14 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
 
     public boolean goToSleep();
 
+    /**
+     * Handles the manual rest target after landing and getting up. Rest can be
+     * assigned without fatigue debt, provided the creature's bed is in that Lair.
+     *
+     * @return whether a sleep task was assigned
+     */
+    public boolean goToSleepAfterLairDrop();
+
     public void findWork(Consumer<Boolean> workResult);
 
     public boolean isWorker();
@@ -275,13 +283,6 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
      * @param duration how long, in seconds
      */
     public void turnIntoChicken(double duration);
-
-    /**
-     * Is the creature a chicken, by the Chicken spell
-     *
-     * @return true if the creature is a chicken
-     */
-    public boolean isChicken();
 
     /**
      * Sets creature possession on/off
