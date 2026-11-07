@@ -127,14 +127,6 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         return components;
     }
 
-        return components;
-    }
-
-    private boolean isMorphed() {
-        CreatureAi creatureAi = getEntity().get(CreatureAi.class);
-        return morphObject != null && creatureAi != null && creatureAi.getCreatureState() == CreatureState.CHICKEN;
-    }
-
     @Override
     public boolean isSlappable(short playerId) {
         Interaction interaction = getEntity().get(Interaction.class);
@@ -157,6 +149,11 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
                 playAnimation(currentState);
             }
         }
+    }
+
+    private boolean isMorphed() {
+        CreatureAi creatureAi = getEntity().get(CreatureAi.class);
+        return morphObject != null && creatureAi != null && creatureAi.getCreatureState() == CreatureState.CHICKEN;
     }
 
     @Override
