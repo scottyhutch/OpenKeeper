@@ -22,10 +22,11 @@ import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.filter.AndFilter;
 import com.simsilica.es.filter.FieldFilter;
+import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.KeeperSpellCast;
-import toniarts.openkeeper.game.component.Morphed;
 import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.map.IMapInformation;
@@ -299,8 +300,10 @@ public final class KeeperSpellCastValidator {
         return switch (keeperSpell.getTargetRule()) {
             case ALL_CREATURES ->
                 owner != null && owner.ownerId != Player.NEUTRAL_PLAYER_ID;
-            case POSESSION ->
-                entityData.getComponent(target, Morphed.class) == null;
+            case POSESSION -> {
+                CreatureAi creatureAi = entityData.getComponent(target, CreatureAi.class);
+                yield creatureAi == null || creatureAi.getCreatureState() != CreatureState.CHICKEN;
+            }
             default ->
                 true;
         };

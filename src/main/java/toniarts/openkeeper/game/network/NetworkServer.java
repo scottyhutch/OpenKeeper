@@ -101,7 +101,6 @@ import toniarts.openkeeper.game.component.ManufactureProgress;
 import toniarts.openkeeper.game.component.MapTile;
 import toniarts.openkeeper.game.component.MeleeHit;
 import toniarts.openkeeper.game.component.Mobile;
-import toniarts.openkeeper.game.component.Morphed;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.NextRoomHint;
 import toniarts.openkeeper.game.component.ObjectComponent;
@@ -302,7 +301,6 @@ public final class NetworkServer {
             Serializer.registerClass(MapTile.class, new FieldSerializer());
             Serializer.registerClass(MeleeHit.class, new FieldSerializer());
             Serializer.registerClass(Mobile.class, new FieldSerializer());
-            Serializer.registerClass(Morphed.class, new FieldSerializer());
             Serializer.registerClass(Navigation.class, new FieldSerializer());
             Serializer.registerClass(NextRoomHint.class, new FieldSerializer());
             Serializer.registerClass(ObjectComponent.class, new FieldSerializer());

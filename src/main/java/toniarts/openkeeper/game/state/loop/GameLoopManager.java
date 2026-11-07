@@ -169,7 +169,6 @@ public final class GameLoopManager {
                 new KeeperDefeatSystem(entityData, levelInfo, gameController, gameWorldController.getMapController(),
                         gameWorldController.getObjectsController(), players != null && !players.isEmpty()),
                 new DeathSystem(entityData, gameSettings, positionSystem),
-                new ChickenSpellSystem(entityData, gameController.getGameTimer()),
                 new GraveyardSystem(entityData, levelInfo.getLevelData(), gameSettings,
                         gameWorldController.getMapController(), gameWorldController.getCreaturesController(), gameEventService),
                 new PlayerCreatureSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),

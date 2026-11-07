@@ -63,7 +63,6 @@ import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.MeleeHit;
 import toniarts.openkeeper.game.component.Mobile;
-import toniarts.openkeeper.game.component.Morphed;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Objective;
@@ -185,7 +184,7 @@ public final class CreatureController extends EntityController implements ICreat
     private static final Set<CreatureState> CHICKEN_INTERRUPTIBLE_STATES = EnumSet.of(CreatureState.IDLE,
             CreatureState.WANDER, CreatureState.WORK, CreatureState.FIGHT, CreatureState.FOLLOW, CreatureState.FLEE,
             CreatureState.SLEEPING, CreatureState.MELEE_ATTACK, CreatureState.CAST_SPELL, CreatureState.EATING,
-            CreatureState.DANCING);
+            CreatureState.DANCING, CreatureState.CHICKEN);
 
     /**
      * The possessed melee attack hits what is at most 341/2048 of a full
@@ -2898,6 +2897,9 @@ public final class CreatureController extends EntityController implements ICreat
             case CELEBRATING -> {
                 stateTargetTime = BIG_WINNER_CELEBRATION_SECONDS;
             }
+            case CHICKEN -> {
+                stateTargetTime = entityData.getComponent(entityId, CreatureAi.class).stateDuration;
+            }
             case FLEE -> {
                 // I couldn't find a variable for this, so lets use this for now
                 stateTargetTime = gameSettings.get(Variable.MiscVariable.MiscType.IMP_IDLE_DELAY_BEFORE_REEVALUATION_SECONDS).getValue();
@@ -3205,23 +3207,18 @@ public final class CreatureController extends EntityController implements ICreat
             return;
         }
 
-        entityData.setComponent(entityId, new Morphed(gameTimer.getGameTime() + duration));
-
-        // Drop whatever we were doing, unless we are not in control of ourselves. In that case we
-        // become a chicken once we get back to idling
+        // Drop whatever we were doing, unless we are not in control of ourselves
         if (entityData.getComponent(entityId, Possessed.class) == null
                 && CHICKEN_INTERRUPTIBLE_STATES.contains(stateMachine.getCurrentState())) {
             stateMachine.changeState(CreatureState.CHICKEN);
+            entityData.setComponent(entityId, new CreatureAi(gameTimer.getGameTime(), CreatureState.CHICKEN,
+                    creature.getId(), null, duration));
         }
     }
 
-    @Override
-    public boolean isChicken() {
-        return isChicken(entityId);
-    }
-
     private boolean isChicken(EntityId entity) {
-        return entityData.getComponent(entity, Morphed.class) != null;
+        CreatureAi creatureAi = entityData.getComponent(entity, CreatureAi.class);
+        return creatureAi != null && creatureAi.getCreatureState() == CreatureState.CHICKEN;
     }
 
     @Override
