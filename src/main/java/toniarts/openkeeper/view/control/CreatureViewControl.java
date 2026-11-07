@@ -32,7 +32,6 @@ import java.util.function.Predicate;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.Interaction;
-import toniarts.openkeeper.game.component.Morphed;
 import toniarts.openkeeper.game.controller.SlapRules;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.sound.FootstepSounds;
@@ -96,12 +95,12 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         Collection<Class<? extends EntityComponent>> components = super.getWatchedComponents();
         components.add(CreatureAi.class);
         components.add(CreatureImprisoned.class);
-        components.add(Morphed.class);
         return components;
     }
 
     private boolean isMorphed() {
-        return morphObject != null && getEntity().get(Morphed.class) != null;
+        CreatureAi creatureAi = getEntity().get(CreatureAi.class);
+        return morphObject != null && creatureAi != null && creatureAi.getCreatureState() == CreatureState.CHICKEN;
     }
 
     @Override
