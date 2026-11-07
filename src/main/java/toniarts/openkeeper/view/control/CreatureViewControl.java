@@ -36,7 +36,6 @@ import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.Interaction;
-import toniarts.openkeeper.game.component.Morphed;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.controller.SlapRules;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
@@ -123,10 +122,17 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         Collection<Class<? extends EntityComponent>> components = super.getWatchedComponents();
         components.add(CreatureAi.class);
         components.add(CreatureImprisoned.class);
-        components.add(Morphed.class);
         components.add(PortalGem.class);
         components.add(Death.class);
         return components;
+    }
+
+        return components;
+    }
+
+    private boolean isMorphed() {
+        CreatureAi creatureAi = getEntity().get(CreatureAi.class);
+        return morphObject != null && creatureAi != null && creatureAi.getCreatureState() == CreatureState.CHICKEN;
     }
 
     @Override
@@ -151,10 +157,6 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
                 playAnimation(currentState);
             }
         }
-    }
-
-    private boolean isMorphed() {
-        return morphObject != null && getEntity().get(Morphed.class) != null;
     }
 
     @Override
