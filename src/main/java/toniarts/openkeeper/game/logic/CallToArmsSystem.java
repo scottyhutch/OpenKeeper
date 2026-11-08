@@ -38,6 +38,7 @@ import toniarts.openkeeper.game.component.ObjectViewState.GameObjectAnimState;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Slapped;
+import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.IPlayerController;
@@ -218,6 +219,7 @@ public final class CallToArmsSystem implements IGameLogicUpdatable {
             }
             for (Entity creature : creatures) {
                 if (creature.get(Owner.class).ownerId == ownerId && !creature.get(CreatureComponent.class).worker
+                        && entityData.getComponent(creature.getId(), SummonedReaper.class) == null
                         && !BUSY_STATES.contains(creature.get(CreatureAi.class).getCreatureState())) {
                     creaturesController.createController(creature.getId()).answerCallToArms(bannerId);
                 }
