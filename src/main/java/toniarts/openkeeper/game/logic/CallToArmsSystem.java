@@ -60,7 +60,8 @@ public final class CallToArmsSystem implements IGameLogicUpdatable {
      */
     private static final Set<CreatureState> BUSY_STATES = EnumSet.of(CreatureState.CALL_TO_ARMS,
             CreatureState.ENTERING_DUNGEON, CreatureState.FIGHT, CreatureState.MELEE_ATTACK,
-            CreatureState.CAST_SPELL, CreatureState.FLEE, CreatureState.IMPRISONED, CreatureState.TORTURED,
+            CreatureState.CAST_SPELL, CreatureState.BACK_OFF, CreatureState.FLEE, CreatureState.CHICKEN, CreatureState.COMBAT_PIT,
+            CreatureState.IMPRISONED, CreatureState.TORTURED,
             CreatureState.UNCONSCIOUS, CreatureState.STUNNED, CreatureState.DRAGGED, CreatureState.FALLEN,
             CreatureState.GETTING_UP, CreatureState.PICKED_UP, CreatureState.DEAD);
 
