@@ -31,6 +31,9 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityContainer;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import com.simsilica.event.EventBus;
+import com.simsilica.event.EventListener;
+import com.simsilica.event.EventType;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.ArrayList;
@@ -72,6 +75,9 @@ import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.AssetUtils;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
+import toniarts.openkeeper.game.event.ClientEvents;
+import toniarts.openkeeper.game.event.GameEvent;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.view.animation.AnimationLoader;
 import toniarts.openkeeper.view.control.CreatureFlowerControl;
 import toniarts.openkeeper.view.control.CreatureViewControl;
@@ -122,6 +128,11 @@ public class PlayerEntityViewState extends AbstractAppState {
      * "Level up Effect", the sparkles around a creature that gained a level
      */
     private static final int LEVEL_UP_EFFECT_ID = 339;
+
+    /**
+     * "Call to arms active effect", the banner gives it every third call
+     */
+    private static final int CALL_TO_ARMS_EFFECT_ID = 330;
 
     /**
      * Used where no fog of war applies: everything is simply always visible.
@@ -181,6 +192,7 @@ public class PlayerEntityViewState extends AbstractAppState {
     private final ShotModelContainer shotModelContainer;
     private final EffectTriggerContainer effectTriggerContainer;
     private final CreatureLevelUpContainer creatureLevelUpContainer;
+    private final EventListener<GameEvent> gameEventListener = this::onGameEvent;
 
     private final ILoader<ObjectViewState> objectLoader;
     private final ILoader<CreatureViewState> creatureLoader;
@@ -288,6 +300,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         doorModelContainer.start();
         trapModelContainer.start();
         roomEffectContainer.start();
+        EventBus.addListener(ClientEvents.GAME_EVENT, gameEventListener);
         stateManager.attach(portalEffects);
         shotModelContainer.start();
         effectTriggerContainer.start();
@@ -486,6 +499,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         shotModelContainer.stop();
         effectTriggerContainer.stop();
         creatureLevelUpContainer.stop();
+        EventBus.removeListener(ClientEvents.GAME_EVENT, gameEventListener);
 
         // Detach entities
         rootNode.detachChild(root);
@@ -986,6 +1000,29 @@ public class PlayerEntityViewState extends AbstractAppState {
      * Like the original, the level up effect starts once at the creature's position and doesn't follow it. Not
      * shown for creatures in the fog of war.
      */
+    private void onGameEvent(EventType<GameEvent> type, GameEvent event) {
+        if (event.type == GameEventType.CALL_TO_ARMS && event.entity != null) {
+
+            // The events come from the game loop's thread
+            stateManager.getApplication().enqueue(() -> showCallToArmsEffect(event.entity));
+        }
+    }
+
+    /**
+     * The banner's effect, in its keeper's colour. Not shown in the fog of war.
+     */
+    private void showCallToArmsEffect(EntityId entityId) {
+        Spatial banner = isInitialized() ? getEntitySpatial(entityId) : null;
+        Owner owner = entityData.getComponent(entityId, Owner.class);
+        if (banner == null || owner == null) {
+            return;
+        }
+        Vector3f location = banner.getLocalTranslation();
+        if (fogOfWarInformation.isVisible(WorldUtils.vectorToPoint(location))) {
+            stateManager.getState(EffectManagerState.class).load(nodeObjects, location.clone(), CALL_TO_ARMS_EFFECT_ID, false, owner.ownerId);
+        }
+    }
+
     private void showLevelUpEffect(Entity e) {
         Vector3f location = e.get(Position.class).position;
         if (fogOfWarInformation.isVisible(WorldUtils.vectorToPoint(location))) {

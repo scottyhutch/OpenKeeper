@@ -30,6 +30,7 @@ import toniarts.openkeeper.game.component.Attack;
 import toniarts.openkeeper.game.HeroLog;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.BackOff;
+import toniarts.openkeeper.game.component.CallToArms;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.CasinoDisco;
 import toniarts.openkeeper.game.component.CastShot;
@@ -369,7 +370,8 @@ public final class CreatureController extends EntityController implements ICreat
         // Should we attack, try to avoid i.e. imps engaging in a fight. Near their own heart they
         // hit back at an enemy in reach
         IEntityController attackTarget = fighter ? getAttackTarget() : nearOwnHeart ? enemyInReach : null;
-        if (attackTarget != null) {
+        if (attackTarget != null && (stateMachine.isInState(CreatureState.FIGHT)
+                || stateMachine.isInState(CreatureState.MELEE_ATTACK) || isNearCallToArms())) {
             if (!stateMachine.isInState(CreatureState.FIGHT) && !stateMachine.isInState(CreatureState.MELEE_ATTACK)) {
                 stateMachine.changeState(CreatureState.FIGHT);
             }
@@ -1936,24 +1938,52 @@ public final class CreatureController extends EntityController implements ICreat
     @Override
     public boolean heedCallToArms() {
         FollowTarget followTarget = entityData.getComponent(entityId, FollowTarget.class);
-        if (followTarget == null || entityData.getComponent(followTarget.entityId, ObjectComponent.class) == null) {
+        if (followTarget == null || entityData.getComponent(followTarget.entityId, CallToArms.class) == null) {
             return false;
         }
 
         // Wait while the keeper carries the banner
-        if (entityData.getComponent(followTarget.entityId, Position.class) == null) {
+        Position bannerPosition = entityData.getComponent(followTarget.entityId, Position.class);
+        if (bannerPosition == null || shouldFleeOrAttack()) {
+            return true;
+        }
+        if (!isStopped()) {
             return true;
         }
 
-        // The creatures don't stop to fight on their way, only near the banner
-        float fightDistance = gameSettings.get(Variable.MiscVariable.MiscType.CALL_TO_ARMS_FIGHT_DISTANCE_TILES).getValue() * WorldUtils.TILE_WIDTH;
-        if (getDistanceToCreature(followTarget.entityId) <= fightDistance && shouldFleeOrAttack()) {
-            return true;
-        }
-
-        // Mill about the banner
-        if (isStopped()) {
+        // Go to the banner, or mill about it when there
+        Point banner = WorldUtils.vectorToPoint(bannerPosition.position);
+        Point ourPosition = getCreatureCoordinates();
+        if (Math.max(Math.abs(ourPosition.x - banner.x), Math.abs(ourPosition.y - banner.y)) > 2) {
+            if (createNavigation(ourPosition, banner, null)) {
+                gameEventService.emitToPlayer(GameEventType.CALL_TO_ARMS_UNREACHABLE, getOwnerId());
+                return false;
+            }
+        } else {
             navigateToRandomPointAroundTarget(followTarget.entityId, 2);
+        }
+        return true;
+    }
+
+    /**
+     * While its keeper has a Call to Arms banner up, a creature only starts a
+     * fight near the banner
+     *
+     * @return true if we may start a fight here
+     */
+    private boolean isNearCallToArms() {
+        Vector3f ourPosition = getPosition();
+        if (ourPosition == null) {
+            return true;
+        }
+        float fightDistance = gameSettings.get(Variable.MiscVariable.MiscType.CALL_TO_ARMS_FIGHT_DISTANCE_TILES).getValue() * WorldUtils.TILE_WIDTH;
+        for (EntityId banner : entityData.findEntities(new FieldFilter<>(Owner.class, "ownerId", getOwnerId()), CallToArms.class, Owner.class)) {
+            CallToArms callToArms = entityData.getComponent(banner, CallToArms.class);
+            Position bannerPosition = entityData.getComponent(banner, Position.class);
+            if (callToArms != null && callToArms.isUp() && bannerPosition != null
+                    && bannerPosition.position.distance(ourPosition) > fightDistance) {
+                return false;
+            }
         }
         return true;
     }

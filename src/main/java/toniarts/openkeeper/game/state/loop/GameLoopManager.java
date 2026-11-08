@@ -192,7 +192,7 @@ public final class GameLoopManager {
                         gameController.getGameTimer(), gameController.getNavigationService()),
                 new PortalGemDropSystem(entityData, levelInfo.getLevelData(), gameWorldController.getObjectsController()),
                 new CallToArmsSystem(entityData, level, playerControllers.values(),
-                        gameWorldController.getCreaturesController(), gameController.getGameTimer()),
+                        gameWorldController.getCreaturesController(), gameController.getGameTimer(), gameEventService),
                 new CreatureAiSystem(entityData, gameWorldController.getCreaturesController(), taskManager),
                 new NewSpeciesSystem(entityData, gameService,
                         levelInfo.getLevelData().getGameLevel().getIntroductionOverrideTextIds()),
