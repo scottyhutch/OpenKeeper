@@ -191,6 +191,8 @@ public final class GameLoopManager {
                 new SummonedReaperSystem(entityData, playerControllers.values(), gameWorldController.getCreaturesController(),
                         gameController.getGameTimer(), gameController.getNavigationService()),
                 new PortalGemDropSystem(entityData, levelInfo.getLevelData(), gameWorldController.getObjectsController()),
+                new CallToArmsSystem(entityData, level, playerControllers.values(),
+                        gameWorldController.getCreaturesController(), gameController.getGameTimer()),
                 new CreatureAiSystem(entityData, gameWorldController.getCreaturesController(), taskManager),
                 new NewSpeciesSystem(entityData, gameService,
                         levelInfo.getLevelData().getGameLevel().getIntroductionOverrideTextIds()),

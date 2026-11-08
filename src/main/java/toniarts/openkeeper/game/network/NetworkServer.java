@@ -35,6 +35,7 @@ import toniarts.openkeeper.game.component.Attack;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.BackOff;
 import toniarts.openkeeper.game.component.Battle;
+import toniarts.openkeeper.game.component.CallToArms;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.CasinoDisco;
 import toniarts.openkeeper.game.component.CasinoPayOut;
@@ -235,6 +236,7 @@ public final class NetworkServer {
             Serializer.registerClass(AttackTarget.class, new FieldSerializer());
             Serializer.registerClass(BackOff.class, new FieldSerializer());
             Serializer.registerClass(Battle.class, new FieldSerializer());
+            Serializer.registerClass(CallToArms.class, new FieldSerializer());
             Serializer.registerClass(CasinoBigWinner.class, new FieldSerializer());
             Serializer.registerClass(CasinoDisco.class, new FieldSerializer());
             Serializer.registerClass(CasinoPayOut.class, new FieldSerializer());
