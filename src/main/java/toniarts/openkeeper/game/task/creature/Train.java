@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.task.creature;
 
+import com.jme3.math.FastMath;
 import com.jme3.math.Vector2f;
 import com.simsilica.es.EntityId;
 import toniarts.openkeeper.utils.Point;
@@ -33,6 +34,7 @@ import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
+import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.utils.WorldUtils;
 
 /**
@@ -42,12 +44,18 @@ import toniarts.openkeeper.utils.WorldUtils;
  */
 public final class Train extends AbstractCapacityCriticalRoomTask {
 
+    /**
+     * How far from the dummy the trainee stands, in tiles
+     */
+    private static final float DISTANCE_FROM_DUMMY = 0x7FF / 4096f;
+
     private final IGameWorldController gameWorldController;
     private final IPlayerController playerController;
     private final int trainingRoomMaxExperienceLevel;
     private final int trainingCost;
     private final EntityId wallTarget;
     private final Point shootingTile;
+    private Vector2f workPosition;
 
     /**
      * Trains at a Training Dummy or a wall target
@@ -106,8 +114,18 @@ public final class Train extends AbstractCapacityCriticalRoomTask {
     @Override
     public Vector2f getWorkPosition(ICreatureController creature) {
 
-        // DK II puts the trainee half a tile from the dummy, within reach
-        return wallTarget == null ? getWorkPositionAtFurniture(creature) : getTarget(creature);
+        if (wallTarget != null) {
+            return getTarget(creature);
+        }
+
+        // DK II puts the trainee just under half a tile from the dummy, in a random direction (0x485310). Picked
+        // once, the position is asked every tick
+        if (workPosition == null) {
+            float angle = Utils.getRandom().nextFloat() * FastMath.TWO_PI;
+            workPosition = WorldUtils.pointToVector2f(getTaskLocation()).addLocal(FastMath.cos(angle) * DISTANCE_FROM_DUMMY,
+                    FastMath.sin(angle) * DISTANCE_FROM_DUMMY);
+        }
+        return workPosition;
     }
 
     @Override

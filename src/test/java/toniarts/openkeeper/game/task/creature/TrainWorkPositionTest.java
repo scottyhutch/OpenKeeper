@@ -46,10 +46,11 @@ class TrainWorkPositionTest {
         ICreatureController goblin = creatureAt(new Vector3f(2, 0, 0));
         Train task = train();
 
-        // DK II puts the trainee half a tile from the dummy, a whole tile is out of a goblin's reach
+        // DK II puts the trainee 0x7FF / 4096 of a tile from the dummy in a random direction, a whole tile is out
+        // of a goblin's reach. The direction stays once picked
         assertEquals(new Vector2f(2, 1), task.getTarget(goblin));
-        assertEquals(new Vector2f(2, 1.5f), task.getWorkPosition(goblin));
-        assertEquals(0.5f, task.getWorkPosition(goblin).distance(new Vector2f(DUMMY.x, DUMMY.y)), 0.0001f);
+        assertEquals(0x7FF / 4096f, task.getWorkPosition(goblin).distance(new Vector2f(DUMMY.x, DUMMY.y)), 0.0001f);
+        assertEquals(task.getWorkPosition(goblin), task.getWorkPosition(goblin));
         assertTrue(task.isFaceTarget());
     }
 
