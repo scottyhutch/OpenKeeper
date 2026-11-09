@@ -713,11 +713,17 @@ public final class CreatureController extends EntityController implements ICreat
         }
 
         // Choose
-        if (!jobs.isEmpty()) {
-            workResult.accept(taskManager.assignTask(this, chooseOnWeight(jobs).getJobType()));
+        if (!jobs.isEmpty() && taskManager.assignTask(this, chooseOnWeight(jobs).getJobType())) {
+            workResult.accept(true);
             return;
         }
 
+        // DKII angers a creature each time it looks for a job and finds none
+        CreatureMood mood = entityData.getComponent(entityId, CreatureMood.class);
+        if (mood != null) {
+            entityData.setComponent(entityId, mood.add(CreatureMood.REASON_NO_WORK,
+                    CreatureMood.toRuntimeValue(creature.getAttributes().getAngerNoWork())));
+        }
         workResult.accept(false);
     }
 
