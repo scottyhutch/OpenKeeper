@@ -84,6 +84,7 @@ import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
 import toniarts.openkeeper.game.listener.SpecialListener;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
+import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.state.session.SaveGame;
@@ -1003,7 +1004,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         }
 
         PlayerHandControl playerHandControl = playerControllers.get(playerId).getHandControl();
-        boolean pickedUp = !playerHandControl.isFull() && canPickUpEntity(entity, playerId, entityData);
+        boolean pickedUp = !playerHandControl.isFull() && canPickUpEntity(entity, playerId, entityData, mapController.getMapData());
         if (pickedUp) {
             putToKeeperHand(playerHandControl, entity, playerId);
         }
@@ -1295,7 +1296,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         }
     }
 
-    private boolean canPickUpEntity(EntityId entityId, short playerId, EntityData entityData) {
+    static boolean canPickUpEntity(EntityId entityId, short playerId, EntityData entityData,
+            IMapDataInformation<? extends IMapTileInformation> mapData) {
         // TODO: Somewhere common shared static, can share the rules with the UI client
 
         // Check if picked up already
@@ -1306,7 +1308,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
         ObjectComponent objectComponent = entityData.getComponent(entityId, ObjectComponent.class);
         Owner owner = entityData.getComponent(entityId, Owner.class);
-        if (!EntityPickupValidator.isValidOwner(objectComponent, owner, playerId)) {
+        if (!isTool(entityId, entityData) && !EntityPickupValidator.isValidOwner(objectComponent, owner, playerId)) {
             return false;
         }
 
@@ -1330,7 +1332,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
                 owner,
                 entityData.getComponent(entityId, Position.class),
                 playerId,
-                mapController.getMapData());
+                mapData);
     }
 
     @Override
@@ -1653,7 +1655,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         return null;
     }
 
-    private static boolean canDropEntity(EntityId entityId, short playerId, EntityData entityData, IMapTileInformation tile, Terrain terrain) {
+    static boolean canDropEntity(EntityId entityId, short playerId, EntityData entityData, IMapTileInformation tile, Terrain terrain) {
 
         // Check if picked up in the first place
         InHand inHand = entityData.getComponent(entityId, InHand.class);
@@ -1663,7 +1665,21 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
         // The same rules as the client
         Interaction interaction = entityData.getComponent(entityId, Interaction.class);
-        return DropValidator.canDrop(interaction, tile, terrain, playerId);
+        return DropValidator.canDrop(interaction, isTool(entityId, entityData), tile, terrain, playerId);
+    }
+
+    /**
+     * A Hero Toolbox creature of My Pet Dungeon ("I am a tool") goes to the
+     * hand of any keeper, like DKII.EXE 0x48E6A0 lets anyone pick up a creature
+     * with the tool flag
+     *
+     * @param entityId the entity
+     * @param entityData the entity data
+     * @return {@code true} if the entity is a Hero Toolbox creature
+     */
+    private static boolean isTool(EntityId entityId, EntityData entityData) {
+        CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        return creatureComponent != null && creatureComponent.tool;
     }
 
     @Override
