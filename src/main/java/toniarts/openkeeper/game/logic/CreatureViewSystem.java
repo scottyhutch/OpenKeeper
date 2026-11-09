@@ -33,7 +33,6 @@ import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import static toniarts.openkeeper.game.controller.creature.CreatureState.MELEE_ATTACK;
-import toniarts.openkeeper.game.task.TaskType;
 import static toniarts.openkeeper.game.task.TaskType.TRAIN;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.utils.GameTimeCounter;
@@ -86,7 +85,7 @@ public final class CreatureViewSystem extends GameTimeCounter {
             } else {
                 TaskComponent taskComponent = entityData.getComponent(entityId, TaskComponent.class);
                 if (taskComponent != null) {
-                    targetState = getAnimation(taskComponent.taskType);
+                    targetState = getAnimation(taskComponent);
                 } else {
                     CreatureAi aiState = entityData.getComponent(entityId, CreatureAi.class);
                     if (aiState != null) {
@@ -157,8 +156,8 @@ public final class CreatureViewSystem extends GameTimeCounter {
         }
     }
 
-    private static Creature.AnimationType getAnimation(TaskType taskType) {
-        switch (taskType) {
+    private static Creature.AnimationType getAnimation(TaskComponent taskComponent) {
+        switch (taskComponent.taskType) {
             case CLAIM_ROOM:
             case CLAIM_TILE:
                 return Creature.AnimationType.EATING;
@@ -168,7 +167,9 @@ public final class CreatureViewSystem extends GameTimeCounter {
             case DIG_TILE:
                 return Creature.AnimationType.DIG;
             case TRAIN:
-                return Creature.AnimationType.MELEE_ATTACK;
+
+                // Hitting a Training Dummy, or casting at a wall target
+                return taskComponent.targetEntity == null ? Creature.AnimationType.MELEE_ATTACK : Creature.AnimationType.CAST_SPELL;
             case RESEARCH:
                 return Creature.AnimationType.RESEARCHING;
             default:

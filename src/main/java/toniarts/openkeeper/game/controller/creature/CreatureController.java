@@ -764,6 +764,12 @@ public final class CreatureController extends EntityController implements ICreat
                 .findFirst();
     }
 
+    @Override
+    public boolean hasRangedAttackReady() {
+        return getCreatureSpells().stream().anyMatch(creatureSpell -> isAttackRecharged(creatureSpell)
+                && levelInfo.getLevelData().getCreatureSpellById(creatureSpell.creatureSpellId).getFlags().contains(CreatureSpellFlag.IS_ATTACKING));
+    }
+
     private boolean isAttackRecharged(Attack attack) {
         return attack.attactStartTime == null || attack.attactStartTime + attack.rechargeTime <= gameTimer.getGameTime();
     }
