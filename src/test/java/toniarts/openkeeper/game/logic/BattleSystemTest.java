@@ -24,6 +24,7 @@ import java.util.Set;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.Battle;
+import toniarts.openkeeper.game.component.CombatPitFighter;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.DoorComponent;
@@ -84,6 +85,21 @@ class BattleSystemTest {
         EntityId door = entityData.createEntity();
         entityData.setComponent(door, new DoorComponent());
         fight(addCreature(HERO_ID, 10, 10), door);
+
+        battleSystem.processTick(0.25f);
+
+        assertTrue(getBattles().isEmpty());
+    }
+
+    @Test
+    void fightInTheCombatPitIsNoBattle() {
+        EntityId pit = entityData.createEntity();
+        EntityId goblin = addCreature(KEEPER_ID, 10, 10);
+        EntityId otherGoblin = addCreature(KEEPER_ID, 11, 10);
+        entityData.setComponent(goblin, new CombatPitFighter(pit));
+        entityData.setComponent(otherGoblin, new CombatPitFighter(pit));
+        fight(goblin, otherGoblin);
+        fight(otherGoblin, goblin);
 
         battleSystem.processTick(0.25f);
 
