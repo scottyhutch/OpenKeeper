@@ -165,6 +165,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private int battleIndex = -1;
     private RoomCycling roomCycling;
     private CreatureCardManager creatureCardManager;
+    private EntitySet callToArmsBanners;
     private int lastImpCount = -1;
     private String reaperTalismanState;
     private EntitySet keeperCreatures;
@@ -241,6 +242,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
             if (payDayClocks != null && payDayClocks.applyChanges()) {
                 updatePayDay();
             }
+            updateCallToArms();
             lastUpdate = 0;
         }
     }
@@ -415,6 +417,10 @@ public final class PlayerScreenController implements IPlayerScreenController {
         if (payDayClocks != null) {
             payDayClocks.release();
             payDayClocks = null;
+        }
+        if (callToArmsBanners != null) {
+            callToArmsBanners.release();
+            callToArmsBanners = null;
         }
         releasePossessedTarget();
         payDayRing = null;
@@ -1135,6 +1141,52 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
     }
 
+    /**
+     * The Call to Arms indicator, left click: take the banner down
+     */
+    public void cancelCallToArms() {
+        state.stateManager.getState(GameClientState.class).getGameClientService().cancelCallToArms();
+    }
+
+    /**
+     * The Call to Arms indicator, right click: zoom to the banner
+     */
+    public void zoomToCallToArms() {
+        Entity banner = getRaisedBanner();
+        if (banner != null) {
+            zoomToPosition(banner.get(Position.class).position);
+        }
+    }
+
+    /**
+     * Like the original, the indicator shows while our banner waves on the
+     * map, not while it rises, goes down or is in the hand
+     */
+    private void updateCallToArms() {
+        if (callToArmsBanners == null || screen == null) {
+            return;
+        }
+        callToArmsBanners.applyChanges();
+        Element indicator = screen.findElementById("callToArms");
+        boolean raised = getRaisedBanner() != null;
+        if (indicator != null && indicator.isVisible() != raised) {
+            indicator.setVisible(raised);
+        }
+    }
+
+    private Entity getRaisedBanner() {
+        if (callToArmsBanners == null) {
+            return null;
+        }
+        for (Entity banner : callToArmsBanners) {
+            if (banner.get(CallToArms.class).isUp()
+                    && banner.get(ObjectViewState.class).animState == ObjectViewState.GameObjectAnimState.ADDITIONAL_RESOURCE_1) {
+                return banner;
+            }
+        }
+        return null;
+    }
+
     @Override
     public void zoomToEntity(EntityId entityId) {
         state.zoomToEntity(entityId, false);
@@ -1596,6 +1648,11 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
         payDayClocks = entityData.getEntities(new FieldFilter(Owner.class, "ownerId", state.getPlayer().getId()),
                 PayDayClock.class, Owner.class);
+        if (callToArmsBanners != null) {
+            callToArmsBanners.release();
+        }
+        callToArmsBanners = entityData.getEntities(new FieldFilter(Owner.class, "ownerId", state.getPlayer().getId()),
+                CallToArms.class, ObjectViewState.class, Position.class, Owner.class);
 //        state.getRoomControl().addRoomAvailabilityListener(new PlayerRoomControl.IRoomAvailabilityListener() {
 //
 //            @Override

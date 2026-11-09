@@ -628,6 +628,13 @@ public final class GameHostedService extends AbstractHostedConnectionService imp
         }
 
         @Override
+        public void cancelCallToArms() {
+            for (GameSessionServiceListener listener : serverListeners.getArray()) {
+                listener.onCancelCallToArms(clientInfo.getKeeper().getId());
+            }
+        }
+
+        @Override
         public void transitionEnd() {
             playersInTransition.put(clientInfo, false);
             for (GameSessionServiceListener listener : serverListeners.getArray()) {
