@@ -29,12 +29,15 @@ import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.Gold;
+import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.data.Keeper;
@@ -190,9 +193,11 @@ class TrainingSpotTest {
             default -> null;
         });
         Keeper keeper = new Keeper(false, PLAYER_ID);
-        keeper.setGold(100);
+        entityData.setComponents(entityData.createEntity(), new KeeperComponent(PLAYER_ID), new Gold(100, 100));
+        PlayerGoldControl gold = new PlayerGoldControl(keeper, entityData);
         IPlayerController player = stub(IPlayerController.class, (name, args) -> switch (name) {
             case "getKeeper" -> keeper;
+            case "getGoldControl" -> gold;
             default -> null;
         });
         Map<MiscType, MiscVariable> gameSettings = Map.of(
