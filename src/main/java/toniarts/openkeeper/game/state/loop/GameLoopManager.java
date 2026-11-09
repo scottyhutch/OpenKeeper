@@ -317,6 +317,7 @@ public final class GameLoopManager {
                 pendingCollects.remove(this);
                 hold(0, () -> {
                     if (!saveGame.isDone()) {
+                        long start = System.nanoTime();
                         try {
                             saveGame.complete(new SaveGame(
                                     gameController.getLevelInfo().getLevelData().getGameLevel().getName(),
@@ -331,6 +332,7 @@ public final class GameLoopManager {
                         } catch (RuntimeException ex) {
                             saveGame.completeExceptionally(ex);
                         }
+                        logger.log(Level.INFO, "Collected the save in {0} ms, the game was held for that long", (System.nanoTime() - start) / 1_000_000);
                     }
                     return null;
                 });

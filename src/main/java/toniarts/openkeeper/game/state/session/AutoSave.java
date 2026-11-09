@@ -31,7 +31,7 @@ public final class AutoSave {
     /**
      * The intervals to choose from, in minutes of game time, 0 is off
      */
-    public static final List<Integer> INTERVALS = List.of(0, 5, 10, 15, 30);
+    public static final List<Integer> INTERVALS = List.of(0, 1, 5, 10, 15, 30);
 
     private final SaveGameFolder folder;
     private double lastSaveTime = Double.NaN;

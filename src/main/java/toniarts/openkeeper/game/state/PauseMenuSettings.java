@@ -286,7 +286,7 @@ final class PauseMenuSettings {
 
         DropDown<String> autoSave = find("autoSave", DropDown.class);
         for (int interval : AutoSave.INTERVALS) {
-            autoSave.addItem(interval == 0 ? "Off" : interval + " minutes");
+            autoSave.addItem(interval == 0 ? "Off" : interval == 1 ? "1 minute" : interval + " minutes");
         }
         autoSave.selectItemByIndex(Math.max(0, AutoSave.INTERVALS.indexOf(Main.getUserSettings().getInteger(Settings.Setting.AUTO_SAVE_INTERVAL))));
 
