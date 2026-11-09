@@ -487,12 +487,13 @@ public class VisualEffect {
         }
 
         ColorRGBA rgb = getElementColor(element);
-        if (element.getArtResource().getType() == ArtResourceType.ADDITIVE_ALPHA) {
+        if (element.getArtResource().getType() == ArtResourceType.ADDITIVE_ALPHA
+                && emitter instanceof EffectParticleEmitter effectEmitter) {
             // ONE/ONE ignores alpha for RGB blending. DKII fades the colour
             // channels themselves, once per native update (0x4364dd..0x436566).
             emitter.setStartColor(rgb);
             emitter.setEndColor(rgb);
-            ((EffectParticleEmitter) emitter).setAdditiveColor(rgb,
+            effectEmitter.setAdditiveColor(rgb,
                     element.getFlags().contains(EffectElement.EffectElementFlag.FADE));
             return;
         }

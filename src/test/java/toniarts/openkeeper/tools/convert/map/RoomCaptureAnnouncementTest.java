@@ -38,6 +38,8 @@ class RoomCaptureAnnouncementTest {
                 }
                 var data = proxy(IKwdFile.class, (name, args) -> switch (name) {
                     case "getMap" -> map;
+                    case "getGameLevel" -> CreatureSleepFixtures.level(1);
+                    case "getThings" -> java.util.List.of();
                     case "getTerrain" -> (short) args[0] == 1 ? floor : roomTerrain;
                     default -> null;
                 });
@@ -55,10 +57,10 @@ class RoomCaptureAnnouncementTest {
                     default -> null;
                 });
                 var convert = Variable.MiscVariable.MiscType.CONVERT_ROOM_HEALTH;
-                var attack = Variable.MiscVariable.MiscType.ATTACK_ROOM_HEALTH;
+                var neutral = Variable.MiscVariable.MiscType.CONVERT_NEUTRAL_ROOM_HEALTH;
                 var controller = new MapController(data, null,
                         Map.of(convert, CreatureSleepFixtures.variable(convert, 450),
-                                attack, CreatureSleepFixtures.variable(attack, 450)), null, entities, level, events);
+                                neutral, CreatureSleepFixtures.variable(neutral, 450)), null, entities, level, events, null);
                 var roomEntity = entities.createEntity();
                 var registry = MapController.class.getDeclaredField("roomControllers");
                 registry.setAccessible(true);
