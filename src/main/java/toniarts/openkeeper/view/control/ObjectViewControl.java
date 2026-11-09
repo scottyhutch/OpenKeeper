@@ -274,9 +274,11 @@ public final class ObjectViewControl extends EntityViewControl<GameObject, Objec
             }
         }
 
-        // The spin turns the object from where it stands
-        if (spinAngle != 0) {
-            spatial.setLocalRotation(spatial.getLocalRotation().fromAngles(0, getEntity().get(Position.class).rotation + spinAngle, 0));
+        // The spin turns the object from where it stands, an object that has just lost its place (sold, rebuilt)
+        // is left alone
+        Position position = spinAngle != 0 ? getEntity().get(Position.class) : null;
+        if (position != null) {
+            spatial.setLocalRotation(spatial.getLocalRotation().fromAngles(0, position.rotation + spinAngle, 0));
         }
     }
 
