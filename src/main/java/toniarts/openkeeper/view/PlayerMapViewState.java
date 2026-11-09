@@ -45,10 +45,8 @@ import toniarts.openkeeper.game.state.PlayerState;
 import toniarts.openkeeper.game.sound.GameEventSoundPlayer;
 import toniarts.openkeeper.game.state.SoundState;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
-import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.modelviewer.Debug;
 import toniarts.openkeeper.utils.Point;
-import toniarts.openkeeper.utils.WorldUtils;
 import toniarts.openkeeper.view.effect.EffectManagerState;
 import toniarts.openkeeper.view.effect.RoomActionEffects;
 import toniarts.openkeeper.view.fogofwar.FogOfWarController;
@@ -56,6 +54,7 @@ import toniarts.openkeeper.view.fogofwar.IFogOfWarInformation;
 import toniarts.openkeeper.view.map.FlashTileViewState;
 import toniarts.openkeeper.view.map.MapRoomContainer;
 import toniarts.openkeeper.view.map.MapTileContainer;
+import toniarts.openkeeper.view.map.MapTileEffectTracker;
 import toniarts.openkeeper.view.map.MapViewController;
 import toniarts.openkeeper.view.map.TerrainDeformer;
 
@@ -89,7 +88,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private final EffectManagerState effectManager;
     private final FlashTileViewState flashTileControl;
     private final MapRoomContainer mapRoomContainer;
-    private short[][] lastTerrainIds;
+    private MapTileEffectTracker tileEffects;
     private final FogOfWarController fogOfWarController;
     private final GameEventSoundPlayer gameEventSoundPlayer;
     private final EventListener<GameEvent> casinoEffectsListener = this::onCasinoEvent;
@@ -111,7 +110,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         public void update(float tpf) {
             mapRoomContainer.update();
             mapTileContainer.update();
-            if (lastTerrainIds != null) {
+            if (tileEffects != null) {
                 stateManager.detach(this);
             }
         }
@@ -154,14 +153,9 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
                     pendingFogChanges.clear();
                 }
 
-                // Snapshot the initial terrain of every tile, so we can later detect
-                // claim/repair transitions (terrain type changing to its max-health variant)
-                lastTerrainIds = new short[getWidth()][getHeight()];
-                for (int x = 0; x < getWidth(); x++) {
-                    for (int y = 0; y < getHeight(); y++) {
-                        lastTerrainIds[x][y] = getTile(x, y).getTerrainId();
-                    }
-                }
+                // Snapshot terrain and ownership before rendering any transitions.
+                tileEffects = new MapTileEffectTracker(this, kwdFile, fogOfWarController,
+                        effectManager, worldNode);
 
                 // Build the map on its own thread, we might be on the render
                 // thread, and the client carries on setting up its other states
@@ -231,7 +225,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
         // Over the network the map entities come in batches. We don't update
         // before the map has loaded, so the loader takes them in until then
-        if (lastTerrainIds == null) {
+        if (tileEffects == null) {
             this.stateManager.attach(mapEntityLoader);
         }
 
@@ -462,24 +456,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
                 pendingTileUpdates.addAll(Arrays.asList(points));
                 return;
             }
-            for (Point point : points) {
-                IMapTileInformation tile = mapInformation.getMapData().getTile(point);
-                short newTerrainId = tile.getTerrainId();
-                short oldTerrainId = lastTerrainIds[point.x][point.y];
-                if (newTerrainId != oldTerrainId) {
-                    Terrain oldTerrain = kwdFile.getTerrain(oldTerrainId);
-                    if (newTerrainId == oldTerrain.getMaxHealthTypeTerrainId()) {
-                        effectManager.load(worldNode,
-                                WorldUtils.pointToVector3f(point).addLocal(0, WorldUtils.FLOOR_HEIGHT, 0),
-                                oldTerrain.getMaxHealthEffectId(), false, tile.getOwnerId());
-                    } else if (newTerrainId == oldTerrain.getDestroyedTypeTerrainId()) {
-                        effectManager.load(worldNode,
-                                WorldUtils.pointToVector3f(point).addLocal(0, WorldUtils.FLOOR_HEIGHT, 0),
-                                oldTerrain.getDestroyedEffectId(), false);
-                    }
-                    lastTerrainIds[point.x][point.y] = newTerrainId;
-                }
-            }
+            tileEffects.update(points);
             mapLoader.updateTiles(points);
         });
     }
