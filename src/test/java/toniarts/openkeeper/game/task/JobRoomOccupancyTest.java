@@ -104,7 +104,7 @@ class JobRoomOccupancyTest {
         gameSettings.put(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, CasinoVariableFixtures.miscVariable(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, -1));
         ICreatureController trainee = creature();
 
-        Train train = new Train(null, null, new Point(1, 1), KEEPER, room, taskManager(room), null, gameSettings, null);
+        Train train = new Train(null, null, new Point(1, 1), KEEPER, room, taskManager(room), null, gameSettings, null, null, null);
         train.assign(trainee, true);
         assertEquals(1, room.getUsedCapacity(ObjectType.TRAINEE));
 

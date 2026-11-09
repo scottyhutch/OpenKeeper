@@ -17,6 +17,7 @@
 package toniarts.openkeeper.game.task.creature;
 
 import com.jme3.math.Vector2f;
+import com.simsilica.es.EntityId;
 import toniarts.openkeeper.utils.Point;
 import java.util.Map;
 import toniarts.openkeeper.game.controller.IGameWorldController;
@@ -32,6 +33,7 @@ import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
+import toniarts.openkeeper.utils.WorldUtils;
 
 /**
  * Trains creature
@@ -44,15 +46,35 @@ public final class Train extends AbstractCapacityCriticalRoomTask {
     private final IPlayerController playerController;
     private final int trainingRoomMaxExperienceLevel;
     private final int trainingCost;
+    private final EntityId wallTarget;
+    private final Point shootingTile;
 
+    /**
+     * Trains at a Training Dummy or a wall target
+     *
+     * @param navigationService the navigation
+     * @param mapController the map
+     * @param p the tile of the Training Dummy or the wall target
+     * @param playerId the player
+     * @param room the Training Room
+     * @param taskManager the task manager
+     * @param gameWorldController the game world
+     * @param gameSettings the level variables
+     * @param playerController the player
+     * @param wallTarget the wall target to shoot at, {@code null} at a
+     * Training Dummy
+     * @param shootingTile the tile to shoot at the wall target from
+     */
     public Train(final INavigationService navigationService, final IMapController mapController,
             Point p, short playerId, IRoomController room, TaskManager taskManager,
             IGameWorldController gameWorldController, Map<MiscType, MiscVariable> gameSettings,
-            IPlayerController playerController) {
+            IPlayerController playerController, EntityId wallTarget, Point shootingTile) {
         super(navigationService, mapController, p, playerId, room, taskManager);
 
         this.gameWorldController = gameWorldController;
         this.playerController = playerController;
+        this.wallTarget = wallTarget;
+        this.shootingTile = shootingTile;
 
         trainingRoomMaxExperienceLevel = (int) gameSettings.get(Variable.MiscVariable.MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL).getValue();
         trainingCost = Math.abs((int) gameSettings.get(Variable.MiscVariable.MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND).getValue());
@@ -65,7 +87,15 @@ public final class Train extends AbstractCapacityCriticalRoomTask {
 
     @Override
     public Vector2f getTarget(ICreatureController creature) {
-        return getTargetNextToFurniture(creature);
+        if (wallTarget == null) {
+            return getTargetNextToFurniture(creature);
+        }
+        return shootingTile != null ? WorldUtils.pointToVector2f(shootingTile) : null;
+    }
+
+    @Override
+    public EntityId getTaskTarget() {
+        return wallTarget;
     }
 
     @Override
@@ -77,7 +107,7 @@ public final class Train extends AbstractCapacityCriticalRoomTask {
     public Vector2f getWorkPosition(ICreatureController creature) {
 
         // DK II puts the trainee half a tile from the dummy, within reach
-        return getWorkPositionAtFurniture(creature);
+        return wallTarget == null ? getWorkPositionAtFurniture(creature) : getTarget(creature);
     }
 
     @Override
