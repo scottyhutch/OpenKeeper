@@ -1857,6 +1857,29 @@ public final class CreatureController extends EntityController implements ICreat
                 && levelInfo.getLevelData().getCreatureSpellById(creatureSpell.creatureSpellId).getFlags().contains(CreatureSpellFlag.IS_ATTACKING));
     }
 
+    @Override
+    public void castTrainingShot(EntityId target) {
+        CreatureSpells creatureSpells = entityData.getComponent(entityId, CreatureSpells.class);
+        if (creatureSpells == null) {
+            return;
+        }
+        for (EntityId creatureSpellEntity : creatureSpells.creatureSpells) {
+            CreatureSpell spell = entityData.getComponent(creatureSpellEntity, CreatureSpell.class);
+            toniarts.openkeeper.tools.convert.map.CreatureSpell creatureSpell = levelInfo.getLevelData().getCreatureSpellById(spell.creatureSpellId);
+            if (isAttackRecharged(spell) && creatureSpell.getFlags().contains(CreatureSpellFlag.IS_ATTACKING)) {
+                entityData.setComponent(creatureSpellEntity, new CreatureSpell(spell, gameTimer.getGameTime()));
+
+                // The shot flies at the target and bursts on the wall behind it
+                int shotData1 = getShotData1(creatureSpell);
+                if (!shotsController.fireShot(creatureSpell.getShotTypeId(), shotData1, creatureSpell.getShotData2(), getOwnerId(),
+                        getShotPosition(spell.creatureSpellId, getPosition(entityData, target)), target, entityId, spell.range)) {
+                    shotsController.createShot(creatureSpell.getShotTypeId(), shotData1, creatureSpell.getShotData2(), getOwnerId(), getPosition(), target, entityId);
+                }
+                return;
+            }
+        }
+    }
+
     private boolean isAttackRecharged(Attack attack) {
 
         // The recharge is divided by the creature's work modifier, which is 0.8 for every creature, and the attack is
