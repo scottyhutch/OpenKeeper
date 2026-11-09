@@ -530,11 +530,16 @@ public final class AssetUtils {
                 logger.log(Level.ERROR, "Can't create a texture out of " + resource + "!", e);
             }
 
-            // Native Portal mist/sparkle/Whitedisc draws use ONE + ONE, not
-            // Particle.j3md's SRC_ALPHA + ONE default (AlphaAdditive).
-            mat.getAdditionalRenderState().setBlendMode(
-                    resource.getType() == ArtResource.ArtResourceType.ADDITIVE_ALPHA
-                            ? BlendMode.Additive : BlendMode.Alpha);
+            // Native additive sprites use ONE/ONE: their RGB already encodes
+            // intensity. Weighting it by texture alpha again dims sparkles.
+            // Plain ALPHA/SPRITE art still uses standard alpha compositing.
+            if (resource.getType() == ArtResource.ArtResourceType.ADDITIVE_ALPHA) {
+                mat.setTransparent(true);
+                mat.getAdditionalRenderState().setBlendMode(BlendMode.Additive);
+            } else {
+                mat.setTransparent(false);
+                mat.getAdditionalRenderState().setBlendMode(BlendMode.Alpha);
+            }
             mat.getAdditionalRenderState().setDepthTest(true);
             mat.getAdditionalRenderState().setDepthWrite(false);
 

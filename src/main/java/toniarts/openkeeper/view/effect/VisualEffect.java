@@ -95,6 +95,7 @@ public class VisualEffect {
     // as debris regardless of the effect's own generation flags.
     private List<MeshCollectionPart> meshCollectionParts;
     private boolean deathEffectSpawned;
+    private boolean removed;
 
     private record MeshCollectionPart(String name, Vector3f offset) {
     }
@@ -221,6 +222,14 @@ public class VisualEffect {
 
                 Material material = AssetUtils.createParticleMaterial(resource, assetManager);
                 g.setMaterial(material);
+                if (resource.getFlags().contains(ArtResource.ArtResourceFlag.PLAYER_COLOURED)) {
+                    java.awt.Color color = getPlayerColor(ownerId, System.nanoTime() / 1_000_000);
+                    ((EffectMesh) g.getMesh()).setColor(new ColorRGBA(color.getRed() / 255f,
+                            color.getGreen() / 255f, color.getBlue() / 255f, 1f));
+                }
+                if (!resource.getFlags().contains(ArtResource.ArtResourceFlag.FLAT)) {
+                    g.addControl(new com.jme3.scene.control.BillboardControl());
+                }
 
                 ((Node) model).attachChild(g);
                 break;
@@ -488,7 +497,35 @@ public class VisualEffect {
             return;
         }
         emitter.setStartColor(new ColorRGBA(rgb.r, rgb.g, rgb.b, 1f));
-        emitter.setEndColor(new ColorRGBA(rgb.r, rgb.g, rgb.b, alpha));
+        if (element.getArtResource().getType() == ArtResourceType.ADDITIVE_ALPHA) {
+            // ONE/ONE ignores alpha. Native FADE reduces RGB over the
+            // particle lifetime; preserve that fade when using additive blending.
+            boolean fades = element.getFlags().contains(EffectElement.EffectElementFlag.FADE);
+            emitter.setEndColor(fades ? new ColorRGBA(0, 0, 0, 1) : new ColorRGBA(rgb.r, rgb.g, rgb.b, 1));
+        } else {
+            emitter.setEndColor(new ColorRGBA(rgb.r, rgb.g, rgb.b, alpha));
+        }
+    }
+
+    /**
+     * Neutral player-coloured sprites sample the shared seven-colour cycle at
+     * creation. Keep the resulting tint on that sprite for its whole lifetime.
+     * The colours themselves come from the converted game palette.
+     */
+    static java.awt.Color getPlayerColor(short ownerId, long milliseconds) {
+        short colour = colorOwnerId(ownerId, milliseconds);
+        // Neutral's cycle includes white, rather than its blue-grey map tint.
+        if (ownerId == Player.NEUTRAL_PLAYER_ID && colour == Player.NEUTRAL_PLAYER_ID) {
+            return java.awt.Color.WHITE;
+        }
+        return MapThumbnailGenerator.getPlayerColor(colour);
+    }
+
+    static short colorOwnerId(short ownerId, long milliseconds) {
+        if (ownerId != Player.NEUTRAL_PLAYER_ID) {
+            return ownerId;
+        }
+        return (short) (1 + Math.floorMod(Math.floorDiv(milliseconds, 100), 7));
     }
 
     /**
@@ -499,7 +536,7 @@ public class VisualEffect {
      */
     private ColorRGBA getElementColor(EffectElement element) {
         if (element.getArtResource().getFlags().contains(ArtResource.ArtResourceFlag.PLAYER_COLOURED)) {
-            java.awt.Color playerColor = MapThumbnailGenerator.getPlayerColor(ownerId);
+            java.awt.Color playerColor = getPlayerColor(ownerId, System.nanoTime() / 1_000_000);
             return new ColorRGBA(playerColor.getRed() / 255f, playerColor.getGreen() / 255f,
                     playerColor.getBlue() / 255f, playerColor.getAlpha() / 255f);
         }
@@ -701,6 +738,9 @@ public class VisualEffect {
      * @return true if the effect is still valid, false if the effect has died
      */
     public boolean update(float tpf) {
+        if (removed) {
+            return false;
+        }
         if (generationStepsRemaining > 0) {
             generationStepRemainder += tpf;
             int steps = (int) ((generationStepRemainder + 1e-7) / 0.05);
@@ -874,7 +914,12 @@ public class VisualEffect {
     }
 
     public void removeEffect() {
+        removed = true;
         effects.forEach(VisualEffect::removeEffect);
+        LightRules lightRules = getLightRules();
+        if (lightRules != null) {
+            lightRules.removeThingLight(this);
+        }
         effects.clear();
         effectElements.clear();
         effectNode.detachAllChildren();
