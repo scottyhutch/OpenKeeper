@@ -81,6 +81,7 @@ import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.utils.WorldUtils;
 import toniarts.openkeeper.view.PlayerInteractionState.InteractionState;
 import toniarts.openkeeper.view.PlayerInteractionState.InteractionState.Type;
+import toniarts.openkeeper.view.control.CreatureViewControl;
 import toniarts.openkeeper.view.control.IEntityViewControl;
 import toniarts.openkeeper.view.effect.EffectManagerState;
 import toniarts.openkeeper.view.fogofwar.IFogOfWarInformation;
@@ -533,6 +534,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
         // See the results so we see what is going on
         Node object;
+        IEntityViewControl hit = null;
         for (int i = 0; i < results.size(); i++) {
 
             // TODO: Now just creature control, but all interaction objects
@@ -542,15 +544,19 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
                 // A victim hanging on a wheel is hard to hit, its torture device gives it to the hand too
                 IEntityViewControl victim = playerEntityViewState.getTortureVictimOn(object);
-                if (Boolean.getBoolean("ok.pickDebug")) {
-                    System.out.println("PICKDEBUG chose " + control.getClass().getSimpleName() + " at " + object.getLocalTranslation()
-                            + " victim=" + (victim != null ? victim.getClass().getSimpleName() : "none"));
-                }
-                setInteractiveControl(victim != null ? victim : control);
-                return;
+                hit = victim != null ? victim : control;
+                break;
             }
         }
-        setInteractiveControl(null);
+
+        // And so does the tile of the device, the cursor anywhere on it picks the victim
+        if (!(hit instanceof CreatureViewControl)) {
+            IEntityViewControl victim = playerEntityViewState.getTortureVictimOn(selectionHandler.getPointedTileIndex());
+            if (victim != null) {
+                hit = victim;
+            }
+        }
+        setInteractiveControl(hit);
     }
 
     private void setInteractiveControl(IEntityViewControl interactiveControl) {
