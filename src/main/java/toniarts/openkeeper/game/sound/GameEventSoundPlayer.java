@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
+import java.util.function.IntConsumer;
 
 /**
  * Plays the sounds of the {@link GameEvent}s published on the {@link EventBus}.
@@ -44,6 +45,7 @@ public final class GameEventSoundPlayer implements EventListener<GameEvent> {
     private static final int DISCO_FADE_TILES = 45;
 
     private final IKwdFile kwdFile;
+    private final IntConsumer mentorSpeech;
     private final Map<ExclusiveKey, Integer> exclusiveSounds = new HashMap<>();
 
     /**
@@ -54,10 +56,12 @@ public final class GameEventSoundPlayer implements EventListener<GameEvent> {
 
     /**
      * @param explored tells if the player has explored the tile, the disco is not heard from the fog
+     * @param mentorSpeech queues a mentor speech by its id
      */
-    public GameEventSoundPlayer(IKwdFile kwdFile, Predicate<Point> explored) {
+    public GameEventSoundPlayer(IKwdFile kwdFile, Predicate<Point> explored, IntConsumer mentorSpeech) {
         this.kwdFile = kwdFile;
         this.explored = explored;
+        this.mentorSpeech = mentorSpeech;
     }
 
     /**
@@ -127,6 +131,10 @@ public final class GameEventSoundPlayer implements EventListener<GameEvent> {
                     event.type, event.subjectKind, event.subjectId);
         }
         for (GameEventSounds.Sound sound : sounds) {
+            if (SoundCategory.SPEECH_MENTOR.equals(sound.category())) {
+                mentorSpeech.accept(sound.eventId());
+                continue;
+            }
             int handle = sound.position() != null
                     ? SoundManager.playSound(sound.category(), sound.eventId(), sound.position())
                     : SoundManager.playSound(sound.category(), sound.eventId());
