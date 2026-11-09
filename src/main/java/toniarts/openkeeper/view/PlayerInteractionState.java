@@ -518,6 +518,18 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
             playerEntityViewState = stateManager.getState(Short.toString(player.getPlayerId()), PlayerEntityViewState.class);
         }
         playerEntityViewState.getRoot().collideWith(ray, results);
+        if (Boolean.getBoolean("ok.pickDebug") && results.size() > 0) {
+            StringBuilder hits = new StringBuilder("PICKDEBUG");
+            for (int i = 0; i < Math.min(6, results.size()); i++) {
+                com.jme3.scene.Geometry g = results.getCollision(i).getGeometry();
+                hits.append(" | ").append(String.format("%.2f", results.getCollision(i).getDistance())).append(' ').append(g.getName());
+                for (com.jme3.scene.Spatial s = g.getParent(); s != null && s != playerEntityViewState.getRoot(); s = s.getParent()) {
+                    IEntityViewControl c = s.getControl(IEntityViewControl.class);
+                    hits.append(" < ").append(s.getName()).append(c != null ? "[" + c.getClass().getSimpleName() + "]" : "");
+                }
+            }
+            System.out.println(hits);
+        }
 
         // See the results so we see what is going on
         Node object;
