@@ -116,6 +116,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
     private final Set<Point> flashedTiles = new HashSet<>();
     private short[] drawnTerrainIds; // The terrain each tile and its neighbours were last built with, by tile index
     private short[] drawnOwnerIds; // And the owner
+    private final TileTagPreview tagPreview = new TileTagPreview();
     private final List<EntityInstance<Terrain>> waterBatches = new ArrayList<>(); // Lakes and rivers
     private final List<EntityInstance<Terrain>> lavaBatches = new ArrayList<>(); // Lakes and rivers, but hot
     private Spatial waterSurface; // Currently attached merged water mesh, if any
@@ -554,6 +555,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
      * @param points tile coordinates to update
      */
     public void updateTiles(Point... points) {
+        tagPreview.acknowledge(Arrays.asList(points), this::isServerTagged, fogOfWarInformation::isHighlightable);
         Set<Point> pointsToUpdate = new HashSet<>();
 
         // The shape of the walls around the changed tiles changes too
@@ -650,6 +652,48 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         refreshCeilingSurface();
     }
 
+    public boolean isTileTagged(Point point) {
+        return tagPreview.isTagged(point, isServerTagged(point));
+    }
+
+    private boolean isServerTagged(Point point) {
+        IMapTileInformation tile = getMapData().getTile(point);
+        return tile != null && (tile.isSelected(playerId) || fogOfWarInformation.isPendingTagged(point));
+    }
+
+    public void previewTaggedTiles(List<Point> points, boolean tagged) {
+        List<Point> eligible = points.stream().filter(fogOfWarInformation::isHighlightable).toList();
+        refreshTagPreview(tagPreview.replace(eligible, tagged));
+    }
+
+    public void cancelTagPreview() {
+        refreshTagPreview(tagPreview.cancel());
+    }
+
+    public void commitTagPreview() {
+        tagPreview.commit();
+    }
+
+    /** Tint changes only rebuild affected terrain tiles and their page batches. */
+    private void refreshTagPreview(Set<Point> points) {
+        if (points.isEmpty() || map == null) {
+            return;
+        }
+        Set<BatchNode> batches = new HashSet<>();
+        Node terrain = (Node) map.getChild(TERRAIN_NODE);
+        for (Point point : points) {
+            if (getMapData().getTile(point) != null) {
+                rebuildTile(point, terrain, batches);
+            }
+        }
+        for (BatchNode batch : batches) {
+            batch.batch();
+            if (batch.getParent() instanceof Node page) {
+                bindPageBatchMaterials(page);
+            }
+        }
+    }
+
     private void rebuildTile(Point point, Node terrainNode, Set<BatchNode> nodesNeedBatching) {
         IMapTileInformation tile = getMapData().getTile(point);
 
@@ -708,7 +752,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
 
         // Change the material on geometries
         Terrain terrain = getTerrain(tile);
-        final boolean tagged = tile.isSelected(playerId) || fogOfWarInformation.isPendingTagged(tile.getLocation());
+        final boolean tagged = isTileTagged(tile.getLocation());
         if (!isFlashing(tile) && !tagged
                 && !terrain.getFlags().contains(Terrain.TerrainFlag.DECAY)) {
             return;
