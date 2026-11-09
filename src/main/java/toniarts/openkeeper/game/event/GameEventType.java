@@ -125,5 +125,20 @@ public enum GameEventType {
      */
     CASINO_FIREWORKS,
     /** A creature successfully started pursuing an attack target. */
-    CREATURE_CHARGE
+    CREATURE_CHARGE,
+
+    // Temple
+    /**
+     * A creature was dropped into the pool, the subject is the creature type
+     */
+    CREATURE_SACRIFICED,
+    /**
+     * The sacrifices completed a recipe, the subject is the room, at the reward's tile
+     */
+    SACRIFICE_REWARD,
+    /**
+     * The mentor's verdict on a sacrifice, only the temple's owner gets this. The subject id is the speech id of the
+     * recipe, or 1 when no recipe matched.
+     */
+    SACRIFICE_SPEECH
 }
