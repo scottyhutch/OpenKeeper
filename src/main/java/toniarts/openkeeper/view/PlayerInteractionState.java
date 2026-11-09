@@ -542,6 +542,10 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
                 // A victim hanging on a wheel is hard to hit, its torture device gives it to the hand too
                 IEntityViewControl victim = playerEntityViewState.getTortureVictimOn(object);
+                if (Boolean.getBoolean("ok.pickDebug")) {
+                    System.out.println("PICKDEBUG chose " + control.getClass().getSimpleName() + " at " + object.getLocalTranslation()
+                            + " victim=" + (victim != null ? victim.getClass().getSimpleName() : "none"));
+                }
                 setInteractiveControl(victim != null ? victim : control);
                 return;
             }
