@@ -40,6 +40,14 @@ tasks.register("modelViewer", JavaExec) {
     mainClass = 'toniarts.openkeeper.tools.modelviewer.ModelViewer'
 }
 
+tasks.register("benchmarkCeilingBuild", JavaExec) {
+    group = "verification"
+    description = "Compare cached and uncached ceiling mesh construction on a deterministic synthetic map"
+    dependsOn testClasses
+    classpath = sourceSets.test.runtimeClasspath
+    mainClass = 'toniarts.openkeeper.view.map.CeilingBuildBenchmark'
+}
+
 tasks.register("hdTextures", JavaExec) {
     group = ApplicationPlugin.APPLICATION_GROUP
     description = 'Upscales the converted textures with Real-ESRGAN, e.g. --args="upscale --test-batch"'
