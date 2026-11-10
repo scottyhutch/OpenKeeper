@@ -86,6 +86,7 @@ import toniarts.openkeeper.game.controller.object.IObjectController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.CasinoController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.data.ActionPoint;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableType;
@@ -1134,7 +1135,12 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
                 // Past his last waypoint the creature has no action point left to go to
                 if (creature.getObjectiveTargetActionPointId() != 0) {
-                    task = new SendToActionPoint(navigationService, mapController, levelInfo.getActionPoint(creature.getObjectiveTargetActionPointId()), creature);
+                    ActionPoint actionPoint = levelInfo.getActionPoint(creature.getObjectiveTargetActionPointId());
+                    if (actionPoint != null) {
+                        task = new SendToActionPoint(navigationService, mapController, actionPoint, creature);
+                    } else {
+                        logger.log(Level.ERROR, "Creature is sent to action point {0}, but the level doesn't have it!", creature.getObjectiveTargetActionPointId());
+                    }
                 }
                 break;
             }

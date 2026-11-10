@@ -413,7 +413,10 @@ public class PlayerTriggerControl extends TriggerControl {
         if (isPossessing(getAudienceId())) {
             return;
         }
-        ActionPoint ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
+        ActionPoint ap = getActionPoint(trigger.getUserData("actionPointId", short.class));
+        if (ap == null) {
+            return;
+        }
         playerService.doTransition(trigger.getUserData("pathId", short.class), WorldUtils.ActionPointToVector3f(ap), getAudienceId());
     }
 
@@ -434,7 +437,10 @@ public class PlayerTriggerControl extends TriggerControl {
         if (isPossessing(getAudienceId())) {
             return;
         }
-        ActionPoint ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
+        ActionPoint ap = getActionPoint(trigger.getUserData("actionPointId", short.class));
+        if (ap == null) {
+            return;
+        }
         boolean isRelative = trigger.getUserData("available", short.class) == 0;
         int angle = (short) (int) trigger.getUserData("angle", int.class); // Signed 16 bit degrees
         int time = trigger.getUserData("time", int.class);

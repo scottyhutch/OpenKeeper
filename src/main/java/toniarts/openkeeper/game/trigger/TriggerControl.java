@@ -186,6 +186,22 @@ public class TriggerControl extends Control {
         }
     }
 
+    /**
+     * Looks up an action point of the level. A level can refer to an action
+     * point that doesn't exist (user made levels), that is logged as an error
+     * and the caller is expected to skip whatever it was going to do.
+     *
+     * @param id the action point ID
+     * @return the action point, or {@code null} if the level doesn't have it
+     */
+    protected ActionPoint getActionPoint(int id) {
+        ActionPoint ap = levelInfo.getActionPoint(id);
+        if (ap == null) {
+            logger.log(Level.ERROR, "Trigger {0} refers to action point {1}, but the level doesn't have it!", trigger.getId(), id);
+        }
+        return ap;
+    }
+
     @Override
     protected void updateControl(float tpf) {
         if (!isArmed()) {
@@ -699,7 +715,7 @@ public class TriggerControl extends Control {
     }
 
     private void flashActionPoint(TriggerActionData trigger, short playerId) {
-        ActionPoint ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
+        ActionPoint ap = getActionPoint(trigger.getUserData("actionPointId", short.class));
         if (ap == null) {
             return;
         }
@@ -713,7 +729,7 @@ public class TriggerControl extends Control {
     }
 
     private void revealActionPoint(TriggerActionData trigger, short playerId) {
-        ActionPoint ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
+        ActionPoint ap = getActionPoint(trigger.getUserData("actionPointId", short.class));
         if (ap == null) {
             return;
         }
@@ -726,7 +742,10 @@ public class TriggerControl extends Control {
     }
 
     protected void zoomToAP(short playerId, short actionPointId) {
-        ActionPoint ap = levelInfo.getActionPoint(actionPointId);
+        if (actionPointId == 0) { // No action point
+            return;
+        }
+        ActionPoint ap = getActionPoint(actionPointId);
 
         // DK II ignores the zoom while the keeper is possessing a creature (0x442650)
         Keeper keeper = getPlayer(playerId);
@@ -789,7 +808,10 @@ public class TriggerControl extends Control {
      * party of that kind is still out there, nothing happens.
      */
     private void createHeroParty(TriggerActionData trigger) {
-        ActionPoint ap = levelInfo.getActionPoint(trigger.getUserData("actionPointId", short.class));
+        ActionPoint ap = getActionPoint(trigger.getUserData("actionPointId", short.class));
+        if (ap == null) {
+            return;
+        }
         short partyId = trigger.getUserData("partyId", short.class);
         PartyType partyType = ConversionUtils.parseEnum(trigger.getUserData("type", short.class), PartyType.class);
         if (partyType != PartyType.NONE && isPartyOut(partyId)) {
