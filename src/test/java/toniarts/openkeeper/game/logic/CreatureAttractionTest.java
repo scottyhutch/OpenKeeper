@@ -37,9 +37,15 @@ import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static toniarts.openkeeper.tools.convert.map.Creature.AttractionType.CREATURE;
+import static toniarts.openkeeper.tools.convert.map.Creature.AttractionType.GOLD;
+import static toniarts.openkeeper.tools.convert.map.Creature.AttractionType.MANA;
+import static toniarts.openkeeper.tools.convert.map.Creature.AttractionType.NONE;
+import static toniarts.openkeeper.tools.convert.map.CreatureAttractionFixtures.amountAttraction;
 import static toniarts.openkeeper.tools.convert.map.CreatureAttractionFixtures.attraction;
 import static toniarts.openkeeper.tools.convert.map.CreatureAttractionFixtures.creature;
 import static toniarts.openkeeper.tools.convert.map.CreatureAttractionFixtures.room;
+import static toniarts.openkeeper.tools.convert.map.CreatureAttractionFixtures.roomAttraction;
 
 /**
  * The attraction requirements of a creature, as the original checks them: an
@@ -49,10 +55,6 @@ import static toniarts.openkeeper.tools.convert.map.CreatureAttractionFixtures.r
 class CreatureAttractionTest {
 
     private static final short PLAYER_ID = 3;
-    private static final int ROOM = 1;
-    private static final int GOLD = 2;
-    private static final int MANA = 3;
-    private static final int CREATURE = 4;
 
     private final Room hatchery = room((short) 4);
     private final Room lair = room((short) 2);
@@ -91,7 +93,7 @@ class CreatureAttractionTest {
 
     @Test
     void roomSizeCountsAllTheRoomsOfTheType() {
-        Creature bileDemon = creature((short) 3, attraction(ROOM, hatchery.getRoomId(), 25));
+        Creature bileDemon = creature((short) 3, roomAttraction(hatchery.getRoomId(), 25));
         build(hatchery, 16);
         build(hatchery, 12);
 
@@ -100,7 +102,7 @@ class CreatureAttractionTest {
 
     @Test
     void roomSizeNotReachedByAllTheRoomsTogether() {
-        Creature bileDemon = creature((short) 3, attraction(ROOM, hatchery.getRoomId(), 25));
+        Creature bileDemon = creature((short) 3, roomAttraction(hatchery.getRoomId(), 25));
         build(hatchery, 16);
         build(hatchery, 8);
 
@@ -109,7 +111,7 @@ class CreatureAttractionTest {
 
     @Test
     void roomWithoutSizeStillNeedsTheRoom() {
-        Creature goblin = creature((short) 7, attraction(ROOM, lair.getRoomId(), 0));
+        Creature goblin = creature((short) 7, roomAttraction(lair.getRoomId(), 0));
 
         assertFalse(CreatureAttraction.isSatisfied(goblin, player, level));
         build(lair, 1);
@@ -118,9 +120,7 @@ class CreatureAttractionTest {
 
     @Test
     void goldAttraction() {
-
-        // The amount is the low byte of the first value and the low byte of the second as the high byte
-        Creature creature = creature((short) 5, attraction(GOLD, 0x88, 0x13));
+        Creature creature = creature((short) 5, amountAttraction(GOLD, 0x1388));
         entityData.setComponent(keeperEntity, new Gold(0x1387, Integer.MAX_VALUE));
         assertFalse(CreatureAttraction.isSatisfied(creature, player, level));
 
@@ -130,7 +130,7 @@ class CreatureAttractionTest {
 
     @Test
     void manaAttraction() {
-        Creature creature = creature((short) 5, attraction(MANA, 0xE8, 0x03));
+        Creature creature = creature((short) 5, amountAttraction(MANA, 1000));
         keeper.setMana(999);
         assertFalse(CreatureAttraction.isSatisfied(creature, player, level));
 
@@ -142,14 +142,14 @@ class CreatureAttractionTest {
     void creatureAttractionNeverStopsTheCreature() {
 
         // The original compares the creature count with zero, so this requirement is always met
-        Creature creature = creature((short) 5, attraction(CREATURE, 7, 3));
+        Creature creature = creature((short) 5, attraction(CREATURE));
 
         assertTrue(CreatureAttraction.isSatisfied(creature, player, level));
     }
 
     @Test
     void noAttractions() {
-        Creature creature = creature((short) 5, attraction(0, 0, 0), attraction(0, 0, 0));
+        Creature creature = creature((short) 5, attraction(NONE), attraction(NONE));
 
         assertTrue(CreatureAttraction.isSatisfied(creature, player, level));
     }
