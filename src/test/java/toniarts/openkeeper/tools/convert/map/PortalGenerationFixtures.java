@@ -36,6 +36,7 @@ public final class PortalGenerationFixtures {
         Creature creature = new Creature();
         creature.setCreatureId(creatureId);
         Creature.Attraction lair = new Creature.Attraction();
+        lair.setType(Creature.AttractionType.NONE);
         lair.setRoomId(2);
         creature.setAttractions(new Creature.Attraction[]{lair});
         creature.setFlags(EnumSet.of(Creature.CreatureFlag.AVAILABLE_VIA_PORTAL));
