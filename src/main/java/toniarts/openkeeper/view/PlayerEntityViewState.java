@@ -192,7 +192,6 @@ public class PlayerEntityViewState extends AbstractAppState {
     private final PortalEffectState portalEffects;
     private final ShotModelContainer shotModelContainer;
     private final EffectTriggerContainer effectTriggerContainer;
-    private final CreatureLevelUpContainer creatureLevelUpContainer;
     private final EventListener<GameEvent> gameEventListener = this::onGameEvent;
 
     private final ILoader<ObjectViewState> objectLoader;
@@ -279,7 +278,6 @@ public class PlayerEntityViewState extends AbstractAppState {
         portalEffects = new PortalEffectState(kwdFile, entityData, rootNode, fogOfWarInformation);
         shotModelContainer = new ShotModelContainer(entityData);
         effectTriggerContainer = new EffectTriggerContainer(entityData);
-        creatureLevelUpContainer = new CreatureLevelUpContainer(entityData, this::showLevelUpEffect);
     }
 
     @Override
@@ -305,7 +303,6 @@ public class PlayerEntityViewState extends AbstractAppState {
         stateManager.attach(portalEffects);
         shotModelContainer.start();
         effectTriggerContainer.start();
-        creatureLevelUpContainer.start();
     }
 
     @Override
@@ -326,7 +323,6 @@ public class PlayerEntityViewState extends AbstractAppState {
         roomEffectContainer.update();
         shotModelContainer.update();
         effectTriggerContainer.update();
-        creatureLevelUpContainer.update();
 
         // Lighting: re-derive attached-light positions and bind the
         // vertex-lit models every frame -- lights on other things
@@ -514,7 +510,6 @@ public class PlayerEntityViewState extends AbstractAppState {
         stateManager.detach(portalEffects);
         shotModelContainer.stop();
         effectTriggerContainer.stop();
-        creatureLevelUpContainer.stop();
         EventBus.removeListener(ClientEvents.GAME_EVENT, gameEventListener);
 
         // Detach entities
@@ -966,6 +961,21 @@ public class PlayerEntityViewState extends AbstractAppState {
     }
 
     /**
+     * Like the original, the level up effect starts once at the creature's position and doesn't follow it. Not
+     * shown for creatures in the fog of war or without a model (e.g. in the hand).
+     */
+    private void showLevelUpEffect(EntityId entityId) {
+        Spatial creature = isInitialized() ? getEntitySpatial(entityId) : null;
+        if (creature == null) {
+            return;
+        }
+        Vector3f location = creature.getLocalTranslation();
+        if (fogOfWarInformation.isVisible(WorldUtils.vectorToPoint(location))) {
+            stateManager.getState(EffectManagerState.class).load(nodeCreatures, location.clone(), LEVEL_UP_EFFECT_ID, false);
+        }
+    }
+
+    /**
      * The thing-light formula, for objects/creatures. Shots
      * and slab lights aren't wired here: there is no shot rendering and no slab-light data in this
      * codebase's parser. Everything else is implemented: the
@@ -1024,12 +1034,12 @@ public class PlayerEntityViewState extends AbstractAppState {
         }
     }
 
-    /**
-     * Like the original, the level up effect starts once at the creature's position and doesn't follow it. Not
-     * shown for creatures in the fog of war.
-     */
     private void onGameEvent(EventType<GameEvent> type, GameEvent event) {
-        if (event.type == GameEventType.CALL_TO_ARMS && event.entity != null) {
+        if (event.type == GameEventType.CREATURE_LEVEL_UP && event.entity != null) {
+
+            // The events come from the game loop's thread
+            stateManager.getApplication().enqueue(() -> showLevelUpEffect(event.entity));
+        } else if (event.type == GameEventType.CALL_TO_ARMS && event.entity != null) {
 
             // The events come from the game loop's thread
             stateManager.getApplication().enqueue(() -> showCallToArmsEffect(event.entity));
@@ -1050,13 +1060,6 @@ public class PlayerEntityViewState extends AbstractAppState {
         Vector3f location = banner.getLocalTranslation();
         if (fogOfWarInformation.isVisible(WorldUtils.vectorToPoint(location))) {
             stateManager.getState(EffectManagerState.class).load(nodeObjects, location.clone(), CALL_TO_ARMS_EFFECT_ID, false, owner.ownerId);
-        }
-    }
-
-    private void showLevelUpEffect(Entity e) {
-        Vector3f location = e.get(Position.class).position;
-        if (fogOfWarInformation.isVisible(WorldUtils.vectorToPoint(location))) {
-            stateManager.getState(EffectManagerState.class).load(nodeCreatures, location.clone(), LEVEL_UP_EFFECT_ID, false);
         }
     }
 
