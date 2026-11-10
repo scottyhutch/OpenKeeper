@@ -23,7 +23,6 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.EnumSet;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -263,7 +262,7 @@ class PortalSpawnCooldownTest {
             goblin.setCreatureId((short) 7);
             Creature.Attraction lairRequirement = new Creature.Attraction();
             lairRequirement.setRoomId(2);
-            lairRequirement.setPresent(1);
+            lairRequirement.setType(Creature.AttractionType.ROOM);
             goblin.setAttractions(new Creature.Attraction[]{lairRequirement});
             goblin.setFlags(EnumSet.of(Creature.CreatureFlag.AVAILABLE_VIA_PORTAL));
             goblin.setFlags2(EnumSet.noneOf(Creature.CreatureFlag2.class));
