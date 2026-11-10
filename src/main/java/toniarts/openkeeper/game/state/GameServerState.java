@@ -503,9 +503,6 @@ public final class GameServerState extends AbstractAppState {
     }
 
     /**
-     * Listen for the player actions
-     */
-    /**
      * Locate Hidden Land discovers the secret level of a campaign level. This
      * is stored right away in the user's campaign progress, as in the original.
      */
@@ -529,6 +526,9 @@ public final class GameServerState extends AbstractAppState {
 
     }
 
+    /**
+     * Listen for the player actions
+     */
     private final class PlayerActionListenerImpl implements PlayerActionListener {
 
         @Override
