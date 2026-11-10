@@ -478,8 +478,13 @@ public final class PortalCreatureChoice {
             return 0;
         }
 
-        // The original takes the room of the first attraction whatever its type
-        return attractions[0].getRoomId() & 0xFF;
+        // The original takes the room of the first attraction whatever its type, its first value. For gold and
+        // mana that is the low byte of the amount, the other types keep it as the room
+        Creature.Attraction first = attractions[0];
+        return switch (first.getType()) {
+            case GOLD, MANA -> first.getAmount() & 0xFF;
+            default -> first.getRoomId();
+        };
     }
 
     /**
