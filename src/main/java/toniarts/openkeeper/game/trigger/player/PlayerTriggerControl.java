@@ -283,6 +283,12 @@ public class PlayerTriggerControl extends TriggerControl {
             case PLAYER_DESTROYS:
                 return true; // Always true in the original
 
+            case PLAYER_ANGRY_CREATURES:
+
+                // Always compared to a constant
+                return compare(trigger, creaturesController.getAngryCreatureCount(playerId,
+                        trigger.getUserData("creatureId", short.class)), trigger.getUserData("value", int.class));
+
             case PLAYER_KILLED:
 
                 // Has this player been defeated, by a certain player or by anyone (0)
@@ -330,9 +336,9 @@ public class PlayerTriggerControl extends TriggerControl {
         putStub(result, "Nothing in the game logic announces it",
                 TriggerGeneric.TargetType.PLAYER_CREATURE_SACKED);
 
-        // STUB: non-worker creatures that are happy / angry
-        putStub(result, "Creatures only have anger counters per complaint (CreatureMood), the happy (0) and angry (2) mood values of the original and the thresholds that turn the counters into them are not known",
-                TriggerGeneric.TargetType.PLAYER_HAPPY_CREATURES, TriggerGeneric.TargetType.PLAYER_ANGRY_CREATURES);
+        // STUB: non-worker creatures that are happy
+        putStub(result, "The happy (0) mood value of the original is not known",
+                TriggerGeneric.TargetType.PLAYER_HAPPY_CREATURES);
 
         // STUB: creatures lost / killed, optionally by a certain opponent
         putStub(result, "A creature's death is not attributed to anybody, so there is nothing to count",
