@@ -23,6 +23,7 @@ import java.lang.reflect.Proxy;
 import java.util.EnumMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureExperience;
 import toniarts.openkeeper.game.component.Slapped;
 import toniarts.openkeeper.game.controller.ILevelInfo;
@@ -67,6 +68,9 @@ class SlapResearchBonusTest {
         EntityData entityData = new DefaultEntityData();
         EntityId entity = entityData.createEntity();
         entityData.setComponent(entity, new CreatureExperience(1, 0, 0, 0, 0));
+        CreatureComponent creatureComponent = new CreatureComponent();
+        creatureComponent.researchPerTick = researchPerSecond / 4;
+        entityData.setComponent(entity, creatureComponent);
         if (slapped) {
             entityData.setComponent(entity, new Slapped(0));
         }
@@ -84,7 +88,7 @@ class SlapResearchBonusTest {
         settings.put(MiscType.INCREASED_WORK_RATE_PECENTAGE_FROM_SLAPPING,
                 CreatureSleepFixtures.variable(MiscType.INCREASED_WORK_RATE_PECENTAGE_FROM_SLAPPING, 50));
 
-        CreatureController controller = new CreatureController(entity, entityData, ResearchFixtures.researcher(researchPerSecond),
+        CreatureController controller = new CreatureController(entity, entityData, ResearchFixtures.researcher((short) 1, researchPerSecond),
                 null, null, () -> time, settings, null, null, null, levelInfo, null, null, null);
         return controller.getResearchPerTick();
     }

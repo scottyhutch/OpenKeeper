@@ -197,7 +197,7 @@ public class TriggerControl extends Control {
     protected ActionPoint getActionPoint(int id) {
         ActionPoint ap = levelInfo.getActionPoint(id);
         if (ap == null) {
-            logger.log(Level.ERROR, "Trigger {0} refers to action point {1}, but the level doesn't have it!", trigger.getId(), id);
+            logger.log(Level.ERROR, "Trigger {0} refers to action point {1}, but the level doesn't have it!", triggerId, id);
         }
         return ap;
     }
@@ -746,10 +746,13 @@ public class TriggerControl extends Control {
             return;
         }
         ActionPoint ap = getActionPoint(actionPointId);
+        if (ap == null) {
+            return;
+        }
 
         // DK II ignores the zoom while the keeper is possessing a creature (0x442650)
         Keeper keeper = getPlayer(playerId);
-        if (ap != null && (keeper == null || !keeper.isPossession())) {
+        if (keeper == null || !keeper.isPossession()) {
             playerService.zoomViewToPoint(WorldUtils.ActionPointToVector3f(ap), playerId);
         }
     }

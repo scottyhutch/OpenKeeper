@@ -41,6 +41,7 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.controller.CreaturesController;
+import toniarts.openkeeper.game.controller.IGameController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.trigger.player.PlayerTriggerControl;
 import toniarts.openkeeper.tools.convert.map.TriggerGeneric.ComparisonType;
@@ -209,7 +210,7 @@ class PlayerAngryCreaturesTriggerTest {
                         case "setFlag" -> { flag.set((int) a[1]); yield null; }
                         default -> throw new UnsupportedOperationException(m.getName());
                     });
-            creatures = new CreaturesController(kwd, data, Map.of(), null, null, null, level);
+            creatures = new CreaturesController(kwd, data, Map.of(), null, null, null, level, null);
         }
 
         EntityId creature(short type, short owner, boolean angry) {
@@ -229,7 +230,10 @@ class PlayerAngryCreaturesTriggerTest {
 
         boolean fires() {
             flag.set(0);
-            var control = new PlayerTriggerControl(null, level, null, null, creatures, 1, (short) 3, null, null);
+            // my-build's trigger tree polls the player events, there is no player here
+            IGameController game = (IGameController) Proxy.newProxyInstance(IGameController.class.getClassLoader(),
+                    new Class<?>[]{IGameController.class}, (p, m, a) -> null);
+            var control = new PlayerTriggerControl(game, level, null, null, creatures, 1, (short) 3, null, null);
             control.update(.25f);
             control.update(.25f);
             return flag.get() == 1;
