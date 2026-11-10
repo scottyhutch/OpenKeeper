@@ -132,6 +132,7 @@ import toniarts.openkeeper.game.component.Slapped;
 import toniarts.openkeeper.game.component.SpeedChange;
 import toniarts.openkeeper.game.component.SpeedUp;
 import toniarts.openkeeper.game.component.Spellbook;
+import toniarts.openkeeper.game.component.StolenGold;
 import toniarts.openkeeper.game.component.StolenLoot;
 import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.Storage;
@@ -328,6 +329,7 @@ public final class NetworkServer {
             Serializer.registerClass(SeenCreatureType.class, new FieldSerializer());
             Serializer.registerClass(SeparationPush.class, new FieldSerializer());
             Serializer.registerClass(SpeedUp.class, new FieldSerializer());
+            Serializer.registerClass(StolenGold.class, new FieldSerializer());
             Serializer.registerClass(StolenLoot.class, new FieldSerializer());
             Serializer.registerClass(Storage.class, new FieldSerializer());
             Serializer.registerClass(Stored.class, new FieldSerializer());
