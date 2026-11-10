@@ -540,13 +540,6 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public int getTorturedTypeResearchBonus();
 
     /**
-     * Get research per second attribute
-     *
-     * @return research per second
-     */
-    public int getResearchPerSecond();
-
-    /**
      * Get manufacture per second attribute
      *
      * @return manufacture per second
