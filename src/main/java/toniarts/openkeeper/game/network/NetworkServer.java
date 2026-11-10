@@ -96,6 +96,7 @@ import toniarts.openkeeper.game.component.JailBreaker;
 import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.component.KeeperInformation;
 import toniarts.openkeeper.game.component.KeeperSpellCast;
+import toniarts.openkeeper.game.component.LeavingDungeon;
 import toniarts.openkeeper.game.component.LevelIndicator;
 import toniarts.openkeeper.game.component.LowMana;
 import toniarts.openkeeper.game.component.Mana;
@@ -298,6 +299,7 @@ public final class NetworkServer {
             Serializer.registerClass(KeeperComponent.class, new FieldSerializer());
             Serializer.registerClass(KeeperInformation.class, new FieldSerializer());
             Serializer.registerClass(KeeperSpellCast.class, new FieldSerializer());
+            Serializer.registerClass(LeavingDungeon.class, new FieldSerializer());
             Serializer.registerClass(LevelIndicator.class, new FieldSerializer());
             Serializer.registerClass(LowMana.class, new FieldSerializer());
             Serializer.registerClass(Mana.class, new FieldSerializer());
