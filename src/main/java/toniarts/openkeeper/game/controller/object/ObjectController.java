@@ -62,11 +62,12 @@ public final class ObjectController extends EntityController implements IObjectC
 
     @Override
     public boolean isPickableByPlayerCreature(short playerId) {
+        if (entityData.getComponent(entityId, Placeable.class) == null) {
+            return false;
+        }
 
-        // An object in the keeper's hand has no position, so it lies on no tile (#717)
-        return entityData.getComponent(entityId, Placeable.class) != null
-                && entityData.getComponent(entityId, Position.class) != null
-                && getTile().getOwnerId() == playerId;
+        // In the keeper's hand the object has no position, the creatures can't get to it
+        return getPosition() != null && getTile().getOwnerId() == playerId;
     }
 
     @Override
