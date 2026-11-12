@@ -57,6 +57,7 @@ import toniarts.openkeeper.game.component.ShotViewState;
 import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.controller.ObjectsController;
 import toniarts.openkeeper.game.data.Settings;
+import toniarts.openkeeper.game.event.GeneratedEffect;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.sound.SoundManager;
@@ -193,6 +194,8 @@ public class PlayerEntityViewState extends AbstractAppState {
     private final ShotModelContainer shotModelContainer;
     private final EffectTriggerContainer effectTriggerContainer;
     private final EventListener<GameEvent> gameEventListener = this::onGameEvent;
+    private final EventListener<GeneratedEffect> generatedEffectListener = (type, effect) ->
+            stateManager.getApplication().enqueue(() -> showGeneratedEffect(effect));
 
     private final ILoader<ObjectViewState> objectLoader;
     private final ILoader<CreatureViewState> creatureLoader;
@@ -303,6 +306,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         stateManager.attach(portalEffects);
         shotModelContainer.start();
         effectTriggerContainer.start();
+        EventBus.addListener(ClientEvents.GENERATED_EFFECT, generatedEffectListener);
     }
 
     @Override
@@ -511,6 +515,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         shotModelContainer.stop();
         effectTriggerContainer.stop();
         EventBus.removeListener(ClientEvents.GAME_EVENT, gameEventListener);
+        EventBus.removeListener(ClientEvents.GENERATED_EFFECT, generatedEffectListener);
 
         // Detach entities
         rootNode.detachChild(root);
@@ -1031,6 +1036,18 @@ public class PlayerEntityViewState extends AbstractAppState {
             source.setObjectLight(objectLight);
         } else {
             lightRules.updateThingLightPosition(id, object.getLocalTranslation(), offset);
+        }
+    }
+
+    private void showGeneratedEffect(GeneratedEffect effect) {
+        if (!isInitialized() || kwdFile.getEffect(effect.effectId()) == null
+                || !fogOfWarInformation.isVisible(WorldUtils.vectorToPoint(effect.position()))) {
+            return;
+        }
+        VisualEffect visual = stateManager.getState(EffectManagerState.class)
+                .load(root, effect.position(), effect.effectId(), false);
+        if (visual != null) {
+            visual.getEffectNode().rotate(0, effect.yaw(), 0);
         }
     }
 

@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.data.ResearchableType;
 import toniarts.openkeeper.game.event.ClientEvents;
+import toniarts.openkeeper.game.event.GeneratedEffect;
 import toniarts.openkeeper.game.event.GameEvent;
 import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.map.IMapInformation;
@@ -643,6 +644,11 @@ public final class GameClientState extends AbstractPauseAwareState {
         @Override
         public void onGameEnded(GameResult result) {
             app.enqueue(() -> playerState.endGame(result));
+        }
+
+        @Override
+        public void onEffect(int effectId, Vector3f position, float yaw) {
+            EventBus.publish(ClientEvents.GENERATED_EFFECT, new GeneratedEffect(effectId, position, yaw));
         }
 
         @Override

@@ -597,6 +597,11 @@ public class TriggerControl extends Control {
                 levelInfo.setTimerSpeechEnabled(trigger.getUserData("available", short.class) == 1);
                 return true;
 
+            case TOGGLE_EFFECT_GENERATOR:
+                gameController.setEffectGeneratorEnabled(trigger.getUserData("generatorId", short.class),
+                        trigger.getUserData("available", short.class) == 1);
+                return true;
+
             default:
                 return doStubAction(trigger);
         }
@@ -615,10 +620,6 @@ public class TriggerControl extends Control {
             // STUB: GUI hint for the next room to build, the HUD has no such hint
             case DISPLAY_NEXT_ROOM_TYPE ->
                 "the HUD has no next room hint";
-            // STUB: switch a placed effect generator on/off by its ID. The effect generators are
-            // not addressable by their map ID after the level has been loaded
-            case TOGGLE_EFFECT_GENERATOR ->
-                "effect generators can not be looked up by their map ID";
             default ->
                 null;
         };
