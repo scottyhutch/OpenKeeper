@@ -2410,6 +2410,22 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     @Override
+    public void takePay(int amount) {
+        Gold gold = entityData.getComponent(entityId, Gold.class);
+        entityData.setComponent(entityId, new Gold(Math.min(gold.gold + amount / 2, gold.maxGold), gold.maxGold));
+
+        // Whatever the amount, the creature is owed nothing more and is no longer angry about its pay
+        CreaturePay pay = entityData.getComponent(entityId, CreaturePay.class);
+        if (pay != null && pay.unpaid > 0) {
+            entityData.removeComponent(entityId, CreaturePay.class);
+        }
+        CreatureMood mood = entityData.getComponent(entityId, CreatureMood.class);
+        if (mood != null) {
+            entityData.setComponent(entityId, mood.clear(CreatureMood.REASON_NO_PAY));
+        }
+    }
+
+    @Override
     public int getGold() {
         return entityData.getComponent(entityId, Gold.class).gold;
     }
