@@ -40,9 +40,12 @@ import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class MovementSystemTest {
+
+    private boolean logicSetsNewPath;
 
     /**
      * A creature standing on 15,23 turns on the spot to face 16,25. Facing is
@@ -132,5 +135,37 @@ class MovementSystemTest {
                     case "getRoomControllerByCoordinates" -> null;
                     default -> throw new AssertionError(method.getName());
                 });
+    }
+
+    /**
+     * The game logic thread gives the creature a new path just as the steering
+     * loop finishes the old one. The steering loop must leave the new one.
+     */
+    @Test
+    void keepsThePathSetWhileFinishingTheOldOne() {
+        Navigation newPath = new Navigation(new Point(20, 23), null, new ArrayList<>());
+        EntityData entityData = new DefaultEntityData() {
+
+            @Override
+            public <T extends EntityComponent> T getComponent(EntityId entityId, Class<T> type) {
+                if (logicSetsNewPath && type == Navigation.class) {
+                    logicSetsNewPath = false;
+                    setComponent(entityId, newPath);
+                }
+                return super.getComponent(entityId, type);
+            }
+        };
+        EntityId creature = entityData.createEntity();
+        entityData.setComponents(creature, new Position(1f, new Vector3f(15, 0, 23)), new Mobile(false, false, false, 1),
+                new Navigation(new Point(15, 23), new Point(16, 25), new ArrayList<>()));
+        MovementSystem movementSystem = new MovementSystem(entityData, kwdFile(), map(false, false));
+
+        logicSetsNewPath = true;
+        for (int frame = 0; frame < 180 && logicSetsNewPath; frame++) {
+            movementSystem.processTick(1 / 60f);
+        }
+        logicSetsNewPath = false;
+
+        assertSame(newPath, entityData.getComponent(creature, Navigation.class));
     }
 }
