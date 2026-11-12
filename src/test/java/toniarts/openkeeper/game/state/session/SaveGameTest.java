@@ -321,6 +321,8 @@ class SaveGameTest {
         stats.creatureSlapped(imp);
         stats.creatureSlapped(imp);
         stats.creaturePickedUp(goblin);
+        stats.payDay();
+        stats.payDay();
         IPlayerController player = stub(IPlayerController.class, Map.of("getKeeper", keeper, "getStatsControl", stats));
 
         Path file = folder.resolve("stats.json.gz");
@@ -333,6 +335,7 @@ class SaveGameTest {
         assertFalse(loaded.hasSlapped(goblin));
         assertTrue(loaded.hasPickedUp(goblin));
         assertFalse(loaded.hasDropped());
+        assertEquals(2, loaded.getPayDays());
 
         // The counts too
         Path secondFile = folder.resolve("second.json.gz");
