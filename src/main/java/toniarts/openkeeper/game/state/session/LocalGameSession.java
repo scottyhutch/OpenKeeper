@@ -53,7 +53,11 @@ public final class LocalGameSession implements GameSessionServerService, GameSes
     private static final Logger logger = System.getLogger(LocalGameSession.class.getName());
     private static final short PLAYER_ID = Player.KEEPER1_ID;
 
-    private boolean playerInTransition = false;
+    /**
+     * Set and read by the game logic thread, cleared by the render thread when
+     * the camera has finished its path
+     */
+    private volatile boolean playerInTransition = false;
     private final EntityData entityData;
     private final EntityData clientEntityData;
     private final SafeArrayList<GameSessionListener> listeners = new SafeArrayList<>(GameSessionListener.class);
