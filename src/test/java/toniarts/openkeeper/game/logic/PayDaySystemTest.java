@@ -29,11 +29,9 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreaturePay;
-import toniarts.openkeeper.game.component.GamblingAfterPay;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.PayDayClock;
-import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.data.Keeper;
@@ -45,7 +43,6 @@ import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 class PayDaySystemTest {
@@ -67,55 +64,35 @@ class PayDaySystemTest {
     private final PlayerStatsControl keeperStats = new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
     private final PayDaySystem payDaySystem;
     private double gameTime;
-    private int treasury = 1000;
 
     PayDaySystemTest() {
         creatures.put(GOBLIN, PayDayFixtures.creature(GOBLIN, ANGER_NO_PAY));
         creatures.put(IMP, PayDayFixtures.creature(IMP, 0));
         payDaySystem = new PayDaySystem(entityData, kwdFile(), () -> gameTime,
                 List.of(playerController(Player.GOOD_PLAYER_ID, new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0))), playerController(KEEPER, keeperStats)),
-                gameWorldController(), gameSettings());
+                gameSettings());
     }
 
     @Test
-    void nobodyIsPaidBeforeTheFirstPayDay() {
+    void nobodyIsOwedBeforeTheFirstPayDay() {
         EntityId goblin = addCreature(KEEPER, GOBLIN, WAGE, false);
 
         tick(0);
         tick(FIRST_PAY_DAY - 0.25);
 
-        assertEquals(1000, treasury);
-        assertEquals(0, gold(goblin));
+        assertEquals(0, owed(goblin));
         assertEquals(0, keeperStats.getPayDays());
     }
 
     @Test
-    void creaturesArePaidTheirWageFromTheTreasuryOnPayDay() {
+    void creaturesAreOwedTheirWageOnPayDay() {
         EntityId goblin = addCreature(KEEPER, GOBLIN, WAGE, false);
 
         tick(0);
         tick(FIRST_PAY_DAY);
 
-        assertEquals(500, treasury);
-        assertEquals(WAGE / 2, gold(goblin));
-        assertNull(entityData.getComponent(goblin, CreaturePay.class));
+        assertEquals(WAGE, owed(goblin));
         assertEquals(1, keeperStats.getPayDays());
-    }
-
-    @Test
-    void aCreatureThatTookPayWishesToGamble() {
-        EntityId goblin = addCreature(KEEPER, GOBLIN, WAGE, false);
-        EntityId imp = addCreature(KEEPER, IMP, WAGE, true);
-        treasury = 0;
-
-        tick(0);
-        tick(FIRST_PAY_DAY);
-        assertNull(entityData.getComponent(goblin, GamblingAfterPay.class));
-
-        treasury = 1000;
-        tick(FIRST_PAY_DAY + REEVALUATION);
-        assertNotNull(entityData.getComponent(goblin, GamblingAfterPay.class));
-        assertNull(entityData.getComponent(imp, GamblingAfterPay.class));
     }
 
     @Test
@@ -126,8 +103,7 @@ class PayDaySystemTest {
         payDaySystem.payDayNow(KEEPER);
         tick(1);
 
-        assertEquals(500, treasury);
-        assertEquals(WAGE / 2, gold(goblin));
+        assertEquals(WAGE, owed(goblin));
         assertEquals(1, keeperStats.getPayDays());
     }
 
@@ -139,7 +115,6 @@ class PayDaySystemTest {
         payDaySystem.payDayNow(KEEPER);
         tick(1);
 
-        assertEquals(1000, treasury);
         assertEquals(0, keeperStats.getPayDays());
     }
 
@@ -151,80 +126,53 @@ class PayDaySystemTest {
         tick(50);
 
         tick(FIRST_PAY_DAY);
-        assertEquals(1000, treasury);
+        assertEquals(0, owed(goblin));
 
         tick(50 + FIRST_PAY_DAY);
-        assertEquals(500, treasury);
-        assertEquals(WAGE / 2, gold(goblin));
+        assertEquals(WAGE, owed(goblin));
     }
 
     @Test
-    void payDaysFollowAtTheFrequency() {
-        addCreature(KEEPER, GOBLIN, WAGE, false);
-        treasury = 2000;
+    void payDaysFollowAtTheFrequencyAndTheWageAddsUp() {
+        EntityId goblin = addCreature(KEEPER, GOBLIN, WAGE, false);
 
         tick(0);
         tick(FIRST_PAY_DAY);
         tick(FIRST_PAY_DAY + FREQUENCY - 0.25);
-        assertEquals(1500, treasury);
+        assertEquals(WAGE, owed(goblin));
 
         tick(FIRST_PAY_DAY + FREQUENCY);
-        assertEquals(1000, treasury);
+        assertEquals(2 * WAGE, owed(goblin));
         assertEquals(2, keeperStats.getPayDays());
     }
 
     @Test
     void aCreatureThatIsNotPaidGetsAngryUntilItIs() {
         EntityId goblin = addCreature(KEEPER, GOBLIN, WAGE, false);
-        treasury = 0;
 
         tick(0);
         tick(FIRST_PAY_DAY);
-        assertEquals(WAGE, entityData.getComponent(goblin, CreaturePay.class).unpaid);
         assertEquals(ANGER_NO_PAY / 4, mood(goblin).noPay);
 
         tick(FIRST_PAY_DAY + 0.25);
         assertEquals(2 * ANGER_NO_PAY / 4, mood(goblin).noPay);
 
-        treasury = 1000;
-        tick(FIRST_PAY_DAY + REEVALUATION);
+        // The creature collects its pay
+        entityData.removeComponent(goblin, CreaturePay.class);
+        tick(FIRST_PAY_DAY + 0.5);
         assertEquals(0, mood(goblin).noPay);
-        assertNull(entityData.getComponent(goblin, CreaturePay.class));
     }
 
     @Test
-    void anUnpaidCreatureTriesTwiceThenWaitsForTheNextPayDay() {
+    void aNewPayDayLetsACreatureThatGaveUpTryAgain() {
         EntityId goblin = addCreature(KEEPER, GOBLIN, WAGE, false);
-        treasury = 0;
 
         tick(0);
         tick(FIRST_PAY_DAY);
-        tick(FIRST_PAY_DAY + REEVALUATION);
-        treasury = 1500;
-        tick(FIRST_PAY_DAY + 2 * REEVALUATION);
-        assertEquals(1500, treasury);
+        entityData.setComponent(goblin, new CreaturePay(WAGE, CreaturePay.MAX_COLLECTION_ATTEMPTS, FIRST_PAY_DAY + REEVALUATION, false));
 
-        // The wage adds up
         tick(FIRST_PAY_DAY + FREQUENCY);
-        assertEquals(500, treasury);
-        assertEquals(WAGE, gold(goblin));
-    }
-
-    @Test
-    void aCreatureTakesWhatThereIsAndCollectsTheRestLater() {
-        EntityId goblin = addCreature(KEEPER, GOBLIN, WAGE, false);
-        treasury = 200;
-
-        tick(0);
-        tick(FIRST_PAY_DAY);
-        assertEquals(0, treasury);
-        assertEquals(300, entityData.getComponent(goblin, CreaturePay.class).unpaid);
-        assertEquals(100, gold(goblin));
-
-        treasury = 1000;
-        tick(FIRST_PAY_DAY + REEVALUATION);
-        assertEquals(700, treasury);
-        assertEquals(250, gold(goblin));
+        assertEquals(0, entityData.getComponent(goblin, CreaturePay.class).attempts);
     }
 
     @Test
@@ -233,15 +181,12 @@ class PayDaySystemTest {
         tick(0);
         EntityId newcomer = addCreature(KEEPER, GOBLIN, WAGE, false);
         tick(FIRST_PAY_DAY - CUT_OFF + 1);
-        treasury = 2000;
 
         tick(FIRST_PAY_DAY);
-        assertEquals(1500, treasury);
-        assertEquals(0, gold(newcomer));
+        assertEquals(0, owed(newcomer));
 
         tick(FIRST_PAY_DAY + FREQUENCY);
-        assertEquals(500, treasury);
-        assertEquals(WAGE / 2, gold(newcomer));
+        assertEquals(WAGE, owed(newcomer));
     }
 
     @Test
@@ -254,7 +199,7 @@ class PayDaySystemTest {
         tick(FIRST_PAY_DAY - 40);
 
         tick(FIRST_PAY_DAY);
-        assertEquals(WAGE / 2, gold(newcomer));
+        assertEquals(WAGE, owed(newcomer));
     }
 
     @Test
@@ -265,7 +210,6 @@ class PayDaySystemTest {
         tick(0);
         tick(FIRST_PAY_DAY);
 
-        assertEquals(1000, treasury);
         assertNull(entityData.getComponent(goblin, CreaturePay.class));
     }
 
@@ -277,7 +221,6 @@ class PayDaySystemTest {
         tick(FIRST_PAY_DAY);
 
         assertNull(entityData.getComponent(knight, CreaturePay.class));
-        assertEquals(0, gold(knight));
     }
 
     @Test
@@ -364,7 +307,7 @@ class PayDaySystemTest {
         assertEquals(new PayDayClock(FIRST_PAY_DAY, FIRST_PAY_DAY, WAGE), payDayClock(KEEPER));
 
         tick(31 + FIRST_PAY_DAY);
-        assertEquals(500, treasury);
+        assertEquals(WAGE, owed(goblin));
     }
 
     @Test
@@ -403,8 +346,9 @@ class PayDaySystemTest {
         return entityId;
     }
 
-    private int gold(EntityId entityId) {
-        return entityData.getComponent(entityId, Gold.class).gold;
+    private int owed(EntityId entityId) {
+        CreaturePay pay = entityData.getComponent(entityId, CreaturePay.class);
+        return pay != null ? pay.unpaid : 0;
     }
 
     private CreatureMood mood(EntityId entityId) {
@@ -416,7 +360,6 @@ class PayDaySystemTest {
         settings.put(MiscType.TIME_BEFORE_FIRST_PAY_DAY_SECONDS, PayDayFixtures.payDayVariable(MiscType.TIME_BEFORE_FIRST_PAY_DAY_SECONDS, FIRST_PAY_DAY));
         settings.put(MiscType.PAY_DAY_FREQUENCY_SECONDS, PayDayFixtures.payDayVariable(MiscType.PAY_DAY_FREQUENCY_SECONDS, FREQUENCY));
         settings.put(MiscType.PAY_DAY_CUT_OFF_TIME_SECONDS, PayDayFixtures.payDayVariable(MiscType.PAY_DAY_CUT_OFF_TIME_SECONDS, CUT_OFF_TICKS));
-        settings.put(MiscType.DELAY_BEFORE_PAY_REEVALUATION_SECONDS, PayDayFixtures.payDayVariable(MiscType.DELAY_BEFORE_PAY_REEVALUATION_SECONDS, REEVALUATION));
         return settings;
     }
 
@@ -428,19 +371,6 @@ class PayDaySystemTest {
                     }
                     if ("getGameLevel".equals(method.getName())) {
                         return PayDayFixtures.gameLevel(TICKS_PER_SECOND);
-                    }
-                    throw new UnsupportedOperationException(method.getName());
-                });
-    }
-
-    private IGameWorldController gameWorldController() {
-        return (IGameWorldController) Proxy.newProxyInstance(IGameWorldController.class.getClassLoader(), new Class<?>[]{IGameWorldController.class},
-                (proxy, method, args) -> {
-                    if ("substractGold".equals(method.getName())) {
-                        int amount = (Integer) args[0];
-                        int taken = Math.min(amount, treasury);
-                        treasury -= taken;
-                        return amount - taken;
                     }
                     throw new UnsupportedOperationException(method.getName());
                 });

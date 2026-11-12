@@ -54,5 +54,6 @@ public enum TaskType {
     GUARD,
     PRAY,
     COLLECT_WINNINGS,
-    TORTURE
+    TORTURE,
+    COLLECT_PAY
 }
