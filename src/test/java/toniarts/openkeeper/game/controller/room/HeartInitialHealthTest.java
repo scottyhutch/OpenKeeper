@@ -32,6 +32,8 @@ import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The Dungeon Heart starts with the health set for it in the level editor.
@@ -58,8 +60,20 @@ class HeartInitialHealthTest {
         assertEquals(HEART_HEALTH, entityData.getComponent(heartObject, Health.class).health);
     }
 
+    @Test
+    void heartThatStartsDestroyedStoresNoGold() {
+        FiveByFiveRotatedController heart = heart(0);
+        heart.construct();
+        assertFalse(heart.canStoreGold());
+
+        heart = heart(100);
+        heart.construct();
+        assertTrue(heart.canStoreGold());
+    }
+
     private FiveByFiveRotatedController heart(int initialHealth) {
         RoomInstance room = new RoomInstance(new Room(), RoomFixtures.roomThing(initialHealth));
+        room.setDestroyed(initialHealth == 0);
         room.setOwnerId((short) 3);
         for (int y = 0; y < 5; y++) {
             for (int x = 0; x < 5; x++) {
