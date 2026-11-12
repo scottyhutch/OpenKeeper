@@ -31,6 +31,7 @@ import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.Point;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -94,6 +95,20 @@ class AbstractRoomControllerTest {
         assertFalse(heart.isTileAccessible(new Point(22, 11), new Point(22, 12)));
         assertFalse(heart.isTileAccessible(null, new Point(21, 11)));
         assertTrue(heart.isTileAccessible(null, new Point(20, 12)));
+    }
+
+    @Test
+    void capturedRoomBelongsToItsNewOwner() {
+        EntityData entityData = new DefaultEntityData();
+        RoomInstance roomInstance = new RoomInstance(new Room());
+        roomInstance.setOwnerId((short) 1);
+        TestRoomController room = new TestRoomController(entityData.createEntity(), entityData, roomInstance);
+
+        room.captured((short) 3);
+
+        // The drop rules, the gold and the torture ask the room instance whose room it is
+        assertEquals(3, room.getOwnerId());
+        assertEquals(3, room.getRoomInstance().getOwnerId());
     }
 
     private static final class TestRoomController extends AbstractRoomController {
