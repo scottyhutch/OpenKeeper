@@ -102,7 +102,7 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
             float floorHeight = leaving ? WorldUtils.UNDERFLOOR_HEIGHT : WorldUtils.FLOOR_HEIGHT;
             Position position = entity.get(Position.class);
             CreatureFall creatureFall = entity.get(CreatureFall.class);
-            Position newPosition = new Position(position.rotation, position.position);
+            Position newPosition = new Position(position.rotation, position.position.clone());
             if (creatureFall.velocity != null) {
                 fly(entity, creatureFall, newPosition.position, tpf * ticksPerSecond);
             } else {
