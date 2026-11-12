@@ -22,7 +22,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import toniarts.openkeeper.game.component.CasinoPayOut;
+import toniarts.openkeeper.game.component.Casino;
 import toniarts.openkeeper.game.component.DungeonHeart;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.ObjectComponent;
@@ -30,7 +30,7 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.PrisonStatus;
 import toniarts.openkeeper.game.component.RoomComponent;
-import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
+import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.controller.room.FiveByFiveRotatedController;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -106,7 +106,7 @@ class MapRoomContainerTest {
         EntityId prison = createRoom((short) 11);
         entityData.setComponent(prison, new PrisonStatus(true));
         EntityId casino = createRoom((short) 15);
-        entityData.setComponent(casino, new CasinoPayOut(PayOut.MONEY));
+        entityData.setComponent(casino, new Casino(PayOut.MONEY));
 
         container.start();
 

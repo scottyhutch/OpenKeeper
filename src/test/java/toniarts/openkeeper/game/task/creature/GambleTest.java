@@ -42,7 +42,7 @@ import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.CasinoController;
-import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
+import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.task.TaskType;

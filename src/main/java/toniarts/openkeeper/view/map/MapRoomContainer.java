@@ -23,7 +23,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.filter.FieldFilter;
-import toniarts.openkeeper.game.component.CasinoPayOut;
+import toniarts.openkeeper.game.component.Casino;
 import toniarts.openkeeper.game.component.DungeonHeart;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.ObjectComponent;
@@ -77,7 +77,7 @@ public class MapRoomContainer extends EntityContainer<IRoomInformation> implemen
         heartObjects = entityData.getEntities(new FieldFilter(ObjectComponent.class, "objectId", FiveByFiveRotatedController.OBJECT_HEART_ID),
                 ObjectComponent.class, Position.class, Health.class);
         prisonStatuses = entityData.getEntities(PrisonStatus.class);
-        casinoPayOuts = entityData.getEntities(CasinoPayOut.class);
+        casinoPayOuts = entityData.getEntities(Casino.class);
     }
 
     @Override
@@ -235,7 +235,7 @@ public class MapRoomContainer extends EntityContainer<IRoomInformation> implemen
             if (component != null) {
                 return component;
             }
-            EntitySet states = type == PrisonStatus.class ? prisonStatuses : type == CasinoPayOut.class ? casinoPayOuts : null;
+            EntitySet states = type == PrisonStatus.class ? prisonStatuses : type == Casino.class ? casinoPayOuts : null;
             Entity state = states != null ? states.getEntity(getEntityId()) : null;
             return state != null ? state.get(type) : null;
         }

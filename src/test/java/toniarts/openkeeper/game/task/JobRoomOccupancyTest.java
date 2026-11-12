@@ -33,6 +33,7 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
+import toniarts.openkeeper.game.component.Casino;
 import toniarts.openkeeper.game.controller.room.CasinoController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.TrainingRoomController;
@@ -176,7 +177,7 @@ class JobRoomOccupancyTest {
     private Gamble gamble(CasinoController casino) {
         setCasinoSettings();
         return new Gamble(null, null, new Point(1, 1), KEEPER, casino, taskManager(casino), entityData, null, null, gameSettings,
-                () -> CasinoController.PayOut.SMILES, null);
+                () -> Casino.PayOut.SMILES, null);
     }
 
     private void setCasinoSettings() {

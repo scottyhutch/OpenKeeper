@@ -24,7 +24,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.common.RoomInstance;
-import toniarts.openkeeper.game.component.CasinoPayOut;
+import toniarts.openkeeper.game.component.Casino;
+import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.ObjectViewState.GameObjectAnimState;
@@ -42,23 +43,6 @@ import toniarts.openkeeper.utils.WorldUtils;
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
 public final class CasinoController extends NormalRoomController {
-
-    /**
-     * How the casino pays out. In DK II the keeper switches this with the pay
-     * out adjuster in the casino.
-     */
-    public enum PayOut {
-
-        /**
-         * The gamblers win gold and cheer up, the keeper pays
-         */
-        SMILES,
-        /**
-         * The gamblers lose gold and get angrier, the keeper takes it
-         */
-        MONEY;
-
-    }
 
     public static final short ROULETTE_TABLE_OBJECT_ID = 87;
     public static final short ROULETTE_WHEEL_OBJECT_ID = 30;
@@ -85,7 +69,7 @@ public final class CasinoController extends NormalRoomController {
         super.construct();
 
         // A new casino pays out in smiles, like in DK II
-        if (getEntityComponent(CasinoPayOut.class) == null) {
+        if (getEntityComponent(Casino.class) == null) {
             setPayOut(PayOut.SMILES);
         }
 
@@ -184,7 +168,7 @@ public final class CasinoController extends NormalRoomController {
      * @param payOut the pay out setting
      */
     public void setPayOut(PayOut payOut) {
-        entityData.setComponent(entityId, new CasinoPayOut(payOut));
+        entityData.setComponent(entityId, new Casino(payOut));
         showPayOut();
     }
 

@@ -18,7 +18,7 @@ package toniarts.openkeeper.game.map;
 
 import com.simsilica.es.EntityId;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
-import toniarts.openkeeper.game.controller.room.CasinoController;
+import toniarts.openkeeper.game.component.Casino;
 import toniarts.openkeeper.utils.Point;
 
 /**
@@ -121,7 +121,7 @@ public interface IRoomInformation {
      *
      * @return the pay out, {@code null} if the room isn't a Casino
      */
-    default CasinoController.PayOut getCasinoPayOut() {
+    default Casino.PayOut getCasinoPayOut() {
         return null;
     }
 

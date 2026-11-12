@@ -21,7 +21,7 @@ import com.simsilica.es.EntityId;
 import java.util.Map;
 import java.util.function.ToIntFunction;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
-import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
+import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.CreatureSpawnSystem;
 import toniarts.openkeeper.game.map.IRoomInformation;

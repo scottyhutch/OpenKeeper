@@ -29,7 +29,7 @@ import toniarts.openkeeper.game.component.ObjectViewState.GameObjectAnimState;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
-import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
+import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 

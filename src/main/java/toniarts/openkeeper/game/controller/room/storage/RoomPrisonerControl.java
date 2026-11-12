@@ -59,6 +59,7 @@ public abstract class RoomPrisonerControl extends AbstractRoomObjectControl<Enti
 
     @Override
     public EntityId addItem(EntityId creature, Point p) {
+        objectsByCoordinate.computeIfAbsent(p, key -> new ArrayList<>(1)).add(creature);
         setRoomStorageToItem(creature, false);
         addCurrentCapacity(1);
         prisoners.add(creature);

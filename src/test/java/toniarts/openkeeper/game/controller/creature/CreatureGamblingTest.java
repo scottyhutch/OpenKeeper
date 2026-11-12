@@ -25,6 +25,7 @@ import java.util.EnumMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.CreatureComponent;
@@ -47,8 +48,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * An idle creature wants to gamble when it holds more gold than the stake of
- * the Casino's money mode, as in the original
+ * An idle creature that could not start a job wants to gamble when it holds
+ * more gold than the stake of the Casino's money mode, as in the original
  */
 @SuppressWarnings("unchecked")
 class CreatureGamblingTest {
@@ -57,6 +58,7 @@ class CreatureGamblingTest {
     private final Map<MiscType, MiscVariable> gameSettings = new EnumMap<>(MiscType.class);
     private int drinkAssignments = 0;
     private final Map<Object, TaskType> taskTypes = new java.util.HashMap<>();
+    private int gamblingAttempts = 0;
 
     @Test
     void creatureWithMoreGoldThanTheStakeGoesGambling() {
@@ -118,7 +120,18 @@ class CreatureGamblingTest {
     }
 
     @Test
-    void idleCreatureThatWantsToGambleStartsWorking() {
+    void idleCreatureWithoutWorkGoesGambling() {
+        assertEquals(CreatureState.WORK, enterIdle(false));
+        assertEquals(1, gamblingAttempts);
+    }
+
+    @Test
+    void idleCreatureWorksBeforeItGambles() {
+        assertEquals(CreatureState.WORK, enterIdle(true));
+        assertEquals(0, gamblingAttempts);
+    }
+
+    private CreatureState enterIdle(boolean workAvailable) {
         AtomicReference<CreatureState> currentState = new AtomicReference<>(CreatureState.IDLE);
         StateMachine<ICreatureController, CreatureState> stateMachine = (StateMachine<ICreatureController, CreatureState>) Proxy.newProxyInstance(
                 StateMachine.class.getClassLoader(), new Class<?>[]{StateMachine.class}, (proxy, method, args) -> {
@@ -129,14 +142,21 @@ class CreatureGamblingTest {
                 });
         ICreatureController creature = (ICreatureController) Proxy.newProxyInstance(
                 ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
-                    case "goGambling" -> true;
+                    case "findWork" -> {
+                        ((Consumer<Boolean>) args[0]).accept(workAvailable);
+                        yield null;
+                    }
+                    case "goGambling" -> {
+                        gamblingAttempts++;
+                        yield true;
+                    }
                     case "getStateMachine" -> stateMachine;
                     default -> method.getReturnType() == boolean.class ? Boolean.FALSE : null;
                 });
 
         CreatureState.IDLE.enter(creature);
 
-        assertEquals(CreatureState.WORK, currentState.get());
+        return currentState.get();
     }
 
     @Test
