@@ -111,7 +111,8 @@ class PossessedDeathTest {
 
     @Test
     void aHitThatWouldKnockItOutKillsIt() {
-        EntityController.setDamage(entityData, creature, 600);
+        // A possessed creature takes half of the damage dealt
+        EntityController.setDamage(entityData, creature, 1200);
         healthSystem.processTick(0.25f);
 
         assertNotNull(entityData.getComponent(creature, Death.class));
@@ -120,7 +121,8 @@ class PossessedDeathTest {
 
     @Test
     void itsDeathEndsThePossessionAndCostsMana() {
-        EntityController.setDamage(entityData, creature, 600);
+        // A possessed creature takes half of the damage dealt
+        EntityController.setDamage(entityData, creature, 1200);
         healthSystem.processTick(0.25f);
 
         assertEquals(List.of(false), possessionCalls);
@@ -129,7 +131,8 @@ class PossessedDeathTest {
 
     @Test
     void aHitItSurvivesChangesNothing() {
-        EntityController.setDamage(entityData, creature, 400);
+        // A possessed creature takes half of the damage dealt
+        EntityController.setDamage(entityData, creature, 800);
         healthSystem.processTick(0.25f);
 
         assertEquals(100, entityData.getComponent(creature, Health.class).health);

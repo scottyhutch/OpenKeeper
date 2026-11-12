@@ -1785,7 +1785,8 @@ public final class CreatureController extends EntityController implements ICreat
             damage = CombatRules.addRearAttackBonus(damage, ourPosition, targetPosition.position, targetPosition.rotation);
         }
 
-        return CombatRules.getDamageTaken(damage, entityData.getComponent(attackTarget, Possessed.class) != null);
+        // A possessed target takes less, EntityController.setDamage scales every hit
+        return damage;
     }
 
     /**

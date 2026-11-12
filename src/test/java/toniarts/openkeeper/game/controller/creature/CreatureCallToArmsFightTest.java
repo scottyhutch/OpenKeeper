@@ -28,11 +28,14 @@ import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CallToArms;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.Fearless;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.ICreaturesController;
+import toniarts.openkeeper.game.controller.ILevelInfo;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
@@ -101,10 +104,11 @@ class CreatureCallToArmsFightTest {
 
     private CreatureController controller() {
         EntityId enemy = entityData.createEntity();
-        entityData.setComponents(enemy, new Health(100, 100), new Owner(ENEMY_KEEPER, ENEMY_KEEPER));
+        entityData.setComponents(enemy, new Health(100, 100), new Owner(ENEMY_KEEPER, ENEMY_KEEPER),
+                new Position(0, new Vector3f(WorldUtils.TILE_WIDTH, WorldUtils.FLOOR_HEIGHT, WorldUtils.TILE_WIDTH)));
         entityData.setComponents(creature, new CreatureComponent(), new Health(100, 100), new Owner(KEEPER, KEEPER),
                 new Position(0, new Vector3f(WorldUtils.TILE_WIDTH, WorldUtils.FLOOR_HEIGHT, WorldUtils.TILE_WIDTH)),
-                new Fearless(), new AttackTarget(enemy));
+                new Fearless(), new CreatureMeleeAttack(0, 30, 1.2f, 1), new AttackTarget(enemy));
 
         Map<MiscType, MiscVariable> settings = new EnumMap<>(MiscType.class);
         settings.put(MiscType.CALL_TO_ARMS_FIGHT_DISTANCE_TILES,
@@ -112,8 +116,9 @@ class CreatureCallToArmsFightTest {
         ICreaturesController creaturesController = proxy(ICreaturesController.class, "createController",
                 proxy(ICreatureController.class, null, null));
         IEntityPositionLookup lookup = proxy(IEntityPositionLookup.class, "getSensedEntities", Set.of());
+        ILevelInfo levelInfo = proxy(ILevelInfo.class, "getPlayer", new Keeper(false, KEEPER));
         return new CreatureController(creature, entityData, CreatureSleepFixtures.sleeper(9), null, null, () -> 0,
-                settings, creaturesController, lookup, null, null, null, null, null);
+                settings, creaturesController, lookup, null, levelInfo, null, null, null);
     }
 
     @SuppressWarnings("unchecked")

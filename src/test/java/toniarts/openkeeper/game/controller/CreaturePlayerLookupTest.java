@@ -45,7 +45,7 @@ class CreaturePlayerLookupTest {
 
     private final EntityData entityData = new DefaultEntityData();
     private final CreaturesController controller = new CreaturesController(kwdFile(), entityData,
-            Collections.emptyMap(), null, null, null, null);
+            Collections.emptyMap(), null, null, null, null, null);
 
     @Test
     void makeHappyCalmsOnlyThePlayersCreatures() {
