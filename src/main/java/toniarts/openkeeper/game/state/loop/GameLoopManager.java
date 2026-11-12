@@ -29,6 +29,7 @@ import toniarts.openkeeper.game.logic.ChickenSpawnSystem;
 import toniarts.openkeeper.game.logic.CreatureAiSystem;
 import toniarts.openkeeper.game.logic.CreatureExperienceSystem;
 import toniarts.openkeeper.game.logic.CreatureFallSystem;
+import toniarts.openkeeper.game.logic.CreatureLandingSystem;
 import toniarts.openkeeper.game.logic.CreatureMoodSystem;
 import toniarts.openkeeper.game.logic.CreatureSleepSystem;
 import toniarts.openkeeper.game.logic.CreatureSpawnSystem;
@@ -125,6 +126,7 @@ public final class GameLoopManager {
                 new ManaCalculatorLogic(playerControllers.values(), entityData),
                 new PossessedSystem(playerControllers.values(), entityData, gameController,
                         gameWorldController.getCreaturesController()),
+                new CreatureLandingSystem(entityData, gameController.getGameTimer(), gameEventService),
                 new CreatureAiSystem(entityData, gameWorldController.getCreaturesController(), taskManager),
                 new ChickenAiSystem(entityData, gameWorldController.getObjectsController()),
                 new CreatureViewSystem(entityData),
@@ -142,8 +144,7 @@ public final class GameLoopManager {
                 new DungeonHeartConstruction(
                         entityData,
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.TIME_BEFORE_DUNGEON_HEART_CONSTRUCTION_BEGINS)),
-                new CreatureFallSystem(entityData, gameController.getGameTimer(), gameEventService,
-                        gameWorldController.getMapController(),
+                new CreatureFallSystem(entityData, gameWorldController.getMapController(),
                         levelInfo.getLevelData().getGameLevel().getTicksPerSec(),
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.GRAVITY_CONSTANT)));
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));
