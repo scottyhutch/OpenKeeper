@@ -36,6 +36,8 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.game.controller.entity.IEntityController;
+import toniarts.openkeeper.game.task.Task;
+import toniarts.openkeeper.game.task.TaskType;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -392,6 +394,29 @@ class CreatureStateTest {
                 assertEquals(claimed, lookedForWork.get());
                 assertEquals(claimed, walked.get());
             }
+        }
+    }
+
+    @Test
+    void hungryCreatureLeavesItsRoomJobToEat() {
+        for (TaskType taskType : List.of(TaskType.TRAIN, TaskType.RESEARCH, TaskType.MANUFACTURE)) {
+            AtomicBoolean wentToEat = new AtomicBoolean();
+            Task task = (Task) Proxy.newProxyInstance(Task.class.getClassLoader(), new Class<?>[]{Task.class},
+                    (proxy, method, args) -> method.getName().equals("getTaskType") ? taskType : defaultValue(method.getReturnType()));
+            ICreatureController creature = (ICreatureController) Proxy.newProxyInstance(
+                    ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
+                        case "getAssignedTask" -> task;
+                        case "isHungry", "isAssignedTaskValid" -> true;
+                        case "goToEat" -> {
+                            wentToEat.set(true);
+                            yield true;
+                        }
+                        default -> defaultValue(method.getReturnType());
+                    });
+
+            CreatureState.WORK.update(creature);
+
+            assertTrue(wentToEat.get(), taskType.toString());
         }
     }
 

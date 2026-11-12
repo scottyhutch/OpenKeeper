@@ -334,7 +334,8 @@ public enum CreatureState implements State<ICreatureController> {
             if (task != null && (task.getTaskType() == TaskType.TRAIN
                     || task.getTaskType() == TaskType.RESEARCH
                     || task.getTaskType() == TaskType.GUARD
-                    || task.getTaskType() == TaskType.GAMBLE)
+                    || task.getTaskType() == TaskType.GAMBLE
+                    || task.getTaskType() == TaskType.MANUFACTURE)
                     && ((entity.isHungry() && entity.goToEat())
                     || (entity.hasLair() && entity.isNeedForSleep() && entity.goToSleep()))) {
                 // setAssignedTask released the previous job. Keep WORK so its exit cannot
