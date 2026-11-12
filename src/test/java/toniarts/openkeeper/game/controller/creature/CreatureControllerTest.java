@@ -824,6 +824,23 @@ class CreatureControllerTest {
         }
     }
 
+    @Test
+    void asksTheTaskForItsTargetOnceAndOnlyWhenStopped() {
+        try (Fixture f = new Fixture(9)) {
+            f.startWork(TaskType.TRAIN);
+            f.targetQueries = 0;
+
+            // On its way, a task may search a path for its target
+            f.data.setComponent(f.entity, new Navigation(new Point(3, 4), null, List.of()));
+            assertFalse(f.controller.isAtAssignedTaskTarget());
+            assertEquals(0, f.targetQueries);
+
+            f.data.removeComponent(f.entity, Navigation.class);
+            assertTrue(f.controller.isAtAssignedTaskTarget());
+            assertEquals(1, f.targetQueries);
+        }
+    }
+
     private static final class Fixture implements AutoCloseable {
         final EntityData data = new DefaultEntityData();
         final EntityId entity = data.createEntity();
@@ -851,6 +868,7 @@ class CreatureControllerTest {
         int sleepAssignments;
         int lairSearches;
         int oldJobUnassignments;
+        int targetQueries;
         double time;
 
         Fixture(int timeSleep) {
@@ -977,7 +995,10 @@ class CreatureControllerTest {
                 case "getTaskType" -> type;
                 case "isValid" -> true;
                 case "moveToOtherSpot" -> false;
-                case "getTarget" -> new Vector2f(3, 4);
+                case "getTarget" -> {
+                    targetQueries++;
+                    yield new Vector2f(3, 4);
+                }
                 case "getWorkPosition", "getTaskTarget", "getTaskLocation", "executeTask" -> null;
                 case "unassign" -> { oldJobUnassignments++; yield null; }
                 default -> throw new UnsupportedOperationException(method);
