@@ -72,6 +72,11 @@ public final class FiveByFiveRotatedController extends AbstractRoomController im
     public void construct() {
         super.construct();
 
+        // A heart that starts destroyed stores no gold and makes no imps, like in DKII (room flag +0x9A bit 0)
+        if (isDestroyed()) {
+            return;
+        }
+
         addObjectControl(new RoomGoldControl(kwdFile, this, entityData, gameTimer, objectsController) {
 
             @Override
@@ -86,7 +91,7 @@ public final class FiveByFiveRotatedController extends AbstractRoomController im
         });
 
         // Init the spawn point, a loaded Dungeon Heart carries on with its spawn time
-        if (!isDestroyed() && getEntityComponent(ImpGenerator.class) == null) {
+        if (getEntityComponent(ImpGenerator.class) == null) {
             entityData.setComponent(entityId, new ImpGenerator(start, Double.MIN_VALUE));
         }
     }
