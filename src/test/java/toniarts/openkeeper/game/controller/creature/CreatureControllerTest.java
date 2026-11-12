@@ -63,6 +63,7 @@ import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.logic.CreatureAiSystem;
 import toniarts.openkeeper.game.logic.CreatureFallSystem;
+import toniarts.openkeeper.game.logic.CreatureLandingSystem;
 import toniarts.openkeeper.game.logic.CreatureMoodSystem;
 import toniarts.openkeeper.game.logic.CreatureSleepSystem;
 import toniarts.openkeeper.game.logic.HealthSystem;
@@ -241,7 +242,7 @@ class CreatureControllerTest {
             f.data.setComponent(f.entity, new CreatureAi(0, CreatureState.FALLEN, (short) 6, CreatureState.GO_TO_SLEEP));
             f.data.setComponent(f.entity, new Position(0, new Vector3f(3, WorldUtils.FLOOR_HEIGHT, 4)));
             f.data.setComponent(f.entity, new CreatureFall());
-            f.fall.processTick(0);
+            f.landing.processTick(0);
             assertNull(f.data.getComponent(f.entity, CreatureFall.class));
             assertEquals(List.of(GameEventType.CREATURE_LAND), f.events);
             assertEquals(CreatureState.GO_TO_SLEEP, f.data.getComponent(f.entity, CreatureAi.class).getTargetState());
@@ -283,6 +284,7 @@ class CreatureControllerTest {
                     new Position(0, new Vector3f(3, WorldUtils.FLOOR_HEIGHT + 1, 4)),
                     new CreatureFall());
             f.fall.processTick(.25f);
+            f.landing.processTick(.25f);
             f.tick();
             assertNotNull(f.data.getComponent(f.entity, CreatureFall.class));
             assertTrue(f.events.isEmpty());
@@ -298,7 +300,14 @@ class CreatureControllerTest {
             assertNull(f.state());
             assertEquals(0, f.sleep().sleepNeed);
             f.fall.processTick(.25f);
+            // The animation loop only brings the creature down, the landing is left to the game logic
+            assertNotNull(f.data.getComponent(f.entity, CreatureFall.class));
+            assertTrue(f.events.isEmpty());
+            assertEquals(0, f.data.getComponent(f.entity, CreatureAi.class).stateStartTime);
+            f.landing.processTick(.25f);
             assertNull(f.data.getComponent(f.entity, CreatureFall.class));
+            assertEquals(List.of(GameEventType.CREATURE_LAND), f.events);
+            assertEquals(50.5, f.data.getComponent(f.entity, CreatureAi.class).stateStartTime);
             f.tick();
             assertEquals(CreatureState.GETTING_UP, f.state());
             assertEquals(0, f.sleepAssignments);
@@ -314,7 +323,7 @@ class CreatureControllerTest {
         try (Fixture f = new Fixture(9)) {
             f.data.removeComponent(f.entity, CreatureAi.class);
             f.data.setComponent(f.entity, new CreatureFall());
-            f.fall.processTick(0);
+            f.landing.processTick(0);
             assertEquals(CreatureState.FALLEN, f.data.getComponent(f.entity, CreatureAi.class).getCreatureState());
             assertNull(f.data.getComponent(f.entity, CreatureAi.class).getTargetState());
             f.tick();
@@ -330,7 +339,7 @@ class CreatureControllerTest {
             f.data.getComponent(f.entity, CreatureComponent.class).stunDuration = 0;
             f.data.setComponent(f.entity, new CreatureAi(0, CreatureState.FALLEN, (short) 6, CreatureState.GO_TO_SLEEP));
             f.data.setComponent(f.entity, new CreatureFall());
-            f.fall.processTick(0);
+            f.landing.processTick(0);
             assertEquals(CreatureState.IDLE, f.data.getComponent(f.entity, CreatureAi.class).getCreatureState());
             assertEquals(CreatureState.GO_TO_SLEEP, f.data.getComponent(f.entity, CreatureAi.class).getTargetState());
             f.tick();
@@ -870,6 +879,7 @@ class CreatureControllerTest {
         final CreatureMoodSystem moodSystem;
         final HealthSystem healthSystem;
         final CreatureFallSystem fall;
+        final CreatureLandingSystem landing;
         final List<GameEventType> events = new java.util.ArrayList<>();
         final GameEventService eventService = proxy(GameEventService.class, (method, args) -> {
             events.add((GameEventType) args[0]);
@@ -888,7 +898,8 @@ class CreatureControllerTest {
         }
 
         Fixture(Creature definition) {
-            fall = new CreatureFallSystem(data, () -> time, eventService, null, 4, 0f);
+            fall = new CreatureFallSystem(data, null, 4, 0f);
+            landing = new CreatureLandingSystem(data, () -> time, eventService);
             CreatureComponent component = new CreatureComponent();
             component.creatureId = 6;
             component.stunDuration = .1f;
@@ -1067,6 +1078,7 @@ class CreatureControllerTest {
             moodSystem.stop();
             healthSystem.stop();
             fall.stop();
+            landing.stop();
             data.close();
         }
     }

@@ -187,6 +187,7 @@ public final class GameLoopManager {
                         (int) gameController.getLevelVariable(Variable.MiscVariable.MiscType.MANUFACTURE_POINT_LOSS_WHILE_NO_WORKERS_PER_SECOND)),
                 new PossessedSystem(playerControllers.values(), entityData, gameController,
                         gameWorldController.getCreaturesController()),
+                new CreatureLandingSystem(entityData, gameController.getGameTimer(), gameEventService),
                 new CreatureLeaveSystem(entityData, gameWorldController.getCreaturesController()),
                 new SummonedReaperSystem(entityData, playerControllers.values(), gameWorldController.getCreaturesController(),
                         gameController.getGameTimer(), gameController.getNavigationService()),
@@ -228,8 +229,8 @@ public final class GameLoopManager {
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.TIME_BEFORE_DUNGEON_HEART_CONSTRUCTION_BEGINS),
                         levelInfo.getLevelData().getObject(FiveByFiveRotatedController.OBJECT_PLUG_ID).getMiscEffectId(),
                         levelInfo.getLevelData().getGameLevel().getTicksPerSec()),
-                new CreatureFallSystem(entityData, gameController.getGameTimer(), gameEventService,
-                        gameWorldController.getMapController(), levelInfo.getLevelData().getGameLevel().getTicksPerSec(),
+                new CreatureFallSystem(entityData, gameWorldController.getMapController(),
+                        levelInfo.getLevelData().getGameLevel().getTicksPerSec(),
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.GRAVITY_CONSTANT)));
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));
 

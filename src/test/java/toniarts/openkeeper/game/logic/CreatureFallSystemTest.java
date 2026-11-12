@@ -20,7 +20,9 @@ import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -33,15 +35,18 @@ import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.map.FakeMapData;
 import toniarts.openkeeper.game.map.IMapInformation;
-import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class CreatureFallSystemTest {
 
@@ -54,7 +59,9 @@ class CreatureFallSystemTest {
 
     private DefaultEntityData entityData;
     private final Set<Point> solidTiles = new HashSet<>();
+    private final List<GameEventType> events = new ArrayList<>();
     private CreatureFallSystem fallSystem;
+    private CreatureLandingSystem landingSystem;
 
     @BeforeEach
     void setUp() {
@@ -72,16 +79,20 @@ class CreatureFallSystemTest {
             default -> throw new UnsupportedOperationException(method.getName());
         });
 
-        toniarts.openkeeper.game.event.GameEventService gameEventService = (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
-                toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
-                new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null);
+        GameEventService gameEventService = (GameEventService) Proxy.newProxyInstance(GameEventService.class.getClassLoader(),
+                new Class<?>[]{GameEventService.class}, (proxy, method, args) -> {
+            events.add((GameEventType) args[0]);
+            return null;
+        });
 
-        fallSystem = new CreatureFallSystem(entityData, gameTimer, gameEventService, mapInformation, TICKS_PER_SECOND, GRAVITY_CONSTANT);
+        fallSystem = new CreatureFallSystem(entityData, mapInformation, TICKS_PER_SECOND, GRAVITY_CONSTANT);
+        landingSystem = new CreatureLandingSystem(entityData, gameTimer, gameEventService);
     }
 
     @AfterEach
     void tearDown() {
         fallSystem.stop();
+        landingSystem.stop();
         entityData.close();
     }
 
@@ -98,8 +109,38 @@ class CreatureFallSystemTest {
         fallSystem.processTick(TURN);
 
         assertEquals(new Vector3f(2, WorldUtils.FLOOR_HEIGHT, 4), entityData.getComponent(creature, Position.class).position);
+
+        // The landing is the game logic's
+        assertNotNull(entityData.getComponent(creature, CreatureFall.class));
+        assertNull(entityData.getComponent(creature, CreatureAi.class));
+        assertTrue(events.isEmpty());
+
+        landingSystem.processTick(TURN);
+
         assertNull(entityData.getComponent(creature, CreatureFall.class));
         assertNotNull(entityData.getComponent(creature, CreatureAi.class));
+        assertEquals(List.of(GameEventType.CREATURE_LAND), events);
+    }
+
+    @Test
+    void creatureOnTheFloorWaitsForTheLandingUntouched() {
+        EntityId creature = createThrownCreature(new Vector3f(0, -4, 0));
+        fallSystem.processTick(TURN);
+        CreatureFall creatureFall = entityData.getComponent(creature, CreatureFall.class);
+        Position position = entityData.getComponent(creature, Position.class);
+
+        fallSystem.processTick(TURN);
+
+        // Once down, the animation loop writes nothing that the landing could see come back after it
+        assertSame(creatureFall, entityData.getComponent(creature, CreatureFall.class));
+        assertSame(position, entityData.getComponent(creature, Position.class));
+
+        landingSystem.processTick(TURN);
+        fallSystem.processTick(TURN);
+        landingSystem.processTick(TURN);
+
+        assertNull(entityData.getComponent(creature, CreatureFall.class));
+        assertEquals(List.of(GameEventType.CREATURE_LAND), events, "it lands once");
     }
 
     @Test
@@ -119,8 +160,21 @@ class CreatureFallSystemTest {
 
         fallSystem.processTick(TURN);
 
+        // The damage is given on the game logic thread, the health system works on it there
+        assertNull(entityData.getComponent(creature, Damage.class));
+        assertTrue(entityData.getEntities(EffectTrigger.class).isEmpty());
+
+        landingSystem.processTick(TURN);
+
         assertEquals(50, entityData.getComponent(creature, Damage.class).damage);
         assertEquals(117, entityData.getEntities(EffectTrigger.class).iterator().next().get(EffectTrigger.class).effectId);
+    }
+
+    @Test
+    void droppedCreatureRaisesNoDust() {
+        fall(new CreatureFall(), 3f);
+
+        assertTrue(entityData.getEntities(EffectTrigger.class).isEmpty());
     }
 
     @Test
@@ -153,6 +207,7 @@ class CreatureFallSystemTest {
         entityData.setComponents(creature, creatureComponent, creatureFall,
                 new Position(0, new Vector3f(1, WorldUtils.DROP_HEIGHT, 1)));
         fallSystem.processTick(10f);
+        landingSystem.processTick(TURN);
 
         return creature;
     }

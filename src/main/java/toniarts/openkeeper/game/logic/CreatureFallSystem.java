@@ -20,16 +20,10 @@ import com.jme3.math.Vector3f;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntitySet;
-import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.LeavingDungeon;
 import toniarts.openkeeper.game.component.Position;
-import toniarts.openkeeper.game.controller.IGameTimer;
-import toniarts.openkeeper.game.controller.creature.CreatureState;
-import toniarts.openkeeper.game.controller.entity.EntityController;
-import toniarts.openkeeper.game.event.GameEventService;
-import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -39,6 +33,7 @@ import toniarts.openkeeper.utils.WorldUtils;
  * thingie?<br>
  * A thrown creature flies with its velocity and the gravity of the level, and
  * bounces off the walls with half its speed, as in Dungeon Keeper II (0x4B2030).
+ * This only brings the creature down, the {@link CreatureLandingSystem} lands it.
  *
  * @author Toni Helenius <helenius.toni@gmail.com>
  */
@@ -51,14 +46,7 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
      */
     private static final float GRAVITY_CONSTANT_SCALE = 1 / 256f;
 
-    /**
-     * A thrown creature raises dust as it lands (0x4833C0)
-     */
-    private static final int FOOT_DUST_EFFECT_ID = 117;
-
     private final EntityData entityData;
-    private final IGameTimer gameTimer;
-    private final GameEventService gameEventService;
     private final IMapInformation<?> mapInformation;
     private final int ticksPerSecond;
     private final float gravity;
@@ -69,17 +57,13 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
      * Creates the system
      *
      * @param entityData the entity data
-     * @param gameTimer the game timer
-     * @param gameEventService the game events, the landing is announced
      * @param mapInformation the map, the thrown creatures bounce off its walls
      * @param ticksPerSecond the turns in a second
      * @param gravityConstant the level's gravity constant
      */
-    public CreatureFallSystem(EntityData entityData, IGameTimer gameTimer, GameEventService gameEventService,
-            IMapInformation<?> mapInformation, int ticksPerSecond, float gravityConstant) {
+    public CreatureFallSystem(EntityData entityData, IMapInformation<?> mapInformation, int ticksPerSecond,
+            float gravityConstant) {
         this.entityData = entityData;
-        this.gameTimer = gameTimer;
-        this.gameEventService = gameEventService;
         this.mapInformation = mapInformation;
         this.ticksPerSecond = ticksPerSecond;
         this.gravity = gravityConstant * GRAVITY_CONSTANT_SCALE;
@@ -107,6 +91,14 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
                 // In the keeper's hand, nothing to do
                 continue;
             }
+            if (position.position.y <= floorHeight) {
+
+                // Down already, waiting for the game logic to land it
+                continue;
+            }
+
+            // The flight writes the velocity before the position, so the game logic only sees the creature on the
+            // floor after the last CreatureFall write, and the fall can't come back after the landing
             CreatureFall creatureFall = entity.get(CreatureFall.class);
             Position newPosition = new Position(position.rotation, position.position.clone());
             if (creatureFall.velocity != null) {
@@ -115,36 +107,6 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
                 newPosition.position.y = Math.max(newPosition.position.y - tpf * GRAVITY, floorHeight);
             }
             entityData.setComponent(entity.getId(), newPosition);
-            if (newPosition.position.y == floorHeight) {
-
-                // A creature dropped on the middle of its keeper's portal doesn't get up, the
-                // CreatureLeaveSystem sends it out of the dungeon once the fall is over
-                if (leaving) {
-                    gameEventService.emit(GameEventType.CREATURE_LAND, entity.getId(), newPosition.position);
-                    entityData.removeComponent(entity.getId(), CreatureFall.class);
-                    continue;
-                }
-
-                // We'll just remove this and add the AI
-                entityData.removeComponent(entity.getId(), CreatureFall.class);
-                if (creatureFall.damage > 0) {
-                    EntityController.setDamage(entityData, entity.getId(), creatureFall.damage);
-                }
-                if (creatureFall.velocity != null) {
-                    EffectTriggers.trigger(entityData, FOOT_DUST_EFFECT_ID, newPosition.position, gameTimer.getGameTime());
-                }
-
-                // The landing, on touchdown (hand drops and conjured creatures alike)
-                gameEventService.emit(GameEventType.CREATURE_LAND, entity.getId(), newPosition.position);
-
-                // Preserve any requested AI target through landing and get-up.
-                // The state, depending on the landing
-                CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
-                boolean stunned = !entity.get(CreatureFall.class).conjured && creatureComponent.stunDuration > 0f;
-                CreatureAi ai = entityData.getComponent(entity.getId(), CreatureAi.class);
-                entityData.setComponent(entity.getId(), new CreatureAi(gameTimer.getGameTime(), stunned ? CreatureState.FALLEN : CreatureState.IDLE, creatureComponent.creatureId,
-                        ai == null ? null : ai.getTargetState()));
-            }
         }
     }
 

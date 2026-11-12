@@ -1,0 +1,122 @@
+/*
+ * Copyright (C) 2014-2018 OpenKeeper
+ *
+ * OpenKeeper is free software: you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation, either version 3 of the License, or
+ * (at your option) any later version.
+ *
+ * OpenKeeper is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with OpenKeeper.  If not, see <http://www.gnu.org/licenses/>.
+ */
+package toniarts.openkeeper.game.logic;
+
+import com.simsilica.es.Entity;
+import com.simsilica.es.EntityData;
+import com.simsilica.es.EntitySet;
+import toniarts.openkeeper.game.component.CreatureAi;
+import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureFall;
+import toniarts.openkeeper.game.component.LeavingDungeon;
+import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.controller.IGameTimer;
+import toniarts.openkeeper.game.controller.creature.CreatureState;
+import toniarts.openkeeper.game.controller.entity.EntityController;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
+import toniarts.openkeeper.utils.WorldUtils;
+
+/**
+ * Lands the creatures that the {@link CreatureFallSystem} has brought down to the floor. The fall is animated
+ * on the animation loop, but the landing changes the AI state of the creature and damages a thrown one, so it
+ * is done here on the game logic thread, like everything else that touches the AI and the damage.
+ */
+public final class CreatureLandingSystem implements IGameLogicUpdatable {
+
+    /**
+     * A thrown creature raises dust as it lands (0x4833C0)
+     */
+    private static final int FOOT_DUST_EFFECT_ID = 117;
+
+    private final EntityData entityData;
+    private final IGameTimer gameTimer;
+    private final GameEventService gameEventService;
+    private final EntitySet fallEntities;
+
+    /**
+     * Creates the system
+     *
+     * @param entityData the entity data
+     * @param gameTimer the game timer
+     * @param gameEventService the game events, the landing is announced
+     */
+    public CreatureLandingSystem(EntityData entityData, IGameTimer gameTimer, GameEventService gameEventService) {
+        this.entityData = entityData;
+        this.gameTimer = gameTimer;
+        this.gameEventService = gameEventService;
+
+        // Position is not in the set, a set gets every change of its components, and Position changes with every step of every creature
+        fallEntities = entityData.getEntities(CreatureFall.class, CreatureComponent.class);
+    }
+
+    @Override
+    public void processTick(float tpf) {
+        fallEntities.applyChanges();
+
+        for (Entity entity : fallEntities) {
+
+            // Like in DK II, the floor in the middle of the portal is a level lower, the creature falls through
+            boolean leaving = entityData.getComponent(entity.getId(), LeavingDungeon.class) != null;
+            float floorHeight = leaving ? WorldUtils.UNDERFLOOR_HEIGHT : WorldUtils.FLOOR_HEIGHT;
+            Position position = entityData.getComponent(entity.getId(), Position.class);
+            if (position == null || position.position.y > floorHeight) {
+
+                // In the keeper's hand or still falling
+                continue;
+            }
+
+            CreatureFall creatureFall = entity.get(CreatureFall.class);
+            entityData.removeComponent(entity.getId(), CreatureFall.class);
+
+            // The landing, on touchdown (hand drops and conjured creatures alike)
+            gameEventService.emit(GameEventType.CREATURE_LAND, entity.getId(), position.position);
+
+            // A creature dropped on the middle of its keeper's portal doesn't get up, the
+            // CreatureLeaveSystem sends it out of the dungeon once the fall is over
+            if (leaving) {
+                continue;
+            }
+
+            if (creatureFall.damage > 0) {
+                EntityController.setDamage(entityData, entity.getId(), creatureFall.damage);
+            }
+            if (creatureFall.velocity != null) {
+                EffectTriggers.trigger(entityData, FOOT_DUST_EFFECT_ID, position.position, gameTimer.getGameTime());
+            }
+
+            // Preserve any requested AI target through landing and get-up.
+            // The state, depending on the landing
+            CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
+            boolean stunned = !creatureFall.conjured && creatureComponent.stunDuration > 0f;
+            CreatureAi ai = entityData.getComponent(entity.getId(), CreatureAi.class);
+            entityData.setComponent(entity.getId(), new CreatureAi(gameTimer.getGameTime(), stunned ? CreatureState.FALLEN : CreatureState.IDLE, creatureComponent.creatureId,
+                    ai == null ? null : ai.getTargetState()));
+        }
+    }
+
+    @Override
+    public void start() {
+
+    }
+
+    @Override
+    public void stop() {
+        fallEntities.release();
+    }
+
+}

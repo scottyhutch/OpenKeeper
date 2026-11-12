@@ -44,8 +44,9 @@ class CreatureLeaveSystemTest {
     private final EntityData entityData = new DefaultEntityData();
     private final List<EntityId> left = new ArrayList<>();
     private final List<GameEventType> events = new ArrayList<>();
-    private final CreatureFallSystem fallSystem = new CreatureFallSystem(entityData, () -> 0,
-            proxy(GameEventService.class, args -> events.add((GameEventType) args[0])), null, 4, 0f);
+    private final CreatureFallSystem fallSystem = new CreatureFallSystem(entityData, null, 4, 0f);
+    private final CreatureLandingSystem landingSystem = new CreatureLandingSystem(entityData, () -> 0,
+            proxy(GameEventService.class, args -> events.add((GameEventType) args[0])));
     private final CreatureLeaveSystem leaveSystem = new CreatureLeaveSystem(entityData,
             proxy(ICreaturesController.class, args -> {
                 left.add((EntityId) args[0]);
@@ -59,6 +60,13 @@ class CreatureLeaveSystemTest {
         // Still falling
         leaveSystem.processTick(0.1f);
         assertTrue(left.isEmpty());
+
+        // The floor of the room doesn't stop it
+        fallSystem.processTick(.25f);
+        landingSystem.processTick(.25f);
+        assertEquals(WorldUtils.FLOOR_HEIGHT, entityData.getComponent(creature, Position.class).position.y);
+        assertNotNull(entityData.getComponent(creature, CreatureFall.class));
+        assertTrue(events.isEmpty());
 
         land();
         assertEquals(List.of(GameEventType.CREATURE_LAND), events);
@@ -96,6 +104,7 @@ class CreatureLeaveSystemTest {
 
     private void land() {
         fallSystem.processTick(1f);
+        landingSystem.processTick(.25f);
     }
 
     @SuppressWarnings("unchecked")
