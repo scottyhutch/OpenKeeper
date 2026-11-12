@@ -84,7 +84,8 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
         this.ticksPerSecond = ticksPerSecond;
         this.gravity = gravityConstant * GRAVITY_CONSTANT_SCALE;
 
-        fallEntities = entityData.getEntities(CreatureFall.class, Position.class, CreatureComponent.class);
+        // Position is not in the set, a set gets every change of its components, and Position changes with every step of every creature
+        fallEntities = entityData.getEntities(CreatureFall.class, CreatureComponent.class);
         leavingEntities = entityData.getEntities(LeavingDungeon.class);
     }
 
@@ -100,7 +101,12 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
             // Like in DK II, the floor in the middle of the portal is a level lower, the creature falls through
             boolean leaving = leavingEntities.containsId(entity.getId());
             float floorHeight = leaving ? WorldUtils.UNDERFLOOR_HEIGHT : WorldUtils.FLOOR_HEIGHT;
-            Position position = entity.get(Position.class);
+            Position position = entityData.getComponent(entity.getId(), Position.class);
+            if (position == null) {
+
+                // In the keeper's hand, nothing to do
+                continue;
+            }
             CreatureFall creatureFall = entity.get(CreatureFall.class);
             Position newPosition = new Position(position.rotation, position.position.clone());
             if (creatureFall.velocity != null) {
@@ -108,7 +114,7 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
             } else {
                 newPosition.position.y = Math.max(newPosition.position.y - tpf * GRAVITY, floorHeight);
             }
-            entity.set(newPosition);
+            entityData.setComponent(entity.getId(), newPosition);
             if (newPosition.position.y == floorHeight) {
 
                 // A creature dropped on the middle of its keeper's portal doesn't get up, the
