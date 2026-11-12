@@ -52,6 +52,8 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.utils.Point;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -296,7 +298,8 @@ class WorkerTaskAssignmentTest {
             default -> null;
         });
         IGameWorldController gameWorldController = stub(IGameWorldController.class, (name, args) -> null);
-        ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> null);
+        IKwdFile kwdFile = stub(IKwdFile.class, (name, args) -> "getGameLevel".equals(name) ? CreatureSleepFixtures.level(4) : null);
+        ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> "getLevelData".equals(name) ? kwdFile : null);
         ICreaturesController creaturesController = stub(ICreaturesController.class, (name, args) -> switch (name) {
             case "createController" -> knockedOutCreature((EntityId) args[0]);
             default -> null;
