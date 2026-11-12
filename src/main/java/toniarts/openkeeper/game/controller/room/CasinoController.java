@@ -21,8 +21,11 @@ import com.simsilica.es.EntityId;
 import java.util.HashMap;
 import java.util.Map;
 import toniarts.openkeeper.common.RoomInstance;
-import toniarts.openkeeper.game.component.CasinoPayOut;
+import toniarts.openkeeper.game.component.Casino;
+import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.component.ObjectComponent;
+import toniarts.openkeeper.game.component.ObjectViewState;
+import toniarts.openkeeper.game.component.ObjectViewState.GameObjectAnimState;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.IObjectsController;
@@ -38,23 +41,6 @@ import toniarts.openkeeper.utils.WorldUtils;
  */
 public final class CasinoController extends NormalRoomController {
 
-    /**
-     * How the casino pays out. In DK II the keeper switches this with the pay
-     * out adjuster in the casino.
-     */
-    public enum PayOut {
-
-        /**
-         * The gamblers win gold and cheer up, the keeper pays
-         */
-        SMILES,
-        /**
-         * The gamblers lose gold and get angrier, the keeper takes it
-         */
-        MONEY;
-
-    }
-
     private static final short OBJECT_PAY_OUT_ADJUSTER_ID = 95;
 
     private final IGameTimer gameTimer;
@@ -65,16 +51,15 @@ public final class CasinoController extends NormalRoomController {
         super(entityId, entityData, kwdFile, roomInstance, objectsController, ObjectType.GAMBLER);
 
         this.gameTimer = gameTimer;
+
+        if (getEntityComponent(Casino.class) == null) {
+            setPayOut(PayOut.SMILES);
+        }
     }
 
     @Override
     public void construct() {
         super.construct();
-
-        // A new casino pays out in smiles, like in DK II
-        if (getEntityComponent(CasinoPayOut.class) == null) {
-            setPayOut(PayOut.SMILES);
-        }
 
         addObjectControl(new RoomGamblerControl(kwdFile, this, entityData, gameTimer));
     }
@@ -90,8 +75,7 @@ public final class CasinoController extends NormalRoomController {
      * @return the pay out setting
      */
     public PayOut getPayOut() {
-        PayOut payOut = getCasinoPayOut();
-        return payOut != null ? payOut : PayOut.SMILES;
+        return getEntityComponent(Casino.class).payOut;
     }
 
     /**
@@ -100,7 +84,22 @@ public final class CasinoController extends NormalRoomController {
      * @param payOut the pay out setting
      */
     public void setPayOut(PayOut payOut) {
-        entityData.setComponent(entityId, new CasinoPayOut(payOut));
+        entityData.setComponent(entityId, new Casino(payOut));
+        showPayOut();
+    }
+
+    /**
+     * The pay out adjuster has no model of its own, it shows one of its two
+     * indicators: the first one while the Casino pays out in smiles, the second
+     * one when it takes money (DK II 0x4D6890)
+     */
+    private void showPayOut() {
+        ObjectViewState viewState = payOutAdjuster != null ? entityData.getComponent(payOutAdjuster, ObjectViewState.class) : null;
+        if (viewState != null) {
+            entityData.setComponent(payOutAdjuster, new ObjectViewState(viewState.objectId, viewState.state,
+                    getPayOut() == PayOut.SMILES ? GameObjectAnimState.ADDITIONAL_RESOURCE_1 : GameObjectAnimState.ADDITIONAL_RESOURCE_2,
+                    viewState.visible));
+        }
     }
 
     @Override
@@ -110,7 +109,9 @@ public final class CasinoController extends NormalRoomController {
             return false;
         }
 
-        // The pay out adjuster switches how the casino pays out, like in DK II
+        // The pay out adjuster switches how the casino pays out, like in DK II. A controller built again on the
+        // room's entities took the furniture over without placing it, so this is the adjuster to show it on
+        payOutAdjuster = furniture;
         setPayOut(getPayOut() == PayOut.SMILES ? PayOut.MONEY : PayOut.SMILES);
         return true;
     }
@@ -137,6 +138,7 @@ public final class CasinoController extends NormalRoomController {
                 floorFurniture.remove(piece);
                 entityData.removeEntity(piece);
                 payOutAdjuster = objectsController.loadObject(OBJECT_PAY_OUT_ADJUSTER_ID, roomInstance.getOwnerId(), p.x, p.y);
+                showPayOut();
                 return;
             }
         }

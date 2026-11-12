@@ -22,11 +22,13 @@ import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.component.ObjectComponent;
+import toniarts.openkeeper.game.component.ObjectViewState;
+import toniarts.openkeeper.game.component.ObjectViewState.GameObjectAnimState;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
-import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -37,17 +39,12 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static toniarts.openkeeper.tools.convert.map.RoomFixtures.roomWithObjects;
 
-class CasinoPayOutTest {
+class CasinoPayOutAdjusterTest {
 
     private static final short PAY_OUT_ADJUSTER = 95;
     private static final short ROULETTE_TABLE = 87;
 
     private final EntityData entityData = new DefaultEntityData();
-
-    @Test
-    void newCasinoPaysOutInSmiles() {
-        assertEquals(PayOut.SMILES, buildCasino(5).getPayOut());
-    }
 
     @Test
     void adjusterTakesTheFirstFurnitureTileWithNoFurnitureAbove() {
@@ -68,6 +65,27 @@ class CasinoPayOutTest {
         assertEquals(PayOut.MONEY, casino.getPayOut());
         assertTrue(casino.switchFurniture(adjuster));
         assertEquals(PayOut.SMILES, casino.getPayOut());
+    }
+
+    @Test
+    void adjusterShowsTheIndicatorOfThePayOut() {
+        CasinoController casino = buildCasino(5);
+        EntityId adjuster = findObject(PAY_OUT_ADJUSTER);
+
+        assertEquals(GameObjectAnimState.ADDITIONAL_RESOURCE_1, entityData.getComponent(adjuster, ObjectViewState.class).animState);
+        casino.switchFurniture(adjuster);
+        assertEquals(GameObjectAnimState.ADDITIONAL_RESOURCE_2, entityData.getComponent(adjuster, ObjectViewState.class).animState);
+    }
+
+    @Test
+    void adjusterOfAControllerBuiltAgainShowsTheIndicatorOfThePayOut() {
+        CasinoController casino = buildCasino(5);
+        EntityId adjuster = findObject(PAY_OUT_ADJUSTER);
+
+        // A controller built again on the room's entities doesn't place the furniture
+        CasinoController rebuilt = new CasinoController(casino.getEntityId(), entityData, null, casino.getRoomInstance(), null, null);
+        rebuilt.switchFurniture(adjuster);
+        assertEquals(GameObjectAnimState.ADDITIONAL_RESOURCE_2, entityData.getComponent(adjuster, ObjectViewState.class).animState);
     }
 
     @Test
@@ -123,6 +141,7 @@ class CasinoPayOutTest {
                     EntityId entityId = entityData.createEntity();
                     entityData.setComponents(entityId,
                             new ObjectComponent((short) args[0], null),
+                            new ObjectViewState((short) args[0], null, GameObjectAnimState.MESH_RESOURCE, true),
                             new Position(0, WorldUtils.pointToVector3f((int) args[2], (int) args[3])));
                     return entityId;
                 });

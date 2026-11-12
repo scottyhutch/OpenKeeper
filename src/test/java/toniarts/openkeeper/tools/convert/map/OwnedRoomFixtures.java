@@ -14,25 +14,27 @@
  * You should have received a copy of the GNU General Public License
  * along with OpenKeeper.  If not, see <http://www.gnu.org/licenses/>.
  */
-package toniarts.openkeeper.game.component;
+package toniarts.openkeeper.tools.convert.map;
 
-import com.simsilica.es.EntityComponent;
-import toniarts.openkeeper.game.controller.room.CasinoController;
+import java.util.EnumSet;
 
 /**
- * How a Casino pays out. In DK II the keeper switches it with the Casino Pay
- * Out Adjuster
+ * Builds {@link Room} fixtures for the room availability tests. Lives in the
+ * data classes' own package because their setters are {@code protected}
+ * (parser-only).
  */
-public final class CasinoPayOut implements EntityComponent {
+public final class OwnedRoomFixtures {
 
-    public CasinoController.PayOut payOut;
-
-    public CasinoPayOut() {
-        // For serialization
+    private OwnedRoomFixtures() {
     }
 
-    public CasinoPayOut(CasinoController.PayOut payOut) {
-        this.payOut = payOut;
+    public static Room buildableRoom(short roomId, short orderInEditor) {
+        Room room = new Room();
+        room.setRoomId(roomId);
+        room.setName("Room " + roomId);
+        room.setOrderInEditor(orderInEditor);
+        room.setFlags(EnumSet.of(Room.RoomFlag.BUILDABLE));
+        return room;
     }
 
 }
