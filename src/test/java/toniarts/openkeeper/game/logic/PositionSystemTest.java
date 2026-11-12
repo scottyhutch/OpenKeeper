@@ -17,14 +17,17 @@
 package toniarts.openkeeper.game.logic;
 
 import com.jme3.math.Vector3f;
+import com.simsilica.es.EntityComponent;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.List;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.DoorComponent;
+import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
@@ -46,7 +49,18 @@ class PositionSystemTest {
     private static final short WOODEN_DOOR = 1;
     private static final Point TILE = new Point(2, 2);
 
-    private final EntityData entityData = new DefaultEntityData();
+    private boolean logicTicksDuringSteering;
+    private final EntityData entityData = new DefaultEntityData() {
+
+        @Override
+        public <T extends EntityComponent> T getComponent(EntityId entityId, Class<T> type) {
+            if (logicTicksDuringSteering && type == Position.class) {
+                logicTicksDuringSteering = false;
+                positionSystem.processTick(0.25f);
+            }
+            return super.getComponent(entityId, type);
+        }
+    };
     private PositionSystem positionSystem;
     private EntityId door;
 
@@ -136,6 +150,32 @@ class PositionSystemTest {
         walkTo(own, TILE);
 
         assertEquals(new Point(1, 2), WorldUtils.vectorToPoint(entityData.getComponent(own, Position.class).position));
+    }
+
+    /**
+     * The steering loop runs on its own thread. The game logic pushes the
+     * enemy back while the steering loop is in the middle of a step, the rest
+     * of that step must not walk the enemy into the door after all.
+     */
+    @Test
+    void steeringLeavesAPushedBackEnemyWhereItWasPut() {
+        entityData.setComponent(door, new DoorComponent(WOODEN_DOOR, false, false));
+        positionSystem.processTick(0.25f);
+        EntityId enemy = entityData.createEntity();
+        entityData.setComponents(enemy, new Owner(ENEMY, ENEMY), new Position(0, WorldUtils.pointToVector3f(new Point(1, 2))),
+                new Mobile(false, false, false, 1), new Navigation(new Point(3, 2), null,
+                        List.of(WorldUtils.pointToVector2(new Point(1, 2)), WorldUtils.pointToVector2(new Point(3, 2)))));
+        positionSystem.processTick(0.25f);
+        MovementSystem movementSystem = new MovementSystem(entityData);
+
+        // A path planned before the door was built carries the enemy into the door tile
+        for (int frame = 0; frame < 300 && entityData.getComponent(enemy, Navigation.class) != null; frame++) {
+            logicTicksDuringSteering = TILE.equals(WorldUtils.vectorToPoint(entityData.getComponent(enemy, Position.class).position));
+            movementSystem.processTick(1 / 60f);
+        }
+
+        assertNull(entityData.getComponent(enemy, Navigation.class));
+        assertEquals(WorldUtils.pointToVector3f(new Point(1, 2)), entityData.getComponent(enemy, Position.class).position);
     }
 
 }

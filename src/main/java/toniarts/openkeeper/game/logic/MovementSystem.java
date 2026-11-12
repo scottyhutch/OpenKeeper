@@ -204,9 +204,10 @@ public final class MovementSystem implements IGameLogicUpdatable {
             steerableEntity.setOrientation(newOrientation);
         }
 
-        // Also update the real components
+        // Also update the real components. Not when the game logic has taken the path away since we last
+        // applied the changes: it has stopped the entity and decides where it stands (pushed back from a door)
         Position oldPosition = entityData.getComponent(entityId, Position.class);
-        if (oldPosition != null) {
+        if (oldPosition != null && entityData.getComponent(entityId, Navigation.class) != null) {
 
             // Re-use the vector, the position might be already removed from another thread
             oldPosition.position.x = steerableEntity.getPosition().x;
