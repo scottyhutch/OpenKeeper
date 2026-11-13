@@ -91,6 +91,18 @@ public final class PrisonController extends DoubleQuadController {
     }
 
     /**
+     * Tells whether the tile is inside the cage, where the prisoners are
+     * held. Like in DK II (DKII.EXE 0x4E5A70, 0x454110), the tiles around the
+     * cage hold nobody
+     *
+     * @param tile the tile
+     * @return true if the tile is inside the cage
+     */
+    public boolean isCageTile(Point tile) {
+        return insideCoordinates.contains(tile);
+    }
+
+    /**
      * Opens or closes the Prison. In DK II the keeper does this by clicking
      * the Prison Door Bar
      *

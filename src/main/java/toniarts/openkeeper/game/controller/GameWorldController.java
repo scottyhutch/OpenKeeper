@@ -70,6 +70,7 @@ import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.CombatPitController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.controller.room.PrisonController;
 import toniarts.openkeeper.game.controller.room.TempleController;
 import toniarts.openkeeper.game.controller.room.ThreeByThreeController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
@@ -1444,7 +1445,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         if (roomController != null) {
             Owner owner = entityData.getComponent(entity, Owner.class);
             boolean imp = entityData.getComponent(entity, CreatureComponent.class).creatureId == kwdFile.getImp().getCreatureId();
-            CreatureState captiveState = getCaptiveState(roomController, owner.ownerId, imp);
+            CreatureState captiveState = getCaptiveState(roomController, tile, owner.ownerId, imp);
             if (captiveState == CreatureState.IMPRISONED) {
                 roomController.getObjectControl(AbstractRoomController.ObjectType.PRISONER).addItem(entity, tile);
                 creatureState = CreatureState.IMPRISONED;
@@ -1545,18 +1546,20 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
     /**
      * Get the state of a creature the keeper drops into a room. Enemies are
-     * imprisoned in a prison. Like in DK II, a torture chamber tortures any
-     * creature, also the keeper's own except its Imps, only enemies can be
-     * converted there.
+     * imprisoned in a prison, but like in DK II (DKII.EXE 0x46EAB0, 0x4E5A70)
+     * only inside its cage, on the tiles around it they are just dropped. Like
+     * in DK II, a torture chamber tortures any creature, also the keeper's own
+     * except its Imps, only enemies can be converted there.
      *
      * @param roomController the room the creature is dropped into, may be
      * {@code null}
+     * @param tile the tile the creature is dropped on
      * @param creatureOwnerId the owner of the creature
      * @param imp whether the creature is an Imp
      * @return {@link CreatureState#IMPRISONED}, {@link CreatureState#TORTURED}
      * or {@code null} if the creature is just dropped
      */
-    static CreatureState getCaptiveState(IRoomController roomController, short creatureOwnerId, boolean imp) {
+    static CreatureState getCaptiveState(IRoomController roomController, Point tile, short creatureOwnerId, boolean imp) {
         if (roomController == null) {
             return null;
         }
@@ -1564,7 +1567,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             return (imp && roomController.getRoomInstance().getOwnerId() == creatureOwnerId ? null : CreatureState.TORTURED);
         }
         if (roomController.getRoomInstance().getOwnerId() != creatureOwnerId
-                && roomController.hasObjectControl(AbstractRoomController.ObjectType.PRISONER)) {
+                && roomController instanceof PrisonController prison && prison.isCageTile(tile)) {
             return CreatureState.IMPRISONED;
         }
         return null;

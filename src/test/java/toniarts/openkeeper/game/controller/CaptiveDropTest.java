@@ -16,13 +16,18 @@
  */
 package toniarts.openkeeper.game.controller;
 
+import com.simsilica.es.EntityData;
+import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.controller.room.PrisonController;
 import toniarts.openkeeper.tools.convert.map.Room;
+import toniarts.openkeeper.tools.convert.map.RoomFixtures;
+import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -36,41 +41,80 @@ class CaptiveDropTest {
 
     private static final short KEEPER_ID = 3;
     private static final short HERO_ID = 1;
+    private static final Point CAGE = new Point(2, 2);
 
     @Test
     void enemyIsTortured() {
-        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), HERO_ID, false));
+        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), CAGE, HERO_ID, false));
     }
 
     @Test
     void ownCreatureIsTortured() {
-        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), KEEPER_ID, false));
+        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), CAGE, KEEPER_ID, false));
     }
 
     @Test
     void ownImpIsNotTortured() {
-        assertNull(GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), KEEPER_ID, true));
+        assertNull(GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), CAGE, KEEPER_ID, true));
     }
 
     @Test
     void enemyImpIsTortured() {
-        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), HERO_ID, true));
+        assertEquals(CreatureState.TORTURED, GameWorldController.getCaptiveState(room(ObjectType.TORTUREE), CAGE, HERO_ID, true));
     }
 
     @Test
     void enemyIsImprisoned() {
-        assertEquals(CreatureState.IMPRISONED, GameWorldController.getCaptiveState(room(ObjectType.PRISONER), HERO_ID, false));
+        assertEquals(CreatureState.IMPRISONED, GameWorldController.getCaptiveState(prison(), CAGE, HERO_ID, false));
+    }
+
+    @Test
+    void enemyAroundTheCageIsNotImprisoned() {
+        assertNull(GameWorldController.getCaptiveState(prison(), new Point(1, 2), HERO_ID, false));
+        assertNull(GameWorldController.getCaptiveState(prison(), new Point(3, 3), HERO_ID, false));
     }
 
     @Test
     void ownCreatureIsNotImprisoned() {
-        assertNull(GameWorldController.getCaptiveState(room(ObjectType.PRISONER), KEEPER_ID, false));
+        assertNull(GameWorldController.getCaptiveState(prison(), CAGE, KEEPER_ID, false));
+    }
+
+    @Test
+    void ownCreatureIsNotImprisonedInACapturedPrison() {
+        PrisonController prison = prison();
+        prison.getRoomInstance().setOwnerId(HERO_ID);
+
+        prison.captured(KEEPER_ID);
+
+        assertNull(GameWorldController.getCaptiveState(prison, CAGE, KEEPER_ID, false));
+        assertEquals(CreatureState.IMPRISONED, GameWorldController.getCaptiveState(prison, CAGE, HERO_ID, false));
     }
 
     @Test
     void otherRoomsHoldNoCaptives() {
-        assertNull(GameWorldController.getCaptiveState(room(ObjectType.LAIR), HERO_ID, false));
-        assertNull(GameWorldController.getCaptiveState(null, HERO_ID, false));
+        assertNull(GameWorldController.getCaptiveState(room(ObjectType.LAIR), CAGE, HERO_ID, false));
+        assertNull(GameWorldController.getCaptiveState(null, CAGE, HERO_ID, false));
+    }
+
+    /**
+     * A 3 by 3 Prison of the keeper, the cage is its middle tile
+     */
+    private static PrisonController prison() {
+        EntityData entityData = new DefaultEntityData();
+        IObjectsController objectsController = (IObjectsController) Proxy.newProxyInstance(IObjectsController.class.getClassLoader(),
+                new Class<?>[]{IObjectsController.class}, (proxy, method, args) -> method.getName().equals("loadObject") ? entityData.createEntity() : null);
+
+        // Prison objects in DK II: Skull, Bone and Lavatory
+        RoomInstance roomInstance = new RoomInstance(RoomFixtures.roomWithObjects((short) 11, (short) 49, (short) 50, (short) 51, (short) 0, (short) 0, (short) 0));
+        roomInstance.setOwnerId(KEEPER_ID);
+        for (int x = 1; x <= 3; x++) {
+            for (int y = 1; y <= 3; y++) {
+                roomInstance.addCoordinate(new Point(x, y));
+            }
+        }
+        PrisonController prison = new PrisonController(entityData.createEntity(), entityData, null, roomInstance, objectsController, null);
+        prison.construct();
+        return prison;
     }
 
     private static IRoomController room(ObjectType objectType) {
