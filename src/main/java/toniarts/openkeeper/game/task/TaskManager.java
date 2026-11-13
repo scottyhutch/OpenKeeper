@@ -118,7 +118,6 @@ import toniarts.openkeeper.game.task.objective.KillCreatures;
 import toniarts.openkeeper.game.task.objective.KillPlayer;
 import toniarts.openkeeper.game.task.objective.SendToActionPoint;
 import toniarts.openkeeper.game.task.objective.StealGold;
-import toniarts.openkeeper.game.task.worker.AbstractDeliverCrateTask;
 import toniarts.openkeeper.game.task.worker.ArmTrapTask;
 import toniarts.openkeeper.game.task.worker.BuildDoorTask;
 import toniarts.openkeeper.game.task.worker.CaptureEnemyCreatureTask;
@@ -129,6 +128,8 @@ import toniarts.openkeeper.game.task.worker.CarryObjectToStorageTask;
 import toniarts.openkeeper.game.task.worker.ClaimRoomTask;
 import toniarts.openkeeper.game.task.worker.ClaimTileTask;
 import toniarts.openkeeper.game.task.worker.ClaimWallTileTask;
+import toniarts.openkeeper.game.task.worker.DeliverDoorCrateTask;
+import toniarts.openkeeper.game.task.worker.DeliverTrapCrateTask;
 import toniarts.openkeeper.game.task.worker.DigTileTask;
 import toniarts.openkeeper.game.task.worker.FetchCorpseTask;
 import toniarts.openkeeper.game.task.worker.FetchObjectTask;
@@ -178,7 +179,8 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     private final EntitySet doorBlueprintEntities;
     private final EntitySet crateEntities;
     private final WorkshopOrders workshopOrders;
-    private final Map<EntityId, AbstractDeliverCrateTask> crateDeliveryTasks = new HashMap<>();
+    private final Map<EntityId, ArmTrapTask> armTrapTasks = new HashMap<>();
+    private final Map<EntityId, BuildDoorTask> buildDoorTasks = new HashMap<>();
     private boolean crateDeliveryTasksScanned = false;
     private final Map<Short, Set<Task>> taskQueues;
     private final Map<Long, Task> tasksByIds = new HashMap<>();
@@ -311,19 +313,17 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      * if there is one
      */
     private void updateCrateDeliveryTasks() {
-        Iterator<AbstractDeliverCrateTask> iter = crateDeliveryTasks.values().iterator();
-        while (iter.hasNext()) {
-            AbstractDeliverCrateTask task = iter.next();
-            if (task.isRemovable()) {
-                iter.remove();
-                for (Set<Task> tasks : taskQueues.values()) {
-                    tasks.remove(task);
-                }
-            }
+        removeFinishedTasks(armTrapTasks.values());
+        removeFinishedTasks(buildDoorTasks.values());
+        for (Set<Task> tasks : taskQueues.values()) {
+            tasks.removeIf(task -> (task instanceof DeliverTrapCrateTask || task instanceof DeliverDoorCrateTask) && task.isRemovable());
         }
 
-        Map<EntityId, EntityId> underWay = HashMap.newHashMap(crateDeliveryTasks.size());
-        for (AbstractDeliverCrateTask task : crateDeliveryTasks.values()) {
+        Map<EntityId, EntityId> underWay = HashMap.newHashMap(armTrapTasks.size() + buildDoorTasks.size());
+        for (ArmTrapTask task : armTrapTasks.values()) {
+            underWay.put(task.getBlueprint(), task.getCrate());
+        }
+        for (BuildDoorTask task : buildDoorTasks.values()) {
             underWay.put(task.getBlueprint(), task.getCrate());
         }
         for (Short playerId : taskQueues.keySet()) {
@@ -332,8 +332,10 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             for (Entry<EntityId, EntityId> delivery : CrateDeliveries.next(trapBlueprints, getCrates(ResearchableType.TRAP, playerId),
                     underWay).entrySet()) {
                 Point tile = WorldUtils.vectorToPoint(trapBlueprintEntities.getEntity(delivery.getKey()).get(Position.class).position);
-                addCrateDeliveryTask(playerId, new ArmTrapTask(navigationService, mapController, entityData,
-                        gameWorldController.getTrapsController(), objectsController, delivery.getKey(), tile, delivery.getValue(), playerId));
+                ArmTrapTask task = new ArmTrapTask(this, navigationService, mapController, entityData, gameWorldController.getTrapsController(),
+                        objectsController, delivery.getKey(), tile, delivery.getValue(), playerId);
+                armTrapTasks.put(delivery.getKey(), task);
+                addTask(playerId, task);
             }
 
             SequencedMap<EntityId, Short> doorBlueprints = getBlueprints(doorBlueprintEntities, playerId,
@@ -341,8 +343,10 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             for (Entry<EntityId, EntityId> delivery : CrateDeliveries.next(doorBlueprints, getCrates(ResearchableType.DOOR, playerId),
                     underWay).entrySet()) {
                 Point tile = WorldUtils.vectorToPoint(doorBlueprintEntities.getEntity(delivery.getKey()).get(Position.class).position);
-                addCrateDeliveryTask(playerId, new BuildDoorTask(navigationService, mapController, entityData,
-                        gameWorldController.getDoorsController(), objectsController, delivery.getKey(), tile, delivery.getValue(), playerId));
+                BuildDoorTask task = new BuildDoorTask(this, navigationService, mapController, entityData, gameWorldController.getDoorsController(),
+                        objectsController, delivery.getKey(), tile, delivery.getValue(), playerId);
+                buildDoorTasks.put(delivery.getKey(), task);
+                addTask(playerId, task);
             }
         }
     }
@@ -383,9 +387,23 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         return crates;
     }
 
-    private void addCrateDeliveryTask(short playerId, AbstractDeliverCrateTask task) {
-        crateDeliveryTasks.put(task.getBlueprint(), task);
-        addTask(playerId, task);
+    /**
+     * Drops the fetch tasks that are done or can't be done anymore, from the
+     * given tasks and from the task queues
+     *
+     * @param fetchTasks the trap or door crate fetch tasks
+     */
+    private void removeFinishedTasks(Collection<? extends Task> fetchTasks) {
+        Iterator<? extends Task> iter = fetchTasks.iterator();
+        while (iter.hasNext()) {
+            Task task = iter.next();
+            if (task.isRemovable()) {
+                iter.remove();
+                for (Set<Task> tasks : taskQueues.values()) {
+                    tasks.remove(task);
+                }
+            }
+        }
     }
 
     /**
@@ -821,6 +839,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         }
     }
 
+    @Override
     public void addTask(short playerId, Task task) {
         ThreadCheck.logic("TaskManager.addTask");
         Set<Task> tasks = taskQueues.get(playerId);

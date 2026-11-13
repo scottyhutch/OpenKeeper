@@ -34,12 +34,15 @@ import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.object.IObjectController;
 import toniarts.openkeeper.game.data.ResearchableType;
+import toniarts.openkeeper.game.task.ITaskManager;
+import toniarts.openkeeper.game.task.Task;
 import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -52,10 +55,11 @@ class BuildDoorTaskTest {
 
     private final EntityData entityData = new DefaultEntityData();
     private final List<EntityId> built = new ArrayList<>();
-    private final List<TaskType> shownTasks = new ArrayList<>();
+    private final List<Task> queued = new ArrayList<>();
     private EntityId blueprint;
     private EntityId crate;
     private ICreatureController imp;
+    private Task assigned;
     private BuildDoorTask task;
 
     @BeforeEach
@@ -65,22 +69,29 @@ class BuildDoorTaskTest {
         crate = entityData.createEntity();
         entityData.setComponents(crate, new Crate(ResearchableType.DOOR, WOODEN_DOOR), at(CRATE_TILE));
         imp = creature(entityData.createEntity());
-        task = new BuildDoorTask(null, null, entityData, doorsController(), objectsController(), blueprint, BLUEPRINT_TILE,
-                crate, PLAYER);
-        task.assign(imp, false);
+        task = new BuildDoorTask(taskManager(), null, null, entityData, doorsController(), objectsController(), blueprint,
+                BLUEPRINT_TILE, crate, PLAYER);
+        task.assign(imp, true);
     }
 
     @Test
-    void impFetchesTheDoorCrateAndDeliversIt() {
+    void impFetchesTheDoorCrateAndGetsTheDelivery() {
         assertEquals(CRATE_TILE, task.getTaskLocation());
         assertEquals(TaskType.FETCH_DOOR_CRATE, task.getTaskType());
 
         task.executeTask(imp, 0);
 
         assertEquals(imp.getEntityId(), entityData.getComponent(crate, HauledBy.class).entityId);
-        assertEquals(BLUEPRINT_TILE, task.getTaskLocation());
-        assertEquals(List.of(TaskType.DELIVER_DOOR_CRATE), shownTasks);
-        assertTrue(task.isValid(imp));
+        assertEquals(List.of(assigned), queued);
+        assertInstanceOf(DeliverDoorCrateTask.class, assigned);
+        assertEquals(TaskType.DELIVER_DOOR_CRATE, assigned.getTaskType());
+        assertEquals(BLUEPRINT_TILE, assigned.getTaskLocation());
+        assertTrue(assigned.isValid(imp));
+
+        // Nobody else fetches the crate while it is carried, but the blueprint still waits for it
+        assertEquals(0, task.getAssigneeCount());
+        assertFalse(task.isValid(creature(entityData.createEntity())));
+        assertFalse(task.isRemovable());
     }
 
     @Test
@@ -88,23 +99,27 @@ class BuildDoorTaskTest {
         task.executeTask(imp, 0);
         assertTrue(built.isEmpty());
 
-        task.executeTask(imp, 0);
+        assigned.executeTask(imp, 0);
 
         assertEquals(List.of(blueprint), built);
         assertNull(entityData.getComponent(crate, Crate.class));
+        assertTrue(assigned.isRemovable());
         assertTrue(task.isRemovable());
     }
 
     @Test
     void droppedCrateWaitsToBeFetchedAgain() {
         task.executeTask(imp, 0);
+        Task delivery = assigned;
         entityData.setComponent(crate, at(new Point(9, 7)));
 
-        task.unassign(imp);
+        delivery.unassign(imp);
 
         assertNull(entityData.getComponent(crate, HauledBy.class));
+        assertTrue(delivery.isRemovable());
         assertEquals(TaskType.FETCH_DOOR_CRATE, task.getTaskType());
         assertEquals(new Point(9, 7), task.getTaskLocation());
+        assertTrue(task.isValid(imp));
         assertFalse(task.isRemovable());
     }
 
@@ -126,12 +141,28 @@ class BuildDoorTaskTest {
         return (ICreatureController) Proxy.newProxyInstance(ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class},
                 (proxy, method, args) -> switch (method.getName()) {
             case "getEntityId" -> entityId;
-            case "updateAssignedTask" -> {
-                shownTasks.add(((BuildDoorTask) args[0]).getTaskType());
+            case "setAssignedTask" -> {
+
+                // As the creature does, the task it had lets go of it
+                if (assigned != null) {
+                    assigned.unassign((ICreatureController) proxy);
+                }
+                assigned = (Task) args[0];
                 yield null;
             }
             case "hashCode" -> System.identityHashCode(proxy);
             case "equals" -> proxy == args[0];
+            default -> throw new UnsupportedOperationException(method.getName());
+        });
+    }
+
+    private ITaskManager taskManager() {
+        return (ITaskManager) Proxy.newProxyInstance(ITaskManager.class.getClassLoader(), new Class<?>[]{ITaskManager.class},
+                (proxy, method, args) -> switch (method.getName()) {
+            case "addTask" -> {
+                queued.add((Task) args[1]);
+                yield null;
+            }
             default -> throw new UnsupportedOperationException(method.getName());
         });
     }
