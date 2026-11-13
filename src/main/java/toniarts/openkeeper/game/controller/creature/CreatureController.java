@@ -278,11 +278,6 @@ public final class CreatureController extends EntityController implements ICreat
     private float motionless = 0;
     private final PathRetryBackoff pathRetryBackoff = new PathRetryBackoff();
 
-    /**
-     * The start time of the last slap this creature reacted to
-     */
-    private double handledSlapTime;
-
     public CreatureController(EntityId entityId, EntityData entityData, Creature creature, INavigationService navigationService,
             ITaskManager taskManager, IGameTimer gameTimer, Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
             ICreaturesController creaturesController, IEntityPositionLookup entityPositionLookup, IMapController mapController,
@@ -315,10 +310,6 @@ public final class CreatureController extends EntityController implements ICreat
                 super.changeState(newState);
             }
         };
-
-        // A slap from before doesn't count
-        Slapped slapped = entityData.getComponent(entityId, Slapped.class);
-        this.handledSlapTime = slapped != null ? slapped.startTime : Double.NaN;
     }
 
     @Override
@@ -2325,10 +2316,10 @@ public final class CreatureController extends EntityController implements ICreat
             entityData.setComponent(entityId, new TaskComponent(taskComponent.taskId, taskComponent.targetEntity, taskComponent.targetLocation, taskComponent.taskType, taskComponent.taskDuration + tpf, taskComponent.taskStarted));
         }
 
-        // A slap interrupts the work
+        // A slap interrupts the work, once per slap
         Slapped slapped = entityData.getComponent(entityId, Slapped.class);
-        if (slapped != null && slapped.startTime != handledSlapTime) {
-            handledSlapTime = slapped.startTime;
+        if (slapped != null && !slapped.reacted) {
+            entityData.setComponent(entityId, new Slapped(slapped.startTime, true));
             interruptWork();
         }
 

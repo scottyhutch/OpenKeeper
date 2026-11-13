@@ -48,6 +48,7 @@ import toniarts.openkeeper.game.component.MeleeHit;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.Slapped;
 import toniarts.openkeeper.game.component.Stored;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Threat;
@@ -1095,5 +1096,49 @@ class CreatureControllerTest {
                     case "equals" -> object == args[0];
                     default -> call.call(method.getName(), args);
                 });
+    }
+
+    @Test
+    void slapInterruptsAWorkersWorkOncePerSlap() {
+        try (Fixture f = new Fixture(9)) {
+            f.data.setComponent(f.entity, workerComponent());
+            f.startWork(TaskType.TRAIN);
+
+            // The slap starts between two ticks, as it does from the keeper's own thread
+            f.data.setComponent(f.entity, new Slapped(.1));
+            f.tick();
+            assertEquals(CreatureState.IDLE, f.state());
+            assertTrue(f.data.getComponent(f.entity, Slapped.class).reacted);
+            assertEquals(.1, f.data.getComponent(f.entity, Slapped.class).startTime);
+
+            // The same slap doesn't interrupt the next work
+            f.startWork(TaskType.TRAIN);
+            f.tick();
+            assertEquals(CreatureState.WORK, f.state());
+
+            // A new slap does
+            f.data.setComponent(f.entity, new Slapped(.3));
+            f.tick();
+            assertEquals(CreatureState.IDLE, f.state());
+        }
+    }
+
+    @Test
+    void slapDoesNotInterruptANonWorker() {
+        try (Fixture f = new Fixture(9)) {
+            f.startWork(TaskType.TRAIN);
+            f.data.setComponent(f.entity, new Slapped(.1));
+            f.tick();
+            assertEquals(CreatureState.WORK, f.state());
+            assertTrue(f.data.getComponent(f.entity, Slapped.class).reacted);
+        }
+    }
+
+    private static CreatureComponent workerComponent() {
+        CreatureComponent component = new CreatureComponent();
+        component.creatureId = 6;
+        component.stunDuration = .1f;
+        component.worker = true;
+        return component;
     }
 }
