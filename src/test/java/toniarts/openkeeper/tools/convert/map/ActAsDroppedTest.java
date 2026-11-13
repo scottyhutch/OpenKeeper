@@ -31,9 +31,10 @@ import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.controller.CreaturesController;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
-import toniarts.openkeeper.game.controller.room.IRoomController;
-import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
+import toniarts.openkeeper.game.controller.room.PrisonController;
+import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
@@ -73,16 +74,19 @@ class ActAsDroppedTest {
             default -> null;
         });
 
-        // The neutral prison of a ruined dungeon
-        RoomInstance prison = new RoomInstance(new Room());
+        // The neutral prison of a ruined dungeon, the creature stands inside its cage
+        RoomInstance prison = new RoomInstance(RoomFixtures.room((short) 11,
+                List.of((short) 49, (short) 50, (short) 51, (short) 0, (short) 0, (short) 0)));
         prison.setOwnerId(Player.NEUTRAL_PLAYER_ID);
-        IRoomObjectControl prisoners = stub(IRoomObjectControl.class, (method, args) -> null);
-        IRoomController room = stub(IRoomController.class, (method, args) -> switch (method) {
-            case "getRoomInstance" -> prison;
-            case "hasObjectControl" -> true;
-            case "getObjectControl" -> prisoners;
-            default -> null;
-        });
+        for (int x = 0; x <= 2; x++) {
+            for (int y = 0; y <= 2; y++) {
+                prison.addCoordinate(new Point(x, y));
+            }
+        }
+        IObjectsController objectsController = stub(IObjectsController.class,
+                (method, args) -> "loadObject".equals(method) ? entityData.createEntity() : null);
+        PrisonController room = new PrisonController(entityData.createEntity(), entityData, null, prison, objectsController, null);
+        room.construct();
         IMapController mapController = stub(IMapController.class, (method, args) -> room);
         IGameTimer gameTimer = stub(IGameTimer.class, (method, args) -> 0.0);
 
