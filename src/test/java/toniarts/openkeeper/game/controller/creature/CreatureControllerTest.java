@@ -942,6 +942,7 @@ class CreatureControllerTest {
                     lairSearches++;
                     yield false;
                 }
+                case "isTaskAvailable" -> false;
                 case "assignSleepTask" -> {
                     sleepAssignments++;
                     if (!reachable.get()) {

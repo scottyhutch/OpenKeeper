@@ -22,6 +22,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.EnumSet;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
@@ -119,6 +120,7 @@ class CreatureNoWorkAngerTest {
         research.setChance((short) 100);
         Creature mistress = new Creature();
         mistress.setHappyJobs(new Creature.JobPreference[]{research});
+        mistress.setFlags(EnumSet.noneOf(Creature.CreatureFlag.class));
         mistress.getAttributes().setAngerNoWork((short) 50);
 
         ITaskManager taskManager = (ITaskManager) Proxy.newProxyInstance(ITaskManager.class.getClassLoader(),
