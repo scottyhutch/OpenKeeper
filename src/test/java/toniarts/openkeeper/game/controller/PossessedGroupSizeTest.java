@@ -40,7 +40,7 @@ class PossessedGroupSizeTest {
 
     private final EntityData entityData = new DefaultEntityData();
     private final CreaturesController creaturesController = new CreaturesController(emptyLevel(), entityData,
-            null, null, null, null, null);
+            null, null, null, null, null, null);
 
     @Test
     void countsTheFollowersOfThePossessedCreature() {
