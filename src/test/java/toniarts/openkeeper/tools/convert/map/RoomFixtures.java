@@ -41,6 +41,7 @@ public final class RoomFixtures {
         Room room = new Room();
         room.setName(name);
         room.setTileConstruction(tileConstruction);
+        room.setFlags(EnumSet.of(Room.RoomFlag.PLACEABLE_ON_LAND));
         return room;
     }
 
