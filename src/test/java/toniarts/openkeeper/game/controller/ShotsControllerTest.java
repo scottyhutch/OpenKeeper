@@ -22,6 +22,7 @@ import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.base.DefaultEntityData;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.component.Armour;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.Position;
@@ -51,6 +52,7 @@ class ShotsControllerTest {
 
     private static final short HEAL_ID = 4;
     private static final short HEAL_INSTANT_ID = 53;
+    private static final short ARMOUR_ID = 9;
     private static final short CREATE_OBJECT_ID = 2;
     private static final short CONCEAL_ID = 33;
     private static final short GOLD_OBJECT_ID = 1;
@@ -68,6 +70,7 @@ class ShotsControllerTest {
         shotsById.put(ShotFixtures.FIREBALL_ID, ShotFixtures.fireball());
         addShot(HEAL_ID, Shot.ProcessType.MODIFY_HEALTH);
         shotsById.put(HEAL_INSTANT_ID, ShotFixtures.healInstantShot(HEAL_INSTANT_ID, HEAL_ID));
+        addShot(ARMOUR_ID, Shot.ProcessType.MODIFY_ARMOUR);
         addShot(CREATE_OBJECT_ID, Shot.ProcessType.CREATE_OBJECT);
         addShot(CONCEAL_ID, Shot.ProcessType.CONCEAL);
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
@@ -136,6 +139,16 @@ class ShotsControllerTest {
         shotsController.createShot(HEAL_INSTANT_ID, 3000, 0, PLAYER_ID, new Vector3f(), creature, warlock);
 
         assertEquals(-3000, entityData.getComponent(creature, Damage.class).damage);
+    }
+
+    @Test
+    void armourShotLastsItsFirstValueInTicks() {
+        EntityId creature = createCreature();
+
+        // Cast Armour: 80 ticks, which is 20 seconds at 4 ticks a second
+        shotsController.createShot(ARMOUR_ID, 80, 50, PLAYER_ID, new Vector3f(), creature, null);
+
+        assertEquals(20.0, entityData.getComponent(creature, Armour.class).endTime);
     }
 
     @Test
