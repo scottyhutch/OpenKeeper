@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.game.component.Armour;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.Invulnerable;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.ShotFlight;
 import toniarts.openkeeper.game.component.ShotViewState;
@@ -49,6 +50,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJE
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_SINGLE_CREATURE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INFERNO;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INSTANTANEOUS_HIT;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INVUNERABLE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.LIGHTNING;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_ARMOUR;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_HEALTH;
@@ -139,6 +141,9 @@ public final class ShotsController implements IShotsController {
         // Cast Armour: the first value is how long the armour lasts, in game ticks
         result.put(MODIFY_ARMOUR, request -> entityData.setComponent(request.target(),
                 new Armour(gameTimer.getGameTime() + (double) request.shotData1() / kwdFile.getGameLevel().getTicksPerSec())));
+        // Invulnerable: the first value is how long it lasts, in seconds
+        result.put(INVUNERABLE, request -> entityData.setComponent(request.target(),
+                new Invulnerable(gameTimer.getGameTime() + request.shotData1())));
         result.put(LIGHTNING, new LightningShotProcessor(entityData, gameTimer, kwdFile, mapController, creaturesController));
         // The shot is at its target at once and dies there, its death shot goes on with the same values
         result.put(INSTANTANEOUS_HIT, request -> {
