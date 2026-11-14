@@ -206,6 +206,14 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
      */
     public void cancelCastShot();
 
+    /**
+     * Casts a spell on one of our own creatures in the fight, if we have one
+     * ready and somebody needs it
+     *
+     * @return true if we cast a spell
+     */
+    public boolean castSupportSpell();
+
     public void navigateToAttackTarget(EntityId attackTarget);
 
     public ICreatureController getFollowTarget();
