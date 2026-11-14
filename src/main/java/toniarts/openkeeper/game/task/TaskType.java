@@ -49,6 +49,7 @@ public enum TaskType {
     FETCH_DOOR_CRATE,
     DELIVER_DOOR_CRATE,
     GAMBLE,
+    SULK,
     FETCH_CORPSE,
     CARRY_CORPSE_TO_GRAVEYARD,
     GUARD,
