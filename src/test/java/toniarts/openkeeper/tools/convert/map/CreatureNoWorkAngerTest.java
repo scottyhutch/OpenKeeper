@@ -122,6 +122,7 @@ class CreatureNoWorkAngerTest {
         mistress.setHappyJobs(new Creature.JobPreference[]{research});
         mistress.setFlags(EnumSet.noneOf(Creature.CreatureFlag.class));
         mistress.getAttributes().setAngerNoWork((short) 50);
+        mistress.getAttributes().setUnhappyThreshold((short) 50);
 
         ITaskManager taskManager = (ITaskManager) Proxy.newProxyInstance(ITaskManager.class.getClassLoader(),
                 new Class<?>[]{ITaskManager.class}, (proxy, method, args) -> switch (method.getName()) {
