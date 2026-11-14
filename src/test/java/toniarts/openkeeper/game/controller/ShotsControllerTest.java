@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Armour;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Damage;
+import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Invisible;
 import toniarts.openkeeper.game.component.Invulnerable;
 import toniarts.openkeeper.game.component.Mobile;
@@ -63,6 +64,7 @@ class ShotsControllerTest {
     private static final short CREATE_OBJECT_ID = 2;
     private static final short CONCEAL_ID = 33;
     private static final short GOLD_OBJECT_ID = 1;
+    private static final short DRAIN_ID = 42;
     private static final short PLAYER_ID = 3;
     private static final int TICKS_PER_SECOND = 4;
     private static final float DELTA = 0.0001f;
@@ -83,6 +85,7 @@ class ShotsControllerTest {
         addShot(INVISIBLE_ID, Shot.ProcessType.INVISIBLE);
         addShot(CREATE_OBJECT_ID, Shot.ProcessType.CREATE_OBJECT);
         addShot(CONCEAL_ID, Shot.ProcessType.CONCEAL);
+        addShot(DRAIN_ID, Shot.ProcessType.DRAIN);
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (proxy, method, args) -> switch (method.getName()) {
             case "getShotById" -> shotsById.get((Short) args[0]);
@@ -294,6 +297,40 @@ class ShotsControllerTest {
         shotsController.hit(shot, target);
 
         assertEquals(50, entityData.getComponent(target, Damage.class).damage);
+    }
+
+    @Test
+    void drainGivesTheShooterAQuarterOfItsFullHealthFromTheTarget() {
+        EntityId vampire = createCreature();
+        entityData.setComponent(vampire, new Health(500, 2000));
+        EntityId target = createCreature();
+        entityData.setComponent(target, new Health(900, 1000));
+
+        // Drain: 25 % of the Vampire's 2000
+        shotsController.hit(createDrainShot(vampire), target);
+
+        assertEquals(500, entityData.getComponent(target, Damage.class).damage);
+        assertEquals(-500, entityData.getComponent(vampire, Damage.class).damage);
+    }
+
+    @Test
+    void drainTakesNoMoreThanTheTargetHasLeft() {
+        EntityId vampire = createCreature();
+        entityData.setComponent(vampire, new Health(500, 2000));
+        EntityId target = createCreature();
+        entityData.setComponent(target, new Health(120, 1000));
+
+        shotsController.hit(createDrainShot(vampire), target);
+
+        assertEquals(120, entityData.getComponent(target, Damage.class).damage);
+        assertEquals(-120, entityData.getComponent(vampire, Damage.class).damage);
+    }
+
+    private EntityId createDrainShot(EntityId shooter) {
+        EntityId shot = entityData.createEntity();
+        entityData.setComponents(shot, new Position(0, new Vector3f(1.5f, 1f, 1.5f)),
+                new ShotFlight(DRAIN_ID, PLAYER_ID, shooter, 25, 0, new Vector3f(), new Vector3f(), 3, 128));
+        return shot;
     }
 
     private ShotFlight getShotFlight() {
