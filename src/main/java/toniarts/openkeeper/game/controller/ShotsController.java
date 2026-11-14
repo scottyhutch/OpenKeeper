@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.game.component.Armour;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.Frozen;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Invisible;
 import toniarts.openkeeper.game.component.Invulnerable;
@@ -45,6 +46,7 @@ import toniarts.openkeeper.game.controller.shot.ShotRequest;
 import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
+import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Shot;
@@ -53,6 +55,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_CREA
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJECT;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_SINGLE_CREATURE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.DRAIN;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.FREEZE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INFERNO;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INSTANTANEOUS_HIT;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INVISIBLE;
@@ -166,6 +169,15 @@ public final class ShotsController implements IShotsController {
         // Invulnerable: the first value is how long it lasts, in seconds
         result.put(INVUNERABLE, request -> entityData.setComponent(request.target(),
                 new Invulnerable(gameTimer.getGameTime() + request.shotData1())));
+        // Freeze: the first value is how many seconds the creature is frozen. Like the Freeze Trap it leaves a frozen
+        // creature and the Horned Reaper alone
+        result.put(FREEZE, request -> {
+            CreatureComponent creature = entityData.getComponent(request.target(), CreatureComponent.class);
+            if (creature != null && entityData.getComponent(request.target(), Frozen.class) == null
+                    && !kwdFile.getCreature(creature.creatureId).getFlags().contains(Creature.CreatureFlag.IS_HORNY)) {
+                entityData.setComponent(request.target(), new Frozen(gameTimer.getGameTime(), request.shotData1()));
+            }
+        });
         result.put(LIGHTNING, new LightningShotProcessor(entityData, gameTimer, kwdFile, mapController, creaturesController));
         // The shot is at its target at once and dies there, its death shot goes on with the same values
         result.put(INSTANTANEOUS_HIT, request -> {

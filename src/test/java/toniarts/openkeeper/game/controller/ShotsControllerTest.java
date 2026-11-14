@@ -25,6 +25,7 @@ import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Armour;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Damage;
+import toniarts.openkeeper.game.component.Frozen;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Invisible;
 import toniarts.openkeeper.game.component.Invulnerable;
@@ -35,6 +36,7 @@ import toniarts.openkeeper.game.component.ShotViewState;
 import toniarts.openkeeper.game.component.SpeedChange;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.map.IMapDataInformation;
+import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.GameObjectFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -65,6 +67,8 @@ class ShotsControllerTest {
     private static final short CONCEAL_ID = 33;
     private static final short GOLD_OBJECT_ID = 1;
     private static final short DRAIN_ID = 42;
+    private static final short FREEZE_ID = 8;
+    private static final short HORNY_ID = 22;
     private static final short PLAYER_ID = 3;
     private static final int TICKS_PER_SECOND = 4;
     private static final float DELTA = 0.0001f;
@@ -86,11 +90,14 @@ class ShotsControllerTest {
         addShot(CREATE_OBJECT_ID, Shot.ProcessType.CREATE_OBJECT);
         addShot(CONCEAL_ID, Shot.ProcessType.CONCEAL);
         addShot(DRAIN_ID, Shot.ProcessType.DRAIN);
+        addShot(FREEZE_ID, Shot.ProcessType.FREEZE);
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (proxy, method, args) -> switch (method.getName()) {
             case "getShotById" -> shotsById.get((Short) args[0]);
             case "getGameLevel" -> ShotFixtures.gameLevel(TICKS_PER_SECOND);
             case "getObject" -> (int) args[0] == GOLD_OBJECT_ID ? GameObjectFixtures.gameObject("Gold", GameObject.ObjectFlag.OBJECT_TYPE_GOLD) : null;
+            case "getCreature" -> (Short) args[0] == 0 ? null : ShotFixtures.creature((Short) args[0], (Short) args[0] == HORNY_ID
+                    ? EnumSet.of(Creature.CreatureFlag.IS_HORNY) : EnumSet.noneOf(Creature.CreatureFlag.class), EnumSet.noneOf(Creature.CreatureFlag3.class));
             default -> null;
         });
         IObjectsController objectsController = (IObjectsController) Proxy.newProxyInstance(IObjectsController.class.getClassLoader(), new Class<?>[]{IObjectsController.class},
@@ -330,6 +337,45 @@ class ShotsControllerTest {
         EntityId shot = entityData.createEntity();
         entityData.setComponents(shot, new Position(0, new Vector3f(1.5f, 1f, 1.5f)),
                 new ShotFlight(DRAIN_ID, PLAYER_ID, shooter, 25, 0, new Vector3f(), new Vector3f(), 3, 128));
+        return shot;
+    }
+
+    @Test
+    void freezeFreezesTheCreatureItHitsForItsFirstValueInSeconds() {
+        EntityId target = createCreature((short) 1);
+
+        // The Mistress freezes for 10 seconds
+        shotsController.hit(createFreezeShot(10), target);
+
+        assertEquals(10.0, entityData.getComponent(target, Frozen.class).duration);
+
+        // A frozen creature stays as it is
+        shotsController.hit(createFreezeShot(15), target);
+
+        assertEquals(10.0, entityData.getComponent(target, Frozen.class).duration);
+    }
+
+    @Test
+    void freezeLeavesTheHornedReaperAlone() {
+        EntityId target = createCreature(HORNY_ID);
+
+        shotsController.hit(createFreezeShot(10), target);
+
+        assertNull(entityData.getComponent(target, Frozen.class));
+    }
+
+    private EntityId createCreature(short creatureId) {
+        EntityId creature = createCreature();
+        CreatureComponent creatureComponent = new CreatureComponent();
+        creatureComponent.creatureId = creatureId;
+        entityData.setComponent(creature, creatureComponent);
+        return creature;
+    }
+
+    private EntityId createFreezeShot(int seconds) {
+        EntityId shot = entityData.createEntity();
+        entityData.setComponents(shot, new Position(0, new Vector3f(1.5f, 1f, 1.5f)),
+                new ShotFlight(FREEZE_ID, PLAYER_ID, entityData.createEntity(), seconds, 0, new Vector3f(), new Vector3f(), 3, 50));
         return shot;
     }
 
