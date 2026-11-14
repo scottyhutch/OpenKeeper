@@ -863,6 +863,20 @@ class CreatureControllerTest {
         }
     }
 
+    @Test
+    void isAtTheTaskWhenStandingOnItsWorkPosition() {
+        try (Fixture f = new Fixture(9)) {
+            f.startWork(TaskType.TRAIN);
+
+            // Away from the middle of the target tile, but where the task wants us
+            f.data.setComponent(f.entity, new Position(0, new Vector3f(3.9f, WorldUtils.FLOOR_HEIGHT, 4.6f)));
+            assertFalse(f.controller.isAtAssignedTaskTarget());
+
+            f.workPosition = new Vector2f(3.9f, 4.6f);
+            assertTrue(f.controller.isAtAssignedTaskTarget());
+        }
+    }
+
     private static final class Fixture implements AutoCloseable {
         final EntityData data = new DefaultEntityData();
         final EntityId entity = data.createEntity();
@@ -892,6 +906,7 @@ class CreatureControllerTest {
         int lairSearches;
         int oldJobUnassignments;
         int targetQueries;
+        Vector2f workPosition;
         double time;
 
         Fixture(int timeSleep) {
@@ -1023,7 +1038,8 @@ class CreatureControllerTest {
                     targetQueries++;
                     yield new Vector2f(3, 4);
                 }
-                case "getWorkPosition", "getTaskTarget", "getTaskLocation", "executeTask" -> null;
+                case "getWorkPosition" -> workPosition;
+                case "getTaskTarget", "getTaskLocation", "executeTask" -> null;
                 case "unassign" -> { oldJobUnassignments++; yield null; }
                 default -> throw new UnsupportedOperationException(method);
             });
