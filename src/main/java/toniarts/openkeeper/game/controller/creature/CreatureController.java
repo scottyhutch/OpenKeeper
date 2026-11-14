@@ -4469,6 +4469,21 @@ public final class CreatureController extends EntityController implements ICreat
         entityData.setComponent(entityId, new Turncoat(playerId, gameTimer.getGameTime() + duration));
     }
 
+    @Override
+    public void rebel() {
+        short keeperId = getOwnerId();
+        removeFromRoomStrorage();
+        removeLair();
+        entityData.setComponent(entityId, new Owner(Player.GOOD_PLAYER_ID, Player.GOOD_PLAYER_ID));
+        entityData.setComponent(entityId, new Objective(Thing.HeroParty.Objective.KILL_PLAYER, keeperId, 0));
+
+        // The mentor tells the keeper, like DK II (0x4750B0, message 0x13)
+        gameEventService.emitToPlayer(GameEventType.CREATURE_REBELLED, keeperId);
+
+        // Start on the objective
+        getStateMachine().changeState(CreatureState.IDLE);
+    }
+
     private void convertCreature(EntityId entity, short playerId) {
         removeFromRoomStrorage();
 
