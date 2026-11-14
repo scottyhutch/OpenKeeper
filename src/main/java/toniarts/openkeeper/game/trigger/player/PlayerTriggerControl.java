@@ -289,6 +289,13 @@ public class PlayerTriggerControl extends TriggerControl {
                 return compare(trigger, creaturesController.getAngryCreatureCount(playerId,
                         trigger.getUserData("creatureId", short.class)), trigger.getUserData("value", int.class));
 
+            case PLAYER_CREATURES_GROUPED: {
+
+                // Only a possessed creature has a group, and it is always compared to a constant
+                int groupSize = creaturesController.getPossessedGroupSize(playerId);
+                return groupSize >= 0 && compare(trigger, groupSize, trigger.getUserData("value", int.class));
+            }
+
             case PLAYER_KILLED:
 
                 // Has this player been defeated, by a certain player or by anyone (0)
@@ -345,9 +352,6 @@ public class PlayerTriggerControl extends TriggerControl {
                 TriggerGeneric.TargetType.PLAYER_CREATURES_KILLED, TriggerGeneric.TargetType.PLAYER_KILLS_CREATURES);
 
 
-        // STUB: the number of the creatures following the possessed creature
-        putStub(result, "Possessed creatures do not have followers, there is no group to count",
-                TriggerGeneric.TargetType.PLAYER_CREATURES_GROUPED);
         return result;
     }
 
