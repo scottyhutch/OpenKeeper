@@ -17,11 +17,13 @@
 package toniarts.openkeeper.game.logic;
 
 import com.jme3.math.Vector2f;
+import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -34,14 +36,25 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.AttackTarget;
+import toniarts.openkeeper.game.component.CombatPitFighter;
+import toniarts.openkeeper.game.component.CreatureAi;
+import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureExperience;
 import toniarts.openkeeper.game.component.Gold;
+import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.KeeperAi;
 import toniarts.openkeeper.game.component.KeeperComponent;
+import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.Threat;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.player.PlayerCreatureControl;
 import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
+import toniarts.openkeeper.game.controller.player.PlayerHandControl;
 import toniarts.openkeeper.game.controller.player.PlayerManaControl;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
@@ -52,6 +65,7 @@ import toniarts.openkeeper.tools.convert.map.AI;
 import static toniarts.openkeeper.tools.convert.map.AiFixtures.ai;
 import static toniarts.openkeeper.tools.convert.map.AiFixtures.player;
 import static toniarts.openkeeper.tools.convert.map.AiFixtures.withBuildAreaEndX;
+import static toniarts.openkeeper.tools.convert.map.AiFixtures.withRetreatHealth;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import static toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures.variable;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -68,6 +82,7 @@ import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 import static toniarts.openkeeper.tools.convert.map.TerrainFixtures.flags;
 import static toniarts.openkeeper.tools.convert.map.TerrainFixtures.terrain;
 import toniarts.openkeeper.utils.Point;
+import toniarts.openkeeper.utils.WorldUtils;
 
 /**
  * The computer player on a small map: a 3 x 3 Dungeon Heart (H) with claimed
@@ -126,6 +141,111 @@ class KeeperAiSystemTest {
     private double gameTime;
     private boolean logDecisions;
     private AI.AIType lobbyType;
+    private PlayerHandControl handControl;
+    private final Map<EntityId, Point> dropped = new HashMap<>();
+
+    @Test
+    void carriesACreatureThatIsBadlyHurtInAFightToTheLair() {
+        KeeperAiSystem system = createSystem(withRetreatHealth(ai(4, 10, 9, 1, 50, 0, List.of()), 20), 1000);
+        roomControl.onBuild(createRoom(LAIR, new Point(2, 4)));
+        EntityId hurt = createCreature(PLAYER_ID, new Point(8, 3), 19, 100, CreatureState.FIGHT);
+        entityData.setComponent(hurt, new AttackTarget(new EntityId(99)));
+        EntityId healthy = createCreature(PLAYER_ID, new Point(8, 3), 20, 100, CreatureState.FIGHT);
+        entityData.setComponent(healthy, new AttackTarget(new EntityId(99)));
+
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(hurt, new Point(2, 4)), dropped);
+
+        // That was the action of this tick
+        assertTrue(impSpells.isEmpty());
+    }
+
+    @Test
+    void carriesAHurtCreatureThatIsNotFightingToTheHeartOnlyFromOutsideTheRooms() {
+        KeeperAiSystem system = createSystem(withRetreatHealth(ai(0, 0, 9, 1, 50, 0, List.of()), 20), 1000);
+        createCreature(PLAYER_ID, new Point(3, 6), 5, 100, CreatureState.IDLE);
+        createCreature(PLAYER_ID, new Point(1, 4), 5, 100, CreatureState.SLEEPING);
+        createCreature((short) 4, new Point(1, 8), 5, 100, CreatureState.IDLE);
+
+        system.processTick(0.25f);
+
+        assertTrue(dropped.isEmpty());
+
+        EntityId outside = createCreature(PLAYER_ID, new Point(1, 8), 5, 100, CreatureState.IDLE);
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(outside, HEART), dropped);
+    }
+
+    @Test
+    void leavesAHurtCreatureItJustDroppedAloneForAWhile() {
+        KeeperAiSystem system = createSystem(withRetreatHealth(ai(0, 0, 9, 1, 50, 0, List.of()), 20), 1000);
+        EntityId hurt = createCreature(PLAYER_ID, new Point(1, 8), 5, 100, CreatureState.IDLE);
+        system.processTick(0.25f);
+        dropped.clear();
+
+        // It walks out of the heart again
+        entityData.setComponent(hurt, new Position(0, WorldUtils.pointToVector3f(1, 8)));
+        gameTime = 74;
+        system.processTick(0.25f);
+
+        assertTrue(dropped.isEmpty());
+
+        gameTime = 75;
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(hurt, HEART), dropped);
+    }
+
+    @Test
+    void takesACombatPitFighterOutOfThePitAtHalfItsHealth() {
+        lobbyType = AI.AIType.MASTER_KEEPER;
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
+        creatureControl.onCreatureAdded(new EntityId(50), imp);
+        creatureControl.onCreatureAdded(new EntityId(51), imp);
+        EntityId fighter = createCreature(PLAYER_ID, new Point(8, 3), 50, 100, CreatureState.COMBAT_PIT);
+        entityData.setComponent(fighter, new CombatPitFighter(new EntityId(98)));
+        entityData.setComponent(fighter, new CreatureExperience(3, 0, 0, 0, 0));
+
+        system.processTick(0.25f);
+
+        assertTrue(dropped.isEmpty());
+
+        entityData.setComponent(fighter, new Health(49, 100));
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(fighter, HEART), dropped);
+    }
+
+    @Test
+    void takesACombatPitFighterOutOfThePitAtTheLevelItTrainsTo() {
+        lobbyType = AI.AIType.CONQUEROR;
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
+        creatureControl.onCreatureAdded(new EntityId(50), imp);
+        EntityId fighter = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.COMBAT_PIT);
+        entityData.setComponent(fighter, new CombatPitFighter(new EntityId(98)));
+        entityData.setComponent(fighter, new CreatureExperience(4, 0, 0, 0, 0));
+
+        system.processTick(0.25f);
+
+        assertTrue(dropped.isEmpty());
+
+        // A Conqueror trains its creatures to level 5
+        entityData.setComponent(fighter, new CreatureExperience(5, 0, 0, 0, 0));
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(fighter, HEART), dropped);
+    }
+
+    private EntityId createCreature(short playerId, Point tile, int health, int maxHealth, CreatureState state) {
+        EntityId entityId = entityData.createEntity();
+        entityData.setComponents(entityId, new CreatureComponent(), new Owner(playerId, playerId), new Health(health, maxHealth),
+                new CreatureAi(0, state, (short) 2), new Position(0, WorldUtils.pointToVector3f(tile.x, tile.y)),
+                new Threat(100));
+
+        return entityId;
+    }
 
     @Test
     void aComputerPlayerSetUpInTheLobbyPlaysByItsTypeAndNotByTheLevel() {
@@ -378,6 +498,7 @@ class KeeperAiSystemTest {
                 MiscType.MAXIMUM_MANA_THRESHOLD, variable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000),
                 MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, variable(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, 1000));
         PlayerManaControl manaControl = new PlayerManaControl(keeper, variables);
+        handControl = new PlayerHandControl(keeper, 8, entityData);
 
         // The keeper's gold is kept on the keeper's entity
         entityData.setComponents(entityData.createEntity(), new KeeperComponent(PLAYER_ID), new Gold(gold, Integer.MAX_VALUE));
@@ -393,6 +514,7 @@ class KeeperAiSystemTest {
             case "getRoomControl" -> roomControl;
             case "getCreatureControl" -> creatureControl;
             case "getManaControl" -> manaControl;
+            case "getHandControl" -> handControl;
             default -> throw new UnsupportedOperationException(method.getName());
         });
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(getClass().getClassLoader(),
@@ -413,6 +535,12 @@ class KeeperAiSystemTest {
                         case "castKeeperSpell" -> {
                             impSpells.add((Point) args[2]);
                             keeper.setMana(keeper.getMana() - createImp.getManaCost());
+                        }
+                        case "pickUp" ->
+                            handControl.push((EntityId) args[0], gameTime);
+                        case "drop" -> {
+                            dropped.put(handControl.pop(), (Point) args[1]);
+                            entityData.setComponent((EntityId) args[0], new Position(0, new Vector3f(((Vector2f) args[2]).x, 0, ((Vector2f) args[2]).y)));
                         }
                         case "build" -> {
                             Point p = new Point((int) ((Vector2f) args[0]).x, (int) ((Vector2f) args[0]).y);
@@ -459,6 +587,10 @@ class KeeperAiSystemTest {
                         }
                         case "getTerrain" -> {
                             return getTerrain(((IMapTileController) args[0]).getLocation());
+                        }
+                        case "getRoomControllerByCoordinates" -> {
+                            Point p = (Point) args[0];
+                            return map[p.y][p.x] == 'H' ? roomControl.getDungeonHeart() : null;
                         }
                         case "isSolid" -> {
                             return getTerrain((Point) args[0]).getFlags().contains(TerrainFlag.SOLID);
