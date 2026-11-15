@@ -1488,8 +1488,8 @@ class KeeperAiSystemTest {
                 MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, variable(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, 1000));
         PlayerManaControl manaControl = new PlayerManaControl(keeper, variables);
         handControl = new PlayerHandControl(keeper, 8, entityData);
-        trapControl = new PlayerTrapControl(keeper, List.of(sentry));
-        doorControl = new PlayerDoorControl(keeper, List.of(woodenDoor));
+        trapControl = new PlayerTrapControl(keeper, List.of(sentry), entityData);
+        doorControl = new PlayerDoorControl(keeper, List.of(woodenDoor), entityData);
         spellControl = new PlayerSpellControl(keeper, List.of(createImp, callToArms, thunderbolt, heal, sightOfEvil));
         Keeper enemyKeeper = new Keeper(false, ENEMY_ID);
         enemyKeeper.setPlayer(new Player());
