@@ -52,6 +52,7 @@ import toniarts.openkeeper.game.component.KeeperAiEnemy;
 import toniarts.openkeeper.game.component.KeeperAiNoPrisoner;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.Slapped;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Threat;
 import toniarts.openkeeper.game.controller.ICreaturesController;
@@ -191,6 +192,7 @@ class KeeperAiSystemTest {
     private final List<Point> callToArmsCasts = new ArrayList<>();
     private int callToArmsCancels;
     private final Map<EntityId, Point> dropped = new HashMap<>();
+    private final List<EntityId> slapped = new ArrayList<>();
     private final List<IRoomController> neutralRooms = new ArrayList<>();
     private final KeeperSpell thunderbolt = battleSpell(THUNDERBOLT, 100, KeeperSpell.KeeperSpellFlag.ATTACKING);
     private final KeeperSpell heal = battleSpell(HEAL, 100, KeeperSpell.KeeperSpellFlag.DEFENSIVE);
@@ -793,7 +795,7 @@ class KeeperAiSystemTest {
         roomControl.onBuild(createRoom(LIBRARY, new Point(1, 4)));
         roomControl.onBuild(createRoom(PORTAL, new Point(5, 4)));
         spellControl.setTypeAvailable(heal, true, false);
-        EntityId researcher = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.IDLE);
+        EntityId researcher = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.WORK);
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.creatureId = EATER;
         entityData.setComponent(researcher, creatureComponent);
@@ -848,6 +850,20 @@ class KeeperAiSystemTest {
         }
 
         assertEquals(Map.of(creature, new Point(1, 4)), dropped);
+    }
+
+    @Test
+    void slapsAnIdleCreatureWithMoreThanHalfItsHealthNowAndThen() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
+        EntityId idle = createCreature(PLAYER_ID, new Point(8, 3), 51, 100, CreatureState.IDLE);
+        createCreature(PLAYER_ID, new Point(8, 4), 50, 100, CreatureState.IDLE);
+        createCreature(PLAYER_ID, new Point(8, 5), 100, 100, CreatureState.WORK);
+        entityData.setComponent(createCreature(PLAYER_ID, new Point(8, 6), 100, 100, CreatureState.IDLE), new Slapped(0));
+        for (int tick = 0; tick < 2000 && slapped.isEmpty(); tick++) {
+            system.processTick(0.25f);
+        }
+
+        assertEquals(List.of(idle), slapped);
     }
 
     private EntityId createCreature(short playerId, Point tile, int health, int maxHealth, CreatureState state) {
@@ -1009,13 +1025,13 @@ class KeeperAiSystemTest {
     void digsATunnelToTheEnemyHeartOnceItHasMoreFightersThanItsSettingsAskFor() {
         KeeperAiSystem system = createSystem(withInvasion(ai(0, 0, 9, 1, 50, 0, List.of()), 1, 50, AI.CallToArmsUsagePolicy.AT_HEART, 0), 1000);
         enemyRoomControl.onBuild(createRoom(DUNGEON_HEART, new Point(13, 6)));
-        createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.IDLE);
+        createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.WORK);
 
         system.processTick(0.25f);
 
         assertEquals(KeeperAi.Task.PLAN, getKeeperAi().task);
 
-        createCreature(PLAYER_ID, new Point(1, 8), 100, 100, CreatureState.IDLE);
+        createCreature(PLAYER_ID, new Point(1, 8), 100, 100, CreatureState.WORK);
         system.processTick(0.25f);
 
         // From its own heart to the enemy's, by the settings
@@ -1038,7 +1054,7 @@ class KeeperAiSystemTest {
             }
         }
         enemyRoomControl.onBuild(createRoom(DUNGEON_HEART, new Point(13, 6)));
-        createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.IDLE);
+        createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.WORK);
 
         for (int tick = 0; tick < 100 && (getEnemy() == null || getEnemy().breachTiles[0] == null); tick++) {
             system.processTick(0.25f);
@@ -1077,8 +1093,8 @@ class KeeperAiSystemTest {
         KeeperAiEnemy invaded = new KeeperAiEnemy(PLAYER_ID, ENEMY_ID, 0);
         invaded.invaded = true;
         entityData.setComponent(entityData.createEntity(), invaded);
-        createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.IDLE);
-        createCreature(PLAYER_ID, new Point(1, 8), 100, 100, CreatureState.IDLE);
+        createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.WORK);
+        createCreature(PLAYER_ID, new Point(1, 8), 100, 100, CreatureState.WORK);
 
         system.processTick(0.25f);
 
@@ -1107,7 +1123,7 @@ class KeeperAiSystemTest {
         KeeperAiEnemy invaded = new KeeperAiEnemy(PLAYER_ID, ENEMY_ID, 0);
         invaded.invaded = true;
         entityData.setComponent(entityData.createEntity(), invaded);
-        createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.IDLE);
+        createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.WORK);
         reachable = true;
 
         system.processTick(0.25f);
@@ -1127,8 +1143,8 @@ class KeeperAiSystemTest {
         KeeperAiEnemy invaded = new KeeperAiEnemy(PLAYER_ID, ENEMY_ID, 0);
         invaded.invaded = true;
         entityData.setComponent(entityData.createEntity(), invaded);
-        createCreature(PLAYER_ID, new Point(4, 4), 100, 100, CreatureState.IDLE);
-        createCreature(PLAYER_ID, new Point(4, 8), 100, 100, CreatureState.IDLE);
+        createCreature(PLAYER_ID, new Point(4, 4), 100, 100, CreatureState.WORK);
+        createCreature(PLAYER_ID, new Point(4, 8), 100, 100, CreatureState.WORK);
         reachable = true;
         system.processTick(0.25f);
         EntityId entityId = entityData.findEntity(null, KeeperAi.class);
@@ -1391,6 +1407,8 @@ class KeeperAiSystemTest {
                         }
                         case "pickUp" ->
                             handControl.push((EntityId) args[0], gameTime);
+                        case "interact" ->
+                            slapped.add((EntityId) args[0]);
                         case "drop" -> {
                             dropped.put(handControl.pop(), (Point) args[1]);
                             entityData.setComponent((EntityId) args[0], new Position(0, new Vector3f(((Vector2f) args[2]).x, 0, ((Vector2f) args[2]).y)));
