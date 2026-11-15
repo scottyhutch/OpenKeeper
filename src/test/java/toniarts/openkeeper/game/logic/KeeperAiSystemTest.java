@@ -53,6 +53,7 @@ import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.component.KeeperAiDropped;
 import toniarts.openkeeper.game.component.KeeperAiEnemy;
 import toniarts.openkeeper.game.component.KeeperAiNoPrisoner;
+import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Slapped;
@@ -100,6 +101,8 @@ import toniarts.openkeeper.tools.convert.map.CombatExperienceFixtures;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Door;
 import toniarts.openkeeper.tools.convert.map.DoorFixtures;
+import toniarts.openkeeper.tools.convert.map.GameObject;
+import toniarts.openkeeper.tools.convert.map.GameObjectFixtures;
 import static toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures.variable;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
@@ -210,6 +213,7 @@ class KeeperAiSystemTest {
     private final Trap sentry = TrapFixtures.trap((short) 3, 100);
     private final Door woodenDoor = DoorFixtures.door((short) 1, 100);
     private final Map<Point, String> placed = new HashMap<>();
+    private final List<EntityId> pickedUp = new ArrayList<>();
     private PlayerTrapControl trapControl;
     private PlayerDoorControl doorControl;
     private final List<Point> callToArmsCasts = new ArrayList<>();
@@ -996,6 +1000,31 @@ class KeeperAiSystemTest {
         }
     }
 
+    @Test
+    void usesTheLastSpecialLyingOnItsLandButNotEverySpecial() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
+        createObject((short) 1, new Point(1, 4));
+        createObject((short) 118, new Point(8, 3));
+        EntityId killCreatures = createObject((short) 127, new Point(1, 8));
+        system.processTick(0.25f);
+
+        // The last it finds is one it leaves alone
+        assertTrue(pickedUp.isEmpty());
+
+        entityData.removeEntity(killCreatures);
+        EntityId revealMap = createObject((short) 118, new Point(1, 8));
+        system.processTick(0.25f);
+
+        assertEquals(List.of(revealMap), pickedUp);
+    }
+
+    private EntityId createObject(short objectId, Point tile) {
+        EntityId entityId = entityData.createEntity();
+        entityData.setComponents(entityId, new ObjectComponent(objectId, null), new Position(0, WorldUtils.pointToVector3f(tile.x, tile.y)));
+
+        return entityId;
+    }
+
     private EntityId createPrisoner(Point tile) {
         EntityId prisoner = createCreature(ENEMY_ID, tile, 100, 100, CreatureState.IMPRISONED);
         entityData.setComponents(prisoner, new Owner(ENEMY_ID, PLAYER_ID), new CreatureImprisoned(0, 0));
@@ -1509,6 +1538,8 @@ class KeeperAiSystemTest {
                     ? CombatExperienceFixtures.creature(HORNY, Creature.CreatureFlag.IS_HORNY) : CombatExperienceFixtures.creature((short) 0);
             case "getRooms" -> new ArrayList<>(rooms.values());
             case "getTraps" -> List.of(sentry);
+            case "getObject" -> ((Number) args[0]).shortValue() == 1 ? GameObjectFixtures.gameObject("Gold")
+                    : GameObjectFixtures.gameObject("Special", GameObject.ObjectFlag.OBJECT_TYPE_SPECIAL);
             case "getDoors" -> List.of(woodenDoor);
             case "getVariables" -> variables;
             case "getRoomById" -> rooms.get(((Number) args[0]).shortValue());
@@ -1554,8 +1585,12 @@ class KeeperAiSystemTest {
                             (imp ? impSpells : callToArmsCasts).add((Point) args[2]);
                             keeper.setMana(keeper.getMana() - (imp ? createImp : callToArms).getManaCost());
                         }
-                        case "pickUp" ->
-                            handControl.push((EntityId) args[0], gameTime);
+                        case "pickUp" -> {
+                            pickedUp.add((EntityId) args[0]);
+                            if (entityData.getComponent((EntityId) args[0], CreatureComponent.class) != null) {
+                                handControl.push((EntityId) args[0], gameTime);
+                            }
+                        }
                         case "interact" ->
                             slapped.add((EntityId) args[0]);
                         case "placeTrap", "placeDoor" -> {
