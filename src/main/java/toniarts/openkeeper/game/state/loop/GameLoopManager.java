@@ -179,7 +179,8 @@ public final class GameLoopManager {
                 new CreatureMoodSwitchSystem(entityData, levelInfo::isCreatureMoodsEnabled),
                 (IGameLogicUpdatable) gameController,
                 Settings.getInstance().getBoolean(Settings.Setting.COMPUTER_PLAYER)
-                ? new KeeperAiSystem(entityData, level, playerControllers, gameWorldController, gameController.getGameTimer(),
+                ? new KeeperAiSystem(entityData, level, playerControllers, gameWorldController, gameController.getNavigationService(),
+                        gameController.getGameTimer(),
                         Settings.getInstance().getBoolean(Settings.Setting.COMPUTER_PLAYER_LOG))
                 : new GameLogicManager(),
                 new CreatureSpawnSystem(entityData, gameWorldController.getCreaturesController(), playerControllers.values(),
