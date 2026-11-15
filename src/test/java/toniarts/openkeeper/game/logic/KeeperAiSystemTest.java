@@ -395,7 +395,7 @@ class KeeperAiSystemTest {
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.creatureId = EATER;
         entityData.setComponent(creature, creatureComponent);
-        handControl.push(creature);
+        handControl.push(creature, gameTime);
 
         system.processTick(0.25f);
 
@@ -408,7 +408,7 @@ class KeeperAiSystemTest {
         KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
         roomControl.onBuild(createRoom(LAIR, new Point(2, 4)));
         EntityId creature = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.IDLE);
-        handControl.push(creature);
+        handControl.push(creature, gameTime);
 
         system.processTick(0.25f);
 
