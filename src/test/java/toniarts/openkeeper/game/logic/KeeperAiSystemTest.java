@@ -31,11 +31,14 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.KeeperAi;
+import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.player.PlayerCreatureControl;
+import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
@@ -255,7 +258,10 @@ class KeeperAiSystemTest {
 
     private KeeperAiSystem createSystem(AI ai, int gold) {
         keeper = new Keeper(player(PLAYER_ID, ai));
-        keeper.setGold(gold);
+
+        // The keeper's gold is kept on the keeper's entity
+        entityData.setComponents(entityData.createEntity(), new KeeperComponent(PLAYER_ID), new Gold(gold, Integer.MAX_VALUE));
+        PlayerGoldControl goldControl = new PlayerGoldControl(keeper, entityData);
         keeper.setMana(1000);
         roomControl = new PlayerRoomControl(keeper, new ArrayList<>(rooms.values()));
         roomControl.onBuild(createRoom(DUNGEON_HEART, HEART));
@@ -263,6 +269,7 @@ class KeeperAiSystemTest {
         IPlayerController playerController = (IPlayerController) Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[]{IPlayerController.class}, (proxy, method, args) -> switch (method.getName()) {
             case "getKeeper" -> keeper;
+            case "getGoldControl" -> goldControl;
             case "getRoomControl" -> roomControl;
             case "getCreatureControl" -> creatureControl;
             default -> throw new UnsupportedOperationException(method.getName());

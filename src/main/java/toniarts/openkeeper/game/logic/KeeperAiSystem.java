@@ -295,7 +295,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
     }
 
     private void mineGoldIfLow(KeeperAi keeperAi, IPlayerController playerController, AI ai) {
-        if (playerController.getKeeper().getGold() < ai.getMineGoldUntilGoldHeldIsGreaterThan()) {
+        if (playerController.getGoldControl().getGold() < ai.getMineGoldUntilGoldHeldIsGreaterThan()) {
             mineGold(keeperAi, playerController);
         }
     }
@@ -480,7 +480,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
         }
 
         // The room at its default size has to be affordable, otherwise mine gold first
-        if (room.getCost() * ai.getDefaultSize() > playerController.getKeeper().getGold()) {
+        if (room.getCost() * ai.getDefaultSize() > playerController.getGoldControl().getGold()) {
             mineGold(keeperAi, playerController);
             return;
         }
