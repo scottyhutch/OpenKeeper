@@ -28,7 +28,9 @@ import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Senses;
+import toniarts.openkeeper.game.controller.IDoorsController;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.controller.door.IDoorController;
 import toniarts.openkeeper.game.map.FakeMapData;
 import toniarts.openkeeper.game.map.FakeMapInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -43,8 +45,8 @@ import static toniarts.openkeeper.tools.convert.map.Terrain.TerrainFlag.OWNABLE;
 import static toniarts.openkeeper.tools.convert.map.Terrain.TerrainFlag.SOLID;
 
 /**
- * Creatures sense through doors, but what stands behind a door that blocks
- * them is out of their reach
+ * A door that blocks a creature also blocks its senses, as in DK II
+ * (0x4511A0), so what stands behind it is out of its reach
  */
 class SensingBehindDoorsTest {
 
@@ -83,10 +85,10 @@ class SensingBehindDoorsTest {
     }
 
     @Test
-    void creatureIsSensedThroughAnEnemyDoor() {
+    void creatureBehindAnEnemyDoorIsNotSensed() {
         door(ENEMY, false);
 
-        assertTrue(positionSystem().getSensedEntities(creature).contains(neutralCreature));
+        assertFalse(positionSystem().getSensedEntities(creature).contains(neutralCreature));
     }
 
     @Test
@@ -145,7 +147,16 @@ class SensingBehindDoorsTest {
             default ->
                 throw new UnsupportedOperationException(method.getName());
         });
-        positionSystem = new PositionSystem(mapController, entityData, null, null, null);
+        IDoorController doorController = (IDoorController) Proxy.newProxyInstance(IDoorController.class.getClassLoader(),
+                new Class<?>[]{IDoorController.class}, (proxy, method, args) -> switch (method.getName()) {
+            case "isBarricade" ->
+                false;
+            default ->
+                throw new UnsupportedOperationException(method.getName());
+        });
+        IDoorsController doorsController = (IDoorsController) Proxy.newProxyInstance(IDoorsController.class.getClassLoader(),
+                new Class<?>[]{IDoorsController.class}, (proxy, method, args) -> doorController);
+        positionSystem = new PositionSystem(mapController, entityData, null, doorsController, null);
         return positionSystem;
     }
 
