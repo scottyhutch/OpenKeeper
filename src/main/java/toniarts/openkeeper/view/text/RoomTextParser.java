@@ -16,14 +16,12 @@
  */
 package toniarts.openkeeper.view.text;
 
-import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import java.util.Map;
 import java.util.function.ToIntFunction;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.data.Keeper;
-import toniarts.openkeeper.game.logic.CreatureSpawnSystem;
 import toniarts.openkeeper.game.map.IRoomInformation;
 import toniarts.openkeeper.game.map.IRoomsInformation;
 import toniarts.openkeeper.utils.TextParameter;
@@ -56,26 +54,9 @@ public class RoomTextParser {
 
     private ToIntFunction<Short> patrolRouteCounter = owner -> 0;
     private final IRoomsInformation roomsInformation;
-    private final EntityData entityData;
-    private final int creaturesSupportedByFirstPortal;
-    private final int creaturesSupportedPerAdditionalPortal;
 
     public RoomTextParser(IRoomsInformation roomsInformation) {
-        this(roomsInformation, null, 0, 0);
-    }
-
-    /**
-     * @param roomsInformation the rooms
-     * @param entityData the entities, for the creatures the portals attracted
-     * @param creaturesSupportedByFirstPortal CREATURES_SUPPORTED_BY_FIRST_PORTAL
-     * @param creaturesSupportedPerAdditionalPortal CREATURES_SUPPORTED_PER_ADDITIONAL_PORTAL
-     */
-    public RoomTextParser(IRoomsInformation roomsInformation, EntityData entityData, int creaturesSupportedByFirstPortal,
-            int creaturesSupportedPerAdditionalPortal) {
         this.roomsInformation = roomsInformation;
-        this.entityData = entityData;
-        this.creaturesSupportedByFirstPortal = creaturesSupportedByFirstPortal;
-        this.creaturesSupportedPerAdditionalPortal = creaturesSupportedPerAdditionalPortal;
     }
 
     /**
@@ -142,12 +123,6 @@ public class RoomTextParser {
             default:
                 return TextUtils.getUnsupportedParameterMessage(parameter, getClass());
         }
-    }
-
-    private int getPortalCapacity(short ownerId) {
-        int portals = roomsInformation.getRoomCount(ownerId, (short) (int) ROOM_IDS.get(TextParameter.PORTAL_COUNT))
-                + roomsInformation.getRoomCount(ownerId, CreatureSpawnSystem.HERO_PORTAL_ROOM_ID);
-        return CreatureSpawnSystem.getPortalCapacity(portals, creaturesSupportedByFirstPortal, creaturesSupportedPerAdditionalPortal);
     }
 
     /**
