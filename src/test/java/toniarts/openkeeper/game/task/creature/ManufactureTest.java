@@ -41,6 +41,7 @@ class ManufactureTest {
 
     private static final int TICKS_PER_SECOND = 4;
     private static final int BILE_DEMON = 12; // 50 a second in the data, divided by the 4 ticks a second
+    private static final int TROLL = 60;
 
     @Test
     void creatureWorksOnEveryTick() {

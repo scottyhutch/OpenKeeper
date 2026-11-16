@@ -176,7 +176,7 @@ class JobRoomOccupancyTest {
 
     private Gamble gamble(CasinoController casino) {
         setCasinoSettings();
-        return new Gamble(null, null, new Point(1, 1), KEEPER, casino, taskManager(casino), entityData, null, null, gameSettings,
+        return new Gamble(null, null, null, new Point(1, 1), KEEPER, casino, taskManager(casino), entityData, null, null, gameSettings,
                 () -> Casino.PayOut.SMILES, null);
     }
 

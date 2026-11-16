@@ -66,6 +66,7 @@ class PortalSpawnCooldownTest {
         var timer = fixture.timer;
         var system = fixture.system;
         var spawned = fixture.spawned;
+        var entities = fixture.entities;
 
         // The tutorial's scripted Goblin is generated at 12 seconds after capture.
         timer.processTick(12);
@@ -332,7 +333,12 @@ class PortalSpawnCooldownTest {
                     throw new AssertionError(method);
                 }
                 spawned.add((Short) args[0]);
-                return failSpawn ? null : entities.createEntity();
+                if (failSpawn) {
+                    return null;
+                }
+                EntityId creature = entities.createEntity();
+                entities.setComponents(creature, new CreatureComponent(), new Owner((short) 3, (short) 3), new Health(100, 100));
+                return creature;
             });
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> settings =
                     new EnumMap<>(Variable.MiscVariable.MiscType.class);
