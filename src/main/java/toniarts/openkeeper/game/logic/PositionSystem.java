@@ -394,6 +394,30 @@ public final class PositionSystem implements IGameLogicUpdatable, IEntityPositio
         return false;
     }
 
+    @Override
+    public boolean isBehindBlockingDoor(EntityId entityId, EntityId sensedEntityId) {
+        Senses senses = entityData.getComponent(entityId, Senses.class);
+        Owner owner = entityData.getComponent(entityId, Owner.class);
+        IMapTileInformation tile = getEntityLocation(entityId);
+        if (senses == null || owner == null || tile == null) {
+            return false;
+        }
+
+        // Sense again, but stop at the doors that block us
+        Set<EntityId> sensedEntities = new HashSet<>();
+        addSensedEntities(tile, (int) Math.max(senses.distanceCanHear, senses.distanceCanSee), owner.ownerId, sensedEntities);
+
+        return !sensedEntities.contains(sensedEntityId);
+    }
+
+    /**
+     * Adds the entities around the tile to the sensed ones
+     *
+     * @param startTile the tile to sense from
+     * @param range how many tiles further to sense
+     * @param playerId the player whose blocking doors stop the senses
+     * @param sensedEntities the sensed entities
+     */
     private void addSensedEntities(IMapTileInformation startTile, int range, short playerId, Set<EntityId> sensedEntities) {
 
         // Go out one step at a time, so each tile is looked at only once

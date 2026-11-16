@@ -212,6 +212,7 @@ public final class GameLoopManager {
                 new DoorSystem(entityData, level, gameWorldController.getMapController(), levelInfo),
                 new DoorViewSystem(entityData, positionSystem),
                 new BattleSystem(entityData, gameController.getGameTimer()),
+                new SpinSystem(entityData, gameController.getGameTimer()),
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),
                 new TrapSystem(entityData, level, gameController.getGameTimer(),
                         solidTilesBlockSight(gameWorldController.getMapController()), playerControllers,
@@ -219,9 +220,9 @@ public final class GameLoopManager {
                                 gameService, gameWorldController.getShotsController()),
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.TRIGGER_TRAP_TRIGGER_SPEED_TILES_PER_SECOND)),
                 new FreezeSystem(entityData, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
-                new ShotSystem(entityData, level, gameController.getGameTimer(), gameWorldController.getShotsController(), positionSystem,
-                        gameWorldController.getMapController(), playerControllers),
                 new HaulingSystem(entityData),
+                new ShotSystem(entityData, level, gameEventService, gameWorldController.getShotsController(), positionSystem,
+                        gameWorldController.getMapController(), playerControllers),
                 (IGameLogicUpdatable) taskManager);
 
         final long logicTickNanos = 1_000_000_000L / levelInfo.getLevelData().getGameLevel().getTicksPerSec();
@@ -234,7 +235,7 @@ public final class GameLoopManager {
                         entityData,
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.TIME_BEFORE_DUNGEON_HEART_CONSTRUCTION_BEGINS),
                         levelInfo.getLevelData().getObject(FiveByFiveRotatedController.OBJECT_PLUG_ID).getMiscEffectId(),
-                        levelInfo.getLevelData().getGameLevel().getTicksPerSec()),
+                        levelInfo.getLevelData().getGameLevel().getTicksPerSec(), gameEventService),
                 new CreatureFallSystem(entityData, gameWorldController.getMapController(),
                         levelInfo.getLevelData().getGameLevel().getTicksPerSec(),
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.GRAVITY_CONSTANT)));

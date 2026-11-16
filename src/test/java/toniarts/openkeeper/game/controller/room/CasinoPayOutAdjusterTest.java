@@ -21,6 +21,8 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.Collections;
+import java.util.List;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
 import toniarts.openkeeper.game.component.Casino.PayOut;
@@ -54,7 +56,7 @@ class CasinoPayOutAdjusterTest {
         // The furniture stands on (2, 2), (2, 4), (3, 3), (4, 2) and (4, 4)
         assertEquals(new Point(2, 2), getTile(findObject(PAY_OUT_ADJUSTER)));
         assertEquals(4, casino.getFloorFurnitureCount());
-        // One gambler per piece of furniture, plus one, like in DK II
+        // One more gambler than there is furniture to gamble at (#1149)
         assertEquals(5, casino.getMaxCapacity(ObjectType.GAMBLER));
     }
 
@@ -111,12 +113,42 @@ class CasinoPayOutAdjusterTest {
     }
 
     @Test
+    void wheelsStandOnlyOnTheTables() {
+        CasinoController casino = buildCasino(5);
+        assertTwoWheelsOnEveryTable();
+
+        // Built again, as when the room grows
+        casino.construct();
+        assertTwoWheelsOnEveryTable();
+    }
+
+    @Test
     void soldCasinoTakesItsAdjusterAlong() {
         CasinoController casino = buildCasino(5);
 
         casino.remove();
 
         assertNull(findObject(PAY_OUT_ADJUSTER));
+    }
+
+    private void assertTwoWheelsOnEveryTable() {
+
+        // The adjuster took the place of the table on (2, 2), its wheels must not stay behind
+        List<Point> tables = getTiles(ROULETTE_TABLE);
+        List<Point> wheels = getTiles(CasinoController.ROULETTE_WHEEL_OBJECT_ID);
+        assertEquals(4, tables.size());
+        assertEquals(2 * tables.size(), wheels.size());
+        for (Point table : tables) {
+            assertEquals(2, Collections.frequency(wheels, table));
+        }
+        assertFalse(wheels.contains(getTile(findObject(PAY_OUT_ADJUSTER))));
+    }
+
+    private List<Point> getTiles(short objectId) {
+        return entityData.getEntities(ObjectComponent.class, Position.class).stream()
+                .filter(entity -> entity.get(ObjectComponent.class).objectId == objectId)
+                .map(entity -> WorldUtils.vectorToPoint(entity.get(Position.class).position))
+                .toList();
     }
 
     private EntityId findObject(short objectId) {
@@ -144,7 +176,7 @@ class CasinoPayOutAdjusterTest {
                     entityData.setComponents(entityId,
                             new ObjectComponent((short) args[0], null),
                             new ObjectViewState((short) args[0], null, GameObjectAnimState.MESH_RESOURCE, true),
-                            new Position(0, args[2] instanceof Vector3f location ? location : WorldUtils.pointToVector3f((int) args[2], (int) args[3])));
+                            new Position(0, args[2] instanceof Vector3f vector ? vector : WorldUtils.pointToVector3f((int) args[2], (int) args[3])));
                     return entityId;
                 });
 

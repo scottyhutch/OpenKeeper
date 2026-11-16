@@ -16,14 +16,9 @@
  */
 package toniarts.openkeeper.view.text;
 
-import com.simsilica.es.EntityData;
-import com.simsilica.es.EntityId;
-import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.Test;
-import toniarts.openkeeper.game.component.CreatureComponent;
-import toniarts.openkeeper.game.component.Owner;
-import toniarts.openkeeper.game.component.PortalAttracted;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.map.IRoomInformation;
 import toniarts.openkeeper.game.map.IRoomsInformation;
 import toniarts.openkeeper.utils.TextParameter;
@@ -38,16 +33,10 @@ class PortalTooltipTest {
     private static final short PORTAL = 3;
     private static final short HERO_PORTAL = 25;
 
-    private final EntityData entityData = new DefaultEntityData();
-
     @Test
     void showsTheAttractedCreaturesAndWhatThePortalsSupport() {
-        for (int i = 0; i < 4; i++) {
-            EntityId creature = entityData.createEntity();
-            entityData.setComponent(creature, new CreatureComponent());
-            entityData.setComponent(creature, new Owner(KEEPER, KEEPER));
-            entityData.setComponent(creature, new PortalAttracted());
-        }
+        Keeper keeper = new Keeper(false, KEEPER);
+        keeper.setPortalCreatures(4, 25);
         IRoomsInformation<IRoomInformation> rooms = stub(IRoomsInformation.class, (name, args) -> switch (name) {
             case "getRoomCount" -> {
                 short roomId = (short) args[1];
@@ -60,11 +49,11 @@ class PortalTooltipTest {
             default -> null;
         });
 
-        RoomTextParser parser = new RoomTextParser(rooms, entityData, 15, 5);
+        RoomTextParser parser = new RoomTextParser(rooms);
 
-        assertEquals("4", parser.getReplacement(TextParameter.ATTRACTED_CREATURE_COUNT, portal, null));
-        assertEquals("25", parser.getReplacement(TextParameter.PORTAL_CREATURE_CAPACITY, portal, null));
-        assertEquals("2", parser.getReplacement(TextParameter.PORTAL_COUNT, portal, null));
+        assertEquals("4", parser.getReplacement(TextParameter.ATTRACTED_CREATURE_COUNT, portal, keeper));
+        assertEquals("25", parser.getReplacement(TextParameter.PORTAL_CREATURE_CAPACITY, portal, keeper));
+        assertEquals("2", parser.getReplacement(TextParameter.PORTAL_COUNT, portal, keeper));
     }
 
     private interface Answer {

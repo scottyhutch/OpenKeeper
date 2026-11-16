@@ -44,6 +44,9 @@ import toniarts.openkeeper.utils.WorldUtils;
  */
 public final class CasinoController extends NormalRoomController {
 
+    private static final short OBJECT_PAY_OUT_ADJUSTER_ID = 95;
+
+    private EntityId payOutAdjuster;
     public static final short ROULETTE_TABLE_OBJECT_ID = 87;
     public static final short ROULETTE_WHEEL_OBJECT_ID = 30;
     /**
@@ -51,93 +54,26 @@ public final class CasinoController extends NormalRoomController {
      * the 4096 units of a tile in the original
      */
     private static final float ROULETTE_WHEEL_OFFSET = 2000f / 4096;
-    private static final short OBJECT_PAY_OUT_ADJUSTER_ID = 95;
 
     private final IGameTimer gameTimer;
     private final Set<EntityId> rouletteWheels = new HashSet<>();
-    private EntityId payOutAdjuster;
 
     public CasinoController(EntityId entityId, EntityData entityData, IKwdFile kwdFile,
             RoomInstance roomInstance, IObjectsController objectsController, IGameTimer gameTimer) {
         super(entityId, entityData, kwdFile, roomInstance, objectsController, ObjectType.GAMBLER);
 
         this.gameTimer = gameTimer;
+
+        if (getEntityComponent(Casino.class) == null) {
+            setPayOut(PayOut.SMILES);
+        }
     }
 
     @Override
     public void construct() {
         super.construct();
 
-        // A new casino pays out in smiles, like in DK II
-        if (getEntityComponent(Casino.class) == null) {
-            setPayOut(PayOut.SMILES);
-        }
-
         addObjectControl(new RoomGamblerControl(kwdFile, this, entityData, gameTimer));
-    }
-
-    /**
-     * As in the original (0x4EDFC0), every roulette table gets two roulette
-     * wheels, one at each end. The gamblers spin them.
-     */
-    @Override
-    protected void constructObjects() {
-        removeRouletteWheels();
-        removePayOutAdjuster();
-        super.constructObjects();
-        placePayOutAdjuster();
-
-        for (EntityId furniture : floorFurniture) {
-            ObjectComponent object = entityData.getComponent(furniture, ObjectComponent.class);
-            if (object != null && object.objectId == ROULETTE_TABLE_OBJECT_ID) {
-                Vector3f table = entityData.getComponent(furniture, Position.class).position;
-                rouletteWheels.add(objectsController.loadObject(ROULETTE_WHEEL_OBJECT_ID, (short) 0,
-                        table.add(0, 0, ROULETTE_WHEEL_OFFSET), 0));
-                rouletteWheels.add(objectsController.loadObject(ROULETTE_WHEEL_OBJECT_ID, (short) 0,
-                        table.add(0, 0, -ROULETTE_WHEEL_OFFSET), 0));
-            }
-        }
-    }
-
-    /**
-     * Like in DK II, the pay out adjuster takes the place of the first piece
-     * of furniture that has no furniture in the row above it
-     */
-    private void placePayOutAdjuster() {
-        Map<Point, EntityId> furnitureByTile = new HashMap<>();
-        for (EntityId piece : floorFurniture) {
-            Position position = entityData.getComponent(piece, Position.class);
-            if (position != null) {
-                furnitureByTile.put(WorldUtils.vectorToPoint(position.position), piece);
-            }
-        }
-        for (Point p : roomInstance.getCoordinates()) {
-            EntityId piece = furnitureByTile.get(p);
-            if (piece != null && !furnitureByTile.containsKey(new Point(p.x - 1, p.y - 1))
-                    && !furnitureByTile.containsKey(new Point(p.x, p.y - 1))
-                    && !furnitureByTile.containsKey(new Point(p.x + 1, p.y - 1))) {
-                floorFurniture.remove(piece);
-                entityData.removeEntity(piece);
-                payOutAdjuster = objectsController.loadObject(OBJECT_PAY_OUT_ADJUSTER_ID, roomInstance.getOwnerId(), p.x, p.y);
-                showPayOut();
-                return;
-            }
-        }
-    }
-
-    @Override
-    public void remove() {
-        removeRouletteWheels();
-        super.remove();
-
-        removePayOutAdjuster();
-    }
-
-    private void removePayOutAdjuster() {
-        if (payOutAdjuster != null) {
-            entityData.removeEntity(payOutAdjuster);
-            payOutAdjuster = null;
-        }
     }
 
     private void removeRouletteWheels() {
@@ -158,8 +94,7 @@ public final class CasinoController extends NormalRoomController {
      * @return the pay out setting
      */
     public PayOut getPayOut() {
-        PayOut payOut = getCasinoPayOut();
-        return payOut != null ? payOut : PayOut.SMILES;
+        return getEntityComponent(Casino.class).payOut;
     }
 
     /**
@@ -198,6 +133,65 @@ public final class CasinoController extends NormalRoomController {
         payOutAdjuster = furniture;
         setPayOut(getPayOut() == PayOut.SMILES ? PayOut.MONEY : PayOut.SMILES);
         return true;
+    }
+
+    @Override
+    protected void constructObjects() {
+        removeRouletteWheels();
+        removePayOutAdjuster();
+        super.constructObjects();
+
+        // Like in DK II, the pay out adjuster takes the place of the first piece of furniture that has no
+        // furniture in the row above it (0x4D6ED0). It is placed before the roulette wheels, as DK II
+        // puts no furniture on its tile (0x4EDFC0), so a table it replaces leaves no wheels behind
+        Map<Point, EntityId> furnitureByTile = new HashMap<>();
+        for (EntityId piece : floorFurniture) {
+            Position position = entityData.getComponent(piece, Position.class);
+            if (position != null) {
+                furnitureByTile.put(WorldUtils.vectorToPoint(position.position), piece);
+            }
+        }
+        for (Point p : roomInstance.getCoordinates()) {
+            EntityId piece = furnitureByTile.get(p);
+            if (piece != null && !furnitureByTile.containsKey(new Point(p.x - 1, p.y - 1))
+                    && !furnitureByTile.containsKey(new Point(p.x, p.y - 1))
+                    && !furnitureByTile.containsKey(new Point(p.x + 1, p.y - 1))) {
+                floorFurniture.remove(piece);
+                entityData.removeEntity(piece);
+                payOutAdjuster = objectsController.loadObject(OBJECT_PAY_OUT_ADJUSTER_ID, roomInstance.getOwnerId(), p.x, p.y);
+                showPayOut();
+                break;
+            }
+        }
+
+        // As in the original (0x4EDFC0), every roulette table gets two roulette wheels, one at each end.
+        // The gamblers spin them.
+
+        for (EntityId furniture : floorFurniture) {
+            ObjectComponent object = entityData.getComponent(furniture, ObjectComponent.class);
+            if (object != null && object.objectId == ROULETTE_TABLE_OBJECT_ID) {
+                Vector3f table = entityData.getComponent(furniture, Position.class).position;
+                rouletteWheels.add(objectsController.loadObject(ROULETTE_WHEEL_OBJECT_ID, (short) 0,
+                        table.add(0, 0, ROULETTE_WHEEL_OFFSET), 0));
+                rouletteWheels.add(objectsController.loadObject(ROULETTE_WHEEL_OBJECT_ID, (short) 0,
+                        table.add(0, 0, -ROULETTE_WHEEL_OFFSET), 0));
+            }
+        }
+    }
+
+    @Override
+    public void remove() {
+        removeRouletteWheels();
+        super.remove();
+
+        removePayOutAdjuster();
+    }
+
+    private void removePayOutAdjuster() {
+        if (payOutAdjuster != null) {
+            entityData.removeEntity(payOutAdjuster);
+            payOutAdjuster = null;
+        }
     }
 
 }

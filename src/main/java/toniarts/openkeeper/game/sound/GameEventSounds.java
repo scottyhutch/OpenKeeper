@@ -130,6 +130,17 @@ public final class GameEventSounds {
                 add(sounds, SoundCategory.SPEECH_MENTOR, MentorType.TORTC006.getId(), null);
             case CALL_TO_ARMS_UNREACHABLE ->
                 add(sounds, SoundCategory.SPEECH_MENTOR, MentorType.MISC054.getId(), null);
+            case TORTURE_ELECTROCUTED -> {
+                add(sounds, subject, ThingSounds.ELECTRIC_CHAIR_ZAP, event.position);
+                add(sounds, getCategory(kwdFile, event.targetKind, event.targetId), ThingSounds.CREATURE_ELECTROCUTED,
+                        event.position);
+            }
+            case TORTURE_WHEEL ->
+                add(sounds, subject, ThingSounds.CREATURE_TORTURED, event.position);
+            case TORTURE_CONVERTED ->
+                add(sounds, SoundCategory.SPEECH_MENTOR, MentorType.TORTC004.getId(), null);
+            case TORTURE_CONVERTED_BY_ENEMY ->
+                add(sounds, SoundCategory.SPEECH_MENTOR, MentorType.TORTC006.getId(), null);
             case ROOM_TILES_LAID ->
                 add(sounds, subject, ThingSounds.ROOM_LAY_TILE, event.position);
             case ROOM_TILE_BUILT ->
@@ -151,7 +162,7 @@ public final class GameEventSounds {
             case CASINO_FIREWORKS ->
                 add(sounds, GlobalCategory.EFFECTS, ThingSounds.FIREWORKS, event.position);
             case CASINO_DISCO_START ->
-                add(sounds, subject, ThingSounds.ROOM_CASINO_DISCO_MUSIC, null); // Looped, GameEventSoundPlayer sets its volume
+                add(sounds, subject, ThingSounds.ROOM_CASINO_DISCO_MUSIC, null); // Looped, DiscoViewState plays it and sets its volume
             case CASINO_JACKPOT -> {
                 // The effect is the view's
             }

@@ -28,9 +28,9 @@ import java.util.Set;
  * doors. The oldest blueprints get their crates first, like the workshop
  * manufactures for the oldest blueprints first.
  */
-public final class CrateDeliveries {
+public final class TrapDeliveries {
 
-    private CrateDeliveries() {
+    private TrapDeliveries() {
         // Nope
     }
 

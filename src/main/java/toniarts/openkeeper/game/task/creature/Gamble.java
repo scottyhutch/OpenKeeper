@@ -31,25 +31,23 @@ import toniarts.openkeeper.game.component.CasinoDisco;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.ObjectComponent;
-import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.Owner;
-import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.controller.object.IObjectController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.CasinoController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.AbstractCapacityCriticalRoomTask;
 import toniarts.openkeeper.game.task.TaskManager;
 import toniarts.openkeeper.game.task.TaskType;
-import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 import toniarts.openkeeper.utils.Point;
-import toniarts.openkeeper.utils.WorldUtils;
 
 /**
  * Gambles in the Casino, the room for the Drink job. Once a second the
@@ -69,6 +67,7 @@ public final class Gamble extends AbstractCapacityCriticalRoomTask {
      */
     public static final int CASINO_SHARE_INTERVAL_SECONDS = 4;
 
+    private final IEntityPositionLookup entityPositionLookup;
     private final EntityData entityData;
     private final IGameWorldController gameWorldController;
     private final IObjectsController objectsController;
@@ -90,6 +89,8 @@ public final class Gamble extends AbstractCapacityCriticalRoomTask {
      *
      * @param navigationService the navigation service
      * @param mapController the map controller
+     * @param entityPositionLookup the entity lookup, for the wheels of a
+     * roulette table
      * @param p the casino furniture to gamble at
      * @param playerId the owner of the casino
      * @param room the casino
@@ -103,12 +104,14 @@ public final class Gamble extends AbstractCapacityCriticalRoomTask {
      * @param payOut the pay out setting of the casino
      * @param random the random number generator
      */
-    public Gamble(final INavigationService navigationService, final IMapController mapController, Point p, short playerId,
+    public Gamble(final INavigationService navigationService, final IMapController mapController,
+            final IEntityPositionLookup entityPositionLookup, Point p, short playerId,
             IRoomController room, TaskManager taskManager, EntityData entityData, IGameWorldController gameWorldController,
             IObjectsController objectsController, Map<MiscType, MiscVariable> gameSettings, Supplier<PayOut> payOut,
             RandomGenerator random) {
         super(navigationService, mapController, p, playerId, room, taskManager);
 
+        this.entityPositionLookup = entityPositionLookup;
         this.entityData = entityData;
         this.gameWorldController = gameWorldController;
         this.objectsController = objectsController;
@@ -200,7 +203,8 @@ public final class Gamble extends AbstractCapacityCriticalRoomTask {
                         CASINO_SHARE_INTERVAL_SECONDS * Math.abs(moneyGoldPerSecond), maxGoldPile);
             }
 
-            // At a roulette table the gambler spins one of its wheels, as in the original (0x456980)
+            // At a roulette table the gambler spins one of its wheels, as in the original (0x456980). The SpinSystem
+            // stops it
             spinRouletteWheel();
         }
 
@@ -212,18 +216,15 @@ public final class Gamble extends AbstractCapacityCriticalRoomTask {
     }
 
     private void spinRouletteWheel() {
-        List<EntityId> wheels = new ArrayList<>(2);
-        for (EntityId wheel : entityData.findEntities(new FieldFilter<>(ObjectComponent.class, "objectId", CasinoController.ROULETTE_WHEEL_OBJECT_ID),
-                ObjectComponent.class, Position.class)) {
-            if (getTaskLocation().equals(WorldUtils.vectorToPoint(entityData.getComponent(wheel, Position.class).position))) {
-                wheels.add(wheel);
+        List<IObjectController> wheels = new ArrayList<>(2);
+        for (IObjectController object : entityPositionLookup.getEntityTypesInLocation(getTaskLocation(), IObjectController.class)) {
+            ObjectComponent objectComponent = entityData.getComponent(object.getEntityId(), ObjectComponent.class);
+            if (objectComponent != null && objectComponent.objectId == CasinoController.ROULETTE_WHEEL_OBJECT_ID) {
+                wheels.add(object);
             }
         }
         if (!wheels.isEmpty()) {
-            EntityId wheel = wheels.get(random.nextInt(wheels.size()));
-            ObjectViewState viewState = entityData.getComponent(wheel, ObjectViewState.class);
-            entityData.setComponent(wheel, new ObjectViewState(viewState.objectId, GameObject.State.SPINNING,
-                    viewState.animState, viewState.visible));
+            wheels.get(random.nextInt(wheels.size())).spin();
         }
     }
 

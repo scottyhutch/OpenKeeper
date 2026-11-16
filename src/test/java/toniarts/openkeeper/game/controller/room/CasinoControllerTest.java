@@ -23,6 +23,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import com.simsilica.es.filter.FieldFilter;
 import java.lang.reflect.Proxy;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
@@ -35,7 +36,7 @@ import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static toniarts.openkeeper.tools.convert.map.RoomFixtures.roomWithObjects;
+import static toniarts.openkeeper.tools.convert.map.RoomFixtures.room;
 
 /**
  * The roulette tables of the Casino get their wheels as in the original
@@ -46,10 +47,8 @@ class CasinoControllerTest {
 
     @Test
     void everyRouletteTableGetsTwoWheelsThatGoWithTheRoom() {
-        RoomInstance roomInstance = new RoomInstance(RoomFixtures.roomWithObjects((short) 15,
-                (short) 87, (short) 59, (short) 67, (short) 68, (short) 0, (short) 0));
-        // The pay out adjuster takes the place of the first piece of furniture with none above it, so the room is
-        // big enough to keep a table
+        RoomInstance roomInstance = new RoomInstance(RoomFixtures.room((short) 15,
+                List.of((short) 87, (short) 59, (short) 67, (short) 68, (short) 0, (short) 0)));
         for (int x = 5; x <= 9; x++) {
             for (int y = 5; y <= 9; y++) {
                 roomInstance.addCoordinate(new Point(x, y));
@@ -58,31 +57,16 @@ class CasinoControllerTest {
         CasinoController casino = new CasinoController(entityData.createEntity(), entityData, null, roomInstance,
                 objectsController(), null);
 
+        // The tables stand on (6, 6) and (8, 6), the pay out adjuster takes the place of the first one
         casino.construct();
-        Set<Vector3f> tables = tables();
-        assertTrue(!tables.isEmpty());
-        Set<Vector3f> expected = new HashSet<>();
-        for (Vector3f table : tables) {
-            expected.add(new Vector3f(table.x, 1, table.z + 2000f / 4096));
-            expected.add(new Vector3f(table.x, 1, table.z - 2000f / 4096));
-        }
-        assertEquals(expected, wheels());
+        assertEquals(Set.of(new Vector3f(8, 1, 6 + 2000f / 4096), new Vector3f(8, 1, 6 - 2000f / 4096)), wheels());
 
         // Built again, as when the room grows
         casino.construct();
-        assertEquals(2 * tables().size(), wheels().size());
+        assertEquals(2, wheels().size());
 
         casino.remove();
         assertTrue(wheels().isEmpty());
-    }
-
-    private Set<Vector3f> tables() {
-        Set<Vector3f> tables = new HashSet<>();
-        for (EntityId table : entityData.findEntities(new FieldFilter<>(ObjectComponent.class, "objectId",
-                CasinoController.ROULETTE_TABLE_OBJECT_ID), ObjectComponent.class, Position.class)) {
-            tables.add(entityData.getComponent(table, Position.class).position);
-        }
-        return tables;
     }
 
     private Set<Vector3f> wheels() {
@@ -108,7 +92,6 @@ class CasinoControllerTest {
         });
     }
 
-
     @Test
     void roomWithOneTableTakesTwoGamblers() {
         CasinoController room = buildCasino(3);
@@ -133,7 +116,7 @@ class CasinoControllerTest {
                 (proxy, method, args) -> method.getName().equals("loadObject") ? entityData.createEntity() : null);
 
         // Casino objects in DK II: Roulette Table, Barrel, Bar Table and Alcove Barrels
-        RoomInstance roomInstance = new RoomInstance(roomWithObjects((short) 15, (short) 87, (short) 59, (short) 67, (short) 68, (short) 0, (short) 0));
+        RoomInstance roomInstance = new RoomInstance(room((short) 15, List.of((short) 87, (short) 59, (short) 67, (short) 68, (short) 0, (short) 0)));
         for (int x = 1; x <= size; x++) {
             for (int y = 1; y <= size; y++) {
                 roomInstance.addCoordinate(new Point(x, y));

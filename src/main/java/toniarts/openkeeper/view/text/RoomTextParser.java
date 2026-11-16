@@ -136,15 +136,9 @@ public class RoomTextParser {
             case DUNGEON_HEART_MAX_MANA:
                 return Integer.toString(roomOwner.getMaxMana());
             case ATTRACTED_CREATURE_COUNT:
-                if (entityData == null) {
-                    return TextUtils.getUnsupportedParameterMessage(parameter, getClass());
-                }
-                return Integer.toString(CreatureSpawnSystem.getAttractedCreatureCount(entityData, room.getOwnerId()));
+                return Integer.toString(roomOwner.getAttractedCreatures());
             case PORTAL_CREATURE_CAPACITY:
-                if (entityData == null) {
-                    return TextUtils.getUnsupportedParameterMessage(parameter, getClass());
-                }
-                return Integer.toString(getPortalCapacity(room.getOwnerId()));
+                return Integer.toString(roomOwner.getPortalCreatureCapacity());
             default:
                 return TextUtils.getUnsupportedParameterMessage(parameter, getClass());
         }

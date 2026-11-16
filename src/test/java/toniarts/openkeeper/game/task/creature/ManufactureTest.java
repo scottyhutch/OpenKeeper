@@ -21,17 +21,14 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.Test;
-import toniarts.openkeeper.game.component.Owner;
-import toniarts.openkeeper.game.component.TrapComponent;
-import toniarts.openkeeper.game.component.TrapViewState;
-import toniarts.openkeeper.game.controller.WorkshopOrders;
+import toniarts.openkeeper.game.controller.ManufactureOrders;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.player.PlayerManufactureControl;
 import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
-import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.game.data.ResearchableType;
 import toniarts.openkeeper.tools.convert.map.Trap;
 import toniarts.openkeeper.tools.convert.map.TrapFixtures;
 import toniarts.openkeeper.utils.Point;
@@ -43,52 +40,48 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ManufactureTest {
 
     private static final int TICKS_PER_SECOND = 4;
-    private static final int TROLL = 60;
+    private static final int BILE_DEMON = 12; // 50 a second in the data, divided by the 4 ticks a second
 
     @Test
-    void creatureWorksOnceASecond() {
+    void creatureWorksOnEveryTick() {
+
+        // A minute of logic ticks
+        assertEquals(60 * TICKS_PER_SECOND * BILE_DEMON, manufactureFor(60 * TICKS_PER_SECOND));
+    }
+
+    @Test
+    void firstTickAlreadyManufactures() {
+        assertEquals(BILE_DEMON, manufactureFor(1));
+    }
+
+    private static int manufactureFor(int ticks) {
         PlayerManufactureControl manufactureControl = new PlayerManufactureControl();
         Trap trap = TrapFixtures.trapToManufacture((short) 1, Integer.MAX_VALUE);
-        IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(
-                IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class}, (proxy, method, args) -> switch (method.getName()) {
-                    case "getTrapById" -> trap;
-                    default -> throw new UnsupportedOperationException(method.getName());
-                });
-        EntityData entityData = new DefaultEntityData();
-        entityData.setComponents(entityData.createEntity(), new TrapComponent(trap.getTrapId()), new TrapViewState(trap.getTrapId(), true),
-                new Owner((short) 1, (short) 1));
-        WorkshopOrders workshopOrders = new WorkshopOrders(entityData, kwdFile);
+        manufactureControl.setOrder(new ManufactureOrders.Order(ResearchableType.TRAP, trap.getTrapId(), trap.getManufToBuild(),
+                trap.getManufCrateObjectId()));
         ICreatureController creature = (ICreatureController) Proxy.newProxyInstance(
                 ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
-                    case "getManufacturePerSecond" -> TROLL;
+                    case "getManufacturePerTick" -> BILE_DEMON;
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
-        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, null, null, manufactureControl, workshopOrders, null, null);
+        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, null, null, manufactureControl, null, null);
         task.assign(creature, false);
 
-        // A minute of logic ticks
-        float taskDuration = 0;
-        for (int tick = 0; tick < 60 * TICKS_PER_SECOND; tick++) {
-            taskDuration += 1.0f / TICKS_PER_SECOND;
-            task.executeTask(creature, taskDuration);
+        for (int tick = 1; tick <= ticks; tick++) {
+            task.executeTask(creature, (float) tick / TICKS_PER_SECOND);
         }
-
-        assertEquals(60 * TROLL, manufactureControl.getProgress());
+        return manufactureControl.getProgress();
     }
 
     @Test
     void finishedItemCountsOnceForItsKeeper() {
         Trap trap = TrapFixtures.trapToManufacture((short) 1, TROLL);
-        IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(
-                IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class}, (proxy, method, args) -> switch (method.getName()) {
-                    case "getTrapById" -> trap;
-                    default -> throw new UnsupportedOperationException(method.getName());
-                });
+        PlayerManufactureControl manufactureControl = new PlayerManufactureControl();
+        manufactureControl.setOrder(new ManufactureOrders.Order(ResearchableType.TRAP, trap.getTrapId(), trap.getManufToBuild(),
+                trap.getManufCrateObjectId()));
         EntityData entityData = new DefaultEntityData();
-        entityData.setComponents(entityData.createEntity(), new TrapComponent(trap.getTrapId()), new TrapViewState(trap.getTrapId(), true),
-                new Owner((short) 1, (short) 1));
         IRoomObjectControl<?> crates = (IRoomObjectControl<?>) Proxy.newProxyInstance(
                 IRoomObjectControl.class.getClassLoader(), new Class<?>[]{IRoomObjectControl.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "addItem" -> null;
@@ -106,18 +99,17 @@ class ManufactureTest {
                 });
         ICreatureController creature = (ICreatureController) Proxy.newProxyInstance(
                 ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
-                    case "getManufacturePerSecond" -> TROLL;
+                    case "getManufacturePerTick" -> TROLL;
                     case "hashCode" -> System.identityHashCode(proxy);
                     case "equals" -> proxy == args[0];
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         PlayerStatsControl stats = new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
-        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, new PlayerManufactureControl(),
-                new WorkshopOrders(entityData, kwdFile), objectsController, stats);
+        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, manufactureControl,
+                objectsController, stats);
         task.assign(creature, false);
 
-        task.executeTask(creature, 1.0f);
-        task.executeTask(creature, 1.5f);
+        task.executeTask(creature, 0.25f);
 
         assertEquals(1, stats.getItemsManufactured());
     }
@@ -149,16 +141,10 @@ class ManufactureTest {
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         Trap trap = TrapFixtures.trapToManufacture((short) 1, Integer.MAX_VALUE);
-        IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(
-                IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class}, (proxy, method, args) -> switch (method.getName()) {
-                    case "getTrapById" -> trap;
-                    default -> throw new UnsupportedOperationException(method.getName());
-                });
-        EntityData entityData = new DefaultEntityData();
-        entityData.setComponents(entityData.createEntity(), new TrapComponent(trap.getTrapId()), new TrapViewState(trap.getTrapId(), true),
-                new Owner((short) 1, (short) 1));
-        return new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, new PlayerManufactureControl(),
-                new WorkshopOrders(entityData, kwdFile), null, null);
+        PlayerManufactureControl manufactureControl = new PlayerManufactureControl();
+        manufactureControl.setOrder(new ManufactureOrders.Order(ResearchableType.TRAP, trap.getTrapId(), trap.getManufToBuild(),
+                trap.getManufCrateObjectId()));
+        return new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, manufactureControl, null, null);
     }
 
 }

@@ -653,15 +653,9 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
         // A trap or a door is sold on its own, one at a time and never together with rooms
         Point startTile = new Point((int) start.x, (int) start.y);
-        if (startTile.equals(new Point((int) end.x, (int) end.y))) {
-            if (sellTrap(startTile, playerId)) {
-                return;
-            }
-            OptionalInt doorSaleValue = doorsController.sellDoor(startTile, playerId);
-            if (doorSaleValue.isPresent()) {
-                returnSaleRevenue(playerId, List.of(new AbstractMap.SimpleImmutableEntry<>(startTile, doorSaleValue.getAsInt())));
-                return;
-            }
+        if (startTile.equals(new Point((int) end.x, (int) end.y))
+                && (sellTrap(startTile, playerId) || sellDoor(startTile, playerId))) {
+            return;
         }
 
         // Native selling always sweeps from the maximum to the minimum map coordinates.
@@ -711,6 +705,21 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             return true;
         }
         return false;
+    }
+
+    private boolean sellDoor(Point tile, short playerId) {
+        if (mapController.getMapData().getTile(tile) == null) {
+            return false;
+        }
+
+        // Only the entities on the tile, not every door on the map
+        OptionalInt saleValue = doorsController.sellDoor(entityPositionLookup.getEntitiesInLocation(tile), playerId);
+        if (saleValue.isEmpty()) {
+            return false;
+        }
+
+        returnSaleRevenue(playerId, List.of(new AbstractMap.SimpleImmutableEntry<>(tile, saleValue.getAsInt())));
+        return true;
     }
 
     private Sale sellTiles(List<Point> tiles, short playerId) {
@@ -1408,7 +1417,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         PlayerHandControl playerHandControl = playerControllers.get(playerId).getHandControl();
         IMapTileInformation mapTile = mapController.getMapData().getTile(tile);
         Terrain terrain = mapTile != null ? mapController.getTerrain(mapTile) : null;
-        if (playerHandControl.peek().equals(entity) && canDropEntity(entity, playerId, entityData, mapTile, terrain)) {
+        if (playerHandControl.peek().equals(entity) && canDropEntity(entity, playerId, entityData, mapTile, terrain)
+                && !isDropBlocked(entity, tile)) {
             playerHandControl.pop();
             Vector3f dropPosition = new Vector3f(coordinates.x, 0, coordinates.y);
             gameEventService.emit(GameEventType.DROPPED, entity, dropPosition);
@@ -1437,6 +1447,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         boolean imprison = false;
         boolean pitFighter = false;
         CreatureState creatureState = null;
+        Position devicePosition = null;
+
         CreatureState targetState = null;
         Position devicePosition = null;
 
@@ -1677,6 +1689,19 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         return null;
     }
 
+    private boolean isDropBlocked(EntityId entity, Point tile) {
+        Set<Point> doorTiles = Set.of();
+        for (EntityId entityId : entityPositionLookup.getEntitiesInLocation(tile)) {
+            DoorComponent doorComponent = entityData.getComponent(entityId, DoorComponent.class);
+            if (doorComponent != null && !doorComponent.blueprint) {
+                doorTiles = Set.of(tile);
+            }
+        }
+        CreatureComponent creatureComponent = entityData.getComponent(entity, CreatureComponent.class);
+        return DropValidator.isBlocked(kwdFile, mapController.getMapData(), doorTiles, tile,
+                creatureComponent != null && !creatureComponent.worker);
+    }
+
     static boolean canDropEntity(EntityId entityId, short playerId, EntityData entityData, IMapTileInformation tile, Terrain terrain) {
 
         // Check if picked up in the first place
@@ -1792,7 +1817,23 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         // Validate
         int manaCost = KeeperSpellCost.getManaCost(keeperSpell, playerControllers.get(playerId).getCreatureControl().getImpCount(),
                 (int) gameSettings.get(Variable.MiscVariable.MiscType.MINIMUM_IMP_THRESHOLD).getValue());
-        if (!KeeperSpellCastValidator.isValidCast(keeperSpell, kwdFile, mapController, mapTile, player, entityData, target, manaCost)) {
+        Creature targetCreature = null;
+        Short targetOwner = null;
+        boolean targetChicken = false;
+        if (target != null) {
+            CreatureComponent creatureComponent = entityData.getComponent(target, CreatureComponent.class);
+            if (creatureComponent != null) {
+                targetCreature = kwdFile.getCreature(creatureComponent.creatureId);
+            }
+            Owner ownerComponent = entityData.getComponent(target, Owner.class);
+            if (ownerComponent != null) {
+                targetOwner = ownerComponent.controlId;
+            }
+            CreatureAi creatureAi = entityData.getComponent(target, CreatureAi.class);
+            targetChicken = creatureAi != null && creatureAi.getCreatureState() == CreatureState.CHICKEN;
+        }
+        if (!KeeperSpellCastValidator.isValidCast(keeperSpell, mapController, mapTile, player, targetCreature, targetOwner, targetChicken, manaCost)
+                || !KeeperSpellCastValidator.checkReaperRule(keeperSpell, kwdFile, player, entityData)) {
             return;
         }
 

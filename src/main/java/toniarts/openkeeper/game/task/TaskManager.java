@@ -73,14 +73,13 @@ import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.component.Unconscious;
-import toniarts.openkeeper.game.controller.CrateDeliveries;
+import toniarts.openkeeper.game.controller.TrapDeliveries;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.IPlayerController;
-import toniarts.openkeeper.game.controller.WorkshopOrders;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.entity.EntityController;
@@ -183,9 +182,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     private final EntitySet trapBlueprintEntities;
     private final EntitySet doorBlueprintEntities;
     private final EntitySet crateEntities;
-    private final WorkshopOrders workshopOrders;
-    private final Map<EntityId, ArmTrapTask> armTrapTasks = new HashMap<>();
-    private final Map<EntityId, BuildDoorTask> buildDoorTasks = new HashMap<>();
+    private final Map<EntityId, Task> fetchCrateTasks = new HashMap<>();
     private boolean crateDeliveryTasksScanned = false;
     private final Map<Short, Set<Task>> taskQueues;
     private final Map<Long, Task> tasksByIds = new HashMap<>();
@@ -254,9 +251,6 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         trapBlueprintEntities = entityData.getEntities(TrapComponent.class, TrapViewState.class, Owner.class, Position.class);
         doorBlueprintEntities = entityData.getEntities(DoorComponent.class, Owner.class, Position.class);
         crateEntities = entityData.getEntities(Crate.class, Owner.class);
-
-        // What the workshops manufacture
-        workshopOrders = new WorkshopOrders(entityData, levelInfo.getLevelData());
     }
 
     @Override
@@ -276,7 +270,6 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         trapBlueprintEntities.release();
         doorBlueprintEntities.release();
         crateEntities.release();
-        workshopOrders.release();
     }
 
     @Override
@@ -318,39 +311,45 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      * if there is one
      */
     private void updateCrateDeliveryTasks() {
-        removeFinishedTasks(armTrapTasks.values());
-        removeFinishedTasks(buildDoorTasks.values());
+        Iterator<Task> iter = fetchCrateTasks.values().iterator();
+        while (iter.hasNext()) {
+            Task task = iter.next();
+            if (task.isRemovable()) {
+                iter.remove();
+                for (Set<Task> tasks : taskQueues.values()) {
+                    tasks.remove(task);
+                }
+            }
+        }
         for (Set<Task> tasks : taskQueues.values()) {
             tasks.removeIf(task -> (task instanceof DeliverTrapCrateTask || task instanceof DeliverDoorCrateTask) && task.isRemovable());
         }
 
-        Map<EntityId, EntityId> underWay = HashMap.newHashMap(armTrapTasks.size() + buildDoorTasks.size());
-        for (ArmTrapTask task : armTrapTasks.values()) {
-            underWay.put(task.getBlueprint(), task.getCrate());
-        }
-        for (BuildDoorTask task : buildDoorTasks.values()) {
-            underWay.put(task.getBlueprint(), task.getCrate());
+        // The fetch tasks by blueprint, their target is the crate
+        Map<EntityId, EntityId> underWay = HashMap.newHashMap(fetchCrateTasks.size());
+        for (Entry<EntityId, Task> task : fetchCrateTasks.entrySet()) {
+            underWay.put(task.getKey(), task.getValue().getTaskTarget());
         }
         for (Short playerId : taskQueues.keySet()) {
             SequencedMap<EntityId, Short> trapBlueprints = getBlueprints(trapBlueprintEntities, playerId,
                     entity -> entity.get(TrapViewState.class).blueprint, entity -> entity.get(TrapComponent.class).trapId);
-            for (Entry<EntityId, EntityId> delivery : CrateDeliveries.next(trapBlueprints, getCrates(ResearchableType.TRAP, playerId),
+            for (Entry<EntityId, EntityId> delivery : TrapDeliveries.next(trapBlueprints, getCrates(ResearchableType.TRAP, playerId),
                     underWay).entrySet()) {
                 Point tile = WorldUtils.vectorToPoint(trapBlueprintEntities.getEntity(delivery.getKey()).get(Position.class).position);
                 ArmTrapTask task = new ArmTrapTask(this, navigationService, mapController, entityData, gameWorldController.getTrapsController(),
                         objectsController, delivery.getKey(), tile, delivery.getValue(), playerId);
-                armTrapTasks.put(delivery.getKey(), task);
+                fetchCrateTasks.put(delivery.getKey(), task);
                 addTask(playerId, task);
             }
 
             SequencedMap<EntityId, Short> doorBlueprints = getBlueprints(doorBlueprintEntities, playerId,
                     entity -> entity.get(DoorComponent.class).blueprint, entity -> entity.get(DoorComponent.class).doorId);
-            for (Entry<EntityId, EntityId> delivery : CrateDeliveries.next(doorBlueprints, getCrates(ResearchableType.DOOR, playerId),
+            for (Entry<EntityId, EntityId> delivery : TrapDeliveries.next(doorBlueprints, getCrates(ResearchableType.DOOR, playerId),
                     underWay).entrySet()) {
                 Point tile = WorldUtils.vectorToPoint(doorBlueprintEntities.getEntity(delivery.getKey()).get(Position.class).position);
                 BuildDoorTask task = new BuildDoorTask(this, navigationService, mapController, entityData, gameWorldController.getDoorsController(),
                         objectsController, delivery.getKey(), tile, delivery.getValue(), playerId);
-                buildDoorTasks.put(delivery.getKey(), task);
+                fetchCrateTasks.put(delivery.getKey(), task);
                 addTask(playerId, task);
             }
         }
@@ -390,25 +389,6 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             }
         }
         return crates;
-    }
-
-    /**
-     * Drops the fetch tasks that are done or can't be done anymore, from the
-     * given tasks and from the task queues
-     *
-     * @param fetchTasks the trap or door crate fetch tasks
-     */
-    private void removeFinishedTasks(Collection<? extends Task> fetchTasks) {
-        Iterator<? extends Task> iter = fetchTasks.iterator();
-        while (iter.hasNext()) {
-            Task task = iter.next();
-            if (task.isRemovable()) {
-                iter.remove();
-                for (Set<Task> tasks : taskQueues.values()) {
-                    tasks.remove(task);
-                }
-            }
-        }
     }
 
     /**
@@ -1116,11 +1096,11 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             }
             case MANUFACTURER -> {
                 return new Manufacture(navigationService, mapController, target, creature.getOwnerId(), room, this,
-                        playerControllers.get(creature.getOwnerId()).getManufactureControl(), workshopOrders, objectsController,
+                        playerControllers.get(creature.getOwnerId()).getManufactureControl(), objectsController,
                         playerControllers.get(creature.getOwnerId()).getStatsControl());
             }
             case GAMBLER -> {
-                return new Gamble(navigationService, mapController, target, creature.getOwnerId(), room, this, entityData,
+                return new Gamble(navigationService, mapController, entityPositionLookup, target, creature.getOwnerId(), room, this, entityData,
                         gameWorldController, objectsController, gameSettings,
                         room instanceof CasinoController casino ? casino::getPayOut : () -> Casino.PayOut.SMILES,
                         FastMath.rand);

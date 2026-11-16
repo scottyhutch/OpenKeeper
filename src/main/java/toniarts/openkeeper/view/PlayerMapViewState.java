@@ -78,6 +78,9 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private static final int CASINO_JACKPOT_EFFECT = 91;
     private static final int CASINO_FIREWORKS_EFFECT = 320;
 
+    private static final int CASINO_JACKPOT_EFFECT = 91;
+    private static final int CASINO_FIREWORKS_EFFECT = 320;
+
     private Main app;
     private AppStateManager stateManager;
     private final IMapInformation mapInformation;
@@ -92,6 +95,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private MapTileEffectTracker tileEffects;
     private final FogOfWarController fogOfWarController;
     private final GameEventSoundPlayer gameEventSoundPlayer;
+    private final DiscoViewState discoViewState;
     private final EventListener<GameEvent> casinoEffectsListener = this::onCasinoEvent;
 
     // Scripted reveals/conceals (action point triggers) that arrive before the fog has been seeded
@@ -211,7 +215,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
         flashTileControl = new FlashTileViewState(mapLoader);
 
-        gameEventSoundPlayer = new GameEventSoundPlayer(kwdFile, fogOfWarController::isExplored,
+        gameEventSoundPlayer = new GameEventSoundPlayer(kwdFile,
                 speech -> stateManager.getState(SoundState.class)
                         .attachMentorSpeech(speech, () -> {
                             SystemMessageState messages = stateManager.getState(SystemMessageState.class);
@@ -220,6 +224,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
                                         String.format("${speech.%d}", speech - 1));
                             }
                         }));
+        discoViewState = new DiscoViewState(kwdFile, fogOfWarController::isExplored);
 
         // Start collecting the map entities. In a local game the whole map is
         // there already and start() loads it, over the network see initialize()
@@ -247,6 +252,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         this.gameEventSoundPlayer.register();
         EventBus.addListener(ClientEvents.GAME_EVENT, casinoEffectsListener);
         EventBus.addListener(ClientEvents.GAME_EVENT, this);
+        this.stateManager.attach(discoViewState);
 
         // Tile flash state
         this.stateManager.attach(flashTileControl);
@@ -283,10 +289,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         // Sounds
         this.gameEventSoundPlayer.unregister();
         EventBus.removeListener(ClientEvents.GAME_EVENT, casinoEffectsListener);
-        SoundState soundState = stateManager.getState(SoundState.class);
-        if (soundState != null) {
-            soundState.setMusicVolumeFactor(1f);
-        }
+        stateManager.detach(discoViewState);
 
         // The actual map data
         mapRoomContainer.stop();
@@ -304,12 +307,6 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         mapRoomContainer.update();
         mapTileContainer.update();
         fogOfWarController.update(tpf);
-
-        // The level music is turned down as much as the loudest disco is heard
-        SoundState soundState = stateManager.getState(SoundState.class);
-        if (soundState != null) {
-            soundState.setMusicVolumeFactor(1f - gameEventSoundPlayer.updateDiscoMusic() / 100f);
-        }
 
         // Lighting: pick up live settings changes, advance modulators
         // (pulse/fade/flicker) and re-upload the terrain materials they

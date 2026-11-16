@@ -660,7 +660,7 @@ public final class CreaturesController implements ICreaturesController {
         creatureExperience.experiencePerSecond = scaleByLevel(attributes.getExpPerSecond(), getStatPercent(stats, Variable.CreatureStats.StatType.EXPERIENCE_POINTS_PER_SECOND));
         creatureExperience.experiencePerTickTraining = getPointsPerTick(attributes.getExpPerSecondTraining(), getStatPercent(stats, Variable.CreatureStats.StatType.EXPERIENCE_POINTS_FROM_TRAINING_PER_SECOND));
         creatureComponent.researchPerTick = getPointsPerTick(attributes.getResearchPerSecond(), getStatPercent(stats, Variable.CreatureStats.StatType.RESEARCH_POINTS_PER_SECOND));
-        creatureComponent.manufacturePerSecond = scaleByLevel(attributes.getManufacturePerSecond(), getStatPercent(stats, Variable.CreatureStats.StatType.MANUFACTURE_POINTS_PER_SECOND));
+        creatureComponent.manufacturePerTick = getPointsPerTick(attributes.getManufacturePerSecond(), getStatPercent(stats, Variable.CreatureStats.StatType.MANUFACTURE_POINTS_PER_SECOND));
         creatureComponent.decomposeValue = scaleByLevel(attributes.getDecomposeValue(), getStatPercent(stats, Variable.CreatureStats.StatType.DECOMPOSE_VALUE));
 
         // The original never reads the level stats of the speeds, a creature walks and runs as fast on every level

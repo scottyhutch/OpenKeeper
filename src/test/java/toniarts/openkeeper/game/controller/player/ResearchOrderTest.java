@@ -28,6 +28,7 @@ import toniarts.openkeeper.tools.convert.map.ResearchOrderFixtures;
 import toniarts.openkeeper.tools.convert.map.Variable.ResearchOrder;
 import toniarts.openkeeper.tools.convert.map.Variable.ResearchOrder.ResearchOrderType;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
@@ -77,6 +78,31 @@ class ResearchOrderTest {
 
         assertNull(researchControl.research(999));
         assertSame(spell, researchControl.research(1));
+    }
+
+    @Test
+    void finishedResearchIsKeptUntilCompleted() {
+        Keeper keeper = new Keeper(false, (short) 3);
+        PlayerSpell spellA = addSpell(keeper, SPELL_A, false);
+        PlayerSpell spellB = addSpell(keeper, SPELL_B, false);
+
+        PlayerResearchControl researchControl = researchControl(keeper,
+                step(ResearchOrderType.SPELL, SPELL_A), step(ResearchOrderType.SPELL, SPELL_B));
+        researchControl.initialize();
+
+        assertNull(researchControl.research(999));
+        assertSame(spellA, researchControl.research(1));
+        assertEquals(1000, spellA.getResearch());
+
+        // The book could not be stored: still the same item, nothing lost, tried again next time
+        assertSame(spellA, keeper.getCurrentResearch());
+        assertSame(spellA, researchControl.research(1));
+        assertEquals(1001, spellA.getResearch());
+
+        // Stored: now the progress is reset and the next item is researched
+        researchControl.completeResearch();
+        assertEquals(0, spellA.getResearch());
+        assertSame(spellB, keeper.getCurrentResearch());
     }
 
     @Test

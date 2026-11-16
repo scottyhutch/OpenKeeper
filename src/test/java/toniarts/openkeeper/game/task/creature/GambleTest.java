@@ -29,6 +29,8 @@ import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.Casino;
+import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.CasinoDisco;
 import toniarts.openkeeper.game.component.CreatureComponent;
@@ -41,10 +43,12 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.controller.object.IObjectController;
 import toniarts.openkeeper.game.controller.room.CasinoController;
 import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
+import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.CasinoVariableFixtures;
 import toniarts.openkeeper.tools.convert.map.GameObject;
@@ -52,6 +56,7 @@ import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 import toniarts.openkeeper.utils.Point;
+import toniarts.openkeeper.utils.WorldUtils;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -75,6 +80,7 @@ class GambleTest {
     private final Map<MiscType, MiscVariable> gameSettings = new EnumMap<>(MiscType.class);
     private final List<Integer> keeperPayments = new ArrayList<>();
     private final List<int[]> goldPiles = new ArrayList<>();
+    private final List<EntityId> spun = new ArrayList<>();
     private int keeperGold = 5000;
     private EntityId creatureId;
     private ICreatureController creature;
@@ -261,7 +267,21 @@ class GambleTest {
     }
 
     private boolean isSpinning(EntityId wheel) {
-        return entityData.getComponent(wheel, ObjectViewState.class).state == GameObject.State.SPINNING;
+        return spun.contains(wheel);
+    }
+
+    private IObjectController objectController(EntityId entityId) {
+        return (IObjectController) Proxy.newProxyInstance(IObjectController.class.getClassLoader(), new Class<?>[]{IObjectController.class}, (proxy, method, args) -> {
+            switch (method.getName()) {
+                case "getEntityId":
+                    return entityId;
+                case "spin":
+                    spun.add(entityId);
+                    return null;
+                default:
+                    throw new UnsupportedOperationException(method.getName());
+            }
+        });
     }
 
     private Gamble gamble(PayOut payOut, int jackpotRoll) {
@@ -310,8 +330,20 @@ class GambleTest {
             }
             throw new UnsupportedOperationException(method.getName());
         });
-        return new Gamble(null, null, new Point(5, 5), KEEPER, room, null, entityData, gameWorldController, objectsController,
-                gameSettings, () -> payOut, fixedRandom(jackpotRoll));
+        IEntityPositionLookup entityPositionLookup = (IEntityPositionLookup) Proxy.newProxyInstance(IEntityPositionLookup.class.getClassLoader(), new Class<?>[]{IEntityPositionLookup.class}, (proxy, method, args) -> {
+            if ("getEntityTypesInLocation".equals(method.getName())) {
+                List<IObjectController> objects = new ArrayList<>();
+                for (EntityId entityId : entityData.findEntities(null, Position.class)) {
+                    if (args[0].equals(WorldUtils.vectorToPoint(entityData.getComponent(entityId, Position.class).position))) {
+                        objects.add(objectController(entityId));
+                    }
+                }
+                return objects;
+            }
+            throw new UnsupportedOperationException(method.getName());
+        });
+        return new Gamble(null, null, entityPositionLookup, new Point(5, 5), KEEPER, room, null, entityData, gameWorldController,
+                objectsController, gameSettings, () -> payOut, fixedRandom(jackpotRoll));
     }
 
     private ICreatureController creature() {
