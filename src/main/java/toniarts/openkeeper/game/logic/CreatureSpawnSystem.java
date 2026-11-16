@@ -108,8 +108,12 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
 
             // The keeper's own entity for the portal numbers, for the limit and the tooltip
             short keeperId = player.getKeeper().getId();
-            EntityId limitEntity = entityData.createEntity();
-            entityData.setComponents(limitEntity, new Owner(keeperId, keeperId), new PortalCreatureLimit());
+            // A loaded save already has it
+            EntityId limitEntity = findPortalLimitEntity(keeperId);
+            if (limitEntity == null) {
+                limitEntity = entityData.createEntity();
+                entityData.setComponents(limitEntity, new Owner(keeperId, keeperId), new PortalCreatureLimit());
+            }
             portalLimitEntities.put(keeperId, limitEntity);
 
             // Add initial rooms
@@ -241,6 +245,10 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
             }
         }
         return false;
+    }
+
+    private EntityId findPortalLimitEntity(short keeperId) {
+        return entityData.findEntity(new FieldFilter<>(Owner.class, "ownerId", keeperId), Owner.class, PortalCreatureLimit.class);
     }
 
     private boolean isCreatureLimitReached(IPlayerController player) {
