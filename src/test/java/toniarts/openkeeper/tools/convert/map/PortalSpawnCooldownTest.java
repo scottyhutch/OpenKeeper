@@ -168,6 +168,38 @@ class PortalSpawnCooldownTest {
         assertEquals(0, freeImps(true));
     }
 
+    @Test
+    void startingAgainOverTheSameEntitiesKeepsOnePortalLimitPerKeeper() {
+        DefaultEntityData entities = new DefaultEntityData();
+        Keeper keeper = new Keeper(false, (short) 4);
+        Creature imp = new Creature();
+        IPlayerController player = stub(IPlayerController.class, (method, args) -> switch (method) {
+            case "getKeeper" -> keeper;
+            case "getRoomControl" -> new PlayerRoomControl(keeper, List.of());
+            case "getCreatureControl" -> new PlayerCreatureControl(keeper, imp, List.of(imp));
+            default -> throw new AssertionError(method);
+        });
+        Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> settings =
+                new EnumMap<>(Variable.MiscVariable.MiscType.class);
+        setting(settings, Variable.MiscVariable.MiscType.ENTRANCE_GENERATION_SPEED_SECONDS, 18);
+        setting(settings, Variable.MiscVariable.MiscType.MINIMUM_IMP_THRESHOLD, 4);
+        setting(settings, Variable.MiscVariable.MiscType.CREATURES_SUPPORTED_BY_FIRST_PORTAL, 10);
+        setting(settings, Variable.MiscVariable.MiscType.CREATURES_SUPPORTED_PER_ADDITIONAL_PORTAL, 5);
+        setting(settings, Variable.MiscVariable.MiscType.TIME_BEFORE_FREE_IMP_GENERATED_SECONDS, 5);
+
+        // The second start is a loaded save, which already holds the entity
+        for (int i = 0; i < 2; i++) {
+            new CreatureSpawnSystem(entities, stub(ICreaturesController.class, (method, args) -> null), List.of(player), settings,
+                    stub(ILevelInfo.class, (method, args) -> stub(IKwdFile.class, (m, a) -> null)),
+                    stub(IMapController.class, (method, args) -> null),
+                    stub(GameEventService.class, (method, args) -> null));
+        }
+
+        EntitySet limits = entities.getEntities(Owner.class, PortalCreatureLimit.class);
+        limits.applyChanges();
+        assertEquals(1, limits.size());
+    }
+
     private static int freeImps(boolean defeated) {
         DefaultEntityData entities = new DefaultEntityData();
         GameTimeController timer = new GameTimeController();
