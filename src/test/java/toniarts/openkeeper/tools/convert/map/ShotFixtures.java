@@ -42,6 +42,11 @@ public final class ShotFixtures {
     public static final short CYCLONE_ID = 41;
 
     /**
+     * The Vampire's Raise Dead
+     */
+    public static final short RAISE_DEAD_ID = 40;
+
+    /**
      * The fireball's effect when it hits a thing, "Spot Hit 4"
      */
     public static final int FIREBALL_HIT_EFFECT_ID = 234;
@@ -84,6 +89,18 @@ public final class ShotFixtures {
         shot.setRadius(0.2f);
         shot.setCollideType(Shot.CollideType.NONE);
         shot.setFlags(EnumSet.of(Shot.ShotFlag.DIE_WHEN_HIT_SOLID, Shot.ShotFlag.DIE_OVER_TIME, Shot.ShotFlag.MOVE_TOWARDS_TARGET));
+        return shot;
+    }
+
+    /**
+     * The Vampire's Raise Dead, with the values of the original data
+     */
+    public static Shot raiseDead() {
+        Shot shot = shot(RAISE_DEAD_ID, Shot.ProcessType.RAISE_DEAD, 1, EnumSet.of(Shot.ShotProcessFlag.HIT_COLLIDE_THING));
+        shot.setSpeed(0.5f);
+        shot.setRadius(0.2f);
+        shot.setCollideType(Shot.CollideType.DEAD_BODIES);
+        shot.setFlags(EnumSet.of(Shot.ShotFlag.DIE_WHEN_HIT_SOLID, Shot.ShotFlag.DIE_WHEN_HIT_THING, Shot.ShotFlag.MOVE_TOWARDS_TARGET));
         return shot;
     }
 

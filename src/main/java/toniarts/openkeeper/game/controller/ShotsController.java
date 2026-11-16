@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.game.component.Armour;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.Frozen;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Invisible;
@@ -66,6 +67,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_ARMO
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_HEALTH;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_SPEED;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.POSSESS_CREATURE;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.RAISE_DEAD;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.SIGHT_OF_EVIL;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.SUMMON_REAPER;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.TREMOR;
@@ -84,6 +86,11 @@ import toniarts.openkeeper.utils.WorldUtils;
 public final class ShotsController implements IShotsController {
 
     private static final Logger logger = System.getLogger(ShotsController.class.getName());
+
+    /**
+     * The effect of a dead body that rises, "Prisoner to Skel Effect"
+     */
+    private static final int RAISE_DEAD_EFFECT_ID = 324;
 
     private final IKwdFile kwdFile;
     private final EntityData entityData;
@@ -207,8 +214,30 @@ public final class ShotsController implements IShotsController {
         });
         result.put(INFERNO, new InfernoShotProcessor(entityData, gameTimer, () -> kwdFile.getGameLevel().getTicksPerSec()));
         result.put(WIND, new WindShotProcessor(entityData, kwdFile, gameController, mapController, creaturesController));
+        result.put(RAISE_DEAD, this::raiseDead);
 
         return result;
+    }
+
+    /**
+     * Raise Dead: every dead body on the tile of the one the shot hit rises
+     * as the creature of the shot's first value, for the owner of the shot
+     * (0x4AE880)
+     *
+     * @param request the shot that hit a dead body
+     */
+    private void raiseDead(ShotRequest request) {
+        Vector3f targetPosition = EntityController.getPosition(entityData, request.target());
+        if (targetPosition == null) {
+            return;
+        }
+
+        for (EntityId entity : gameController.getEntityLookupService().getEntitiesInLocation(WorldUtils.vectorToPoint(targetPosition))) {
+            if (entityData.getComponent(entity, Death.class) != null && entityData.getComponent(entity, CreatureComponent.class) != null) {
+                gameEventService.emitEffect(RAISE_DEAD_EFFECT_ID, EntityController.getPosition(entityData, entity), 0);
+                creaturesController.turnCreatureIntoAnother(entity, request.playerId(), (short) request.shotData1());
+            }
+        }
     }
 
     @Override
