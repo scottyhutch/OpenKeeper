@@ -34,7 +34,6 @@ import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.TerrainFixtures;
-import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -42,18 +41,15 @@ import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The Dungeon Heart's start-of-level reveal runs after the level start
- * seeding, also for a heart that was already there when the fog of war
- * started, and the level script's reveals are not enemy sightings. Like in
- * DK II, the heart reveal only explores the terrain that shows through the
- * fog of war.
+ * The level script's reveals are not enemy sightings. Like in DK II, the Dungeon
+ * Heart does not explore the terrain around it after the start of the level,
+ * the creatures do that by perceiving it.
  */
 class FogOfWarControllerTest {
 
@@ -65,12 +61,12 @@ class FogOfWarControllerTest {
     private static final int MAP_SIZE = 21;
 
     /**
-     * Gold near the edge of the heart reveal, the rest of the map is floor
+     * Gold a few tiles from the heart, the rest of the map is floor
      */
     private static final Point GOLD_TILE = new Point(10, 18);
 
     /**
-     * More than enough to cover the heart reveal's start delay and steps
+     * More than enough for the old heart reveal to have run
      */
     private static final int UPDATES = 100;
 
@@ -86,9 +82,6 @@ class FogOfWarControllerTest {
         Creature creature = FogVisionFixtures.creature(CREATURE_ID, 3, 0);
         Terrain gold = TerrainFixtures.terrain(GOLD_ID, TerrainFixtures.flags(Terrain.TerrainFlag.SOLID,
                 Terrain.TerrainFlag.REVEAL_THROUGH_FOG_OF_WAR), 0, 0, 0, GOLD_ID);
-        Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> variables = Map.of(
-                Variable.MiscVariable.MiscType.DUNGEON_HEART_CLAIM_SCAN_RADIUS_TILES,
-                FogVisionFixtures.miscVariable(Variable.MiscVariable.MiscType.DUNGEON_HEART_CLAIM_SCAN_RADIUS_TILES, 15));
         IKwdFile kwdFile = proxy(IKwdFile.class, (proxy, method, args) -> switch (method.getName()) {
             case "getTerrain" ->
                 (short) args[0] == GOLD_ID ? gold : floor;
@@ -96,8 +89,6 @@ class FogOfWarControllerTest {
                 creature;
             case "getThings" ->
                 List.of();
-            case "getVariables" ->
-                variables;
             default ->
                 throw new UnsupportedOperationException(method.getName());
         });
@@ -160,38 +151,14 @@ class FogOfWarControllerTest {
     }
 
     @Test
-    void heartAddedAfterStartIsRevealed() {
-        controller.start();
-        createHeart(10, 10);
-
-        assertHeartRevealedAfterSeeding();
-    }
-
-    @Test
-    void heartPresentAtStartIsRevealed() {
+    void heartDoesNotRevealTheTerrainAroundIt() {
         createHeart(10, 10);
         controller.start();
-
-        assertHeartRevealedAfterSeeding();
-    }
-
-    @Test
-    void heartRevealLeavesOtherTerrainUnexplored() {
-        Point floorNearHeart = new Point(10, 14);
-        createHeart(10, 10);
-        controller.start();
-
-        assertHeartRevealedAfterSeeding();
-
-        assertFalse(controller.isExplored(floorNearHeart), "Only the terrain that shows through the fog is revealed");
-    }
-
-    private void assertHeartRevealedAfterSeeding() {
         controller.seedLevelStart();
-        assertFalse(controller.isExplored(GOLD_TILE));
         update(UPDATES);
 
-        assertTrue(controller.isExplored(GOLD_TILE), "The heart reveal runs once the fog is seeded");
+        assertFalse(controller.isExplored(GOLD_TILE), "The gold is not revealed by the heart");
+        assertFalse(controller.isVisible(GOLD_TILE), "The gold does not show through the fog");
     }
 
     private void update(int times) {
