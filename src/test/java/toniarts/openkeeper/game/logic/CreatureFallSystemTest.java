@@ -31,7 +31,6 @@ import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.Damage;
-import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
@@ -60,6 +59,7 @@ class CreatureFallSystemTest {
     private DefaultEntityData entityData;
     private final Set<Point> solidTiles = new HashSet<>();
     private final List<GameEventType> events = new ArrayList<>();
+    private final List<Integer> effects = new ArrayList<>();
     private CreatureFallSystem fallSystem;
     private CreatureLandingSystem landingSystem;
 
@@ -81,7 +81,11 @@ class CreatureFallSystemTest {
 
         GameEventService gameEventService = (GameEventService) Proxy.newProxyInstance(GameEventService.class.getClassLoader(),
                 new Class<?>[]{GameEventService.class}, (proxy, method, args) -> {
-            events.add((GameEventType) args[0]);
+            if (method.getName().equals("emitEffect")) {
+                effects.add((Integer) args[0]);
+            } else {
+                events.add((GameEventType) args[0]);
+            }
             return null;
         });
 
@@ -162,19 +166,19 @@ class CreatureFallSystemTest {
 
         // The damage is given on the game logic thread, the health system works on it there
         assertNull(entityData.getComponent(creature, Damage.class));
-        assertTrue(entityData.getEntities(EffectTrigger.class).isEmpty());
+        assertTrue(effects.isEmpty());
 
         landingSystem.processTick(TURN);
 
         assertEquals(50, entityData.getComponent(creature, Damage.class).damage);
-        assertEquals(117, entityData.getEntities(EffectTrigger.class).iterator().next().get(EffectTrigger.class).effectId);
+        assertEquals(List.of(117), effects);
     }
 
     @Test
     void droppedCreatureRaisesNoDust() {
         fall(new CreatureFall(), 3f);
 
-        assertTrue(entityData.getEntities(EffectTrigger.class).isEmpty());
+        assertTrue(effects.isEmpty());
     }
 
     @Test

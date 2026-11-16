@@ -109,7 +109,6 @@ import toniarts.openkeeper.game.data.ObjectiveType;
 import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
-import toniarts.openkeeper.game.logic.EffectTriggers;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
@@ -1970,11 +1969,11 @@ public final class CreatureController extends EntityController implements ICreat
             return;
         }
 
-        EffectTriggers.trigger(entityData, PHYSICAL_HIT_EFFECT_ID, position, gameTimer.getGameTime());
+        gameEventService.emitEffect(PHYSICAL_HIT_EFFECT_ID, position, 0);
         Material material = getMaterial(attackTarget);
         if ((attackType == Creature.AttackType.MELEE_BLADE || attackType == Creature.AttackType.MELEE_SCYTHE)
                 && (material == Material.METAL1 || material == Material.METAL2)) {
-            EffectTriggers.trigger(entityData, SPARK_SHOWER_EFFECT_ID, position, gameTimer.getGameTime());
+            gameEventService.emitEffect(SPARK_SHOWER_EFFECT_ID, position, 0);
         }
     }
 
@@ -4117,8 +4116,8 @@ public final class CreatureController extends EntityController implements ICreat
         Point heart = keeper != null ? keeper.getDungeonHeartLocation() : null;
         if (heart != null) {
             Vector3f destination = WorldUtils.pointToVector3f(heart);
-            EffectTriggers.trigger(entityData, IMP_TELEPORT_OUT_EFFECT, position.position, gameTimer.getGameTime());
-            EffectTriggers.trigger(entityData, IMP_TELEPORT_IN_EFFECT, destination, gameTimer.getGameTime());
+            gameEventService.emitEffect(IMP_TELEPORT_OUT_EFFECT, position.position, 0);
+            gameEventService.emitEffect(IMP_TELEPORT_IN_EFFECT, destination, 0);
             entityData.setComponent(entityId, new Position(position.rotation, destination));
         }
     }

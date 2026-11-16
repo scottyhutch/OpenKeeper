@@ -16,18 +16,16 @@
  */
 package toniarts.openkeeper.game.logic;
 
-import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
-import com.simsilica.es.EntitySet;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.DoorComponent;
-import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
@@ -40,7 +38,6 @@ import toniarts.openkeeper.tools.convert.map.DoorFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.DestroyedFixtures;
 import toniarts.openkeeper.tools.convert.map.Door;
-import toniarts.openkeeper.tools.convert.map.TrapFiringFixtures;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -62,6 +59,7 @@ class DoorDamageTest {
     private static final Point TILE = new Point(2, 2);
 
     private final EntityData entityData = new DefaultEntityData();
+    private final List<Object[]> effects = new ArrayList<>();
     private PositionSystem positionSystem;
     private HealthSystem healthSystem;
     private EntityId door;
@@ -99,7 +97,12 @@ class DoorDamageTest {
                 MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, DoorFixtures.miscVariable(MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, 0)),
                 null, null, levelInfo, List.of(), mapController, () -> 0.0, (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
                         toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
-                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));
+                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("emitEffect")) {
+                        effects.add(args);
+                    }
+                    return null;
+                }));
         healthSystem.processTick(0.25f);
     }
 
@@ -131,12 +134,9 @@ class DoorDamageTest {
         EntityController.setDamage(entityData, door, 2000);
         healthSystem.processTick(0.25f);
 
-        EntitySet effects = entityData.getEntities(EffectTrigger.class, Position.class);
         assertEquals(1, effects.size());
-        Entity effect = effects.iterator().next();
-        assertEquals(DestroyedFixtures.WOODEN_DOOR_EXPLOSION_ID, effect.get(EffectTrigger.class).effectId);
-        assertEquals(WorldUtils.pointToVector3f(TILE), effect.get(Position.class).position);
-        effects.release();
+        assertEquals(DestroyedFixtures.WOODEN_DOOR_EXPLOSION_ID, effects.get(0)[0]);
+        assertEquals(WorldUtils.pointToVector3f(TILE), effects.get(0)[1]);
     }
 
     @Test

@@ -33,7 +33,6 @@ import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.DoorComponent;
-import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.FollowTarget;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
@@ -71,6 +70,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * The melee attack of a creature its keeper possesses
  */
 class PossessedAttackTest {
+
+    private final Map<Integer, Vector3f> triggeredEffects = new HashMap<>();
 
     private static final short KEEPER = Player.KEEPER1_ID;
     private static final short HERO = Player.GOOD_PLAYER_ID;
@@ -530,11 +531,7 @@ class PossessedAttackTest {
     }
 
     private Map<Integer, Vector3f> getTriggeredEffects() {
-        Map<Integer, Vector3f> effects = new HashMap<>();
-        for (Entity entity : entityData.getEntities(EffectTrigger.class, Position.class)) {
-            effects.put(entity.get(EffectTrigger.class).effectId, entity.get(Position.class).position);
-        }
-        return effects;
+        return triggeredEffects;
     }
 
     private EntityId createCreature(short ownerId, Vector3f position) {
@@ -641,7 +638,12 @@ class PossessedAttackTest {
         return new CreatureController(entity, entityData, TrapFiringFixtures.creature((short) 1), null, null, gameTimer, gameSettings, creaturesController,
                 positionLookup, mapController, levelInfo, null, null, (toniarts.openkeeper.game.event.GameEventService) java.lang.reflect.Proxy.newProxyInstance(
                         toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
-                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));
+                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("emitEffect")) {
+                        triggeredEffects.put((Integer) args[0], (Vector3f) args[1]);
+                    }
+                    return null;
+                }));
     }
 
     @FunctionalInterface

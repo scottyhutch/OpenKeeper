@@ -40,7 +40,6 @@ import toniarts.openkeeper.game.component.CreatureSpell;
 import toniarts.openkeeper.game.component.CreatureSpells;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Disguised;
-import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
@@ -77,6 +76,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * @author OpenKeeper
  */
 class PossessedSpellTest {
+
+    private final java.util.List<Object[]> triggeredEffects = new java.util.ArrayList<>();
 
     private static final short KEEPER = Player.KEEPER1_ID;
     private static final short HERO = Player.GOOD_PLAYER_ID;
@@ -359,9 +360,9 @@ class PossessedSpellTest {
 
     private Set<Vector3f> effectPositions(int effectId) {
         Set<Vector3f> positions = new HashSet<>();
-        for (EntityId id : entityData.findEntities(null, EffectTrigger.class)) {
-            if (entityData.getComponent(id, EffectTrigger.class).effectId == effectId) {
-                positions.add(entityData.getComponent(id, Position.class).position);
+        for (Object[] effect : triggeredEffects) {
+            if ((int) effect[0] == effectId) {
+                positions.add((Vector3f) effect[1]);
             }
         }
         return positions;
@@ -496,7 +497,15 @@ class PossessedSpellTest {
         });
 
         return new CreatureController(us, entityData, creature, null, null, gameTimer, gameSettings, creaturesController,
-                positionLookup, mapController, levelInfo, null, shotsController, null);
+                positionLookup, mapController, levelInfo, null, shotsController,
+                (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
+                        toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
+                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("emitEffect")) {
+                        triggeredEffects.add(args);
+                    }
+                    return null;
+                }));
     }
 
     @FunctionalInterface

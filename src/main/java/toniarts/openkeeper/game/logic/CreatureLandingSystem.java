@@ -96,7 +96,7 @@ public final class CreatureLandingSystem implements IGameLogicUpdatable {
                 EntityController.setDamage(entityData, entity.getId(), creatureFall.damage);
             }
             if (creatureFall.velocity != null) {
-                EffectTriggers.trigger(entityData, FOOT_DUST_EFFECT_ID, position.position, gameTimer.getGameTime());
+                gameEventService.emitEffect(FOOT_DUST_EFFECT_ID, position.position, 0);
             }
 
             // Preserve any requested AI target through landing and get-up.

@@ -16,17 +16,15 @@
  */
 package toniarts.openkeeper.game.logic;
 
-import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
-import com.simsilica.es.EntitySet;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import toniarts.openkeeper.game.component.EffectTrigger;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
@@ -55,6 +53,7 @@ class ObjectDeathEffectTest {
     private static final Point TILE = new Point(2, 2);
 
     private final EntityData entityData = new DefaultEntityData();
+    private final List<Object[]> effects = new ArrayList<>();
     private HealthSystem healthSystem;
     private EntityId heart;
 
@@ -83,7 +82,12 @@ class ObjectDeathEffectTest {
                 MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, TrapFiringFixtures.miscVariable(MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, 0)),
                 null, null, levelInfo, List.of(), null, () -> 0.0, (toniarts.openkeeper.game.event.GameEventService) Proxy.newProxyInstance(
                         toniarts.openkeeper.game.event.GameEventService.class.getClassLoader(),
-                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> null));
+                        new Class<?>[]{toniarts.openkeeper.game.event.GameEventService.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("emitEffect")) {
+                        effects.add(args);
+                    }
+                    return null;
+                }));
         healthSystem.processTick(0.25f);
     }
 
@@ -92,12 +96,9 @@ class ObjectDeathEffectTest {
         EntityController.setDamage(entityData, heart, 1000);
         healthSystem.processTick(0.25f);
 
-        EntitySet effects = entityData.getEntities(EffectTrigger.class, Position.class);
         assertEquals(1, effects.size());
-        Entity effect = effects.iterator().next();
-        assertEquals(DestroyedFixtures.HEART_EXPLOSION_ID, effect.get(EffectTrigger.class).effectId);
-        assertEquals(WorldUtils.pointToVector3f(TILE), effect.get(Position.class).position);
-        effects.release();
+        assertEquals(DestroyedFixtures.HEART_EXPLOSION_ID, effects.get(0)[0]);
+        assertEquals(WorldUtils.pointToVector3f(TILE), effects.get(0)[1]);
     }
 
     @Test
@@ -105,9 +106,7 @@ class ObjectDeathEffectTest {
         EntityController.setDamage(entityData, heart, 999);
         healthSystem.processTick(0.25f);
 
-        EntitySet effects = entityData.getEntities(EffectTrigger.class);
         assertEquals(0, effects.size());
-        effects.release();
     }
 
     private IEntityController removing(EntityId entityId) {
