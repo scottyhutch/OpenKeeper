@@ -21,8 +21,6 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
-import java.util.ArrayList;
-import java.util.List;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureTortured;
@@ -32,23 +30,19 @@ import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Unconscious;
-import toniarts.openkeeper.game.controller.DoorPlacementValidator;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
-import toniarts.openkeeper.tools.convert.map.Door;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
 /**
- * Keeps the doors and door blueprints standing only where they can stand. A
- * door falls when its tile is no longer its keeper's, and a door that is not a
- * barricade also falls when one of the two walls it stands between goes.<br>
- * Also lets the enemies discover the secret doors: an open secret door is
- * discovered by an enemy creature that is near and can see it.
+ * Lets the enemies discover the secret doors: an open secret door is
+ * discovered by an enemy creature that is near and can see it. The doors that
+ * lose their tile or their walls fall in the DoorsController.
  */
 public final class DoorSystem implements IGameLogicUpdatable {
 
@@ -85,24 +79,12 @@ public final class DoorSystem implements IGameLogicUpdatable {
         doorEntities.applyChanges();
         creatureEntities.applyChanges();
 
-        List<EntityId> fallenDoors = new ArrayList<>();
         for (Entity entity : doorEntities) {
-            if (!isStanding(entity)) {
-                fallenDoors.add(entity.getId());
-                continue;
-            }
-
-            // Secret doors
             DoorComponent doorComponent = entity.get(DoorComponent.class);
             if (doorComponent.secret && isOpen(entity.getId()) && isDiscovered(entity)) {
                 entityData.setComponent(entity.getId(), new DoorComponent(doorComponent.doorId, doorComponent.locked,
                         doorComponent.blueprint, false));
             }
-        }
-
-        // Nothing is left of a fallen door, no crate and no gold
-        for (EntityId entityId : fallenDoors) {
-            entityData.removeEntity(entityId);
         }
     }
 
@@ -171,25 +153,6 @@ public final class DoorSystem implements IGameLogicUpdatable {
         }
         Terrain terrain = mapInformation.getTerrain(mapTile);
         return terrain != null && terrain.getFlags().contains(Terrain.TerrainFlag.SOLID);
-    }
-
-    private boolean isStanding(Entity entity) {
-        Point tile = WorldUtils.vectorToPoint(entity.get(Position.class).position);
-        IMapTileInformation mapTile = mapInformation.getMapData().getTile(tile);
-        if (mapTile == null || mapTile.getOwnerId() != entity.get(Owner.class).ownerId) {
-            return false;
-        }
-
-        Door door = kwdFile.getDoorById(entity.get(DoorComponent.class).doorId);
-        if (door == null || door.getFlags().contains(Door.DoorFlag.IS_BARRICADE)) {
-            return true;
-        }
-
-        // The door is turned to stand between walls north and south, otherwise it stands between east and west
-        if (entity.get(Position.class).rotation != 0) {
-            return DoorPlacementValidator.isBetweenWallsNorthAndSouth(mapInformation, tile.x, tile.y);
-        }
-        return DoorPlacementValidator.isBetweenWallsEastAndWest(mapInformation, tile.x, tile.y);
     }
 
     @Override

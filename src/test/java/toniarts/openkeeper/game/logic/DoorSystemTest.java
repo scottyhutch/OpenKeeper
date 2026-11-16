@@ -16,7 +16,6 @@
  */
 package toniarts.openkeeper.game.logic;
 
-import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
@@ -47,8 +46,6 @@ import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static toniarts.openkeeper.tools.convert.map.Terrain.TerrainFlag.OWNABLE;
 import static toniarts.openkeeper.tools.convert.map.Terrain.TerrainFlag.SOLID;
@@ -64,7 +61,6 @@ class DoorSystemTest {
 
     private final EntityData entityData = new DefaultEntityData();
     private final Door woodenDoor = DoorFixtures.door((short) 1, 250);
-    private final Door barricade = DoorFixtures.door((short) 6, 400, Door.DoorFlag.IS_BARRICADE);
     private final Door secretDoor = DoorFixtures.door((short) 5, 3000, Door.DoorFlag.IS_SECRET);
     private FakeMapData mapData;
     private DoorSystem doorSystem;
@@ -99,103 +95,6 @@ class DoorSystemTest {
     @AfterEach
     void tearDown() {
         doorSystem.stop();
-    }
-
-    @Test
-    void doorBetweenItsWallsStands() {
-        setWallsEastAndWest();
-        EntityId door = addDoor(woodenDoor, false, 0);
-
-        doorSystem.processTick(0.25f);
-
-        assertNotNull(entityData.getComponent(door, DoorComponent.class));
-    }
-
-    @Test
-    void doorFallsWhenItsTileIsClaimedByAnother() {
-        setWallsEastAndWest();
-        EntityId door = addDoor(woodenDoor, false, 0);
-        setTile(TILE, CLAIMED_PATH, ENEMY);
-
-        doorSystem.processTick(0.25f);
-
-        assertNull(entityData.getComponent(door, DoorComponent.class));
-    }
-
-    @Test
-    void blueprintFallsWhenItsTileIsClaimedByAnother() {
-        setWallsEastAndWest();
-        EntityId door = addDoor(woodenDoor, true, 0);
-        setTile(TILE, CLAIMED_PATH, ENEMY);
-
-        doorSystem.processTick(0.25f);
-
-        assertNull(entityData.getComponent(door, DoorComponent.class));
-    }
-
-    @Test
-    void doorFallsWhenOneOfItsWallsGoes() {
-        setWallsEastAndWest();
-        EntityId door = addDoor(woodenDoor, false, 0);
-        setTile(new Point(3, 2), CLAIMED_PATH, PLAYER);
-
-        doorSystem.processTick(0.25f);
-
-        assertNull(entityData.getComponent(door, DoorComponent.class));
-    }
-
-    @Test
-    void blueprintFallsWhenOneOfItsWallsGoes() {
-        setWallsEastAndWest();
-        EntityId door = addDoor(woodenDoor, true, 0);
-        setTile(new Point(1, 2), CLAIMED_PATH, PLAYER);
-
-        doorSystem.processTick(0.25f);
-
-        assertNull(entityData.getComponent(door, DoorComponent.class));
-    }
-
-    @Test
-    void onlyTheWallsTheDoorStandsBetweenHoldIt() {
-
-        // Turned to stand between north and south, walls east and west don't do
-        setTile(new Point(2, 1), REINFORCED_WALL, PLAYER);
-        EntityId door = addDoor(woodenDoor, false, -FastMath.HALF_PI);
-        setWallsEastAndWest();
-
-        doorSystem.processTick(0.25f);
-
-        assertNull(entityData.getComponent(door, DoorComponent.class));
-    }
-
-    @Test
-    void wallsOfAnotherKeeperHoldTheDoor() {
-        setTile(new Point(2, 1), REINFORCED_WALL, ENEMY);
-        setTile(new Point(2, 3), REINFORCED_WALL, ENEMY);
-        EntityId door = addDoor(woodenDoor, false, -FastMath.HALF_PI);
-
-        doorSystem.processTick(0.25f);
-
-        assertNotNull(entityData.getComponent(door, DoorComponent.class));
-    }
-
-    @Test
-    void barricadeNeedsNoWalls() {
-        EntityId door = addDoor(barricade, false, 0);
-
-        doorSystem.processTick(0.25f);
-
-        assertNotNull(entityData.getComponent(door, DoorComponent.class));
-    }
-
-    @Test
-    void barricadeFallsWhenItsTileIsClaimedByAnother() {
-        EntityId door = addDoor(barricade, false, 0);
-        setTile(TILE, CLAIMED_PATH, ENEMY);
-
-        doorSystem.processTick(0.25f);
-
-        assertNull(entityData.getComponent(door, DoorComponent.class));
     }
 
     @Test
@@ -261,17 +160,6 @@ class DoorSystemTest {
         assertTrue(entityData.getComponent(door, DoorComponent.class).secret);
     }
 
-    @Test
-    void fallenSecretDoorIsNotDiscovered() {
-        EntityId door = addSecretDoor(true);
-        addCreature(ENEMY, new Point(2, 3));
-        setTile(TILE, CLAIMED_PATH, ENEMY);
-
-        doorSystem.processTick(0.25f);
-
-        assertNull(entityData.getComponent(door, DoorComponent.class));
-    }
-
     private EntityId addSecretDoor(boolean open) {
         setWallsEastAndWest();
         EntityId door = addDoor(secretDoor, false, 0);
@@ -289,9 +177,6 @@ class DoorSystemTest {
     }
 
     private Door door(short doorId) {
-        if (doorId == barricade.getDoorId()) {
-            return barricade;
-        }
         if (doorId == secretDoor.getDoorId()) {
             return secretDoor;
         }
