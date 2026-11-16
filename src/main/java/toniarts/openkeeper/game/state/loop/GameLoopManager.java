@@ -23,7 +23,6 @@ import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
-import toniarts.openkeeper.game.controller.WorkshopOrders;
 import toniarts.openkeeper.game.controller.trap.TrapEffects;
 import toniarts.openkeeper.game.controller.room.FiveByFiveRotatedController;
 import toniarts.openkeeper.game.data.CampaignLevel;
@@ -173,8 +172,9 @@ public final class GameLoopManager {
                 new GraveyardSystem(entityData, levelInfo.getLevelData(), gameSettings,
                         gameWorldController.getMapController(), gameWorldController.getCreaturesController(), gameEventService),
                 new PlayerCreatureSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
+                new PlayerManufactureSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
                 new ManufactureProgressSystem(entityData, playerControllers.values(),
-                        ManufactureProgressSystem.workshopOrders(new WorkshopOrders(entityData, levelInfo.getLevelData()))),
+                        ManufactureProgressSystem.manufactureOrders(playerControllers.values())),
                 new PlayerSpellbookSystem(entityData, levelInfo.getLevelData(), playerControllers.values()),
                 new CreatureMoodSwitchSystem(entityData, levelInfo::isCreatureMoodsEnabled),
                 (IGameLogicUpdatable) gameController,

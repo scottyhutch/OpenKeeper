@@ -24,7 +24,7 @@ import java.util.Map;
 import toniarts.openkeeper.game.component.ManufactureProgress;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.controller.IPlayerController;
-import toniarts.openkeeper.game.controller.WorkshopOrders;
+import toniarts.openkeeper.game.controller.ManufactureOrders;
 import toniarts.openkeeper.game.controller.player.PlayerManufactureControl;
 import toniarts.openkeeper.game.data.ResearchableType;
 
@@ -82,15 +82,23 @@ public final class ManufactureProgressSystem implements IGameLogicUpdatable {
     }
 
     /**
-     * The orders come from the keeper's one manufacture list of trap and door
-     * blueprints
+     * The orders come from the keepers' manufacture controls, which the
+     * {@link PlayerManufactureSystem} keeps up to date from the one manufacture
+     * list of trap and door blueprints
      *
-     * @param workshopOrders the manufacture list
+     * @param playerControllers the keepers
      * @return the orders
      */
-    public static OrderLookup workshopOrders(WorkshopOrders workshopOrders) {
+    public static OrderLookup manufactureOrders(Collection<IPlayerController> playerControllers) {
+        Map<Short, PlayerManufactureControl> manufactureControls = new HashMap<>();
+        for (IPlayerController playerController : playerControllers) {
+            if (playerController.getManufactureControl() != null) {
+                manufactureControls.put(playerController.getKeeper().getId(), playerController.getManufactureControl());
+            }
+        }
         return playerId -> {
-            WorkshopOrders.Order order = workshopOrders.getNext(playerId);
+            PlayerManufactureControl manufactureControl = manufactureControls.get(playerId);
+            ManufactureOrders.Order order = manufactureControl != null ? manufactureControl.getOrder() : null;
             return order != null ? new Order(order.type(), order.typeId(), order.manufToBuild()) : null;
         };
     }
