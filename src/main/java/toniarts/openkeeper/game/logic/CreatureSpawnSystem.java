@@ -89,7 +89,6 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
         this.creaturesController = creaturesController;
         this.creatureChoice = new PortalCreatureChoice(entityData, Utils.getRandom());
         this.gameEventService = gameEventService;
-        this.creatureChoice = new PortalCreatureChoice(entityData, Utils.getRandom());
 
         // We need the game state just for the variables
         entranceCooldownTime = (int) gameSettings.get(Variable.MiscVariable.MiscType.ENTRANCE_GENERATION_SPEED_SECONDS).getValue();
