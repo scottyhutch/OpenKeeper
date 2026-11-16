@@ -1450,7 +1450,6 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         Position devicePosition = null;
 
         CreatureState targetState = null;
-        Position devicePosition = null;
 
         // Creatures dropped into a temple's pool are sacrificed
         if (roomController instanceof TempleController temple && temple.isSacrificePool(tile)) {

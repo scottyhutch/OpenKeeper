@@ -100,7 +100,6 @@ public final class SoundState extends AbstractPauseAwareState {
      * music level
      */
     private final MusicLevel musicLevel = new MusicLevel();
-    private volatile float musicVolumeFactor = 1f;
     private boolean levelMusic;
     private AudioNode musicNode;
     private SequencedSoundStream musicStream;
@@ -303,15 +302,6 @@ public final class SoundState extends AbstractPauseAwareState {
         if (speech.listener != null) {
             speech.listener.onStart();
         }
-    }
-
-    /**
-     * Turns the level music down, e.g. while the Casino's disco plays
-     *
-     * @param factor 1 is the full volume, 0 is silent
-     */
-    public void setMusicVolumeFactor(float factor) {
-        musicVolumeFactor = factor;
     }
 
     public void stopSpeech() {

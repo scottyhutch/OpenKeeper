@@ -78,9 +78,6 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private static final int CASINO_JACKPOT_EFFECT = 91;
     private static final int CASINO_FIREWORKS_EFFECT = 320;
 
-    private static final int CASINO_JACKPOT_EFFECT = 91;
-    private static final int CASINO_FIREWORKS_EFFECT = 320;
-
     private Main app;
     private AppStateManager stateManager;
     private final IMapInformation mapInformation;

@@ -30,6 +30,7 @@ import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
 import static toniarts.openkeeper.tools.convert.map.KeeperSpell.CastRule.ANYWHERE;
 import static toniarts.openkeeper.tools.convert.map.KeeperSpell.CastRule.ANY_LAND;
