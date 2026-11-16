@@ -43,6 +43,7 @@ import toniarts.openkeeper.game.controller.shot.InfernoShotProcessor;
 import toniarts.openkeeper.game.controller.shot.LightningShotProcessor;
 import toniarts.openkeeper.game.controller.shot.ShotFlightRules;
 import toniarts.openkeeper.game.controller.shot.ShotRequest;
+import toniarts.openkeeper.game.controller.shot.WindShotProcessor;
 import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
@@ -69,6 +70,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.SIGHT_OF_EV
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.SUMMON_REAPER;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.TREMOR;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.TURNCOAT;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.WIND;
 import toniarts.openkeeper.tools.convert.map.Variable;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -204,6 +206,7 @@ public final class ShotsController implements IShotsController {
             }
         });
         result.put(INFERNO, new InfernoShotProcessor(entityData, gameTimer, () -> kwdFile.getGameLevel().getTicksPerSec()));
+        result.put(WIND, new WindShotProcessor(entityData, kwdFile, gameController, mapController, creaturesController));
 
         return result;
     }
@@ -286,6 +289,17 @@ public final class ShotsController implements IShotsController {
         }
 
         notifyShotHit(shot, thing);
+        process(shotEntity, flight, shot, thing);
+    }
+
+    @Override
+    public void fly(EntityId shotEntity) {
+        ShotFlight flight = entityData.getComponent(shotEntity, ShotFlight.class);
+
+        process(shotEntity, flight, kwdFile.getShotById(flight.shotId), null);
+    }
+
+    private void process(EntityId shotEntity, ShotFlight flight, Shot shot, EntityId thing) {
         IShotProcessor processor = processors.get(shot.getProcessType());
         if (processor != null) {
             processor.process(new ShotRequest(shot, flight.shotData1, flight.shotData2, flight.ownerId,
