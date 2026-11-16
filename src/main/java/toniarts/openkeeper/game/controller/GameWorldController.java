@@ -1435,6 +1435,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         boolean tortureOrImprisonment = false;
         boolean torture = false;
         boolean imprison = false;
+        boolean pitFighter = false;
         CreatureState creatureState = null;
         CreatureState targetState = null;
         Position devicePosition = null;
@@ -1491,13 +1492,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             }
             tortureOrImprisonment = imprison || torture;
 
-            // Our own creatures dropped into the pit itself fight there, workers just go back to work
-            if (roomController instanceof CombatPitController combatPit
-                    && roomController.getRoomInstance().getOwnerId() == owner.ownerId
-                    && combatPit.isFightingTile(tile)
-                    && !entityData.getComponent(entity, CreatureComponent.class).worker) {
-                entityData.setComponent(entity, new CombatPitFighter(roomController.getEntityId()));
-            }
+            // Creatures dropped into the pit itself fight there, our prisoners too
+            pitFighter = roomController instanceof CombatPitController combatPit && combatPit.addFighter(entity, tile);
             targetState = getLairRestTarget(roomController, entity, owner.ownerId, tortureOrImprisonment);
         }
 
@@ -1554,7 +1550,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         Owner owner = entityData.getComponent(entity, Owner.class);
         if (tortureOrImprisonment) {
             entityData.setComponent(entity, new Owner(owner.ownerId, playerId));
-        } else {
+        } else if (!pitFighter) {
             entityData.setComponent(entity, new Owner(owner.ownerId, owner.ownerId));
         }
 
