@@ -87,6 +87,7 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
             IMapController mapController, GameEventService gameEventService) {
         this.entityData = entityData;
         this.creaturesController = creaturesController;
+        this.creatureChoice = new PortalCreatureChoice(entityData, Utils.getRandom());
         this.gameEventService = gameEventService;
         this.creatureChoice = new PortalCreatureChoice(entityData, Utils.getRandom());
 

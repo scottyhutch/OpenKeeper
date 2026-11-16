@@ -119,6 +119,7 @@ public final class GameClientState extends AbstractPauseAwareState {
     private AmbienceState ambienceState;
     private volatile EntityId possessedCreature;
     private RoomSoundState roomSoundState;
+    private volatile EntityId possessedCreature;
     private PlayerEntityViewState playerModelViewState;
     private MinimapPanelState minimapPanelState;
     private FullscreenMapState fullscreenMapState;
@@ -976,6 +977,14 @@ public final class GameClientState extends AbstractPauseAwareState {
         if (ambienceState != null) {
             ambienceState.setPossessing(entityId != null);
         }
+    }
+
+    /**
+     * @return the creature the viewer is currently possessing, or
+     * {@code null} if not possessing
+     */
+    public EntityId getPossessedCreature() {
+        return possessedCreature;
     }
 
     /**
