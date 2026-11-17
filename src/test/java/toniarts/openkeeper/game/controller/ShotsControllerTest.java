@@ -77,7 +77,7 @@ class ShotsControllerTest {
     private static final short INVISIBLE_ID = 22;
     private static final short CREATE_OBJECT_ID = 2;
     private static final short CONCEAL_ID = 33;
-    private static final short CREATE_CREATURE_ID = 2;
+    private static final short CREATE_CREATURE_ID = 10;
     private static final short CREATE_SINGLE_CREATURE_ID = 5;
     private static final short SKELETON_ARMY_ID = 54;
     private static final short IMP_ID = 1;
