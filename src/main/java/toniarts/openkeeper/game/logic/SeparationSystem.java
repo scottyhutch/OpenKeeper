@@ -22,7 +22,6 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
-import java.util.EnumSet;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Mobile;
@@ -198,10 +197,10 @@ public final class SeparationSystem implements IGameLogicUpdatable {
 
     /**
      * Does the creature stand its ground against the separation of others. DK
-     * II marks a creature that fights a target in reach (0x45F030) and the
-     * Horned Reaper always (0x488930). The fight state clears the mark while
-     * the creature swings or casts (it returns before setting it while an
-     * action runs, 0x496D00).
+     * II marks the Horned Reaper always (0x488930), and a creature that fights
+     * a target in reach only between its blows: the fight state clears the
+     * blocker flag (+0x232 0x80) every turn and sets it again only when no
+     * swing or cast is running (0x45F030, 0x496D00).
      *
      * @param entityId the creature
      * @param creature its type
