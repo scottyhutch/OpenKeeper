@@ -144,6 +144,7 @@ import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.Storage;
 import toniarts.openkeeper.game.component.Stored;
 import toniarts.openkeeper.game.component.TaskComponent;
+import toniarts.openkeeper.game.component.Teleport;
 import toniarts.openkeeper.game.component.Threat;
 import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.TrapFiring;
@@ -351,6 +352,7 @@ public final class NetworkServer {
             Serializer.registerClass(Spin.class, new FieldSerializer());
             Serializer.registerClass(SummonedReaper.class, new FieldSerializer());
             Serializer.registerClass(TaskComponent.class, new FieldSerializer());
+            Serializer.registerClass(Teleport.class, new FieldSerializer());
             Serializer.registerClass(Tremor.class, new FieldSerializer());
             Serializer.registerClass(TriggerWave.class, new FieldSerializer());
             Serializer.registerClass(WoodenBridgeDecay.class, new FieldSerializer());
