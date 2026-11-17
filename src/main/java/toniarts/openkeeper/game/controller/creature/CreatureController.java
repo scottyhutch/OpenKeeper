@@ -1785,7 +1785,9 @@ public final class CreatureController extends EntityController implements ICreat
         // TODO: What is the alternative shot all about?
         toniarts.openkeeper.tools.convert.map.CreatureSpell creatureSpell = levelInfo.getLevelData().getCreatureSpellById(castShot.creatureSpellId);
         int shotData1 = getShotData1(creatureSpell);
-        if (!shotsController.fireShot(creatureSpell.getShotTypeId(), shotData1, creatureSpell.getShotData2(),
+
+        // A shot cast on its own caster hits it at once: it starts on the caster, the only thing such a shot hits (0x451570)
+        if (entityId.equals(castShot.target) || !shotsController.fireShot(creatureSpell.getShotTypeId(), shotData1, creatureSpell.getShotData2(),
                 getOwnerId(), getShotPosition(castShot.creatureSpellId, getPosition(entityData, castShot.target)), castShot.target, entityId, castShot.range)) {
             shotsController.createShot(creatureSpell.getShotTypeId(), shotData1, creatureSpell.getShotData2(), getOwnerId(), getPosition(), castShot.target, entityId);
 
@@ -1831,7 +1833,10 @@ public final class CreatureController extends EntityController implements ICreat
 
         entityData.setComponent(spellEntity, new CreatureSpell(spell, gameTimer.getGameTime()));
         stateMachine.changeState(CreatureState.CAST_SPELL);
-        shotsController.createShot(creatureSpell.getShotTypeId(), creatureSpell.getShotData1(), creatureSpell.getShotData2(), getOwnerId(), getPosition(), target, entityId);
+
+        // Cast like an attack spell, the shot leaves after the spell's shot delay (0x45F030, 0x498870)
+        entityData.setComponent(entityId, new CastShot(spell.creatureSpellId, target, spell.range,
+                gameTimer.getGameTime() + getShotDelay(spell.creatureSpellId)));
 
         return true;
     }
