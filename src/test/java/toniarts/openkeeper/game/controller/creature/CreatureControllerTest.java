@@ -1090,7 +1090,7 @@ class CreatureControllerTest {
             controller = controllers.get();
             sleepSystem = new CreatureSleepSystem(data, kwd, () -> time);
             moodSystem = new CreatureMoodSystem(data, kwd, List.of(), () -> time, settings);
-            healthSystem = new HealthSystem(data, null, settings, null, null, null, List.of(), map, () -> time, eventService);
+            healthSystem = new HealthSystem(data, lookup, settings, null, null, null, List.of(), map, () -> time, eventService);
         }
 
         Task task(long id, TaskType type) {
@@ -1147,6 +1147,7 @@ class CreatureControllerTest {
         IMapTileInformation tile(Point location) {
             return proxy(IMapTileInformation.class, (method, args) -> switch (method) {
                 case "getLocation" -> location;
+                case "getTerrainId" -> (short) 0; // Not the Hero Lair
                 default -> throw new UnsupportedOperationException(method);
             });
         }
