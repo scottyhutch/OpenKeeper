@@ -416,6 +416,7 @@ class CreatureBackOffTest {
             case "isStateTimeExceeded" -> false;
             case "castSupportSpell" -> false;
             case "releaseMeleeHit", "releaseCastShot" -> null;
+            case "withdrawToHeroLair" -> false;
             default -> throw new UnsupportedOperationException(method);
         }));
         return self.get();
