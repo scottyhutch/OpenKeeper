@@ -57,6 +57,7 @@ import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.controller.entity.IEntityController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
@@ -815,6 +816,30 @@ class CreatureControllerTest {
     }
 
     @Test
+    void chickenGivenToAPrisonerFeedsItWithoutLettingItOut() {
+        try (Fixture f = new Fixture(9)) {
+            f.data.setComponent(f.entity, new CreatureHunger(0, 1));
+            f.controller.getStateMachine().changeState(CreatureState.IMPRISONED);
+            EntityId chicken = f.data.createEntity();
+            f.data.setComponent(chicken, new Health(1000, 1000));
+
+            f.controller.eat(proxy(IEntityController.class, (method, args) -> switch (method) {
+                case "getEntityId" -> chicken;
+                case "remove" -> {
+                    f.data.removeEntity(chicken);
+                    yield null;
+                }
+                default -> throw new UnsupportedOperationException(method);
+            }));
+
+            assertEquals(CreatureState.IMPRISONED, f.state());
+            assertNull(f.data.getComponent(chicken, Health.class));
+            assertEquals(0, f.data.getComponent(f.entity, CreatureHunger.class).amountNeeded);
+            assertEquals(-250, f.data.getComponent(f.entity, Damage.class).damage);
+        }
+    }
+
+    @Test
     void swingKeepsToTheFirstMeleeAnimationWhenItIsNotFlagged() {
         Creature definition = CreatureSleepFixtures.sleeper(9);
         CreatureSleepFixtures.setSwing(definition, Creature.AnimationType.MELEE_ATTACK, 30, 18, 9, 11);
@@ -827,6 +852,17 @@ class CreatureControllerTest {
                 f.controller.executeAttack(target);
                 assertFalse(f.data.getComponent(f.entity, CreatureMeleeAttack.class).swipe);
             }
+        }
+    }
+
+    @Test
+    void chickenGivesNothingToACreatureThatIsNotHungry() {
+        try (Fixture f = new Fixture(9)) {
+            f.data.setComponent(f.entity, new CreatureHunger(0, 0));
+
+            f.controller.sate();
+
+            assertNull(f.data.getComponent(f.entity, Damage.class));
         }
     }
 
