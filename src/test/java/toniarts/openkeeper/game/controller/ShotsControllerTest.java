@@ -141,6 +141,7 @@ class ShotsControllerTest {
         shotsById.put(DOOR_FIREBALL_ID, TrapFiringFixtures.shot(DOOR_FIREBALL_ID, Shot.ProcessType.NONE, Shot.DamageType.HIT_THING));
         shotsById.put(ALARM_ID, TrapFiringFixtures.shot(ALARM_ID, Shot.ProcessType.ALARM, Shot.DamageType.NONE));
         shotsById.put(POISON_SPIT_ID, ShotFixtures.shot(POISON_SPIT_ID, Shot.ProcessType.POISON_SPIT, 0, EnumSet.of(Shot.ShotProcessFlag.HIT_COLLIDE_THING)));
+        shotsById.put(ShotFixtures.WEB_ID, ShotFixtures.web());
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (proxy, method, args) -> switch (method.getName()) {
             case "getShotById" -> shotsById.get((Short) args[0]);
@@ -171,9 +172,12 @@ class ShotsControllerTest {
                     throw new UnsupportedOperationException(method.getName());
                 });
 
-        // A map without tiles, no strike lands on water. To a fire shot only the tiles in waterTiles are water
+        // A 32 x 32 map without tiles, no strike lands on water. To a fire shot only the tiles in waterTiles are water
         IMapDataInformation<?> mapData = (IMapDataInformation<?>) Proxy.newProxyInstance(IMapDataInformation.class.getClassLoader(), new Class<?>[]{IMapDataInformation.class},
-                (proxy, method, args) -> null);
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getWidth", "getHeight" -> 32;
+                    default -> null;
+                });
         IMapController mapController = (IMapController) Proxy.newProxyInstance(IMapController.class.getClassLoader(), new Class<?>[]{IMapController.class},
                 (proxy, method, args) -> switch (method.getName()) {
                     case "getMapData" -> mapData;
@@ -801,6 +805,55 @@ class ShotsControllerTest {
 
         assertEquals(2, entityData.findEntities(null, Alarm.class).size());
         assertEquals(List.of(GameEventType.ALARM_RAISED, ENEMY_ID), playerEvents.get(1));
+    }
+
+    @Test
+    void webSlowsEveryCreatureNearItButTheMaiden() {
+        EntityId maiden = createWalker(PLAYER_ID, 10, 9);
+        EntityId target = createWalker(ENEMY_ID, 10, 10.5f);
+        EntityId own = createWalker(PLAYER_ID, 11, 11);
+        EntityId farAway = createWalker(ENEMY_ID, 12.1f, 10);
+        gameTime = 5;
+
+        // Maiden Web: 15 seconds, 2 tiles. There is no owner check, the Maiden's own creatures are caught too
+        hitWithWeb(maiden, target);
+
+        assertSlowed(target);
+        assertSlowed(own);
+        assertEquals(2f, entityData.getComponent(maiden, Mobile.class).maxSpeed, DELTA);
+        assertNull(entityData.getComponent(maiden, SpeedChange.class));
+        assertEquals(2f, entityData.getComponent(farAway, Mobile.class).maxSpeed, DELTA);
+        assertNull(entityData.getComponent(farAway, SpeedChange.class));
+    }
+
+    @Test
+    void webLeavesARunningSpeedChangeAsItIs() {
+        EntityId target = createWalker(ENEMY_ID, 10, 10.5f);
+        entityData.setComponents(target, new Mobile(false, false, false, 3f), new SpeedChange(100));
+
+        hitWithWeb(createWalker(PLAYER_ID, 10, 8), target);
+
+        assertEquals(3f, entityData.getComponent(target, Mobile.class).maxSpeed, DELTA);
+        assertEquals(100, entityData.getComponent(target, SpeedChange.class).endTime, DELTA);
+    }
+
+    private void hitWithWeb(EntityId maiden, EntityId target) {
+        shotsController.fireShot(ShotFixtures.WEB_ID, 15, 2, PLAYER_ID, new Vector3f(10, 1, 10), target, maiden, 8);
+
+        shotsController.hit(entityData.findEntity(null, ShotFlight.class), target);
+    }
+
+    private void assertSlowed(EntityId creature) {
+        assertEquals(0.5f, entityData.getComponent(creature, Mobile.class).maxSpeed, DELTA);
+        assertEquals(20, entityData.getComponent(creature, SpeedChange.class).endTime, DELTA);
+    }
+
+    private EntityId createWalker(short ownerId, float x, float y) {
+        EntityId creature = createCreature(ownerId, x, y);
+        CreatureComponent creatureComponent = new CreatureComponent();
+        creatureComponent.speed = 2f;
+        entityData.setComponents(creature, creatureComponent, new Mobile(false, false, false, 2f));
+        return creature;
     }
 
     private EntityId createCreature(short ownerId, float x, float y) {
