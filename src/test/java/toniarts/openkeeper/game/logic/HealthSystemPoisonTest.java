@@ -29,8 +29,10 @@ import toniarts.openkeeper.game.component.Frozen;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Poisoned;
+import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 
@@ -45,7 +47,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 class HealthSystemPoisonTest {
 
     private final EntityData entityData = new DefaultEntityData();
-    private final HealthSystem healthSystem = new HealthSystem(entityData, null, settings(), null, null, List.of(), null,
+    private final HealthSystem healthSystem = new HealthSystem(entityData, null, settings(), null, null, levelInfo(), List.of(), null,
             () -> 0, (GameEventService) Proxy.newProxyInstance(GameEventService.class.getClassLoader(),
                     new Class<?>[]{GameEventService.class}, (proxy, method, args) -> null));
 
@@ -97,6 +99,16 @@ class HealthSystemPoisonTest {
         EntityId entity = entityData.createEntity();
         entityData.setComponents(entity, new CreatureComponent(), new Health(100, 100), poisoned);
         return entity;
+    }
+
+    /**
+     * The level, its creatures are plain fighters
+     */
+    private static ILevelInfo levelInfo() {
+        IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
+                (proxy, method, args) -> method.getName().equals("getCreature") ? CreatureSleepFixtures.sleeper(9) : null);
+        return (ILevelInfo) Proxy.newProxyInstance(ILevelInfo.class.getClassLoader(), new Class<?>[]{ILevelInfo.class},
+                (proxy, method, args) -> method.getName().equals("getLevelData") ? kwdFile : null);
     }
 
     private static Map<MiscType, MiscVariable> settings() {
