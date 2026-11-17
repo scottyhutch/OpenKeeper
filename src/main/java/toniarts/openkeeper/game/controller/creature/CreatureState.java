@@ -49,13 +49,13 @@ public enum CreatureState implements State<ICreatureController> {
                 return;
             }
 
-            // An enemy door right next to us
-            if (entity.attackAdjacentDoor()) {
+            // An enemy trap in sight, when there is no enemy creature to fight
+            if (entity.attackVisibleTrap()) {
                 return;
             }
 
-            // An enemy trap in sight, when there is no enemy creature to fight
-            if (entity.attackVisibleTrap()) {
+            // An enemy door right next to us
+            if (entity.attackAdjacentDoor()) {
                 return;
             }
 
@@ -199,13 +199,13 @@ public enum CreatureState implements State<ICreatureController> {
                 return;
             }
 
-            // An enemy door right next to us
-            if (entity.attackAdjacentDoor()) {
+            // An enemy trap in sight, when there is no enemy creature to fight
+            if (entity.attackVisibleTrap()) {
                 return;
             }
 
-            // An enemy trap in sight, when there is no enemy creature to fight
-            if (entity.attackVisibleTrap()) {
+            // An enemy door right next to us
+            if (entity.attackAdjacentDoor()) {
                 return;
             }
 
