@@ -42,12 +42,14 @@ import toniarts.openkeeper.game.component.HauledBy;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Hypnotised;
 import toniarts.openkeeper.game.component.HealthGain;
+import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Interaction;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.Poisoned;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAbility;
@@ -62,6 +64,7 @@ import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.RoomAttackMessages;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.creature.DungeonHeartTarget;
+import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
@@ -115,6 +118,7 @@ public final class HealthSystem extends GameTimeCounter {
     private final EntitySet healthGainEntities;
     private final EntitySet recuperatingEntities;
     private final EntitySet prayingEntities;
+    private final EntitySet poisonedEntities;
 
     public HealthSystem(EntityData entityData, IEntityPositionLookup entityPositionLookup,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
@@ -163,6 +167,7 @@ public final class HealthSystem extends GameTimeCounter {
         healthGainEntities = entityData.getEntities(Health.class, HealthGain.class);
         recuperatingEntities = entityData.getEntities(CreatureRecuperating.class, Health.class, CreatureComponent.class);
         prayingEntities = entityData.getEntities(PossessedAbility.class, Health.class);
+        poisonedEntities = entityData.getEntities(Poisoned.class, Health.class);
     }
 
     @Override
@@ -173,6 +178,8 @@ public final class HealthSystem extends GameTimeCounter {
             processAddedEntities(healthEntities.getAddedEntities());
             processDeletedEntities(healthEntities.getRemovedEntities());
         }
+        poisonedEntities.applyChanges();
+        poison();
 
         // Update other monitorable sets
         damageEntities.applyChanges();
@@ -230,6 +237,31 @@ public final class HealthSystem extends GameTimeCounter {
                         roomAttackMessages.heartHealthChanged(owner.ownerId, newHealth, health.maxHealth);
                     }
                 }
+            }
+        }
+    }
+
+    /**
+     * A poisoned creature takes the poison's damage every tick until the poison
+     * runs out. The poison waits while the creature is frozen, and does no harm
+     * while the creature is in the hand or knocked out (0x48E160, 0x4B2CE0)
+     */
+    private void poison() {
+        for (Entity entity : poisonedEntities) {
+            EntityId entityId = entity.getId();
+            if (entityData.getComponent(entityId, Frozen.class) != null) {
+                continue;
+            }
+
+            Poisoned poisoned = entity.get(Poisoned.class);
+            if (entityData.getComponent(entityId, InHand.class) == null
+                    && entityData.getComponent(entityId, Unconscious.class) == null) {
+                EntityController.setDamage(entityData, entityId, poisoned.damage);
+            }
+            if (poisoned.ticksLeft > 1) {
+                entityData.setComponent(entityId, new Poisoned(poisoned.ticksLeft - 1, poisoned.damage));
+            } else {
+                entityData.removeComponent(entityId, Poisoned.class);
             }
         }
     }
@@ -657,6 +689,7 @@ public final class HealthSystem extends GameTimeCounter {
         entityData.removeComponent(entityId, CreatureImprisoned.class);
         entityData.removeComponent(entityId, CreatureTortured.class);
         entityData.removeComponent(entityId, CreatureMood.class);
+        entityData.removeComponent(entityId, Poisoned.class);
         entityData.setComponent(entityId, new Death(timeElapsed));
     }
 
@@ -713,6 +746,7 @@ public final class HealthSystem extends GameTimeCounter {
         healthGainEntities.release();
         recuperatingEntities.release();
         prayingEntities.release();
+        poisonedEntities.release();
         entityIds.clear();
     }
 
