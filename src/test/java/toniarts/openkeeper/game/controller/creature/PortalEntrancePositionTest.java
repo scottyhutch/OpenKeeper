@@ -24,7 +24,6 @@ import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Position;
-import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.utils.WorldUtils;
 import static org.junit.jupiter.api.Assertions.*;
@@ -52,10 +51,8 @@ class PortalEntrancePositionTest {
                 float.class, float.class, float.class);
         setter.setAccessible(true);
         setter.invoke(creature, Creature.OffsetType.PORTAL_ENTRANCE, x, y, z);
-        var levelInfo = (ILevelInfo) Proxy.newProxyInstance(ILevelInfo.class.getClassLoader(),
-                new Class<?>[]{ILevelInfo.class}, (proxy, method, args) -> null);
         var controller = new CreatureController(id, data, creature, null, null, null,
-                null, null, null, null, levelInfo, null, null, null);
+                java.util.Map.of(), null, null, null, null, null, null, null);
         controller.completeDungeonEntrance();
         var result = data.getComponent(id, Position.class);
         assertEquals(13 + x, result.position.x);

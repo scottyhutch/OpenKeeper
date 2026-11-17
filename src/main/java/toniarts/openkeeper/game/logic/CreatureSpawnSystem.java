@@ -34,6 +34,7 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.event.GameEvent;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.listener.RoomListener;
@@ -162,7 +163,6 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
         double timeSinceLastSpawn = timeElapsed - entrance.getLastSpawnTime();
         IPlayerController player = playerControllersById.get(entrance.getOwnerId());
         if (entrance.isDungeonHeart()) {
-            // A defeated keeper gets no free imps
             if (timeSinceLastSpawn >= freeImpCoolDownTime
                     && player.getCreatureControl().getImpCount() < minimumImpCount
                     && !player.getKeeper().isDestroyed()) {
@@ -179,8 +179,6 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
         Vector2f spot = new Vector2f(coordinate.x, coordinate.y);
         EntityId entityId = creaturesController.spawnCreature(kwdFile.getImp().getCreatureId(),
                 player.getKeeper().getId(), 1, spot, ICreaturesController.SpawnType.PLACE);
-
-        // The cast is not gated by the free flag
         gameEventService.emit(GameEventType.IMPS_CREATED, WorldUtils.vector2fToVector3(spot));
         entrance.onSpawn(timeElapsed, entityId);
     }
@@ -188,23 +186,16 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
     /** Advances due Portal cycles even when attraction is closed or no creature qualifies. */
     private void evaluatePortalSpawn(ICreatureEntrance entrance, IPlayerController player,
             double timeSinceLastSpawn) {
-
-        // In the original the interval is the level's entrance generation speed plus the square of the
-        // creatures that came in through the Portal since it was claimed, so each Portal slows down on its own
         double cooldown = entranceCooldownTime
                 + (double) entrance.getGeneratedCount() * entrance.getGeneratedCount();
         if (timeSinceLastSpawn < cooldown) {
             preparePortalSpawn(entrance, player, cooldown);
             return;
         }
-
-        // As in the original, the Portal's clock restarts on every check, also when no creature came in
         entrance.onGenerationCycle(timeElapsed);
         if (!player.getRoomControl().isPortalsOpen() || isCreatureLimitReached(player)) {
             return;
         }
-
-        // A unique creature called in by a secret room layout comes first, then by the weights, as the original does
         Map<Integer, CreaturePool> pool = kwdFile.getCreaturePool(player.getKeeper().getId());
         Creature creature = uniqueLayouts
                 ? creatureChoice.chooseUniqueCreature(player, playerControllersById.values(), creaturesController, kwdFile)
@@ -216,13 +207,12 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
         if (creature == null) {
             return;
         }
+        short creatureId = creature.getCreatureId();
         Point coordinate = entrance.getEntranceCoordinate();
-        EntityId entityId = creaturesController.spawnCreature(creature.getCreatureId(),
+        EntityId entityId = creaturesController.spawnCreature(creatureId,
                 player.getKeeper().getId(), 1, new Vector2f(coordinate.x, coordinate.y),
                 ICreaturesController.SpawnType.ENTRANCE);
         if (entityId != null) {
-
-            // Only the attracted creatures count towards the limit
             entityData.setComponent(entityId, new PortalAttracted());
             updatePortalLimit(player);
             entrance.onSpawn(timeElapsed, entityId);
@@ -232,19 +222,24 @@ public final class CreatureSpawnSystem extends GameTimeCounter {
     /** Starts the authored preparation three seconds before an eligible Portal cycle. */
     private void preparePortalSpawn(ICreatureEntrance entrance, IPlayerController player, double cooldown) {
         double preparationTime = entrance.getLastSpawnTime() + cooldown - 3;
-        if (timeElapsed >= preparationTime && !isCreatureLimitReached(player) && hasPossibleCreature(player)) {
-            entrance.onPrepareSpawn(preparationTime);
+        if (timeElapsed >= preparationTime && !isCreatureLimitReached(player)
+                && canPreparePortalSpawn(entrance, player)) {
+            if (entrance.onPrepareSpawn(preparationTime)) {
+                gameEventService.emitAt(GameEventType.PORTAL_PREPARING, GameEvent.ThingFlag.ROOM,
+                        entrance.getRoom().getRoomId(), entrance.getEntityId(),
+                        WorldUtils.pointToVector3f(entrance.getEntranceCoordinate()));
+            }
         }
     }
 
-    private boolean hasPossibleCreature(IPlayerController player) {
-        Map<Integer, CreaturePool> pool = kwdFile.getCreaturePool(player.getKeeper().getId());
-        for (Creature creature : player.getCreatureControl().getTypesAvailable()) {
-            if (isCreatureAvailableFromPool(creature, player, pool) && isCreatureRequirementsSatisfied(creature, player)) {
-                return true;
-            }
+    private boolean canPreparePortalSpawn(ICreatureEntrance entrance, IPlayerController player) {
+        if (uniqueLayouts && creatureChoice.canChooseUniqueCreature(player,
+                playerControllersById.values(), creaturesController, kwdFile)) {
+            return true;
         }
-        return false;
+        Map<Integer, CreaturePool> pool = kwdFile.getCreaturePool(player.getKeeper().getId());
+        return creatureChoice.canChooseCreature(player, entrance, creaturesController,
+                type -> isCreatureAvailableFromPool(type, player, pool) && isCreatureRequirementsSatisfied(type, player));
     }
 
     private EntityId findPortalLimitEntity(short keeperId) {

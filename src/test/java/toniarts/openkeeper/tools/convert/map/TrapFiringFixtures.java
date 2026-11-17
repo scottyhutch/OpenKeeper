@@ -52,6 +52,19 @@ public final class TrapFiringFixtures {
     }
 
     /**
+     * Gives the trap the shot offset, in tiles
+     *
+     * @param trap the trap
+     * @param forward how far in front of the trap the shot starts
+     * @param up how high above the floor the shot starts
+     * @return the same trap
+     */
+    public static Trap withShotOffset(Trap trap, float forward, float up) {
+        trap.setShotOffset(0, -forward, up);
+        return trap;
+    }
+
+    /**
      * Makes the trap pay mana for every shot
      *
      * @param trap the trap

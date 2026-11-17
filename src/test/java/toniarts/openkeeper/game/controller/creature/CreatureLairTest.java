@@ -20,6 +20,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.CreatureSleep;
 import toniarts.openkeeper.game.component.Owner;
@@ -45,7 +46,7 @@ class CreatureLairTest {
         // A new Creature has lair object 0, as the princes do in the data
         ILevelInfo levelInfo = (ILevelInfo) Proxy.newProxyInstance(ILevelInfo.class.getClassLoader(),
                 new Class<?>[]{ILevelInfo.class}, (proxy, method, args) -> null);
-        CreatureController prince = new CreatureController(entityId, entityData, new Creature(), null, null, null, null,
+        CreatureController prince = new CreatureController(entityId, entityData, new Creature(), null, null, null, Map.of(),
                 null, null, null, levelInfo, null, null, null);
 
         assertFalse(prince.needsLair());

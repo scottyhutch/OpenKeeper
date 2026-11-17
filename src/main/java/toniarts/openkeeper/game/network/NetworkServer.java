@@ -128,7 +128,6 @@ import toniarts.openkeeper.game.component.PrisonStatus;
 import toniarts.openkeeper.game.component.Regeneration;
 import toniarts.openkeeper.game.component.RoomComponent;
 import toniarts.openkeeper.game.component.RoomEffect;
-import toniarts.openkeeper.game.component.PortalViewState;
 import toniarts.openkeeper.game.component.SeenCreatureType;
 import toniarts.openkeeper.game.component.Senses;
 import toniarts.openkeeper.game.component.SeparationPush;
@@ -336,7 +335,6 @@ public final class NetworkServer {
             Serializer.registerClass(Regeneration.class, new FieldSerializer());
             Serializer.registerClass(RoomComponent.class, new FieldSerializer());
             Serializer.registerClass(RoomEffect.class, new FieldSerializer());
-            Serializer.registerClass(PortalViewState.class, new FieldSerializer());
             Serializer.registerClass(SeenCreatureType.class, new FieldSerializer());
             Serializer.registerClass(SeparationPush.class, new FieldSerializer());
             Serializer.registerClass(SpeedUp.class, new FieldSerializer());

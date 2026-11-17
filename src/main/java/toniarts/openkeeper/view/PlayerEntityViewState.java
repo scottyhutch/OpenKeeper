@@ -1116,7 +1116,8 @@ public class PlayerEntityViewState extends AbstractAppState {
             if (!dirty.contains(tile)) {
                 continue;
             }
-            boolean baseVisible = (!(control instanceof ObjectViewControl objectViewControl) || objectViewControl.getCurrentState().visible) && isTrapShown(control);
+            boolean baseVisible = (!(control instanceof ObjectViewControl objectViewControl) || objectViewControl.getCurrentState().visible)
+                    && isTrapShown(control);
             applyFogCullHint(spatial, tile, baseVisible);
         }
     }
@@ -1124,11 +1125,12 @@ public class PlayerEntityViewState extends AbstractAppState {
     /**
      * Hidden traps and blueprints are shown only to their owner
      *
-     * @param control the entity's view control
+     * @param control the view control of the entity
      * @return false if the entity is a trap the player doesn't get to see
      */
-    private boolean isTrapShown(IEntityViewControl control) {
-        return !(control.getCurrentState() instanceof TrapViewState trapViewState) || trapViewState.isShownTo(control.getOwnerId(), playerId);
+    private boolean isTrapShown(IEntityViewControl<?, ?> control) {
+        return !(control instanceof TrapViewControl trapControl)
+                || trapControl.getCurrentState().isShownTo(trapControl.getOwnerId(), playerId);
     }
 
     private void updateModelPosition(Spatial object, Entity e) {
@@ -1331,7 +1333,7 @@ public class PlayerEntityViewState extends AbstractAppState {
             }
             updateModelPosition(object, e);
             //updateModelAnimation(object, e);
-            applyFogCullHint(object, WorldUtils.vectorToPoint(e.get(Position.class).position), control == null || isTrapShown(control));
+            applyFogCullHint(object, WorldUtils.vectorToPoint(e.get(Position.class).position), isTrapShown(control));
         }
 
         @Override

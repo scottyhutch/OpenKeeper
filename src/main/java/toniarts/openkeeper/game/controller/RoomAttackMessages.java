@@ -66,6 +66,12 @@ public final class RoomAttackMessages {
         ENEMY_DEFEATED(20, 1162, Map.of()),
 
         /**
+         * "Enemy creatures are rampaging through your Dungeon", message 0x2f,
+         * told to the owner of an Alarm Trap that went off (0x4AE120)
+         */
+        ALARM(50, 1346, Map.of()),
+
+        /**
          * "Your Lair is under attack", message 0x22
          */
         UNDER_ATTACK(30, 172, Map.ofEntries(Map.entry(1, 157), Map.entry(2, 158), Map.entry(3, 166), Map.entry(4, 159),
@@ -169,6 +175,16 @@ public final class RoomAttackMessages {
         if (destroyerId != 0 && destroyerId != ownerId) {
             show(Message.ENEMY_DEFEATED, destroyerId, (short) 0, null);
         }
+    }
+
+    /**
+     * An alarm was raised for the keeper, his Alarm Trap went off
+     *
+     * @param ownerId the keeper the alarm is for
+     * @param tile where the alarm is
+     */
+    public void alarmRaised(short ownerId, Point tile) {
+        show(Message.ALARM, ownerId, (short) 0, tile);
     }
 
     /**

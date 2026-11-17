@@ -43,8 +43,8 @@ import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.component.TriggerWave;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.IShotsController;
 import toniarts.openkeeper.game.controller.player.PlayerManaControl;
-import toniarts.openkeeper.game.controller.trap.ITrapEffects;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -85,6 +85,9 @@ class TrapSystemTest {
     private final Map<Short, Creature> creatures = new HashMap<>();
     private final Set<Point> walls = new HashSet<>();
     private final List<Fired> shots = new ArrayList<>();
+    private final List<Object[]> flyingShots = new ArrayList<>();
+    private final List<EntityId> entities = new ArrayList<>();
+    private boolean shotsFly = false;
     private final Keeper keeper = new Keeper(false, KEEPER);
     private double gameTime = 0;
     private TrapSystem trapSystem;
@@ -94,8 +97,8 @@ class TrapSystemTest {
     }
 
     TrapSystemTest() {
-        traps.put((int) SENTRY, TrapFiringFixtures.withManaCost(
-                TrapFiringFixtures.trap(SENTRY, Trap.TriggerType.LINE_OF_SIGHT, 5, 6, CANNON_BALL), 250));
+        traps.put((int) SENTRY, TrapFiringFixtures.withShotOffset(TrapFiringFixtures.withManaCost(
+                TrapFiringFixtures.trap(SENTRY, Trap.TriggerType.LINE_OF_SIGHT, 5, 6, CANNON_BALL), 250), 0.5f, 0.53f));
         traps.put((int) SPIKE, TrapFiringFixtures.trap(SPIKE, Trap.TriggerType.PRESSURE, 1, 4, SPIKE_SHOT));
         traps.put((int) FEAR, TrapFiringFixtures.withThreat(
                 TrapFiringFixtures.trap(FEAR, Trap.TriggerType.LINE_OF_SIGHT, 3, 6, FEAR_SHOT), 600, 60));
@@ -117,6 +120,36 @@ class TrapSystemTest {
         tick();
 
         assertEquals(List.of(new Fired(SENTRY, enemy)), shots);
+    }
+
+    @Test
+    void sentrySendsAFlyingShotAfterTheEnemy() {
+        shotsFly = true;
+        EntityId sentry = addTrap(SENTRY, TRAP_TILE);
+        EntityId enemy = addCreature(IMP, ENEMY, 13, 10);
+
+        tick();
+
+        assertTrue(shots.isEmpty());
+        assertEquals(1, flyingShots.size());
+        Object[] shot = flyingShots.get(0);
+        assertEquals(CANNON_BALL, shot[0]);
+        assertEquals(new Vector3f(10.5f, WorldUtils.FLOOR_HEIGHT + 0.53f, 10), shot[4]);
+        assertEquals(enemy, shot[5]);
+        assertEquals(sentry, shot[6]);
+        assertEquals(0f, shot[7]);
+    }
+
+    @Test
+    void pressureTrapShotHitsAtOnce() {
+        shotsFly = true;
+        addTrap(SPIKE, TRAP_TILE);
+        EntityId enemy = addCreature(IMP, ENEMY, 10, 10);
+
+        tick();
+
+        assertTrue(flyingShots.isEmpty());
+        assertEquals(List.of(new Fired(SPIKE, enemy)), shots);
     }
 
     @Test
@@ -476,24 +509,17 @@ class TrapSystemTest {
         assertTrue(entityData.getComponent(trap, TrapViewState.class).hidden);
     }
 
-    @Test
-    void lineOfSightIsBlockedByWallsBetween() {
-        walls.add(new Point(11, 11));
-
-        assertTrue(TrapSystem.hasLineOfSight(this::isWall, new Vector3f(10, 1, 10), new Vector3f(10, 1, 13)));
-        assertFalse(TrapSystem.hasLineOfSight(this::isWall, new Vector3f(10, 1, 10), new Vector3f(12, 1, 12)));
-    }
-
     private void tick() {
         if (trapSystem == null) {
-            trapSystem = new TrapSystem(entityData, kwdFile(), () -> gameTime, this::isWall, playerControllers(),
-                    effects(), 1);
+            trapSystem = new TrapSystem(entityData, kwdFile(), () -> gameTime, positionLookup(), playerControllers(),
+                    shotsController());
         }
         trapSystem.processTick(0.25f);
     }
 
     private EntityId addTrap(short trapId, Point tile) {
         EntityId entityId = entityData.createEntity();
+        entities.add(entityId);
         entityData.setComponent(entityId, new TrapComponent(trapId));
         entityData.setComponent(entityId, new TrapViewState(trapId, false));
         entityData.setComponent(entityId, new Owner(KEEPER, KEEPER));
@@ -512,6 +538,7 @@ class TrapSystemTest {
 
     private EntityId addCreature(short creatureId, short ownerId, float x, float y) {
         EntityId entityId = entityData.createEntity();
+        entities.add(entityId);
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.creatureId = creatureId;
         entityData.setComponent(entityId, creatureComponent);
@@ -521,19 +548,70 @@ class TrapSystemTest {
         return entityId;
     }
 
-    private boolean isWall(int x, int y) {
-        return walls.contains(new Point(x, y));
+    /**
+     * The real line of sight is the position system's, here a wall anywhere
+     * between the two tiles blocks it
+     */
+    private boolean hasLineOfSight(Vector3f from, Vector3f to) {
+        Point start = WorldUtils.vectorToPoint(from);
+        Point end = WorldUtils.vectorToPoint(to);
+        for (Point wall : walls) {
+            if (wall.x >= Math.min(start.x, end.x) && wall.x <= Math.max(start.x, end.x)
+                    && wall.y >= Math.min(start.y, end.y) && wall.y <= Math.max(start.y, end.y)) {
+                return false;
+            }
+        }
+        return true;
     }
 
-    private ITrapEffects effects() {
-        return (trap, ownerId, origin, target) -> shots.add(new Fired(trap.getTrapId(), target));
+    private IEntityPositionLookup positionLookup() {
+        return (IEntityPositionLookup) Proxy.newProxyInstance(IEntityPositionLookup.class.getClassLoader(),
+                new Class<?>[]{IEntityPositionLookup.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("getEntitiesInLocation")) {
+                        Point tile = args.length == 2 ? new Point((Integer) args[0], (Integer) args[1]) : (Point) args[0];
+                        return entitiesOn(tile);
+                    }
+                    if (method.getName().equals("hasLineOfSight")) {
+                        return hasLineOfSight((Vector3f) args[0], (Vector3f) args[1]);
+                    }
+                    throw new UnsupportedOperationException(method.getName());
+                });
+    }
+
+    private List<EntityId> entitiesOn(Point tile) {
+        List<EntityId> result = new ArrayList<>();
+        for (EntityId entityId : entities) {
+            Position position = entityData.getComponent(entityId, Position.class);
+            if (position != null && tile.equals(WorldUtils.vectorToPoint(position.position))) {
+                result.add(entityId);
+            }
+        }
+        return result;
+    }
+
+    private IShotsController shotsController() {
+        return (IShotsController) Proxy.newProxyInstance(IShotsController.class.getClassLoader(),
+                new Class<?>[]{IShotsController.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("fireShot")) {
+                        if (shotsFly) {
+                            flyingShots.add(args);
+                        }
+                        return shotsFly;
+                    }
+                    if (method.getName().equals("createShot")) {
+
+                        // The shots that hit at once, every trap here has a shot of its own
+                        Trap trap = traps.values().stream().filter(t -> t.getShotTypeId() == (Short) args[0]).findFirst().orElseThrow();
+                        shots.add(new Fired(trap.getTrapId(), (EntityId) args[5]));
+                        return null;
+                    }
+                    throw new UnsupportedOperationException(method.getName());
+                });
     }
 
     private Map<Short, IPlayerController> playerControllers() {
         PlayerManaControl manaControl = new PlayerManaControl(keeper, Map.of(Variable.MiscVariable.MiscType.MAXIMUM_MANA_THRESHOLD,
-                TrapFiringFixtures.miscVariable(Variable.MiscVariable.MiscType.MAXIMUM_MANA_THRESHOLD, 200000),
-                Variable.MiscVariable.MiscType.MAXIMUM_MANA_GAIN_PER_SECOND,
-                TrapFiringFixtures.miscVariable(Variable.MiscVariable.MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, 500)));
+                TrapFiringFixtures.miscVariable(Variable.MiscVariable.MiscType.MAXIMUM_MANA_THRESHOLD, 200000)));
         IPlayerController playerController = (IPlayerController) Proxy.newProxyInstance(IPlayerController.class.getClassLoader(),
                 new Class<?>[]{IPlayerController.class}, (proxy, method, args) -> switch (method.getName()) {
             case "getKeeper" ->
@@ -553,6 +631,9 @@ class TrapSystemTest {
                 traps.get((Integer) args[0]);
             case "getCreature" ->
                 creatures.get((Short) args[0]);
+            case "getVariables" ->
+                Map.of(Variable.MiscVariable.MiscType.TRIGGER_TRAP_TRIGGER_SPEED_TILES_PER_SECOND,
+                        TrapFiringFixtures.miscVariable(Variable.MiscVariable.MiscType.TRIGGER_TRAP_TRIGGER_SPEED_TILES_PER_SECOND, 4096));
             default ->
                 throw new UnsupportedOperationException(method.getName());
         });

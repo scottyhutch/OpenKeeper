@@ -293,7 +293,7 @@ public final class CreatureController extends EntityController implements ICreat
         this.taskManager = taskManager;
         this.creature = creature;
         this.gameTimer = gameTimer;
-        this.gameSettings = gameSettings;
+        this.gameSettings = Collections.unmodifiableMap(gameSettings);
         this.creaturesController = creaturesController;
         this.entityPositionLookup = entityPositionLookup;
         this.levelInfo = levelInfo;
@@ -3076,7 +3076,7 @@ public final class CreatureController extends EntityController implements ICreat
         // scared at once when an enemy fighter turns on it (0x45EC10)
         BackOff backOff = entityData.getComponent(entityId, BackOff.class);
         int overThreatChecks = 0;
-        if (entityData.getComponent(entityId, Fearless.class) == null) {
+        if (entityData.getComponent(entityId, Fearless.class) == null && !isCombatPitFighter()) {
             if (creature.getFightStyle() == Creature.FightStyle.NON_FIGHTER && isTargetedByEnemyFighter()) {
                 overThreatChecks = SCARED_OVER_THREAT_CHECKS;
             } else if (getFightThreat() > entityData.getComponent(entityId, CreatureComponent.class).fear) {

@@ -16,11 +16,20 @@
  */
 package toniarts.openkeeper.tools.convert.map;
 
-import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.base.DefaultEntityData;
 import com.simsilica.es.EntityId;
-import toniarts.openkeeper.game.component.PortalViewState;
+import com.jme3.network.serializing.Serializer;
+import com.jme3.network.serializing.serializers.FieldSerializer;
+import java.nio.ByteBuffer;
+import toniarts.openkeeper.game.component.CreatureGenerator;
+import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.Death;
+import toniarts.openkeeper.game.component.PortalAttracted;
+import toniarts.openkeeper.game.component.PortalCreatureLimit;
+import toniarts.openkeeper.game.component.Owner;
+import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.event.GameEventType;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.EnumMap;
@@ -29,12 +38,6 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
-import toniarts.openkeeper.game.component.CreatureComponent;
-import toniarts.openkeeper.game.component.Death;
-import toniarts.openkeeper.game.component.Health;
-import toniarts.openkeeper.game.component.Owner;
-import toniarts.openkeeper.game.component.PortalAttracted;
-import toniarts.openkeeper.game.component.PortalCreatureLimit;
 import toniarts.openkeeper.game.controller.GameTimeController;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameController;
@@ -45,8 +48,8 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.player.PlayerCreatureControl;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
-import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.controller.room.LairController;
+import toniarts.openkeeper.game.controller.room.ICreatureEntrance;
 import toniarts.openkeeper.game.controller.room.ThreeByThreeController;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.event.GameEventService;
@@ -55,7 +58,9 @@ import toniarts.openkeeper.game.logic.CreatureSpawnSystem;
 import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
 
 /** Tests live spawn decisions; this package also permits parser-only fixture setters. */
 class PortalSpawnCooldownTest {
@@ -188,19 +193,66 @@ class PortalSpawnCooldownTest {
     void buildupOccursOnceThreeSecondsBeforeGeneration() {
         Fixture f = new Fixture(0);
         f.tick(14.75f);
-        assertEquals(-1, f.preparation().preparationTime);
+        assertEquals(0, f.preparations.size());
         f.tick(0.25f);
-        PortalViewState event = f.preparation();
-        assertEquals(15, event.preparationTime);
+        assertEquals(1, f.preparations.size());
+        assertEquals(f.portalId, f.preparations.getFirst()[3]);
+        assertEquals(3, f.preparations.getFirst()[2]);
+        assertEquals(toniarts.openkeeper.utils.WorldUtils.pointToVector3f(f.portal.getEntranceCoordinate()),
+                f.preparations.getFirst()[4]);
         assertEquals(List.of(), f.spawned);
+        assertTrue(f.entities.findEntities(null, toniarts.openkeeper.game.component.CreatureTypeAttraction.class).isEmpty(),
+                "Preparation must not consume attraction state");
         f.tick(0.25f);
-        assertSame(event, f.preparation(), "An unchanged preparation event must not restart the particles");
+        assertEquals(1, f.preparations.size(), "Emit preparation only once per cycle");
         f.tick(2.75f);
         assertEquals(List.of((short) 7), f.spawned);
         f.tick(16);
-        assertEquals(34, f.preparation().preparationTime);
+        assertEquals(2, f.preparations.size());
         f.portal.captured((short) 3);
-        assertEquals(-1, f.preparation().preparationTime);
+        f.tick(15);
+        assertEquals(3, f.preparations.size());
+    }
+
+    @Test
+    void restoredGeneratorDoesNotReplayPreparationWhenControllerIsRebuilt() throws Exception {
+        Fixture f = new Fixture(0);
+        f.tick(18);
+        f.tick(16);
+        CreatureGenerator saved = f.entities.getComponent(f.portalId, CreatureGenerator.class);
+        // Initialize the base registry before constructing a FieldSerializer.
+        Serializer.initialize();
+        Serializer.registerClass(Point.class, new FieldSerializer());
+        Serializer.registerClass(CreatureGenerator.class, new FieldSerializer());
+        ByteBuffer buffer = ByteBuffer.allocate(256);
+        Serializer.writeClassAndObject(buffer, saved);
+        buffer.flip();
+        CreatureGenerator restored = (CreatureGenerator) Serializer.readClassAndObject(buffer);
+
+        // Reconstruct with restored entity state, as opposed to a new Portal clock.
+        DefaultEntityData loadedEntities = new DefaultEntityData();
+        EntityId loadedId = loadedEntities.createEntity();
+        loadedEntities.setComponent(loadedId, restored);
+        ThreeByThreeController loaded = new ThreeByThreeController(loadedId, loadedEntities,
+                f.level, f.portal.getRoomInstance(), null, f.timer);
+        assertEquals(18, loaded.getLastSpawnTime());
+        assertEquals(1, loaded.getGeneratedCount());
+        assertEquals(new Point(5, 5), loaded.getEntranceCoordinate());
+        assertFalse(loaded.onPrepareSpawn(34), "A restored cycle must not replay its build-up");
+
+        loaded.onGenerationCycle(37);
+        assertEquals(34, loadedEntities.getComponent(loadedId, CreatureGenerator.class).lastPreparationTime);
+        loaded.onSpawn(37, loadedEntities.createEntity());
+        assertEquals(2, loaded.getGeneratedCount());
+        assertEquals(37, loaded.getLastSpawnTime());
+        assertFalse(loaded.onPrepareSpawn(34), "Clock and count updates must preserve the marker");
+        assertTrue(loaded.onPrepareSpawn(56), "The next cycle can prepare normally");
+        assertFalse(loaded.onPrepareSpawn(56));
+        loaded.captured((short) 3);
+        assertEquals(-1, loadedEntities.getComponent(loadedId, CreatureGenerator.class).lastPreparationTime);
+        assertEquals(0, loaded.getGeneratedCount());
+        assertEquals(34, loaded.getLastSpawnTime());
+        assertTrue(loaded.onPrepareSpawn(56), "Capture starts a fresh preparation history");
     }
 
     @Test
@@ -208,7 +260,7 @@ class PortalSpawnCooldownTest {
         Fixture f = new Fixture(0);
         f.pool.setValue(0);
         f.tick(15);
-        assertEquals(-1, f.preparation().preparationTime);
+        assertEquals(0, f.preparations.size());
     }
 
     @Test
@@ -310,6 +362,7 @@ class PortalSpawnCooldownTest {
         final IKwdFile level;
         final IPlayerController player;
         boolean failSpawn;
+        final List<Object[]> preparations = new ArrayList<>();
 
         Fixture(float initialTime) {
             entities = new DefaultEntityData();
@@ -317,11 +370,11 @@ class PortalSpawnCooldownTest {
             Keeper keeper = new Keeper(false, (short) 3);
             Creature goblin = new Creature();
             goblin.setCreatureId((short) 7);
+            goblin.setFlags(java.util.EnumSet.of(Creature.CreatureFlag.AVAILABLE_VIA_PORTAL));
             Creature.Attraction lairRequirement = new Creature.Attraction();
             lairRequirement.setRoomId(2);
             lairRequirement.setType(Creature.AttractionType.ROOM);
             goblin.setAttractions(new Creature.Attraction[]{lairRequirement});
-            goblin.setFlags(EnumSet.of(Creature.CreatureFlag.AVAILABLE_VIA_PORTAL));
             goblin.setFlags2(EnumSet.noneOf(Creature.CreatureFlag2.class));
             Creature imp = new Creature();
             imp.setCreatureId((short) 1);
@@ -368,9 +421,9 @@ class PortalSpawnCooldownTest {
                 if (failSpawn) {
                     return null;
                 }
-                EntityId creature = entities.createEntity();
-                entities.setComponents(creature, new CreatureComponent(), new Owner((short) 3, (short) 3), new Health(100, 100));
-                return creature;
+                EntityId id = entities.createEntity();
+                entities.setComponents(id, new CreatureComponent(), new Owner((short) 3, (short) 3), new Health(100, 100));
+                return id;
             });
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> settings =
                     new EnumMap<>(Variable.MiscVariable.MiscType.class);
@@ -381,7 +434,13 @@ class PortalSpawnCooldownTest {
             setting(settings, Variable.MiscVariable.MiscType.TIME_BEFORE_FREE_IMP_GENERATED_SECONDS, 30);
             system = new CreatureSpawnSystem(entities, spawner, List.of(player), settings,
                     stub(ILevelInfo.class, (method, args) -> level), map,
-                    stub(GameEventService.class, (method, args) -> null));
+                    stub(GameEventService.class, (method, args) -> {
+                        if (args[0] == GameEventType.PORTAL_PREPARING) {
+                            assertEquals("emitAt", method);
+                            preparations.add(args);
+                        }
+                        return null;
+                    }));
             timer.processTick(initialTime);
             system.processTick(initialTime);
             RoomInstance room = new RoomInstance(portalDefinition);
@@ -392,10 +451,6 @@ class PortalSpawnCooldownTest {
                     portalId, entities, level, room, null, timer);
             rooms.onBuild(portal);
             listeners.forEach(listener -> listener.onBuild(portal));
-        }
-
-        PortalViewState preparation() {
-            return entities.getComponent(portalId, PortalViewState.class);
         }
 
         void generateScriptedGoblin() {
