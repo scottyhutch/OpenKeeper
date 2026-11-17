@@ -18,6 +18,7 @@ package toniarts.openkeeper.game.controller;
 
 import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
+import com.simsilica.es.EntityComponent;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
@@ -30,11 +31,13 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.Decay;
+import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.Frozen;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Invisible;
 import toniarts.openkeeper.game.component.Invulnerable;
 import toniarts.openkeeper.game.component.Mobile;
+import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.OnFire;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Poisoned;
@@ -42,6 +45,7 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.ShotFlight;
 import toniarts.openkeeper.game.component.ShotViewState;
 import toniarts.openkeeper.game.component.SpeedChange;
+import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
@@ -94,6 +98,9 @@ class ShotsControllerTest {
     private static final int RAISE_DEAD_EFFECT_ID = 324;
     private static final short SPIKE_ID = 27;
     private static final short GAS_CLOUD_ID = 58;
+    private static final short FIREBURST_ID = 14;
+    private static final short DOOR_ID = 2;
+    private static final short TRAP_ID = 1;
     private static final short DOOR_FIREBALL_ID = 57;
     private static final short ALARM_ID = 13;
     private static final short POISON_SPIT_ID = 62;
@@ -138,6 +145,7 @@ class ShotsControllerTest {
         shotsById.put(SKELETON_ARMY_ID, ShotFixtures.skeletonArmyShot(SKELETON_ARMY_ID, CREATE_CREATURE_ID));
         shotsById.put(SPIKE_ID, TrapFiringFixtures.shot(SPIKE_ID, Shot.ProcessType.NONE, Shot.DamageType.CONSTANT));
         shotsById.put(GAS_CLOUD_ID, TrapFiringFixtures.shot(GAS_CLOUD_ID, Shot.ProcessType.GAS, Shot.DamageType.RANGE_FROM_ORIGIN));
+        shotsById.put(FIREBURST_ID, TrapFiringFixtures.shot(FIREBURST_ID, Shot.ProcessType.NONE, Shot.DamageType.RANGE_FROM_ORIGIN));
         shotsById.put(DOOR_FIREBALL_ID, TrapFiringFixtures.shot(DOOR_FIREBALL_ID, Shot.ProcessType.NONE, Shot.DamageType.HIT_THING));
         shotsById.put(ALARM_ID, TrapFiringFixtures.shot(ALARM_ID, Shot.ProcessType.ALARM, Shot.DamageType.NONE));
         shotsById.put(POISON_SPIT_ID, ShotFixtures.shot(POISON_SPIT_ID, Shot.ProcessType.POISON_SPIT, 0, EnumSet.of(Shot.ShotProcessFlag.HIT_COLLIDE_THING)));
@@ -613,21 +621,60 @@ class ShotsControllerTest {
     }
 
     @Test
-    void damageFromOriginHurtsEveryoneWithinTheRadiusButTheOwnersCreatures() {
+    void damageFromOriginRunsDownFromThingToThingRowByRow() {
+        EntityId neutral = createCreature((short) 2, 10, 9);
+        EntityId own = createCreature(PLAYER_ID, 9, 10);
         EntityId target = createCreature(ENEMY_ID, 10, 10);
-        EntityId neutral = createCreature((short) 2, 10, 9.5f);
-        EntityId own = createCreature(PLAYER_ID, 10, 10);
-        EntityId edge = createCreature(ENEMY_ID, 11, 10);
-        EntityId diagonal = createCreature(ENEMY_ID, 10.8f, 10.8f);
+        EntityId beside = createCreature(ENEMY_ID, 11, 10);
+        EntityId edge = createCreature(ENEMY_ID, 10, 12);
 
-        // The Gas Trap, there is no lingering cloud yet. The damage falls off to none at the edge
-        shotsController.createShot(GAS_CLOUD_ID, 750, 1, PLAYER_ID, new Vector3f(10, 1, 10), target, null);
+        // The Gas Trap, there is no lingering cloud yet. Each thing's damage is worked out from the one before it
+        shotsController.createShot(GAS_CLOUD_ID, 800, 2, PLAYER_ID, new Vector3f(10, 1, 10), target, null);
 
-        assertEquals(750, entityData.getComponent(target, Damage.class).damage);
-        assertEquals(375, entityData.getComponent(neutral, Damage.class).damage);
+        assertEquals(400, entityData.getComponent(neutral, Damage.class).damage);
         assertNull(entityData.getComponent(own, Damage.class));
+        assertEquals(400, entityData.getComponent(target, Damage.class).damage);
+        assertEquals(200, entityData.getComponent(beside, Damage.class).damage);
         assertNull(entityData.getComponent(edge, Damage.class));
-        assertNull(entityData.getComponent(diagonal, Damage.class));
+    }
+
+    @Test
+    void damageFromOriginHitsNothingMoreOnceItHasRunDownToNothing() {
+        EntityId first = createCreature(ENEMY_ID, 10, 9);
+        EntityId target = createCreature(ENEMY_ID, 10, 10);
+
+        shotsController.createShot(GAS_CLOUD_ID, 1, 2, PLAYER_ID, new Vector3f(10, 1, 10), target, null);
+
+        assertNull(entityData.getComponent(first, Damage.class));
+        assertNull(entityData.getComponent(target, Damage.class));
+    }
+
+    @Test
+    void damageFromOriginHurtsTheObjectsDoorsAndTrapsOfOtherPlayers() {
+        EntityId object = createThing(ENEMY_ID, new ObjectComponent(GOLD_OBJECT_ID, null));
+        EntityId door = createThing(ENEMY_ID, new DoorComponent(DOOR_ID, false, false));
+        EntityId trap = createThing(ENEMY_ID, new TrapComponent(TRAP_ID));
+        EntityId ownDoor = createThing(PLAYER_ID, new DoorComponent(DOOR_ID, false, false));
+
+        shotsController.createShot(FIREBURST_ID, 800, 1, PLAYER_ID, new Vector3f(10, 1, 10), null, null);
+
+        assertEquals(800, entityData.getComponent(object, Damage.class).damage);
+        assertEquals(800, entityData.getComponent(door, Damage.class).damage);
+        assertEquals(800, entityData.getComponent(trap, Damage.class).damage);
+        assertNull(entityData.getComponent(ownDoor, Damage.class));
+    }
+
+    @Test
+    void gasSparesDoorsAndTraps() {
+        EntityId object = createThing(ENEMY_ID, new ObjectComponent(GOLD_OBJECT_ID, null));
+        EntityId door = createThing(ENEMY_ID, new DoorComponent(DOOR_ID, false, false));
+        EntityId trap = createThing(ENEMY_ID, new TrapComponent(TRAP_ID));
+
+        shotsController.createShot(ShotFixtures.GAS_CLOUD_ID, 800, 1, PLAYER_ID, new Vector3f(10, 1, 10), null, null);
+
+        assertEquals(800, entityData.getComponent(object, Damage.class).damage);
+        assertNull(entityData.getComponent(door, Damage.class));
+        assertNull(entityData.getComponent(trap, Damage.class));
     }
 
     @Test
@@ -919,6 +966,13 @@ class ShotsControllerTest {
         shotsController.fireShot(ShotFixtures.FIREBALL_ID, 50, 0, PLAYER_ID, new Vector3f(12, 1f, 10), target,
                 entityData.createEntity(), 4);
         shotsController.hit(entityData.findEntity(null, ShotFlight.class), target);
+    }
+
+    private EntityId createThing(short ownerId, EntityComponent component) {
+        EntityId thing = entityData.createEntity();
+        entityData.setComponents(thing, new Position(0, new Vector3f(10, 1f, 10)), new Owner(ownerId, ownerId),
+                new Health(100, 100), component);
+        return thing;
     }
 
     private ShotFlight getShotFlight() {
