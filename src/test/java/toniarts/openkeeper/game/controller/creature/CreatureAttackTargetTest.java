@@ -59,7 +59,7 @@ class CreatureAttackTargetTest {
         entityData.setComponent(attacker, new AttackTarget(target));
 
         // Diagonally past two walls: out of reach, and there is no path
-        assertNull(createController(attacker, false).getAttackTarget());
+        assertNull(createController(attacker, target, false).getAttackTarget());
         assertNull(entityData.getComponent(attacker, AttackTarget.class));
     }
 
@@ -69,7 +69,7 @@ class CreatureAttackTargetTest {
         EntityId attacker = createCreature((short) 1, 13, 22);
         entityData.setComponent(attacker, new AttackTarget(target));
 
-        createController(attacker, true).getAttackTarget();
+        createController(attacker, target, true).getAttackTarget();
 
         assertEquals(target, entityData.getComponent(attacker, AttackTarget.class).entityId);
     }
@@ -83,7 +83,7 @@ class CreatureAttackTargetTest {
         return entity;
     }
 
-    private CreatureController createController(EntityId entity, boolean pathExists) {
+    private CreatureController createController(EntityId entity, EntityId enemy, boolean pathExists) {
         Creature creature = ShotFixtures.creature((short) 14, EnumSet.noneOf(Creature.CreatureFlag.class), EnumSet.noneOf(Creature.CreatureFlag3.class));
         INavigationService navigationService = stub(INavigationService.class,
                 (name, args) -> "findPath".equals(name) && pathExists ? new DefaultGraphPath<>() : null);
