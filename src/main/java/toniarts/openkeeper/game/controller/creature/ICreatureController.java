@@ -538,6 +538,14 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public void makeHungry();
 
     /**
+     * Sets whether the creature will fight. One that won't doesn't start or
+     * join a fight and drops the one it is in, but it can still be attacked
+     *
+     * @param willFight true if the creature may fight
+     */
+    public void setWillFight(boolean willFight);
+
+    /**
      * Get the research points the creature makes on this game tick in the
      * library, its research per second turned into points per tick the way
      * DK II does it. A slapped creature makes extra points on the first tick

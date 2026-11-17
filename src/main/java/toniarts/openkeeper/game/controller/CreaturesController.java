@@ -49,6 +49,7 @@ import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Objective;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Party;
+import toniarts.openkeeper.game.component.Peaceful;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.Regeneration;
@@ -279,6 +280,11 @@ public final class CreaturesController implements ICreaturesController {
         }
         if (jailBreaker) {
             entityData.setComponent(entity, new JailBreaker());
+        }
+
+        // The level may place a creature that won't fight (DK II 0x520180, 0x520460, 0x5208B0, 0x519F90)
+        if (flags != null && !flags.contains(Thing.Creature.CreatureFlag.WILL_FIGHT)) {
+            entityData.setComponent(entity, new Peaceful());
         }
         return entity;
     }
