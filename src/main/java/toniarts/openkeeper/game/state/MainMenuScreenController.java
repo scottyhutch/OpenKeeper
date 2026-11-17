@@ -316,6 +316,7 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         CheckBox ssao = screen.findNiftyControl("ssao", CheckBox.class);
         CheckBox gamma = screen.findNiftyControl("gammaCorrection", CheckBox.class);
         DropDown shadows = screen.findNiftyControl("shadowQuality", DropDown.class);
+        CheckBox embm = screen.findNiftyControl("embm", CheckBox.class);
         DisplayMode mdm = (DisplayMode) res.getSelection();
 
         // TODO: See if we need a restart, but keep in mind that the settings are saved in the restart
@@ -331,6 +332,7 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         settings.setSetting(Settings.Setting.TEXTURE_FILTERING, ((TextureFiltering) af.getSelection()).name());
         state.app.applyTextureFiltering();
         settings.setSetting(Settings.Setting.SSAO, ssao.isChecked());
+        settings.setSetting(Settings.Setting.EMBM_ENABLED, embm.isChecked());
         settings.getAppSettings().setGammaCorrection(gamma.isChecked());
         settings.setSetting(Settings.Setting.SHADOW_LEVEL, shadows.getSelection());
 
@@ -949,6 +951,9 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         // SSAO
         CheckBox ssao = screen.findNiftyControl("ssao", CheckBox.class);
         ssao.setChecked(Main.getUserSettings().getBoolean(Settings.Setting.SSAO));
+
+        CheckBox embm = screen.findNiftyControl("embm", CheckBox.class);
+        embm.setChecked(Main.getUserSettings().getBoolean(Settings.Setting.EMBM_ENABLED));
 
         // Gamma correction
         CheckBox gamma = screen.findNiftyControl("gammaCorrection", CheckBox.class);

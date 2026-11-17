@@ -42,6 +42,7 @@ import toniarts.openkeeper.game.state.session.AutoSave;
 import toniarts.openkeeper.gui.nifty.table.TableRow;
 import toniarts.openkeeper.utils.DisplayMode;
 import toniarts.openkeeper.utils.DisplayModeUtils;
+import toniarts.openkeeper.view.PlayerMapViewState;
 
 import java.io.IOException;
 import java.lang.System.Logger;
@@ -85,6 +86,7 @@ final class PauseMenuSettings {
         addCheckBox(left, " SSAO", "ssao");
         addCheckBox(left, "Gamma correction", "gammaCorrection");
         addDropDown(left, "Shadow quality", "shadowQuality", "100px");
+        addCheckBox(left, " Enhanced liquids (EMBM)", "embm");
 
         addDropDown(right, "Bit depth", "bitDepth", "100px");
         addDropDown(right, "Refresh rate", "refreshRate", "100px");
@@ -156,6 +158,7 @@ final class PauseMenuSettings {
         DropDown shadows = find("shadowQuality", DropDown.class);
         shadows.addAllItems(Settings.SHADOW_LEVELS);
         shadows.selectItem(Math.clamp(Main.getUserSettings().getInteger(Settings.Setting.SHADOW_LEVEL), 0, 3));
+        find("embm", CheckBox.class).setChecked(Main.getUserSettings().getBoolean(Settings.Setting.EMBM_ENABLED));
     }
 
     /**
@@ -179,11 +182,16 @@ final class PauseMenuSettings {
                 ((TextureFiltering) find("textureFiltering", DropDown.class).getSelection()).name());
         app.applyTextureFiltering();
         settings.setSetting(Settings.Setting.SSAO, find("ssao", CheckBox.class).isChecked());
+        settings.setSetting(Settings.Setting.EMBM_ENABLED, find("embm", CheckBox.class).isChecked());
         settings.getAppSettings().setGammaCorrection(find("gammaCorrection", CheckBox.class).isChecked());
         settings.setSetting(Settings.Setting.SHADOW_LEVEL, find("shadowQuality", DropDown.class).getSelection());
 
         save();
         app.setViewProcessors();
+        PlayerMapViewState mapViewState = app.getStateManager().getState(PlayerMapViewState.class);
+        if (mapViewState != null) {
+            mapViewState.getMapLoader().refreshLiquidSurfaces();
+        }
     }
 
     private void onResolutionChanged(String id, DropDownSelectionChangedEvent event) {
