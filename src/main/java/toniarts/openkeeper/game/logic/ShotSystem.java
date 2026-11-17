@@ -94,9 +94,9 @@ public final class ShotSystem implements IGameLogicUpdatable {
             health = 0;
         }
 
-        // A shot out of its range does nothing on its last turn. An instant shot's process on every turn is its move
-        // onto its target, below
-        if (!outOfRange && shot.getShotProcessFlags().contains(Shot.ShotProcessFlag.CONSTANT)
+        // A shot out of its range still has its process on its last turn (0x4AB180). An instant shot's process on
+        // every turn is its move onto its target, below
+        if (shot.getShotProcessFlags().contains(Shot.ShotProcessFlag.CONSTANT)
                 && shot.getProcessType() != Shot.ProcessType.INSTANTANEOUS_HIT) {
             shotsController.fly(entity.getId());
         }
