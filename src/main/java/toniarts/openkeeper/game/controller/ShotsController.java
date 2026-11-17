@@ -382,12 +382,17 @@ public final class ShotsController implements IShotsController {
     @Override
     public boolean fireShot(short shotTypeId, int shotData1, int shotData2, short playerId, Vector3f position, EntityId target,
             EntityId shooter, float maxRange) {
-        return fireShot(shotTypeId, shotData1, shotData2, playerId, position, getAimPoint(target), shooter, maxRange);
+        return fireShot(shotTypeId, shotData1, shotData2, playerId, position, getAimPoint(target), target, shooter, maxRange);
     }
 
     @Override
     public boolean fireShot(short shotTypeId, int shotData1, int shotData2, short playerId, Vector3f position, Vector3f targetPosition,
             EntityId shooter, float maxRange) {
+        return fireShot(shotTypeId, shotData1, shotData2, playerId, position, targetPosition, null, shooter, maxRange);
+    }
+
+    private boolean fireShot(short shotTypeId, int shotData1, int shotData2, short playerId, Vector3f position, Vector3f targetPosition,
+            EntityId target, EntityId shooter, float maxRange) {
         Shot shot = kwdFile.getShotById(shotTypeId);
 
         // A trap's shot flies if it moves towards its target, a creature's whenever it has a speed, like the
