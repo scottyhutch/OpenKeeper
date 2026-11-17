@@ -463,10 +463,29 @@ class PossessedSpellTest {
         return stub(IMapTileInformation.class, (name, args) -> "getLocation".equals(name) ? new Point(x, y) : null);
     }
 
+    /**
+     * Whether no wall is between the points, the tiles the points are on don't count
+     */
+    private boolean hasLineOfSight(Vector3f from, Vector3f to) {
+        Point start = WorldUtils.vectorToPoint(from);
+        Point end = WorldUtils.vectorToPoint(to);
+        for (int i = 1; i < 100; i++) {
+            float progress = i / 100f;
+            Point tile = WorldUtils.vectorToPoint(from.x + (to.x - from.x) * progress, from.z + (to.z - from.z) * progress);
+            if (!tile.equals(start) && !tile.equals(end) && walls.contains(tile)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     private CreatureController createController() {
         IGameTimer gameTimer = stub(IGameTimer.class, (name, args) -> "getGameTime".equals(name) ? gameTime : null);
-        IEntityPositionLookup positionLookup = stub(IEntityPositionLookup.class,
-                (name, args) -> "getEntitiesInLocation".equals(name) ? getEntitiesInLocation((IMapTileInformation) args[0]) : null);
+        IEntityPositionLookup positionLookup = stub(IEntityPositionLookup.class, (name, args) -> switch (name) {
+            case "getEntitiesInLocation" -> getEntitiesInLocation((IMapTileInformation) args[0]);
+            case "hasLineOfSight" -> hasLineOfSight((Vector3f) args[0], (Vector3f) args[1]);
+            default -> null;
+        });
         ICreaturesController creaturesController = stub(ICreaturesController.class,
                 (name, args) -> "isValidEntity".equals(name) ? entityData.getComponent((EntityId) args[0], CreatureComponent.class) != null : null);
         IMapDataInformation<?> mapData = stub(IMapDataInformation.class,
