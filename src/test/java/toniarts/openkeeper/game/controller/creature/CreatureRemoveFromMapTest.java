@@ -21,6 +21,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Gold;
@@ -54,7 +55,7 @@ class CreatureRemoveFromMapTest {
         ILevelInfo levelInfo = (ILevelInfo) Proxy.newProxyInstance(ILevelInfo.class.getClassLoader(),
                 new Class<?>[]{ILevelInfo.class}, (proxy, method, args) -> null);
 
-        new CreatureController(entityId, entityData, null, null, null, null, null, null, null, null, levelInfo,
+        new CreatureController(entityId, entityData, null, null, null, null, Map.of(), null, null, null, levelInfo,
                 objectsController, null, null).removeFromMap();
 
         assertNull(entityData.getComponent(entityId, Position.class));

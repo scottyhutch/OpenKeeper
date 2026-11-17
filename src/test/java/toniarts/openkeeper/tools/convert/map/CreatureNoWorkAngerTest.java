@@ -23,6 +23,7 @@ import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.EnumSet;
+import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
@@ -99,7 +100,7 @@ class CreatureNoWorkAngerTest {
         Creature fighter = new Creature();
         fighter.getAttributes().setAngerNoWork((short) 50);
 
-        new CreatureController(entityId, entityData, fighter, navigationService, null, null, null,
+        new CreatureController(entityId, entityData, fighter, navigationService, null, null, Map.of(),
                 null, null, mapController, null, null, null, null).navigateToRandomPointInCombatPit();
 
         assertEquals(50 / 4, entityData.getComponent(entityId, CreatureMood.class).noWork);
@@ -129,7 +130,7 @@ class CreatureNoWorkAngerTest {
             case "isTaskAvailable", "assignTask" -> jobAvailable;
             default -> throw new UnsupportedOperationException(method.getName());
         });
-        return new CreatureController(entityId, entityData, mistress, null, taskManager, null, null,
+        return new CreatureController(entityId, entityData, mistress, null, taskManager, null, Map.of(),
                 null, null, null, null, null, null, null);
     }
 
