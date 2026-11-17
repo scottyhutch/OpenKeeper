@@ -130,6 +130,8 @@ public final class GameEventSounds {
                 add(sounds, SoundCategory.SPEECH_MENTOR, MentorType.TORTC006.getId(), null);
             case CALL_TO_ARMS_UNREACHABLE ->
                 add(sounds, SoundCategory.SPEECH_MENTOR, MentorType.MISC054.getId(), null);
+            case ALARM_RAISED ->
+                add(sounds, SoundCategory.SPEECH_MENTOR, MentorType.MISC077.getId(), null);
             case ROOM_TILES_LAID ->
                 add(sounds, subject, ThingSounds.ROOM_LAY_TILE, event.position);
             case ROOM_TILE_BUILT ->

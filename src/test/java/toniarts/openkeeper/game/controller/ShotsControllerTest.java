@@ -40,6 +40,7 @@ import toniarts.openkeeper.game.component.ShotFlight;
 import toniarts.openkeeper.game.component.ShotViewState;
 import toniarts.openkeeper.game.component.SpeedChange;
 import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -101,6 +102,7 @@ class ShotsControllerTest {
     private final List<EntityId> deadBodies = new ArrayList<>();
     private final List<Object[]> raised = new ArrayList<>();
     private final List<Object[]> effects = new ArrayList<>();
+    private final List<List<Object>> playerEvents = new ArrayList<>();
     private final ShotsController shotsController;
     private double gameTime = 0;
 
@@ -160,8 +162,15 @@ class ShotsControllerTest {
                 (proxy, method, args) -> null);
         IMapController mapController = (IMapController) Proxy.newProxyInstance(IMapController.class.getClassLoader(), new Class<?>[]{IMapController.class},
                 (proxy, method, args) -> method.getName().equals("getMapData") ? mapData : null);
-        GameEventService gameEventService = (GameEventService) Proxy.newProxyInstance(GameEventService.class.getClassLoader(), new Class<?>[]{GameEventService.class},
-                (proxy, method, args) -> method.getName().equals("emitEffect") ? effects.add(args) : null);
+        GameEventService gameEventService = (GameEventService) Proxy.newProxyInstance(GameEventService.class.getClassLoader(), new Class<?>[]{GameEventService.class}, (proxy, method, args) -> {
+            if (method.getName().equals("emitToPlayer")) {
+                playerEvents.add(List.of(args));
+            } else if (method.getName().equals("emitEffect")) {
+                effects.add(args);
+            }
+            return null;
+        });
+
         IEntityPositionLookup entityPositionLookup = (IEntityPositionLookup) Proxy.newProxyInstance(IEntityPositionLookup.class.getClassLoader(), new Class<?>[]{IEntityPositionLookup.class},
                 (proxy, method, args) -> args.length == 2
                         ? entityData.findEntities(null, Position.class).stream()
@@ -562,6 +571,7 @@ class ShotsControllerTest {
         assertEquals(position, entityData.getComponent(alarm, Position.class).position);
         assertEquals(5, entityData.getComponent(alarm, Decay.class).startTime);
         assertEquals(50, entityData.getComponent(alarm, Decay.class).duration);
+        assertEquals(List.of(List.of(GameEventType.ALARM_RAISED, PLAYER_ID)), playerEvents);
     }
 
     @Test
@@ -570,11 +580,13 @@ class ShotsControllerTest {
         shotsController.createShot(ALARM_ID, 0, 5, PLAYER_ID, new Vector3f(20, 1, 20), null, null);
 
         assertEquals(1, entityData.findEntities(null, Alarm.class).size());
+        assertEquals(1, playerEvents.size());
 
         // Another keeper's alarm doesn't hold back the alarm
         shotsController.createShot(ALARM_ID, 0, 5, ENEMY_ID, new Vector3f(20, 1, 20), null, null);
 
         assertEquals(2, entityData.findEntities(null, Alarm.class).size());
+        assertEquals(List.of(GameEventType.ALARM_RAISED, ENEMY_ID), playerEvents.get(1));
     }
 
     private EntityId createCreature(short ownerId, float x, float y) {

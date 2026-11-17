@@ -360,8 +360,8 @@ public final class ShotsController implements IShotsController {
     }
 
     /**
-     * Raises an alarm for the player where the shot was fired, unless the
-     * player's last alarm still lasts, and tells the player about it
+     * Raises an alarm for the player where the shot was fired and tells the
+     * player of it, unless the player's last alarm still lasts
      *
      * @param request the shot
      */
@@ -373,13 +373,7 @@ public final class ShotsController implements IShotsController {
         EntityId alarm = entityData.createEntity();
         entityData.setComponents(alarm, new Alarm(), new Owner(request.playerId(), request.playerId()),
                 new Position(0, new Vector3f(request.position())), new Decay(gameTimer.getGameTime(), ALARM_DURATION));
-
-        // The handler also tells the player that enemy creatures are rampaging through his Dungeon (0x4AE120)
-        IGameWorldController gameWorldController = gameController != null ? gameController.getGameWorldController() : null;
-        RoomAttackMessages roomAttackMessages = gameWorldController != null ? gameWorldController.getRoomAttackMessages() : null;
-        if (roomAttackMessages != null) {
-            roomAttackMessages.alarmRaised(request.playerId(), WorldUtils.vectorToPoint(request.position()));
-        }
+        gameEventService.emitToPlayer(GameEventType.ALARM_RAISED, request.playerId());
     }
 
     @Override
