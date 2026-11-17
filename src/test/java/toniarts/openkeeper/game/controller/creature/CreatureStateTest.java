@@ -38,6 +38,7 @@ import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.game.controller.entity.IEntityController;
 import toniarts.openkeeper.game.task.Task;
 import toniarts.openkeeper.game.task.TaskType;
+import toniarts.openkeeper.tools.convert.map.Player;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -388,7 +389,7 @@ class CreatureStateTest {
     @Test
     void idleCreatureThinksAgainAsSoonAsItsWalkEnds() {
         for (boolean worker : new boolean[]{true, false}) {
-            for (boolean claimed : new boolean[]{true, false}) {
+            for (short ownerId : new short[]{Player.NEUTRAL_PLAYER_ID, Player.GOOD_PLAYER_ID, Player.KEEPER1_ID}) {
                 AtomicBoolean lookedForWork = new AtomicBoolean();
                 AtomicBoolean walked = new AtomicBoolean();
                 StateMachine<ICreatureController, CreatureState> stateMachine = stateMachine(new AtomicReference<>(CreatureState.IDLE));
@@ -396,7 +397,8 @@ class CreatureStateTest {
                         ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
                             case "getStateMachine" -> stateMachine;
                             case "isWorker" -> worker;
-                            case "isClaimed" -> claimed;
+                            case "getOwnerId" -> ownerId;
+                            case "isClaimed" -> ownerId != Player.NEUTRAL_PLAYER_ID;
                             case "isStopped" -> true;
                             case "findWork" -> {
                                 lookedForWork.set(true);
@@ -412,10 +414,11 @@ class CreatureStateTest {
 
                 CreatureState.IDLE.update(creature);
 
-                // In DK II a keeper's or a hero's creature that has walked about decides again at once, a neutral one
-                // keeps its own pace
-                assertEquals(claimed, lookedForWork.get());
-                assertEquals(claimed, walked.get());
+                // In DK II a keeper's creature that has walked about decides again at once. A hero tries again every
+                // 12 ticks and a neutral one keeps its own pace, a standing hero is always stopped
+                boolean keeper = ownerId >= Player.KEEPER1_ID;
+                assertEquals(keeper, lookedForWork.get());
+                assertEquals(keeper, walked.get());
             }
         }
     }
@@ -491,6 +494,7 @@ class CreatureStateTest {
         return (ICreatureController) Proxy.newProxyInstance(
                 ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "isClaimed" -> claimed;
+                    case "getOwnerId" -> claimed ? Player.KEEPER1_ID : Player.NEUTRAL_PLAYER_ID;
                     case "findWork" -> {
                         ((Consumer<Boolean>) args[0]).accept(false);
                         yield null;
@@ -512,6 +516,9 @@ class CreatureStateTest {
         }
         if (type == char.class) {
             return '\0';
+        }
+        if (type == short.class) {
+            return (short) 0;
         }
         return 0;
     }
