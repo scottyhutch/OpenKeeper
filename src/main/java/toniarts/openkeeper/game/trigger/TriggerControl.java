@@ -227,6 +227,7 @@ public class TriggerControl extends Control {
                         getPlayerController(playerId).getCreatureControl().setTypeAvailable(kwdFile.getCreature(targetId), available);
                         break;
                     case DOOR:
+                        getPlayerController(playerId).getDoorControl().setTypeAvailable(kwdFile.getDoorById(targetId), available);
                         break;
                     case KEEPER_SPELL:
                         getPlayerController(playerId).getSpellControl().setTypeAvailable(kwdFile.getKeeperSpellById(targetId), available);
@@ -235,6 +236,7 @@ public class TriggerControl extends Control {
                         getPlayerController(playerId).getRoomControl().setTypeAvailable(kwdFile.getRoomById(targetId), available);
                         break;
                     case TRAP:
+                        getPlayerController(playerId).getTrapControl().setTypeAvailable(kwdFile.getTrapById(targetId), available);
                         break;
                 }
                 break;
