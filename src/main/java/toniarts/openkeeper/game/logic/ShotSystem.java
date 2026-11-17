@@ -92,7 +92,10 @@ public final class ShotSystem implements IGameLogicUpdatable {
         if (ShotFlightRules.isOutOfRange(flight.start, position, flight.maxRange)) {
             health = 0;
         }
-        if (shot.getShotProcessFlags().contains(Shot.ShotProcessFlag.CONSTANT)) {
+
+        // An instant shot's process on every turn is its move onto its target, below
+        if (shot.getShotProcessFlags().contains(Shot.ShotProcessFlag.CONSTANT)
+                && shot.getProcessType() != Shot.ProcessType.INSTANTANEOUS_HIT) {
             shotsController.fly(entity.getId());
         }
 
