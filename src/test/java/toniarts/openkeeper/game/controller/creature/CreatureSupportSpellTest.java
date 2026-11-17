@@ -372,7 +372,8 @@ class CreatureSupportSpellTest {
         controller.navigateToAssignedTask();
         assertEquals(1, shots.size());
 
-        gameTime += RECHARGE / 2;
+        // The recharge is divided by the work modifier (0.8 here), so it takes longer than RECHARGE
+        gameTime += RECHARGE;
         controller.navigateToAssignedTask();
         assertEquals(2, shots.size());
     }

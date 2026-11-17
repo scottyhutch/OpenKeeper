@@ -77,7 +77,7 @@ class ShotsControllerTest {
     private static final short INVISIBLE_ID = 22;
     private static final short CREATE_OBJECT_ID = 2;
     private static final short CONCEAL_ID = 33;
-    private static final short CREATE_CREATURE_ID = 3;
+    private static final short CREATE_CREATURE_ID = 2;
     private static final short CREATE_SINGLE_CREATURE_ID = 5;
     private static final short SKELETON_ARMY_ID = 54;
     private static final short IMP_ID = 1;
@@ -123,8 +123,9 @@ class ShotsControllerTest {
         addShot(INVISIBLE_ID, Shot.ProcessType.INVISIBLE);
         addShot(CREATE_OBJECT_ID, Shot.ProcessType.CREATE_OBJECT);
         addShot(CONCEAL_ID, Shot.ProcessType.CONCEAL);
-        addShot(DRAIN_ID, Shot.ProcessType.DRAIN);
-        addShot(FREEZE_ID, Shot.ProcessType.FREEZE);
+        // Drain and Freeze do their process when they hit, as in the original data
+        shotsById.put(DRAIN_ID, ShotFixtures.shot(DRAIN_ID, Shot.ProcessType.DRAIN, 0, EnumSet.of(Shot.ShotProcessFlag.HIT_COLLIDE_THING)));
+        shotsById.put(FREEZE_ID, ShotFixtures.shot(FREEZE_ID, Shot.ProcessType.FREEZE, 0, EnumSet.of(Shot.ShotProcessFlag.HIT_COLLIDE_THING)));
         addShot(CREATE_CREATURE_ID, Shot.ProcessType.CREATE_CREATURE);
         addShot(CREATE_SINGLE_CREATURE_ID, Shot.ProcessType.CREATE_SINGLE_CREATURE);
         shotsById.put(SKELETON_ARMY_ID, ShotFixtures.skeletonArmyShot(SKELETON_ARMY_ID, CREATE_CREATURE_ID));
