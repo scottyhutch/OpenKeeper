@@ -279,6 +279,21 @@ class CreatureSupportSpellTest {
     }
 
     @Test
+    void theInvisibleShotLandsOnItsCaster() {
+
+        // The Thief's and the Rogue's Invisible, its shot flies
+        shot = ShotFixtures.flyingSupportShot(HEAL_SHOT_ID, Shot.ProcessType.INVISIBLE);
+        CreatureController controller = createController(EnumSet.of(CreatureSpellFlag.CREATURE, CreatureSpellFlag.CAST_ON_SELF), AlternativeShot.INVISIBLE,
+                createShotsController(shot));
+        assertTrue(controller.castSupportSpell());
+
+        gameTime += SHOT_DELAY;
+        controller.releaseCastShot();
+
+        assertEquals(gameTime + HEAL_AMOUNT, entityData.getComponent(us, Invisible.class).endTime);
+    }
+
+    @Test
     void turnsInvisibleInAFightUntilItWearsOff() {
         CreatureController controller = createController(EnumSet.of(CreatureSpellFlag.CREATURE, CreatureSpellFlag.CAST_ON_SELF), AlternativeShot.INVISIBLE);
 
@@ -324,28 +339,15 @@ class CreatureSupportSpellTest {
     }
 
     @Test
-    void theInvisibleShotLandsOnItsCaster() {
-
-        // The Thief's and the Rogue's Invisible, its shot flies
-        CreatureController controller = createController(EnumSet.of(CreatureSpellFlag.CREATURE, CreatureSpellFlag.CAST_ON_SELF), AlternativeShot.INVISIBLE,
-                createShotsController(ShotFixtures.flyingSupportShot(HEAL_SHOT_ID, Shot.ProcessType.INVISIBLE)));
-        assertTrue(controller.castSupportSpell());
-
-        gameTime += SHOT_DELAY;
-        controller.releaseCastShot();
-
-        assertEquals(gameTime + HEAL_AMOUNT, entityData.getComponent(us, Invisible.class).endTime);
-    }
-
-    @Test
     void theHasteShotLandsOnItsCaster() {
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.speed = 1f;
         entityData.setComponents(us, creatureComponent, new Mobile(false, false, false, 1f), new Health(100, 1000));
 
         // Haste Creature, its shot flies. We are the one of our fighters that needs it
+        shot = ShotFixtures.flyingSupportShot(HEAL_SHOT_ID, Shot.ProcessType.MODIFY_SPEED);
         CreatureController controller = createController(EnumSet.of(CreatureSpellFlag.CREATURE, CreatureSpellFlag.CAST_ON_OTHERS), AlternativeShot.HASTE,
-                createShotsController(ShotFixtures.flyingSupportShot(HEAL_SHOT_ID, Shot.ProcessType.MODIFY_SPEED)));
+                createShotsController(shot));
         assertTrue(controller.castSupportSpell());
 
         gameTime += SHOT_DELAY;
