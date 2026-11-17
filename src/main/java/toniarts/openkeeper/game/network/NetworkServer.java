@@ -111,6 +111,7 @@ import toniarts.openkeeper.game.component.NextRoomHint;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.Objective;
+import toniarts.openkeeper.game.component.OnFire;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Party;
 import toniarts.openkeeper.game.component.PayDayClock;
@@ -322,6 +323,7 @@ public final class NetworkServer {
             Serializer.registerClass(ObjectComponent.class, new FieldSerializer());
             Serializer.registerClass(ObjectViewState.class, new FieldSerializer());
             Serializer.registerClass(Objective.class, new FieldSerializer());
+            Serializer.registerClass(OnFire.class, new FieldSerializer());
             Serializer.registerClass(Owner.class, new FieldSerializer());
             Serializer.registerClass(Party.class, new FieldSerializer());
             Serializer.registerClass(PayDayClock.class, new FieldSerializer());

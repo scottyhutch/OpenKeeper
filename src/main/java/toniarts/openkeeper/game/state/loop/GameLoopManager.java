@@ -216,6 +216,7 @@ public final class GameLoopManager {
                 new FreezeSystem(entityData, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
                 new ShotSystem(entityData, level, gameEventService, gameWorldController.getShotsController(), positionSystem,
                         gameWorldController.getMapController(), playerControllers),
+                new OnFireSystem(entityData, levelInfo.getLevelData(), gameController.getGameTimer(), gameEventService),
                 (IGameLogicUpdatable) taskManager);
 
         final long logicTickNanos = 1_000_000_000L / levelInfo.getLevelData().getGameLevel().getTicksPerSec();

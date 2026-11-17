@@ -35,6 +35,7 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Invisible;
 import toniarts.openkeeper.game.component.Invulnerable;
 import toniarts.openkeeper.game.component.Mobile;
+import toniarts.openkeeper.game.component.OnFire;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Poisoned;
 import toniarts.openkeeper.game.component.Position;
@@ -60,8 +61,10 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -107,6 +110,7 @@ class ShotsControllerTest {
     private final List<Object[]> raised = new ArrayList<>();
     private final List<Object[]> effects = new ArrayList<>();
     private final List<List<Object>> playerEvents = new ArrayList<>();
+    private final Set<Point> waterTiles = new HashSet<>();
     private final ShotsController shotsController;
     private double gameTime = 0;
 
@@ -167,11 +171,15 @@ class ShotsControllerTest {
                     throw new UnsupportedOperationException(method.getName());
                 });
 
-        // A map without tiles, no strike lands on water
+        // A map without tiles, no strike lands on water. To a fire shot only the tiles in waterTiles are water
         IMapDataInformation<?> mapData = (IMapDataInformation<?>) Proxy.newProxyInstance(IMapDataInformation.class.getClassLoader(), new Class<?>[]{IMapDataInformation.class},
                 (proxy, method, args) -> null);
         IMapController mapController = (IMapController) Proxy.newProxyInstance(IMapController.class.getClassLoader(), new Class<?>[]{IMapController.class},
-                (proxy, method, args) -> method.getName().equals("getMapData") ? mapData : null);
+                (proxy, method, args) -> switch (method.getName()) {
+                    case "getMapData" -> mapData;
+                    case "isWater" -> waterTiles.contains((Point) args[0]);
+                    default -> null;
+                });
         GameEventService gameEventService = (GameEventService) Proxy.newProxyInstance(GameEventService.class.getClassLoader(), new Class<?>[]{GameEventService.class}, (proxy, method, args) -> {
             if (method.getName().equals("emitToPlayer")) {
                 playerEvents.add(List.of(args));
@@ -539,6 +547,39 @@ class ShotsControllerTest {
     }
 
     @Test
+    void fireballSetsABadlyHurtCreatureAlightForTenTicks() {
+        EntityId target = createCreature(ENEMY_ID, 10, 10);
+        entityData.setComponent(target, new Health(20, 100));
+        gameTime = 5;
+
+        hitWithFireball(target);
+
+        assertEquals(5 + 10.0 / TICKS_PER_SECOND, entityData.getComponent(target, OnFire.class).endTime, DELTA);
+    }
+
+    @Test
+    void fireballDoesNotSetACreatureWithMoreHealthAlight() {
+        EntityId target = createCreature(ENEMY_ID, 10, 10);
+        entityData.setComponent(target, new Health(21, 100));
+
+        hitWithFireball(target);
+
+        assertNull(entityData.getComponent(target, OnFire.class));
+    }
+
+    @Test
+    void creatureOnWaterDoesNotCatchFire() {
+        EntityId target = createCreature(ENEMY_ID, 10, 10);
+        entityData.setComponent(target, new Health(10, 100));
+        waterTiles.add(new Point(10, 10));
+
+        hitWithFireball(target);
+
+        assertNull(entityData.getComponent(target, OnFire.class));
+        assertEquals(50, entityData.getComponent(target, Damage.class).damage);
+    }
+
+    @Test
     void shotThatHitsAThingHurtsItsTargetAtOnce() {
         EntityId target = createCreature(ENEMY_ID, 13, 10);
         EntityId bystander = createCreature(ENEMY_ID, 13, 10);
@@ -819,6 +860,12 @@ class ShotsControllerTest {
                 entityData.createEntity(), null, shotData1, shotData2, new Vector3f(), new Vector3f(10, 1, 10), 3, 20));
 
         shotsController.hit(shot, target);
+    }
+
+    private void hitWithFireball(EntityId target) {
+        shotsController.fireShot(ShotFixtures.FIREBALL_ID, 50, 0, PLAYER_ID, new Vector3f(12, 1f, 10), target,
+                entityData.createEntity(), 4);
+        shotsController.hit(entityData.findEntity(null, ShotFlight.class), target);
     }
 
     private ShotFlight getShotFlight() {
