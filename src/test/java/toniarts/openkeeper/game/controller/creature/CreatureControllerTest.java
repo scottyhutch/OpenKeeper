@@ -46,6 +46,7 @@ import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.MeleeHit;
 import toniarts.openkeeper.game.component.Navigation;
+import toniarts.openkeeper.game.component.Objective;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Slapped;
@@ -79,7 +80,9 @@ import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
+import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Room;
+import toniarts.openkeeper.tools.convert.map.Thing;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.utils.Point;
@@ -881,6 +884,22 @@ class CreatureControllerTest {
         }
     }
 
+    @Test
+    void idleHeroTriesItsObjectiveAgainEveryTwelveTicks() {
+        try (Fixture f = new Fixture(9)) {
+            f.data.setComponent(f.entity, new Owner(Player.GOOD_PLAYER_ID, Player.GOOD_PLAYER_ID));
+            f.data.setComponent(f.entity, new Objective(Thing.HeroParty.Objective.KILL_PLAYER, (short) 3, 0));
+            f.data.removeComponent(f.entity, CreatureSleep.class);
+            f.controller.getStateMachine().changeState(CreatureState.IDLE);
+            for (int i = 0; i < 24; i++) {
+                f.tick();
+            }
+
+            // DK II's hero idle state does nothing for 12 ticks when the objective can't start (0x477850)
+            assertEquals(List.of(0d, 3d, 6d), f.objectiveAttempts);
+        }
+    }
+
     private static final class Fixture implements AutoCloseable {
         final EntityData data = new DefaultEntityData();
         final EntityId entity = data.createEntity();
@@ -906,6 +925,7 @@ class CreatureControllerTest {
         });
         final List<Double> eatAttempts = new java.util.ArrayList<>();
         final List<Double> workSearches = new java.util.ArrayList<>();
+        final List<Double> objectiveAttempts = new java.util.ArrayList<>();
         int sleepAssignments;
         int lairSearches;
         int oldJobUnassignments;
@@ -944,6 +964,10 @@ class CreatureControllerTest {
                 case "getTaskById" -> tasks.get((Long) args[0]);
                 case "assignClosestRoomTask" -> {
                     lairSearches++;
+                    yield false;
+                }
+                case "assignObjectiveTask" -> {
+                    objectiveAttempts.add(time);
                     yield false;
                 }
                 case "isTaskAvailable" -> false;

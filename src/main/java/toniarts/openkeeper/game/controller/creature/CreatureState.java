@@ -65,9 +65,22 @@ public enum CreatureState implements State<ICreatureController> {
 
                 // Neutral creatures first play an idle animation, then wander off
                 if (!foundWork && entity.isClaimed()) {
-                    entity.navigateToRandomPoint();
+                    wander(entity);
                 }
             });
+        }
+
+        /**
+         * Walks an idle creature that found nothing to do to a random spot. A
+         * hero stays where it is: in DK II a hero whose objective can't start
+         * does nothing until it tries again (hero idle state 0x477850)
+         *
+         * @param entity the idle creature
+         */
+        private static void wander(ICreatureController entity) {
+            if (entity.getOwnerId() != Player.GOOD_PLAYER_ID) {
+                entity.navigateToRandomPoint();
+            }
         }
 
         private static void findStuffToDo(ICreatureController entity, Consumer<Boolean> workResult) {
@@ -217,7 +230,7 @@ public enum CreatureState implements State<ICreatureController> {
                 findStuffToDo(entity, (foundWork) -> {
                     if (!foundWork && entity.isStopped()) {
                         if (entity.isClaimed()) {
-                            entity.navigateToRandomPoint();
+                            wander(entity);
                         } else {
                             entity.getStateMachine().changeState(WANDER);
                         }

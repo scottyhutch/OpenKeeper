@@ -197,6 +197,10 @@ public final class CreatureController extends EntityController implements ICreat
             CreatureState.SLEEPING, CreatureState.MELEE_ATTACK, CreatureState.CAST_SPELL, CreatureState.EATING,
             CreatureState.DANCING, CreatureState.CHICKEN);
     private static final int MOOD_JOB_INTERVAL_SECONDS = 5;
+    /**
+     * How long an idle hero does nothing before it tries its objective again, as in DK II (DKII.EXE 0x477850)
+     */
+    private static final int HERO_IDLE_TICKS = 12;
 
     /**
      * The possessed melee attack hits what is at most 341/2048 of a full
@@ -2665,6 +2669,9 @@ public final class CreatureController extends EntityController implements ICreat
 
         // TODO: now just 5 seconds, it is the default for imps
         // DK II's pit fighter waits four seconds' worth of ticks on each spot (0x457CF0)
+        if (getOwnerId() == Player.GOOD_PLAYER_ID && stateMachine.getCurrentState() == CreatureState.IDLE) {
+            return motionless >= HERO_IDLE_TICKS / (float) levelInfo.getLevelData().getGameLevel().getTicksPerSec();
+        }
         return motionless >= (stateMachine.getCurrentState() == CreatureState.COMBAT_PIT ? 4f : 5f);
     }
 
