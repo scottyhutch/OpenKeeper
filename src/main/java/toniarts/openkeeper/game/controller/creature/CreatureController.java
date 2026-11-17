@@ -1786,8 +1786,11 @@ public final class CreatureController extends EntityController implements ICreat
         toniarts.openkeeper.tools.convert.map.CreatureSpell creatureSpell = levelInfo.getLevelData().getCreatureSpellById(castShot.creatureSpellId);
         int shotData1 = getShotData1(creatureSpell);
 
-        // A shot cast on its own caster hits it at once: it starts on the caster, the only thing such a shot hits (0x451570)
-        if (entityId.equals(castShot.target) || !shotsController.fireShot(creatureSpell.getShotTypeId(), shotData1, creatureSpell.getShotData2(),
+        // A shot that flies, cast on its own caster, hits it at once: it starts on the caster, the only thing such a
+        // shot hits (0x451570). An instant shot, like Heal, is fired like any other
+        boolean flyingOnCaster = entityId.equals(castShot.target)
+                && levelInfo.getLevelData().getShotById(creatureSpell.getShotTypeId()).getSpeed() > 0;
+        if (flyingOnCaster || !shotsController.fireShot(creatureSpell.getShotTypeId(), shotData1, creatureSpell.getShotData2(),
                 getOwnerId(), getShotPosition(castShot.creatureSpellId, getPosition(entityData, castShot.target)), castShot.target, entityId, castShot.range)) {
             shotsController.createShot(creatureSpell.getShotTypeId(), shotData1, creatureSpell.getShotData2(), getOwnerId(), getPosition(), castShot.target, entityId);
 
