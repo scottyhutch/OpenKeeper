@@ -391,17 +391,20 @@ public final class ShotsController implements IShotsController {
         Shot shot = kwdFile.getShotById(shotTypeId);
 
         // A trap's shot flies if it moves towards its target, a creature's whenever it has a speed, like the
-        // Bile Demon's Gas Cloud (0x4984D0)
+        // Bile Demon's Gas Cloud (0x4984D0). A creature's instant shot, like Hail Storm, is a shot too, it stands
+        // still and goes onto its target in its turn (0x498870, 0x4AFCB0)
         boolean creatureShot = shooter != null && entityData.getComponent(shooter, CreatureComponent.class) != null;
-        boolean flying = creatureShot ? shot.getSpeed() > 0 : ShotFlightRules.isFlying(shot);
+        boolean flying = creatureShot
+                ? shot.getSpeed() > 0 || shot.getProcessType() == Shot.ProcessType.INSTANTANEOUS_HIT
+                : ShotFlightRules.isFlying(shot);
         if (!flying || targetPosition == null) {
             return false;
         }
 
         gameEventService.emit(GameEventType.SHOT_LAUNCH, ThingFlag.SHOT, shotTypeId, position);
         Vector3f velocity = ShotFlightRules.aim(position, targetPosition, shot.getSpeed());
-        addShot(new ShotFlight(shotTypeId, playerId, shooter, shotData1, shotData2, velocity, new Vector3f(position), maxRange,
-                shot.getHealth()));
+        addShot(new ShotFlight(shotTypeId, playerId, shooter, target, shotData1, shotData2, velocity, new Vector3f(position),
+                maxRange, shot.getHealth()));
 
         return true;
     }
@@ -445,7 +448,12 @@ public final class ShotsController implements IShotsController {
         }
 
         notifyShotHit(shot, thing);
-        process(shotEntity, flight, shot, thing);
+
+        // Only a shot made to does its process on a hit. An instant shot's process is its move onto its target, on
+        // every turn (0x4ABD60)
+        if (shot.getShotProcessFlags().contains(Shot.ShotProcessFlag.HIT_COLLIDE_THING)) {
+            process(shotEntity, flight, shot, thing);
+        }
     }
 
     @Override
@@ -491,9 +499,9 @@ public final class ShotsController implements IShotsController {
     public void createChildShot(EntityId shotEntity, short shotTypeId, Vector3f position) {
         ShotFlight flight = entityData.getComponent(shotEntity, ShotFlight.class);
 
-        // The new shot keeps the old one's values, not its own (0x4AB180)
-        addShot(new ShotFlight(shotTypeId, flight.ownerId, flight.shooter, flight.shotData1, flight.shotData2, new Vector3f(),
-                new Vector3f(position), 0, kwdFile.getShotById(shotTypeId).getHealth()));
+        // The new shot keeps the old one's values and target, not its own (0x4AB180)
+        addShot(new ShotFlight(shotTypeId, flight.ownerId, flight.shooter, flight.target, flight.shotData1, flight.shotData2,
+                new Vector3f(), new Vector3f(position), 0, kwdFile.getShotById(shotTypeId).getHealth()));
     }
 
 }
