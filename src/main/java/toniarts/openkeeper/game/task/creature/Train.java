@@ -80,13 +80,12 @@ public final class Train extends AbstractCapacityCriticalRoomTask {
 
     @Override
     public void executeTask(ICreatureController creature, float executionDuration) {
+        super.executeTask(creature, executionDuration);
 
-        // TODO: is this a general case or even smart to do this like this...?
-        if (executionDuration - getExecutionDuration(creature) < 1.0f) {
+        // Once a second
+        if (!isWorkStepDue(creature, executionDuration)) {
             return;
         }
-
-        setExecutionDuration(creature, executionDuration - getExecutionDuration(creature));
         gameWorldController.substractGold(trainingCost, playerId);
     }
 

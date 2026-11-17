@@ -21,13 +21,13 @@ import com.simsilica.es.EntityData;
 import java.util.Map;
 import java.util.function.Supplier;
 import java.util.random.RandomGenerator;
+import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
-import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.AbstractCapacityCriticalRoomTask;
@@ -177,7 +177,7 @@ public final class Gamble extends AbstractCapacityCriticalRoomTask {
                 gameWorldController.substractGold(CASINO_SHARE_INTERVAL_SECONDS * smilesGoldPerSecond, playerId);
             } else {
                 Point centre = getRoom().getRoomInstance().getCenter();
-                objectsController.addLooseGold(playerId, centre.x, centre.y,
+                objectsController.addLooseGold(centre.x, centre.y,
                         CASINO_SHARE_INTERVAL_SECONDS * Math.abs(moneyGoldPerSecond), maxGoldPile);
             }
         }

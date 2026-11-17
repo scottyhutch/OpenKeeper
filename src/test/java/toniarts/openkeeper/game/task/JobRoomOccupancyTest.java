@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.Casino;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
@@ -58,13 +59,17 @@ class JobRoomOccupancyTest {
     private final Map<MiscType, MiscVariable> gameSettings = new EnumMap<>(MiscType.class);
 
     @Test
-    void trainingRoomCountsTheTraineesThatHaveATask() {
+    void trainingRoomCountsATraineeOnceItIsInTheRoom() {
         TrainingRoomController room = trainingRoom();
         ICreatureController trainee = creature();
+        Train train = train(room);
+
+        // Nothing is kept for it on the way
+        train.assign(trainee, true);
         assertEquals(0, room.getUsedCapacity(ObjectType.TRAINEE));
 
-        Train train = train(room);
-        train.assign(trainee, true);
+        train.executeTask(trainee, 0);
+        train.executeTask(trainee, 0);
         assertEquals(1, room.getUsedCapacity(ObjectType.TRAINEE));
 
         // The creature leaves, once is enough
@@ -74,15 +79,19 @@ class JobRoomOccupancyTest {
     }
 
     @Test
-    void traineeInAFullTrainingRoomKeepsItsTaskButANewcomerHasNone() {
+    void traineeInAFullTrainingRoomKeepsItsTaskButOneOnItsWayIsTurnedAway() {
         TrainingRoomController room = trainingRoom();
+        ICreatureController onItsWay = creature();
+        Train late = train(room);
+        late.assign(onItsWay, true);
         ICreatureController trainee = creature();
         Train train = train(room);
         train.assign(trainee, true);
+        train.executeTask(trainee, 0);
         assertEquals(room.getMaxCapacity(ObjectType.TRAINEE), room.getUsedCapacity(ObjectType.TRAINEE));
 
         assertTrue(train.isValid(trainee));
-        assertFalse(train(room).isValid(creature()));
+        assertFalse(late.isValid(onItsWay));
     }
 
     @Test
@@ -127,7 +136,7 @@ class JobRoomOccupancyTest {
             gameSettings.put(type, CasinoVariableFixtures.miscVariable(type, 1));
         }
         return new Gamble(null, null, new Point(1, 1), KEEPER, casino, taskManager(), entityData, null, null, gameSettings,
-                () -> CasinoController.PayOut.SMILES, null);
+                () -> Casino.PayOut.SMILES, null);
     }
 
     private TrainingRoomController trainingRoom() {

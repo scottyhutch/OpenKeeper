@@ -28,12 +28,14 @@ import java.util.random.RandomGenerator;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.Casino;
+import toniarts.openkeeper.game.component.Casino.PayOut;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
-import toniarts.openkeeper.game.controller.room.CasinoController.PayOut;
+import toniarts.openkeeper.game.controller.room.CasinoController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.task.TaskType;
@@ -197,6 +199,18 @@ class GambleTest {
         assertEquals(400, gold());
     }
 
+    @Test
+    void thePayOutSettingIsKeptOnTheCasinoEntity() {
+        EntityId casinoId = entityData.createEntity();
+        CasinoController casino = new CasinoController(casinoId, entityData, null, new RoomInstance(new Room()), null, null);
+        assertEquals(PayOut.SMILES, casino.getPayOut());
+
+        casino.setPayOut(PayOut.MONEY);
+
+        assertEquals(PayOut.MONEY, entityData.getComponent(casinoId, Casino.class).payOut);
+        assertEquals(PayOut.MONEY, new CasinoController(casinoId, entityData, null, new RoomInstance(new Room()), null, null).getPayOut());
+    }
+
     private Gamble gamble(PayOut payOut, int jackpotRoll) {
         RoomInstance roomInstance = new RoomInstance(new Room());
         for (int x = 5; x <= 7; x++) {
@@ -236,7 +250,7 @@ class GambleTest {
         });
         IObjectsController objectsController = (IObjectsController) Proxy.newProxyInstance(IObjectsController.class.getClassLoader(), new Class<?>[]{IObjectsController.class}, (proxy, method, args) -> {
             if ("addLooseGold".equals(method.getName())) {
-                goldPiles.add(new int[]{(int) args[1], (int) args[2], (int) args[3], (int) args[4]});
+                goldPiles.add(new int[]{(int) args[0], (int) args[1], (int) args[2], (int) args[3]});
                 return null;
             }
             throw new UnsupportedOperationException(method.getName());
