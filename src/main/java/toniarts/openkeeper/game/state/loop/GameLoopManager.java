@@ -161,6 +161,7 @@ public final class GameLoopManager {
                 new CreatureTorturingSystem(entityData, gameWorldController.getCreaturesController(),
                         gameWorldController.getMapController(), playerControllers, gameEventService,
                         (int) gameController.getLevelVariable(Variable.MiscVariable.MiscType.TORTURE_CHANCE_OF_DYING_WHEN_CONVERTED)),
+                new PrisonOvercrowdingSystem(entityData, gameWorldController.getMapController(), gameSettings),
                 new KeeperDefeatSystem(entityData, levelInfo, gameController, gameWorldController.getMapController(),
                         gameWorldController.getObjectsController(), players != null && !players.isEmpty()),
                 new DeathSystem(entityData, gameSettings, positionSystem),
