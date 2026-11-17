@@ -323,22 +323,6 @@ class CreatureSupportSpellTest {
     }
 
     @Test
-    void hitsDoAnInvulnerableCreatureNoHarmUntilItWearsOff() {
-        EntityId enemy = createFighter(Player.KEEPER2_ID, new Vector3f(5, 0, 6), 1000);
-        entityData.setComponents(enemy, new Invulnerable(15), new CreatureFall());
-        CreatureController controller = createController();
-
-        controller.setDamage(enemy, 100);
-        assertNull(entityData.getComponent(enemy, Damage.class));
-
-        gameTime = 15;
-        new CreatureController(enemy, entityData, new Creature(), null, null, stub(IGameTimer.class, (name, args) -> "getGameTime".equals(name) ? gameTime : null),
-                new HashMap<>(), null, null, null, null, null, null, null).processTick(0.25f);
-        controller.setDamage(enemy, 100);
-        assertEquals(100, entityData.getComponent(enemy, Damage.class).damage);
-    }
-
-    @Test
     void theHasteShotLandsOnItsCaster() {
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.speed = 1f;
@@ -355,6 +339,22 @@ class CreatureSupportSpellTest {
 
         assertNotNull(entityData.getComponent(us, SpeedChange.class));
         assertEquals(4f, entityData.getComponent(us, Mobile.class).maxSpeed);
+    }
+
+    @Test
+    void hitsDoAnInvulnerableCreatureNoHarmUntilItWearsOff() {
+        EntityId enemy = createFighter(Player.KEEPER2_ID, new Vector3f(5, 0, 6), 1000);
+        entityData.setComponents(enemy, new Invulnerable(15), new CreatureFall());
+        CreatureController controller = createController();
+
+        controller.setDamage(enemy, 100);
+        assertNull(entityData.getComponent(enemy, Damage.class));
+
+        gameTime = 15;
+        new CreatureController(enemy, entityData, new Creature(), null, null, stub(IGameTimer.class, (name, args) -> "getGameTime".equals(name) ? gameTime : null),
+                new HashMap<>(), null, null, null, null, null, null, null).processTick(0.25f);
+        controller.setDamage(enemy, 100);
+        assertEquals(100, entityData.getComponent(enemy, Damage.class).damage);
     }
 
     private EntityId getCastTarget() {
