@@ -89,12 +89,14 @@ public final class ShotSystem implements IGameLogicUpdatable {
         // A shot out of its range, or one that dies when it hits a thing, has the rest of its turn and dies at the end
         // of it, it leaves its death shot (0x4AB180)
         int health = flight.health;
-        if (ShotFlightRules.isOutOfRange(flight.start, position, flight.maxRange)) {
+        boolean outOfRange = ShotFlightRules.isOutOfRange(flight.start, position, flight.maxRange);
+        if (outOfRange) {
             health = 0;
         }
 
-        // An instant shot's process on every turn is its move onto its target, below
-        if (shot.getShotProcessFlags().contains(Shot.ShotProcessFlag.CONSTANT)
+        // A shot out of its range does nothing on its last turn. An instant shot's process on every turn is its move
+        // onto its target, below
+        if (!outOfRange && shot.getShotProcessFlags().contains(Shot.ShotProcessFlag.CONSTANT)
                 && shot.getProcessType() != Shot.ProcessType.INSTANTANEOUS_HIT) {
             shotsController.fly(entity.getId());
         }
