@@ -19,6 +19,7 @@ package toniarts.openkeeper.game.task.worker;
 import com.jme3.math.Vector2f;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.controller.TileWork;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
@@ -75,7 +76,8 @@ public class DigTileTask extends AbstractTileTask {
      */
     protected boolean isTileToDig() {
         IMapTileInformation tile = mapController.getMapData().getTile(getTaskLocation());
-        return tile.isSelected(playerId);
+        return tile != null && tile.isSelected(playerId)
+                && TileWork.canDamageTile(mapController.getTerrain(tile), tile.getOwnerId(), playerId);
     }
 
     @Override
