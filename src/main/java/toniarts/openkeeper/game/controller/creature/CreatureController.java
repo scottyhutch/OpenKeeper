@@ -177,6 +177,8 @@ public final class CreatureController extends EntityController implements ICreat
     private static final float POSSESSED_BACKWARD_SPEED_FACTOR = 0.5f;
     private static final float POSSESSED_STRAFE_SPEED_FACTOR = 0.667f;
     private static final float SPEED_MULTIPLIER = 2f;
+    // DK II's 0xD000, under 13 square tiles from the heart's centre
+    private static final float NEAR_OWN_HEART_DISTANCE_SQUARED = 13 * WorldUtils.TILE_WIDTH * WorldUtils.TILE_WIDTH;
     /**
      * An enemy of the other alignment counts as this much nearer when we look
      * for one to fight. DK II takes 7/8 of the squared distance (0x45B140).
@@ -252,8 +254,6 @@ public final class CreatureController extends EntityController implements ICreat
      * original creatures never raises it.
      */
     private static final float ATTACK_WORK_MODIFIER = 0.8f;
-    // DK II's 0xD000, under 13 square tiles from the heart's centre
-    private static final float NEAR_OWN_HEART_DISTANCE_SQUARED = 13 * WorldUtils.TILE_WIDTH * WorldUtils.TILE_WIDTH;
 
     /**
      * A creature picks its target again this often, in game turns, an Imp
@@ -345,20 +345,16 @@ public final class CreatureController extends EntityController implements ICreat
             enemyInReach = null;
         }
 
-        // Check fleeing, TODO: Always flee? Fighters no longer flee near our own DHeart
-        boolean nearOwnHeart = isNearOwnHeart();
-        if (entityData.getComponent(entityId, Fearless.class) == null && !isCombatPitFighter() && !(fighter && nearOwnHeart)) {
-            Threat threatComponent = entityData.getComponent(entityId, Threat.class);
-            int threat = threatComponent != null ? threatComponent.threat : 0;
-            int fear = entityData.getComponent(entityId, CreatureComponent.class).fear;
-            int threatToUs = getEnemyThreat();
-            int threatCaused = creature.getFlags().contains(Creature.CreatureFlag.ALWAYS_FLEE)
-                    || isHealthAtCriticalLevel() ? threat : getOurThreat();
+        // Check fleeing, TODO: Always flee? A non-fighter withdraws as soon as an enemy fighter picks it as
+        // its target, wherever it is (0x45EC80)
+        if (entityData.getComponent(entityId, Fearless.class) == null && !isCombatPitFighter()
+                && ((fighter ? isThreatTooHigh() : isTargetedByEnemyFighter() && !isCornered())
+                || isFrightened(entityData.getComponent(entityId, CreatureComponent.class).fear))) {
 
-            // A non-fighter withdraws as soon as an enemy fighter picks it as its target
-            if ((fighter ? threatToUs - threatCaused > fear && (getFellowFighters() == 0
-                    || creature.getFlags().contains(Creature.CreatureFlag.ALWAYS_FLEE))
-                    : isTargetedByEnemyFighter() && !isCornered()) || isFrightened(fear)) {
+            // Fighters no longer flee from DHeart, our own one that still stands
+            IRoomController roomController = fighter ? mapController.getRoomControllerByCoordinates(getCreatureCoordinates()) : null;
+            if (roomController == null || !roomController.isDungeonHeart()
+                    || roomController.getOwnerId() != getOwnerId() || roomController.isDestroyed()) {
                 if (!stateMachine.isInState(CreatureState.FLEE)) {
 
                     stateMachine.changeState(CreatureState.FLEE);
@@ -369,7 +365,7 @@ public final class CreatureController extends EntityController implements ICreat
 
         // Should we attack, try to avoid i.e. imps engaging in a fight. Near their own heart they
         // hit back at an enemy in reach
-        IEntityController attackTarget = fighter ? getAttackTarget() : nearOwnHeart ? enemyInReach : null;
+        IEntityController attackTarget = fighter ? getAttackTarget() : isNearOwnHeart() ? enemyInReach : null;
         if (attackTarget != null && (stateMachine.isInState(CreatureState.FIGHT)
                 || stateMachine.isInState(CreatureState.MELEE_ATTACK) || isNearCallToArms())) {
             if (!stateMachine.isInState(CreatureState.FIGHT) && !stateMachine.isInState(CreatureState.MELEE_ATTACK)) {
@@ -453,8 +449,8 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     /**
-     * DK II's creatures stand their ground within about 3.6 tiles of the centre of their own
-     * Dungeon Heart, as long as it stands
+     * DK II's non-fighters fight an enemy in reach within 13 square tiles of the
+     * centre of their own Dungeon Heart (0xD000 in 0x45BDF0), as long as it stands
      */
     private boolean isNearOwnHeart() {
         Keeper keeper = levelInfo.getPlayer(getOwnerId());
@@ -468,6 +464,24 @@ public final class CreatureController extends EntityController implements ICreat
         }
         Vector3f position = getPosition();
         return WorldUtils.pointToVector2f(heart).distanceSquared(position.x, position.z) < NEAR_OWN_HEART_DISTANCE_SQUARED;
+    }
+
+    /**
+     * Tells whether the threat to us, less the threat we cause, is over our
+     * fear while no fellow fighters are with us. A creature that always flees
+     * doesn't count on fellow fighters
+     *
+     * @return true if we should flee
+     */
+    private boolean isThreatTooHigh() {
+        Threat threatComponent = entityData.getComponent(entityId, Threat.class);
+        int threat = threatComponent != null ? threatComponent.threat : 0;
+        int fear = entityData.getComponent(entityId, CreatureComponent.class).fear;
+        int threatToUs = getEnemyThreat();
+        int threatCaused = creature.getFlags().contains(Creature.CreatureFlag.ALWAYS_FLEE)
+                || isHealthAtCriticalLevel() ? threat : getOurThreat();
+        return threatToUs - threatCaused > fear && (getFellowFighters() == 0
+                || creature.getFlags().contains(Creature.CreatureFlag.ALWAYS_FLEE));
     }
 
     private boolean isTargetedByEnemyFighter() {

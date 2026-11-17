@@ -499,10 +499,10 @@ class CreatureControllerTest {
     }
 
     @Test
-    void fleesUnlessNearItsOwnStandingHeart() {
-        assertEquals(CreatureState.FLEE, stateWhenThreatenedWithHeartAt(7, false)); // 4 tiles away
-        assertEquals(CreatureState.FLEE, stateWhenThreatenedWithHeartAt(3, true));
-        assertNotEquals(CreatureState.FLEE, stateWhenThreatenedWithHeartAt(6, false)); // 3 tiles away
+    void fleesInAnEnemyOrRuinedHeartButStandsInItsOwn() {
+        assertEquals(CreatureState.FLEE, stateWhenThreatenedInHeart((short) 4, false));
+        assertEquals(CreatureState.FLEE, stateWhenThreatenedInHeart((short) 3, true));
+        assertNotEquals(CreatureState.FLEE, stateWhenThreatenedInHeart((short) 3, false));
     }
 
     @Test
@@ -512,11 +512,14 @@ class CreatureControllerTest {
         assertEquals(CreatureState.FLEE, workerStateWithHeroAt(6, 20, true));
         assertEquals(CreatureState.FLEE, workerStateWithHeroAt(3.5f, 3, true));
 
-        // Near its own heart it hits back at an enemy in reach that is after nobody
+        // Near its own heart it hits back at an enemy in reach that is after nobody, 3 tiles from the heart's
+        // centre is still near it
         assertNull(workerStateWithHeroAt(6, 3, null)); // Neither fights nor flees, keeps working
         assertEquals(CreatureState.FIGHT, workerStateWithHeroAt(3.5f, 3, null));
+        assertEquals(CreatureState.FIGHT, workerStateWithHeroAt(3.5f, 6, null));
 
         // Elsewhere it keeps working next to an enemy that isn't after it
+        assertNull(workerStateWithHeroAt(3.5f, 7, null));
         assertNull(workerStateWithHeroAt(3.5f, 20, null));
         assertNull(workerStateWithHeroAt(3.5f, 20, false));
     }
@@ -657,14 +660,15 @@ class CreatureControllerTest {
         return hero;
     }
 
-    private static CreatureState stateWhenThreatenedWithHeartAt(int heartX, boolean destroyed) {
+    private static CreatureState stateWhenThreatenedInHeart(short heartOwner, boolean destroyed) {
         try (Fixture f = new Fixture(9)) {
             EntityId hero = f.data.createEntity();
             f.data.setComponents(hero, new Owner((short) 1, (short) 1), new Health(1000, 1000), new Threat(100));
             f.data.removeComponent(f.entity, Fearless.class);
             f.sensed = Set.of(hero);
-            f.keeper.setDungeonHeartLocation(new Point(heartX, 4));
             f.roomHere = proxy(IRoomController.class, (method, args) -> switch (method) {
+                case "isDungeonHeart" -> true;
+                case "getOwnerId" -> heartOwner;
                 case "isDestroyed" -> destroyed;
                 default -> throw new UnsupportedOperationException(method);
             });
