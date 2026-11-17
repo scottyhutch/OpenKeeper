@@ -207,8 +207,6 @@ public final class CreatureController extends EntityController implements ICreat
      * An Imp teleports to a job more than this many tiles away on either axis
      */
     private static final int IMP_TELEPORT_DISTANCE = 2;
-    private static final int IMP_TELEPORT_OUT_EFFECT = 321;
-    private static final int IMP_TELEPORT_IN_EFFECT = 322;
     private static final int TELEPORT_OUT_TICKS = 4;
     private static final int TELEPORT_IN_TICKS = 2;
     /**
