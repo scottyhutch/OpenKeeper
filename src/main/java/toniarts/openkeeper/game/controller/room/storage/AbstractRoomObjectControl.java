@@ -85,6 +85,15 @@ public abstract class AbstractRoomObjectControl<V> implements IRoomObjectControl
     }
 
     /**
+     * Get all the objects in the room
+     *
+     * @return the objects in all the points of the room
+     */
+    public Collection<EntityId> getItems() {
+        return objectsByCoordinate.values().stream().flatMap(Collection::stream).toList();
+    }
+
+    /**
      * Get the max capacity of the room
      *
      * @return max capacity in number of objects
@@ -136,7 +145,10 @@ public abstract class AbstractRoomObjectControl<V> implements IRoomObjectControl
     @Override
     public final boolean contains(EntityId object) {
         Stored stored = entityData.getComponent(object, Stored.class);
-        return stored != null && stored.room.equals(parent.getEntityId()) && stored.objectType == getObjectType();
+        Storage storage = entityData.getComponent(entityId, Storage.class);
+
+        // The storage is gone once the room is sold or rebuilt
+        return stored != null && storage != null && stored.room.equals(parent.getEntityId()) && stored.objectType == storage.objectType;
     }
 
     /**
