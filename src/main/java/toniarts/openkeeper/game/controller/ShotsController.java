@@ -643,7 +643,7 @@ public final class ShotsController implements IShotsController {
 
         // The new shot keeps the old one's values and target, not its own (0x4AB180)
         addShot(new ShotFlight(shotTypeId, flight.ownerId, flight.shooter, flight.target, flight.shotData1, flight.shotData2,
-                new Vector3f(), new Vector3f(position), 0, kwdFile.getShotById(shotTypeId).getHealth()));
+                new Vector3f(), new Vector3f(position), 0, childShot.getHealth()));
     }
 
     /**

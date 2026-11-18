@@ -347,13 +347,13 @@ class ShotsControllerTest {
                 new Vector3f(), 0, 1));
 
         // Create Creature does its process at its end, as in the original data
-        shotsById.put(CREATE_CREATURE_ID, ShotFixtures.shot(CREATE_CREATURE_ID, Shot.ProcessType.CREATE_CREATURE, 0,
+        shotsById.put(CREATE_CREATURE_ID, ShotFixtures.shot(CREATE_CREATURE_ID, Shot.ProcessType.CREATE_CREATURE, 1,
                 EnumSet.of(Shot.ShotProcessFlag.AT_END)));
-        shotsController.createChildShot(shot, CREATE_CREATURE_ID, new Vector3f(1.5f, 1f, 1.5f));
+        shotsController.createChildShot(shot, CREATE_CREATURE_ID, new Vector3f(2.5f, 1f, 3.5f));
 
         assertEquals(3, spawnedCreatures.size());
         for (Object[] args : spawnedCreatures) {
-            assertArrayEquals(new Object[]{(short) 9, PLAYER_ID, 1, new Vector2f(1.5f, 1.5f), ICreaturesController.SpawnType.CONJURE}, args);
+            assertArrayEquals(new Object[]{(short) 9, PLAYER_ID, 1, new Vector2f(2.5f, 3.5f), ICreaturesController.SpawnType.CONJURE}, args);
         }
         assertEquals(0, countShotEntities());
     }
