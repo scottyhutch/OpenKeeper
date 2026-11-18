@@ -17,6 +17,7 @@
 package toniarts.openkeeper.game.component;
 
 import com.simsilica.es.EntityComponent;
+import com.simsilica.es.EntityId;
 
 /**
  * A Horned Reaper summoned by a keeper spell. He either stays for a set time
@@ -58,6 +59,12 @@ public final class SummonedReaper implements EntityComponent {
      * The client shows them on the Reaper Talisman.
      */
     public int secondsLeft;
+
+    /**
+     * The Portal Gem object the Reaper has been sent for at the end of a won
+     * level, {@code null} if he hasn't been sent. He is sent only once.
+     */
+    public EntityId gem;
 
     public SummonedReaper() {
         // For serialization

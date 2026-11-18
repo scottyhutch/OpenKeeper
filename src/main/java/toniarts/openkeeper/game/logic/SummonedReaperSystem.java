@@ -26,7 +26,6 @@ import java.util.Map;
 import java.util.Random;
 import java.util.function.Function;
 import toniarts.openkeeper.game.component.CreatureAi;
-import toniarts.openkeeper.game.component.FetchPortalGem;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Owner;
@@ -140,12 +139,11 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
                 summonedReaper = updateSecondsLeft(entityId, summonedReaper, gameTime);
             }
 
-            FetchPortalGem fetchPortalGem = entityData.getComponent(entityId, FetchPortalGem.class);
-            if (fetchPortalGem != null) {
+            if (summonedReaper.gem != null) {
 
                 // Nothing can stop him now, he does it once he is on his feet
                 if (entityData.getComponent(entityId, CreatureAi.class) != null) {
-                    decisions.fetchPortalGem(entityId, fetchPortalGem.gem);
+                    decisions.fetchPortalGem(entityId, summonedReaper.gem);
                 }
             } else if (summonedReaper.isLeaving()) {
                 if (gameTime >= summonedReaper.leaveTime + LEAVE_DURATION_SECONDS) {
@@ -192,6 +190,7 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
         }
         SummonedReaper counted = new SummonedReaper(summonedReaper.summonTime, summonedReaper.lifetime,
                 summonedReaper.manaDrain, summonedReaper.manaCheckTime, summonedReaper.leaveTime, secondsLeft);
+        counted.gem = summonedReaper.gem;
         entityData.setComponent(entityId, counted);
 
         return counted;
@@ -235,8 +234,10 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
     }
 
     private void setSummonedReaper(EntityId entityId, SummonedReaper summonedReaper, double manaCheckTime, double leaveTime) {
-        entityData.setComponent(entityId, new SummonedReaper(summonedReaper.summonTime, summonedReaper.lifetime,
-                summonedReaper.manaDrain, manaCheckTime, leaveTime, summonedReaper.secondsLeft));
+        SummonedReaper changed = new SummonedReaper(summonedReaper.summonTime, summonedReaper.lifetime,
+                summonedReaper.manaDrain, manaCheckTime, leaveTime, summonedReaper.secondsLeft);
+        changed.gem = summonedReaper.gem;
+        entityData.setComponent(entityId, changed);
     }
 
     private void addManaGeneration(EntityId entityId, int amount) {

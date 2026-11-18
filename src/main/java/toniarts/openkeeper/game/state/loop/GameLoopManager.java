@@ -193,7 +193,6 @@ public final class GameLoopManager {
                 new CreatureLeaveSystem(entityData, gameWorldController.getCreaturesController()),
                 new SummonedReaperSystem(entityData, playerControllers.values(), gameWorldController.getCreaturesController(),
                         gameController.getGameTimer(), gameController.getNavigationService()),
-                new PortalGemDropSystem(entityData, levelInfo.getLevelData(), gameWorldController.getObjectsController()),
                 new CallToArmsSystem(entityData, level, playerControllers.values(),
                         gameWorldController.getCreaturesController(), gameController.getGameTimer(), gameEventService),
                 new CreatureAiSystem(entityData, gameWorldController.getCreaturesController(), taskManager),

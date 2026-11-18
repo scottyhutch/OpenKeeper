@@ -31,8 +31,8 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntitySet;
 import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.component.CreatureComponent;
-import toniarts.openkeeper.game.component.FetchPortalGem;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.view.camera.ReaperChaseCamera;
 
 /**
@@ -67,7 +67,7 @@ public final class EndGameState extends AbstractAppState implements RawInputList
         playerState.setGeneralText(2901);
 
         // The camera follows the Horned Reaper who comes for the Portal Gem
-        portalGemFetchers = playerState.getEntityData().getEntities(FetchPortalGem.class, Position.class, CreatureComponent.class);
+        portalGemFetchers = playerState.getEntityData().getEntities(SummonedReaper.class, Position.class, CreatureComponent.class);
     }
 
     @Override
@@ -79,6 +79,9 @@ public final class EndGameState extends AbstractAppState implements RawInputList
 
         portalGemFetchers.applyChanges();
         for (Entity reaper : portalGemFetchers) {
+            if (reaper.get(SummonedReaper.class).gem == null) {
+                continue;
+            }
             if (chaseCamera == null) {
                 chaseCamera = new ReaperChaseCamera(app.getCamera(), reaper.get(CreatureComponent.class).height);
             }
