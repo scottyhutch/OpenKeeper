@@ -30,6 +30,7 @@ import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.AbstractCapacityCriticalRoomTask;
 import toniarts.openkeeper.game.task.TaskManager;
 import toniarts.openkeeper.game.task.TaskType;
+import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -106,16 +107,12 @@ public final class Manufacture extends AbstractCapacityCriticalRoomTask {
             return;
         }
 
-        // The trap or door is done, put its crate into the workshop
-        EntityId crate = objectsController.addRoomCrate(order.crateObjectId(), playerId, getTaskLocation().x, getTaskLocation().y,
+        // The trap or door is done. Like DK II (0x4F5240) the crate is nobody's until the workshop takes it, and without
+        // room in the workshop it stays on the floor
+        EntityId crate = objectsController.addRoomCrate(order.crateObjectId(), Player.NEUTRAL_PLAYER_ID, getTaskLocation().x, getTaskLocation().y,
                 order.type(), order.typeId());
-        if (getRoomObjectControl().addItem(crate, null) != null) {
-
-            // No room for it after all
-            objectsController.createController(crate).remove();
-        } else {
-            statsControl.itemManufactured();
-        }
+        getRoomObjectControl().addItem(crate, null);
+        statsControl.itemManufactured();
     }
 
     @Override
