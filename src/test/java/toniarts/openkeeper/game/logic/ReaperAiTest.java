@@ -118,8 +118,6 @@ class ReaperAiTest {
         ai().think(reaper, PLAYER_ID);
 
         assertNull(entityData.getComponent(reaper, AttackTarget.class));
-        assertTrue(wandered);
-        assertEquals(CreatureState.WANDER, state);
     }
 
     @Test
@@ -211,14 +209,31 @@ class ReaperAiTest {
     }
 
     @Test
-    void roamsWhenThereIsNothingToDestroy() {
+    void goesForTheHeartThatIsNearestTheWayDungeonKeeperIIMeasuresIt() {
+        addHeart(ENEMY_ID, new Point(13, 10));
+        short otherEnemyId = 6;
+        keepers.put(otherEnemyId, new Keeper(false, otherEnemyId));
+        EntityId below = addHeart(otherEnemyId, new Point(10, 14));
+
+        // 3 * 3 = 9 for the one across, 2 * 4 = 8 for the one further away below
+        assertTrue(ai().think(reaper, PLAYER_ID));
+
+        assertEquals(below, entityData.getComponent(reaper, AttackTarget.class).entityId);
+    }
+
+    @Test
+    void hasNothingLeftToDoWhenThereIsNothingToDestroy() {
+        Point walledIn = new Point(12, 10);
+        unreachableTiles.add(walledIn);
+        addCreature(ENEMY_ID, walledIn);
         Point heart = new Point(30, 12);
         addHeart(ENEMY_ID, heart);
         makeHeartUnreachable(heart);
         entityData.setComponent(addHeart(ENEMY_ID, new Point(20, 20)), new Health(0, 100));
 
-        ai().think(reaper, PLAYER_ID);
+        assertFalse(ai().think(reaper, PLAYER_ID));
 
+        assertFalse(wandered);
         assertNull(entityData.getComponent(reaper, AttackTarget.class));
     }
 

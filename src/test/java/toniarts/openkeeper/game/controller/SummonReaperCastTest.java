@@ -154,7 +154,7 @@ class SummonReaperCastTest {
     }
 
     private boolean allowedByReaperRule(KeeperSpell keeperSpell) {
-        return KeeperSpellCastValidator.checkReaperRule(keeperSpell, kwdFile(), keeper, entityData);
+        return ReaperSummoner.checkReaperRule(keeperSpell, kwdFile(), keeper, entityData);
     }
 
     private void addCreature(short creatureId, short ownerId) {
