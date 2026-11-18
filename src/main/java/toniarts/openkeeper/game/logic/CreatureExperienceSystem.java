@@ -296,8 +296,9 @@ public final class CreatureExperienceSystem implements IGameLogicUpdatable {
         if (reason != ExperienceGainReason.WORKING) {
             return 0;
         }
-        CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
+
         // Any worker, a hero Dwarf too, learns the Imp's experience from its jobs
+        CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
         if (kwdFile.getImp().getId() == creatureComponent.creatureId || entity.get(CreatureAi.class).getCreatureState() == CreatureState.WORK) {
             return impExperienceGainPerSecond;
         }

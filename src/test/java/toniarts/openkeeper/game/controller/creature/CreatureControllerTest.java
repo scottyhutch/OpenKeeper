@@ -538,9 +538,7 @@ class CreatureControllerTest {
             f.data.setComponent(hero, new AttackTarget(f.entity));
             f.controller.getStateMachine().update();
 
-            // It backs off (DK II's 0xCB), which for a worker lasts no time, then withdraws
-            assertEquals(CreatureState.BACK_OFF, f.state());
-            f.controller.getStateMachine().update();
+            // The fight state weighs withdrawing on every turn (0x45F030 calls 0x45EC80)
             assertEquals(CreatureState.FLEE, f.state());
         }
     }
@@ -638,6 +636,18 @@ class CreatureControllerTest {
         }
     }
 
+    @Test
+    void creatureWithALairWithdrawsToIt() {
+        try (Fixture f = new Fixture(9)) {
+            f.keeper.setDungeonHeartLocation(new Point(3, 4));
+            f.data.setComponent(f.bed, new Position(0, new Vector3f(8, WorldUtils.FLOOR_HEIGHT, 4)));
+
+            f.controller.flee();
+
+            assertEquals(new Point(8, 4), f.data.getComponent(f.entity, Navigation.class).target);
+        }
+    }
+
     private static CreatureState workerStateWithHeroAt(float x, int heartX, Boolean heroAfterUs) {
         try (Fixture f = new Fixture(CreatureSleepFixtures.worker())) {
             EntityId hero = heroNextToWorker(f, x, heartX);
@@ -655,6 +665,9 @@ class CreatureControllerTest {
                 new Position(0, new Vector3f(x, WorldUtils.FLOOR_HEIGHT, 4)));
         f.data.setComponent(f.entity, new CreatureMeleeAttack(0, 30, 1.2f, 1));
         f.data.removeComponent(f.entity, Fearless.class);
+
+        // Workers have no lair
+        f.data.setComponent(f.entity, new CreatureSleep(null, 0, 0, 0));
         f.sensed = Set.of(hero);
         f.keeper.setDungeonHeartLocation(new Point(heartX, 4));
         f.roomHere = proxy(IRoomController.class, (method, args) -> switch (method) {

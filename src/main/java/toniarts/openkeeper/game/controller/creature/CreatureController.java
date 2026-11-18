@@ -1307,14 +1307,15 @@ public final class CreatureController extends EntityController implements ICreat
 
         // The original picks its target again when it steps onto another tile or every 10 turns, and keeps the one it
         // has when it finds none (0x45E9F0). Chasing a creature, it drops it and picks again every turn, so it only
-        // chases on while it picks the same one (0x470E30). Fighting a creature in reach, it keeps it: 0x45E9F0 does
-        // not pick in the fight states, and the fight state picks only when it has no target (0x45F030)
-        boolean creatureTarget = target != null && !DungeonHeartTarget.isDungeonHeart(entityData, target);
-        boolean chasing = creatureTarget && !isWithinAttackDistance(target);
-        boolean fighting = creatureTarget && (stateMachine.isInState(CreatureState.FIGHT) || stateMachine.isInState(CreatureState.MELEE_ATTACK));
+        // chases on while it picks the same one (0x470E30). Fighting a creature or a heart's pillar in reach, it keeps
+        // it: 0x45E9F0 does not pick in the fight states, and the fight state picks only when it has no target, between
+        // swings it just waits (0x45F030, 0x48C9B0)
+        boolean inReach = target != null && isWithinAttackDistance(target);
+        boolean chasing = target != null && !inReach && !DungeonHeartTarget.isDungeonHeart(entityData, target);
+        boolean fighting = inReach && (stateMachine.isInState(CreatureState.FIGHT) || stateMachine.isInState(CreatureState.MELEE_ATTACK));
         boolean picked = target == null || chasing || !fighting && isTimeToPickTarget(attackTarget);
         if (picked) {
-            EntityId enemy = pickAttackTarget(target);
+            EntityId enemy = pickAttackTarget();
             if (enemy != null || chasing) {
                 target = enemy;
             }
@@ -1408,29 +1409,19 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     /**
-     * Picks the enemy to attack: the nearest one, or with no one but workers
-     * to fight, an enemy heart in sight that is nearer. A creature hitting a
-     * heart leaves it for any fighter that shows up. A worker, even one that
-     * attacks it, only draws it away when it is nearer than the heart's
-     * nearest pillar, so only on its way there: next to the pillar the
-     * original stands closer to it than a worker can come (0x45CB00).
+     * Picks the enemy to attack. A fighter always comes before an enemy heart,
+     * a worker only while the heart's nearest pillar isn't strictly nearer, so
+     * on a tie the worker is kept (0x45CB00).
      *
-     * @param current the target we have now, if any
      * @return the enemy to attack, {@code null} if there is none
      */
-    private EntityId pickAttackTarget(EntityId current) {
-        boolean hittingHeart = current != null && DungeonHeartTarget.isDungeonHeart(entityData, current);
-        EntityId fighter = getNearestEnemy(true);
-        if (fighter != null) {
-            return hittingHeart ? fighter : getNearestEnemy(false);
+    private EntityId pickAttackTarget() {
+        EntityId enemy = getNearestEnemy();
+        if (enemy != null && !creaturesController.createController(enemy).isWorker()) {
+            return enemy;
         }
-        EntityId worker = getNearestEnemy(false);
-        if (worker != null && hittingHeart
-                && (isWithinAttackDistance(current) || getDistanceToCreature(worker) >= getDistanceToHeart(current))) {
-            return current;
-        }
-        EntityId heart = getNearestEnemyHeart(worker != null ? getDistanceToCreature(worker) : Float.MAX_VALUE);
-        return heart != null ? heart : worker;
+        EntityId heart = getNearestEnemyHeart(enemy != null ? getDistanceToCreature(enemy) : Float.MAX_VALUE);
+        return heart != null ? heart : enemy;
     }
 
     private boolean isAttacking(EntityId attacker, EntityId target) {
@@ -1458,12 +1449,75 @@ public final class CreatureController extends EntityController implements ICreat
     }
 
     /**
-     * Finds the nearest enemy creature we sense and can fight
+     * Gets the creature we fight in the Combat Pit. An enemy fighter comes
+     * first, then the nearest one of our own side.
      *
-     * @param fightersOnly leave the workers out
+     * @param pit the Combat Pit we fight in
+     * @return the opponent, or {@code null} if there is none
+     */
+    private ICreatureController getCombatPitOpponent(EntityId pit) {
+        AttackTarget attackTarget = entityData.getComponent(entityId, AttackTarget.class);
+        if (attackTarget != null && isCombatPitOpponent(attackTarget.entityId, pit)) {
+            return creaturesController.createController(attackTarget.entityId);
+        }
+
+        // We beat our opponent, winning cheers us up. Picking the next opponent clears the beaten one, so this is once a win
+        CombatPitFighter beaten = attackTarget != null ? entityData.getComponent(attackTarget.entityId, CombatPitFighter.class) : null;
+        CreatureMood mood = entityData.getComponent(entityId, CreatureMood.class);
+        if (beaten != null && pit.equals(beaten.pit) && isIncapacitated(attackTarget.entityId) && mood != null) {
+            entityData.setComponent(entityId, mood.add(CreatureMood.REASON_OTHER,
+                    (int) gameSettings.get(Variable.MiscVariable.MiscType.MODIFY_ANGER_OF_COMBAT_PIT_VICTOR).getValue()));
+        }
+
+        EntityId nearestEnemy = null;
+        float nearestEnemyDistance = Float.MAX_VALUE;
+        EntityId nearestOther = null;
+        float nearestOtherDistance = Float.MAX_VALUE;
+        if (!isAtTopCombatPitLevel(entityId)) {
+            for (EntityId entity : entityData.findEntities(new FieldFilter<>(CombatPitFighter.class, "pit", pit), CombatPitFighter.class)) {
+                if (!isCombatPitOpponent(entity, pit)) {
+                    continue;
+                }
+                float distance = getDistanceToCreature(entity);
+                if (isEnemy(entity)) {
+                    if (distance < nearestEnemyDistance) {
+                        nearestEnemyDistance = distance;
+                        nearestEnemy = entity;
+                    }
+                } else if (distance < nearestOtherDistance) {
+                    nearestOtherDistance = distance;
+                    nearestOther = entity;
+                }
+            }
+        }
+
+        EntityId opponent = nearestEnemy != null ? nearestEnemy : nearestOther;
+        setAttackTarget(opponent);
+        return opponent != null ? creaturesController.createController(opponent) : null;
+    }
+
+    private boolean isCombatPitOpponent(EntityId entity, EntityId pit) {
+        CombatPitFighter pitFighter = entityData.getComponent(entity, CombatPitFighter.class);
+        return !entity.equals(entityId) && pitFighter != null && pit.equals(pitFighter.pit)
+                && !isIncapacitated(entity) && !isAtTopCombatPitLevel(entity);
+    }
+
+    /**
+     * Creatures at the top level the Combat Pit teaches neither fight nor are
+     * fought there
+     */
+    private boolean isAtTopCombatPitLevel(EntityId entity) {
+        CreatureExperience creatureExperience = entityData.getComponent(entity, CreatureExperience.class);
+        return creatureExperience != null && creatureExperience.level >= (int) gameSettings.get(Variable.MiscVariable.MiscType.COMBAT_PIT_MAX_EXPERIENCE_LEVEL).getValue();
+    }
+
+    /**
+     * Finds the enemy creature we sense and can fight, the nearest enemy
+     * already attacking us first
+     *
      * @return the creature, or {@code null} if there is none
      */
-    private EntityId getNearestEnemy(boolean fightersOnly) {
+    private EntityId getNearestEnemy() {
         EntityId nearestEnemy = null;
         float bestScore = Float.MAX_VALUE;
         EntityId nearestAttacker = null;
@@ -1474,7 +1528,6 @@ public final class CreatureController extends EntityController implements ICreat
                     && !(isIncapacitated(entity) || isCaptive(entity) || isInvisible(entity))
                     && !(isFleeing(entity) && isBackingOff() && !isWithinAttackDistance(entity))
                     && hasRoomForAttacker(entity)
-                    && !(fightersOnly && creaturesController.createController(entity).isWorker())
                     && isNoticed(entity)
                     && (hasPathToEntity(entity) || isWithinAttackDistance(entity))) {
                 float distance = getTargetDistance(entity);
@@ -1598,69 +1651,6 @@ public final class CreatureController extends EntityController implements ICreat
     private boolean isWalkable(Point tile) {
         IMapTileInformation mapTile = mapController.getMapData().getTile(tile);
         return mapTile != null && !mapController.getTerrain(mapTile).getFlags().contains(Terrain.TerrainFlag.SOLID);
-    }
-
-    /**
-     * Gets the creature we fight in the Combat Pit. An enemy fighter comes
-     * first, then the nearest one of our own side.
-     *
-     * @param pit the Combat Pit we fight in
-     * @return the opponent, or {@code null} if there is none
-     */
-    private ICreatureController getCombatPitOpponent(EntityId pit) {
-        AttackTarget attackTarget = entityData.getComponent(entityId, AttackTarget.class);
-        if (attackTarget != null && isCombatPitOpponent(attackTarget.entityId, pit)) {
-            return creaturesController.createController(attackTarget.entityId);
-        }
-
-        // We beat our opponent, winning cheers us up. Picking the next opponent clears the beaten one, so this is once a win
-        CombatPitFighter beaten = attackTarget != null ? entityData.getComponent(attackTarget.entityId, CombatPitFighter.class) : null;
-        CreatureMood mood = entityData.getComponent(entityId, CreatureMood.class);
-        if (beaten != null && pit.equals(beaten.pit) && isIncapacitated(attackTarget.entityId) && mood != null) {
-            entityData.setComponent(entityId, mood.add(CreatureMood.REASON_OTHER,
-                    (int) gameSettings.get(Variable.MiscVariable.MiscType.MODIFY_ANGER_OF_COMBAT_PIT_VICTOR).getValue()));
-        }
-
-        EntityId nearestEnemy = null;
-        float nearestEnemyDistance = Float.MAX_VALUE;
-        EntityId nearestOther = null;
-        float nearestOtherDistance = Float.MAX_VALUE;
-        if (!isAtTopCombatPitLevel(entityId)) {
-            for (EntityId entity : entityData.findEntities(new FieldFilter<>(CombatPitFighter.class, "pit", pit), CombatPitFighter.class)) {
-                if (!isCombatPitOpponent(entity, pit)) {
-                    continue;
-                }
-                float distance = getDistanceToCreature(entity);
-                if (isEnemy(entity)) {
-                    if (distance < nearestEnemyDistance) {
-                        nearestEnemyDistance = distance;
-                        nearestEnemy = entity;
-                    }
-                } else if (distance < nearestOtherDistance) {
-                    nearestOtherDistance = distance;
-                    nearestOther = entity;
-                }
-            }
-        }
-
-        EntityId opponent = nearestEnemy != null ? nearestEnemy : nearestOther;
-        setAttackTarget(opponent);
-        return opponent != null ? creaturesController.createController(opponent) : null;
-    }
-
-    private boolean isCombatPitOpponent(EntityId entity, EntityId pit) {
-        CombatPitFighter pitFighter = entityData.getComponent(entity, CombatPitFighter.class);
-        return !entity.equals(entityId) && pitFighter != null && pit.equals(pitFighter.pit)
-                && !isIncapacitated(entity) && !isAtTopCombatPitLevel(entity);
-    }
-
-    /**
-     * Creatures at the top level the Combat Pit teaches neither fight nor are
-     * fought there
-     */
-    private boolean isAtTopCombatPitLevel(EntityId entity) {
-        CreatureExperience creatureExperience = entityData.getComponent(entity, CreatureExperience.class);
-        return creatureExperience != null && creatureExperience.level >= (int) gameSettings.get(Variable.MiscVariable.MiscType.COMBAT_PIT_MAX_EXPERIENCE_LEVEL).getValue();
     }
 
     /**
@@ -1925,6 +1915,7 @@ public final class CreatureController extends EntityController implements ICreat
                 int ticksPerSec = levelInfo.getLevelData().getGameLevel().getTicksPerSec();
                 double hitDelay = (int) (creature.getShotDelay() * ticksPerSec) / (double) ticksPerSec;
                 entityData.setComponent(entityId, new MeleeHit(attackTarget, gameTimer.getGameTime() + hitDelay));
+                turnOnUs(attackTarget);
                 releaseMeleeHit();
             }
         } else {
@@ -1943,8 +1934,32 @@ public final class CreatureController extends EntityController implements ICreat
                 // The shot leaves during the cast, after the spell's shot delay (0x4984D0)
                 entityData.setComponent(entityId, new CastShot(attack.get().creatureSpellId, attackTarget, attack.get().range,
                         gameTimer.getGameTime() + getShotDelay(attack.get().creatureSpellId)));
+                turnOnUs(attackTarget);
             }
         }
+    }
+
+    /**
+     * A fighting creature we start a swing or a cast at turns on us, unless
+     * its own target is a creature no one else attacks. A heart is not a
+     * creature, so one hitting a heart turns on us (0x45F030 calls 0x45AA20)
+     *
+     * @param target the creature we swing or cast at
+     */
+    private void turnOnUs(EntityId target) {
+        CreatureAi ai = entityData.getComponent(target, CreatureAi.class);
+        if (ai == null || !(ai.getCreatureState() == CreatureState.FIGHT || ai.getCreatureState() == CreatureState.MELEE_ATTACK
+                || ai.getCreatureState() == CreatureState.CAST_SPELL)) {
+            return;
+        }
+        AttackTarget targetsTarget = entityData.getComponent(target, AttackTarget.class);
+        if (targetsTarget != null && (entityId.equals(targetsTarget.entityId)
+                || !DungeonHeartTarget.isDungeonHeart(entityData, targetsTarget.entityId)
+                && entityData.findEntities(new FieldFilter<>(AttackTarget.class, "entityId", targetsTarget.entityId), AttackTarget.class).size() < 2)) {
+            return;
+        }
+        entityData.setComponent(target, new AttackTarget(entityId, gameTimer.getGameTime(),
+                WorldUtils.vectorToPoint(getPosition(entityData, target)), Double.NaN));
     }
 
     @Override
@@ -2554,6 +2569,12 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public void flee() {
+
+        // A creature with a lair withdraws to it first (0x4611D0 goes to the object in creature +0x3B7)
+        Point lair = getLairLocation();
+        if (lair != null && !createNavigation(getCreatureCoordinates(), lair, null)) {
+            return;
+        }
         Keeper keeper = levelInfo.getPlayer(getOwnerId());
 
         // A frightened creature, or one without a heart, runs away from its threat

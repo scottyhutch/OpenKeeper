@@ -42,7 +42,9 @@ import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.SummonReaperFixtures;
+import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -127,7 +129,9 @@ class HornedReaperHuntTest {
         });
 
         return new CreatureController(reaper, entityData, reaperDefinition, navigationService, null, () -> 0,
-                Map.of(), creaturesController, lookup, null, levelInfo, null, null,
+                Map.of(MiscType.CREATURE_CRITICAL_HEALTH_PERCENTAGE_OF_MAX,
+                        CreatureSleepFixtures.variable(MiscType.CREATURE_CRITICAL_HEALTH_PERCENTAGE_OF_MAX, 10)),
+                creaturesController, lookup, null, levelInfo, null, null,
                 proxy(GameEventService.class, (method, args) -> null));
     }
 
