@@ -120,6 +120,7 @@ import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.NextRoomHint;
 import toniarts.openkeeper.game.component.ObjectComponent;
+import toniarts.openkeeper.game.component.ObjectLastOwner;
 import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.Objective;
 import toniarts.openkeeper.game.component.OnFire;
@@ -348,6 +349,7 @@ public final class NetworkServer {
             Serializer.registerClass(Navigation.class, new FieldSerializer());
             Serializer.registerClass(NextRoomHint.class, new FieldSerializer());
             Serializer.registerClass(ObjectComponent.class, new FieldSerializer());
+            Serializer.registerClass(ObjectLastOwner.class, new FieldSerializer());
             Serializer.registerClass(ObjectViewState.class, new FieldSerializer());
             Serializer.registerClass(Objective.class, new FieldSerializer());
             Serializer.registerClass(OnFire.class, new FieldSerializer());
