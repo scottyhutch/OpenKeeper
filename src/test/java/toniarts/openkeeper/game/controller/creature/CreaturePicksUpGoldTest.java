@@ -26,18 +26,14 @@ import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.Gold;
-import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IObjectsController;
-import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.object.IObjectController;
-import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
-import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.task.worker.FetchObjectTask;
 
@@ -84,7 +80,7 @@ class CreaturePicksUpGoldTest {
 
     @Test
     void fullWorkerIsNotSentToFetchGold() {
-        FetchObjectTask task = new FetchObjectTask(null, null, treasuryWithSpace(), goldObject(pile(2000)), PLAYER_ID, playerWithGoldSpace());
+        FetchObjectTask task = new FetchObjectTask(null, null, treasuryWithSpace(), goldObject(pile(2000)), PLAYER_ID);
 
         assertTrue(task.isValid(stub(ICreatureController.class, Map.of("isTooMuchGold", false))));
         assertFalse(task.isValid(stub(ICreatureController.class, Map.of("isTooMuchGold", true))));
@@ -161,13 +157,6 @@ class CreaturePicksUpGoldTest {
         IRoomObjectControl storage = stub(IRoomObjectControl.class, Map.of("isFullCapacity", false));
         IRoomController treasury = stub(IRoomController.class, Map.of("isFullCapacity", false, "getObjectControl", storage));
         return stub(IMapController.class, Map.of("getRoomsByFunction", List.of(treasury)));
-    }
-
-    private static IPlayerController playerWithGoldSpace() {
-        EntityData playerData = new DefaultEntityData();
-        playerData.setComponents(playerData.createEntity(), new KeeperComponent(PLAYER_ID), new Gold(0, 1000));
-        PlayerGoldControl goldControl = new PlayerGoldControl(new Keeper(false, PLAYER_ID), playerData);
-        return stub(IPlayerController.class, Map.of("getGoldControl", goldControl));
     }
 
     /**

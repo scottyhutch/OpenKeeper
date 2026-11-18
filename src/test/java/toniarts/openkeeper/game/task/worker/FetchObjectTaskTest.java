@@ -17,29 +17,22 @@
 package toniarts.openkeeper.game.task.worker;
 
 import com.jme3.math.Vector3f;
-import com.simsilica.es.EntityData;
-import com.simsilica.es.EntityId;
-import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.List;
 import org.junit.jupiter.api.Test;
-import toniarts.openkeeper.game.component.Gold;
-import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.controller.IMapController;
-import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.object.IObjectController;
-import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
-import toniarts.openkeeper.game.data.Keeper;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A worker only fetches an object while a room has room for that kind of
- * object, and loose gold only while the player can still store it
+ * object, except gold, which it fetches while it can carry more
  */
 class FetchObjectTaskTest {
 
@@ -47,64 +40,40 @@ class FetchObjectTaskTest {
 
     @Test
     void specialIsFetchedWhileTheLibraryHasRoomForIt() {
-        assertTrue(fetch(ObjectType.SPECIAL, false, null).isValid(null));
+        assertTrue(fetch(ObjectType.SPECIAL, List.of(room(false))).isValid(null));
     }
 
     @Test
     void specialIsLeftWhenTheLibraryHasNoRoomForIt() {
 
         // The library's researchers don't fill it up, its own storage for the specials counts
-        assertFalse(fetch(ObjectType.SPECIAL, true, null).isValid(null));
+        assertFalse(fetch(ObjectType.SPECIAL, List.of(room(true))).isValid(null));
     }
 
     @Test
-    void goldIsNotFetchedWhenPlayerGoldIsAtMaximum() {
+    void goldIsFetchedWhenTheTreasuriesAreFull() {
 
-        // A treasury still reports free room, but the player's gold is at its maximum
-        assertFalse(fetch(ObjectType.GOLD, false, player(1000, 1000)).isValid(null));
+        // DK II's gold pile job (0x46B6D0) refuses only a full worker, it doesn't look at the treasuries
+        assertTrue(fetch(ObjectType.GOLD, List.of(room(true))).isValid(null));
+        assertTrue(fetch(ObjectType.GOLD, List.of()).isValid(null));
     }
 
     @Test
-    void goldIsFetchedWhenThereIsRoomForIt() {
-        assertTrue(fetch(ObjectType.GOLD, false, player(500, 1000)).isValid(null));
-    }
-
-    @Test
-    void goldIsNotFetchedWhenRoomsAreFull() {
-        assertFalse(fetch(ObjectType.GOLD, true, player(500, 1000)).isValid(null));
-    }
-
-    private static IPlayerController player(int gold, int goldMax) {
-        EntityData entityData = new DefaultEntityData();
-        EntityId keeperEntity = entityData.createEntity();
-        entityData.setComponents(keeperEntity, new KeeperComponent(PLAYER_ID), new Gold(gold, goldMax));
-        PlayerGoldControl goldControl = new PlayerGoldControl(new Keeper(false, PLAYER_ID), entityData);
-        return proxy(IPlayerController.class, method -> switch (method) {
-            case "getGoldControl" ->
-                goldControl;
+    void goldIsLeftByAWorkerThatCarriesAllItCan() {
+        ICreatureController fullWorker = proxy(ICreatureController.class, method -> switch (method) {
+            case "isTooMuchGold" ->
+                true;
             default ->
                 throw new UnsupportedOperationException(method);
         });
+
+        assertFalse(fetch(ObjectType.GOLD, List.of(room(false))).isValid(fullWorker));
     }
 
-    private static FetchObjectTask fetch(ObjectType type, boolean storageFull, IPlayerController player) {
-        IRoomObjectControl<?> storage = proxy(IRoomObjectControl.class, method -> switch (method) {
-            case "isFullCapacity" ->
-                storageFull;
-            default ->
-                throw new UnsupportedOperationException(method);
-        });
-        IRoomController room = proxy(IRoomController.class, method -> switch (method) {
-            case "isFullCapacity" ->
-                false;
-            case "getObjectControl" ->
-                storage;
-            default ->
-                throw new UnsupportedOperationException(method);
-        });
+    private static FetchObjectTask fetch(ObjectType type, List<IRoomController> rooms) {
         IMapController mapController = proxy(IMapController.class, method -> switch (method) {
             case "getRoomsByFunction" ->
-                List.of(room);
+                rooms;
             default ->
                 throw new UnsupportedOperationException(method);
         });
@@ -121,7 +90,24 @@ class FetchObjectTaskTest {
                 throw new UnsupportedOperationException(method);
         });
 
-        return new FetchObjectTask(null, null, mapController, object, PLAYER_ID, player);
+        return new FetchObjectTask(null, null, mapController, object, PLAYER_ID);
+    }
+
+    private static IRoomController room(boolean storageFull) {
+        IRoomObjectControl<?> storage = proxy(IRoomObjectControl.class, method -> switch (method) {
+            case "isFullCapacity" ->
+                storageFull;
+            default ->
+                throw new UnsupportedOperationException(method);
+        });
+        return proxy(IRoomController.class, method -> switch (method) {
+            case "isFullCapacity" ->
+                false;
+            case "getObjectControl" ->
+                storage;
+            default ->
+                throw new UnsupportedOperationException(method);
+        });
     }
 
     @SuppressWarnings("unchecked")
