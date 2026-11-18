@@ -35,12 +35,14 @@ import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.component.Casino;
 import toniarts.openkeeper.game.controller.room.CasinoController;
+import toniarts.openkeeper.game.controller.room.GuardRoomController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.TrainingRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.creature.Gamble;
+import toniarts.openkeeper.game.task.creature.Guard;
 import toniarts.openkeeper.game.task.creature.Train;
 import toniarts.openkeeper.tools.convert.map.CasinoVariableFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -56,7 +58,8 @@ import static toniarts.openkeeper.tools.convert.map.RoomFixtures.roomWithObjects
 
 /**
  * The capacity used of the Casino, the Training Room and the like is the number
- * of creatures that have a job in them, so the room tooltip counts them
+ * of creatures doing a job in them, counted once they are in the room, a Guard
+ * Room's from when they are sent (DK II 0x4E53B0, 0x4E5A70)
  */
 class JobRoomOccupancyTest {
 
@@ -66,105 +69,118 @@ class JobRoomOccupancyTest {
     private final Map<MiscType, MiscVariable> gameSettings = new EnumMap<>(MiscType.class);
 
     @Test
-    void casinoCountsTheGamblersThatHaveATask() {
+    void casinoCountsAGamblerOnceItGambles() {
         CasinoController casino = casino();
-        ICreatureController first = creature();
-        ICreatureController second = creature();
+        ICreatureController gambler = creature();
+        Gamble gamble = gamble(casino);
+
+        // Nothing is kept for it on the way
+        gamble.assign(gambler, true);
         assertEquals(0, casino.getUsedCapacity(ObjectType.GAMBLER));
 
-        Gamble firstTask = gamble(casino);
-        firstTask.assign(first, true);
-        gamble(casino).assign(second, true);
-        assertEquals(2, casino.getUsedCapacity(ObjectType.GAMBLER));
-        assertEquals(2, casino.getMaxCapacity(ObjectType.GAMBLER));
+        gamble.executeTask(gambler, 0);
+        gamble.executeTask(gambler, 0);
+        assertEquals(1, casino.getUsedCapacity(ObjectType.GAMBLER));
 
         // The creature leaves, once is enough
-        firstTask.unassign(first);
-        firstTask.unassign(first);
-        assertEquals(1, casino.getUsedCapacity(ObjectType.GAMBLER));
+        gamble.unassign(gambler);
+        gamble.unassign(gambler);
+        assertEquals(0, casino.getUsedCapacity(ObjectType.GAMBLER));
     }
 
     @Test
-    void gamblerInAFullCasinoKeepsItsTaskButANewcomerHasNone() {
+    void gamblerInAFullCasinoKeepsItsTaskButOneOnItsWayIsTurnedAway() {
         CasinoController casino = casino();
-        ICreatureController first = creature();
-        Gamble firstTask = gamble(casino);
-        firstTask.assign(first, true);
-        gamble(casino).assign(creature(), true);
+        ICreatureController onItsWay = creature();
+        Gamble late = gamble(casino);
+        late.assign(onItsWay, true);
+        ICreatureController gambler = creature();
+        Gamble gamble = gamble(casino);
+        gamble.assign(gambler, true);
+        for (int i = 1; i < casino.getMaxCapacity(ObjectType.GAMBLER); i++) {
+            gamble(casino).executeTask(creature(), 0);
+        }
+        gamble.executeTask(gambler, 0);
+        assertEquals(casino.getMaxCapacity(ObjectType.GAMBLER), casino.getUsedCapacity(ObjectType.GAMBLER));
 
-        assertTrue(firstTask.isValid(first));
-        assertFalse(gamble(casino).isValid(creature()));
+        assertTrue(gamble.isValid(gambler));
+        assertFalse(late.isValid(onItsWay));
     }
 
     @Test
-    void trainingRoomCountsTheTraineesThatHaveATask() {
-        TrainingRoomController room = new TrainingRoomController(entityData.createEntity(), entityData, null,
-                roomInstance(7, 14), objectsController(), null);
-        room.construct();
-        gameSettings.put(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, CasinoVariableFixtures.miscVariable(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, 10));
-        gameSettings.put(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, CasinoVariableFixtures.miscVariable(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, -1));
+    void trainingRoomCountsATraineeOnceItIsInTheRoom() {
+        TrainingRoomController room = trainingRoom();
         ICreatureController trainee = creature();
+        Train train = train(room);
 
-        Train train = new Train(null, null, new Point(1, 1), KEEPER, room, taskManager(room), null, gameSettings, null, null, null);
+        // Nothing is kept for it on the way
         train.assign(trainee, true);
+        assertEquals(0, room.getUsedCapacity(ObjectType.TRAINEE));
+
+        train.executeTask(trainee, 0);
+        train.executeTask(trainee, 0);
         assertEquals(1, room.getUsedCapacity(ObjectType.TRAINEE));
 
+        train.unassign(trainee);
         train.unassign(trainee);
         assertEquals(0, room.getUsedCapacity(ObjectType.TRAINEE));
     }
 
     @Test
-    void creaturesWithTasksAreNotCountedTwiceWhenHandingOutTasks() {
-        List<EntityId> occupants = new ArrayList<>();
-        Point point = new Point(1, 1);
-        RoomInstance roomInstance = new RoomInstance(RoomFixtures.room((short) 15, 0));
-        roomInstance.addCoordinate(point);
-        IRoomObjectControl control = proxy(IRoomObjectControl.class, (proxy, method, args) -> switch (method.getName()) {
-            case "getAvailableCoordinates" ->
-                List.of(point);
-            case "getMaxCapacity" ->
-                2;
-            case "getCurrentCapacity" ->
-                occupants.size();
-            case "isFullCapacity" ->
-                occupants.size() >= 2;
-            case "contains" ->
-                occupants.contains(args[0]);
-            case "addItem" -> {
-                occupants.add((EntityId) args[0]);
-                yield args[0];
-            }
-            case "removeItem" -> {
-                occupants.remove(args[0]);
-                yield null;
-            }
-            default ->
-                null;
-        });
-        IRoomController room = proxy(IRoomController.class, (proxy, method, args) -> switch (method.getName()) {
-            case "getRoomInstance" ->
-                roomInstance;
-            case "getObjectControl" ->
-                control;
-            case "isTileAccessible" ->
-                true;
-            case "isDestroyed", "isRemoved" ->
-                false;
-            case "hashCode" ->
-                System.identityHashCode(proxy);
-            case "equals" ->
-                proxy == args[0];
-            default ->
-                null;
-        });
-        setCasinoSettings();
-        TaskManager taskManager = taskManager(room);
+    void guardRoomCountsAGuardFromTheMomentItIsSent() {
+        GuardRoomController guardRoom = guardRoom();
+        ICreatureController guard = creature();
+        Guard task = guard(guardRoom);
 
-        // The one point is shared by the two gamblers the room takes, not by the one only
-        assertTrue(taskManager.assignClosestRoomTask(creature(), ObjectType.GAMBLER, null));
-        assertTrue(taskManager.assignClosestRoomTask(creature(), ObjectType.GAMBLER, null));
-        assertFalse(taskManager.assignClosestRoomTask(creature(), ObjectType.GAMBLER, null));
-        assertEquals(2, occupants.size());
+        // Unlike the other rooms, a guard on its way counts
+        task.assign(guard, true);
+        assertEquals(1, guardRoom.getUsedCapacity(ObjectType.GUARD));
+
+        // Once it is there, it is not counted again
+        task.executeTask(guard, 0);
+        task.executeTask(guard, 1);
+        assertEquals(1, guardRoom.getUsedCapacity(ObjectType.GUARD));
+
+        task.unassign(guard);
+        task.unassign(guard);
+        assertEquals(0, guardRoom.getUsedCapacity(ObjectType.GUARD));
+    }
+
+    @Test
+    void guardsOnTheirWayFillTheGuardRoom() {
+        GuardRoomController guardRoom = guardRoom();
+        ICreatureController guard = creature();
+        Guard task = guard(guardRoom);
+        task.assign(guard, true);
+        for (int i = 1; i < guardRoom.getMaxCapacity(ObjectType.GUARD); i++) {
+            guard(guardRoom).assign(creature(), true);
+        }
+
+        assertTrue(task.isValid(guard));
+        assertFalse(guard(guardRoom).isValid(creature()));
+    }
+
+    private TrainingRoomController trainingRoom() {
+        TrainingRoomController room = new TrainingRoomController(entityData.createEntity(), entityData, null,
+                roomInstance(7, 14), objectsController(), null);
+        room.construct();
+        gameSettings.put(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, CasinoVariableFixtures.miscVariable(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, 10));
+        gameSettings.put(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, CasinoVariableFixtures.miscVariable(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, -1));
+        return room;
+    }
+
+    private Train train(TrainingRoomController room) {
+        return new Train(null, null, new Point(1, 1), KEEPER, room, taskManager(room), null, gameSettings, null, null, null);
+    }
+
+    private GuardRoomController guardRoom() {
+        GuardRoomController guardRoom = new GuardRoomController(entityData.createEntity(), entityData, null, roomInstance(16, 0), objectsController(), null);
+        guardRoom.construct();
+        return guardRoom;
+    }
+
+    private Guard guard(GuardRoomController guardRoom) {
+        return new Guard(null, null, new Point(1, 1), KEEPER, guardRoom, taskManager(guardRoom), 4, 0, null);
     }
 
     private CasinoController casino() {
