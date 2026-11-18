@@ -23,6 +23,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
@@ -59,7 +60,8 @@ class LibraryControllerTest {
                         return null;
                     }
                     EntityId object = entityData.createEntity();
-                    entityData.setComponent(object, new Position(0, new Vector3f(1, 0, 1)));
+                    entityData.setComponents(object, new Position(0, new Vector3f(1, 0, 1)),
+                            new ObjectViewState((Short) args[0], null, null, false));
                     return object;
                 });
 
