@@ -45,6 +45,7 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
     private int enemyCreaturesKilled;
     private int heroesDestroyed;
     private int roomsCaptured;
+    private int roomsCapturedValue;
     private int specialsFound;
     private int ownCreaturesKilled;
     private int mana;
@@ -127,6 +128,26 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
 
     public void setRoomsCaptured(int roomsCaptured) {
         this.roomsCaptured = roomsCaptured;
+    }
+
+    /**
+     * Get the worth of the rooms the keeper has captured, a hundredth of
+     * their size times their cost per tile, bridges included (DKII.EXE
+     * 0x4E5650, CPlayer +0x152)
+     *
+     * @return the worth of the captured rooms
+     */
+    public int getRoomsCapturedValue() {
+        return roomsCapturedValue;
+    }
+
+    /**
+     * Set the worth of the rooms the keeper has captured
+     *
+     * @param roomsCapturedValue the worth of the captured rooms
+     */
+    public void setRoomsCapturedValue(int roomsCapturedValue) {
+        this.roomsCapturedValue = roomsCapturedValue;
     }
 
     public int getSpecialsFound() {
@@ -398,6 +419,7 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
         out.write(enemyCreaturesKilled, "enemyCreaturesKilled", 0);
         out.write(heroesDestroyed, "heroesDestroyed", 0);
         out.write(roomsCaptured, "roomsCaptured", 0);
+        out.write(roomsCapturedValue, "roomsCapturedValue", 0);
         out.write(specialsFound, "specialsFound", 0);
         out.write(ownCreaturesKilled, "ownCreaturesKilled", 0);
         out.write(mana, "mana", 0);
@@ -427,6 +449,7 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
         enemyCreaturesKilled = in.readInt("enemyCreaturesKilled", enemyCreaturesKilled);
         heroesDestroyed = in.readInt("heroesDestroyed", heroesDestroyed);
         roomsCaptured = in.readInt("roomsCaptured", roomsCaptured);
+        roomsCapturedValue = in.readInt("roomsCapturedValue", roomsCapturedValue);
         specialsFound = in.readInt("specialsFound", specialsFound);
         ownCreaturesKilled = in.readInt("ownCreaturesKilled", ownCreaturesKilled);
         mana = in.readInt("mana", mana);
