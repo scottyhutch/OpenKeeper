@@ -45,7 +45,7 @@ class BreachMessagesTest {
     private final PlayerService playerService = (PlayerService) Proxy.newProxyInstance(PlayerService.class.getClassLoader(),
             new Class<?>[]{PlayerService.class}, (proxy, method, args) -> {
                 if (method.getName().equals("showMentorMessage")) {
-                    messages.add(args[0] + "@" + args[1] + ">p" + args[2]);
+                    messages.add(args[0] + "@" + args[1] + ">p" + args[3]);
                 }
                 return null;
             });
