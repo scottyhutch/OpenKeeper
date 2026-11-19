@@ -132,6 +132,7 @@ import toniarts.openkeeper.game.component.Regeneration;
 import toniarts.openkeeper.game.component.ReturnToHeroLair;
 import toniarts.openkeeper.game.component.RoomComponent;
 import toniarts.openkeeper.game.component.RoomEffect;
+import toniarts.openkeeper.game.component.RoomMessageShown;
 import toniarts.openkeeper.game.component.SeenCreatureType;
 import toniarts.openkeeper.game.component.Senses;
 import toniarts.openkeeper.game.component.SeparationPush;
@@ -344,6 +345,7 @@ public final class NetworkServer {
             Serializer.registerClass(ReturnToHeroLair.class, new FieldSerializer());
             Serializer.registerClass(RoomComponent.class, new FieldSerializer());
             Serializer.registerClass(RoomEffect.class, new FieldSerializer());
+            Serializer.registerClass(RoomMessageShown.class, new FieldSerializer());
             Serializer.registerClass(SeenCreatureType.class, new FieldSerializer());
             Serializer.registerClass(SeparationPush.class, new FieldSerializer());
             Serializer.registerClass(SpeedUp.class, new FieldSerializer());

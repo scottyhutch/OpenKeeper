@@ -183,7 +183,7 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
                 gameWorldController.getCreaturesController(), gameWorldController.getDoorsController(),
                 gameWorldController.getObjectsController());
         gameWorldController.setEntityPositionLookup(positionSystem);
-        gameWorldController.setRoomAttackMessages(new RoomAttackMessages(playerService, gameTimer));
+        gameWorldController.setRoomAttackMessages(new RoomAttackMessages(entityData, playerService, gameTimer));
         gameWorldController.getMapController().setBreachMessages(new BreachMessages(playerService, gameTimer));
 
         // Navigation
