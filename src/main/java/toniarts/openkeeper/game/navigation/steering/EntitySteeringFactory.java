@@ -45,11 +45,11 @@ public final class EntitySteeringFactory {
      * @param crowd the sum of the radii of the creatures round a waypoint
      * @param inObstacle whether a point is inside an obstacle
      * @param worker whether the entity walks like a worker
-     * @param ticksPerSecond the game ticks a second
+     * @param chase whether the entity chases an attack target
      * @return the steering, null if there is nothing to do
      */
     public static EntitySteeringBehavior navigateToPoint(List<Vector2> path, final Point faceTarget, final ISteerableEntity steerable, final Point p,
-            ToDoubleFunction<Vector2> crowd, Predicate<Vector2> inObstacle, boolean worker, boolean chase, int ticksPerSecond) {
+            ToDoubleFunction<Vector2> crowd, Predicate<Vector2> inObstacle, boolean worker, boolean chase) {
         if (path.size() > 1 || faceTarget != null) {
 
             EntitySteeringBehavior prioritySteering = new EntitySteeringBehavior(steerable);
@@ -80,7 +80,7 @@ public final class EntitySteeringFactory {
 //                prioritySteering.add(ca);
 
                 // Navigate
-                prioritySteering.add(new FollowWaypoints(steerable, path, crowd, inObstacle, worker, chase, ticksPerSecond));
+                prioritySteering.add(new FollowWaypoints(steerable, path, crowd, inObstacle, worker, chase));
             }
 
             if (faceTarget != null) {

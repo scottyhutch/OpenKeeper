@@ -119,6 +119,7 @@ import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
+import toniarts.openkeeper.game.navigation.steering.CreatureSizing;
 import toniarts.openkeeper.game.navigation.steering.SteeringUtils;
 import toniarts.openkeeper.game.task.ITaskManager;
 import toniarts.openkeeper.game.task.Task;
@@ -1136,7 +1137,7 @@ public final class CreatureController extends EntityController implements ICreat
             navigationPath.addFirst(new Vector2(position.x, position.z));
         }
         if (navigationPath.size() > 1) {
-            navigationPath = navigationService.smoothPath(navigationPath, creature.getAttributes().getWidth() / 2, this);
+            navigationPath = navigationService.smoothPath(navigationPath, CreatureSizing.getBodyRadius(creature), this);
         }
         entityData.setComponent(entityId, new Navigation(destination, faceTarget, navigationPath, pursuingAttackTarget, endInObstacle));
         return false;
@@ -1929,10 +1930,10 @@ public final class CreatureController extends EntityController implements ICreat
         }
 
         // The original turns a creature by its turn speed every turn and starts an attack only once it faces the target
-        // (0x45F030, 0x4B2AE0). The turn speed is in 2048ths of a full circle per second
+        // (0x45F030, 0x4B2AE0). The turn speed is in radians per second
         float turn = (float) Math.IEEEremainder(-position.rotation - SteeringUtils.calculateVectorToAngle(
                 new Vector2(targetPosition.x - position.position.x, targetPosition.z - position.position.z)), FastMath.TWO_PI);
-        float maxTurn = creature.getTurnSpeed() * 2 * FastMath.TWO_PI / levelInfo.getLevelData().getGameLevel().getTicksPerSec();
+        float maxTurn = creature.getTurnSpeed() / levelInfo.getLevelData().getGameLevel().getTicksPerSec();
         if (turn != 0) {
             entityData.setComponent(entityId, new Position(position.rotation + FastMath.clamp(turn, -maxTurn, maxTurn),
                     position.position.clone()));

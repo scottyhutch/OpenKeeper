@@ -1194,8 +1194,16 @@ public final class Creature implements Comparable<Creature>, ISoundable, IIndexa
         this.unk3cb = unk3cb;
     }
 
+    /**
+     * Maximum regular-AI yaw change in radians per second. The field holds
+     * signed 4.12 storage; DKII interprets its bits as unsigned angle units
+     * (2048 per full turn) a second and divides by the update rate when loading.
+     *
+     * @return the turn speed in radians per second
+     */
     public float getTurnSpeed() {
-        return turnSpeed;
+        int angleUnits = Short.toUnsignedInt((short) Math.round(turnSpeed * 4096f));
+        return angleUnits * ((float) Math.PI / 1024f);
     }
 
     protected void setTurnSpeed(float turnSpeed) {

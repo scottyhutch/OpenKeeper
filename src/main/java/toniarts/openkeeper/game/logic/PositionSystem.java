@@ -85,9 +85,7 @@ public final class PositionSystem implements IGameLogicUpdatable, IEntityPositio
         for (int y = 0; y < height; y++) {
             for (int x = 0; x < width; x++) {
                 entities[x][y] = new HashSet<>();
-
-                // PossessedMovementSystem reads the doors from the steering loop
-                obstacles[x][y] = ConcurrentHashMap.newKeySet();
+                obstacles[x][y] = new HashSet<>();
             }
         }
         entitiesByMapTile = entities;

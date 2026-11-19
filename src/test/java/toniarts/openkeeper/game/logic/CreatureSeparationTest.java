@@ -44,7 +44,6 @@ import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
-import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.RoomFixtures;
 import toniarts.openkeeper.tools.convert.map.ShotFixtures;
@@ -59,7 +58,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * Creatures walking to the same spot are kept apart like DK II's separation
- * steering does (0x4D2DF0, 0x4D2B80), but never pushed into walls.
+ * steering does (0x4D2DF0, 0x4D2B80), but never pushed into walls. A
+ * creature swinging at its target is pushed too.
  */
 class CreatureSeparationTest {
 
@@ -76,7 +76,7 @@ class CreatureSeparationTest {
             KNIGHT, ShotFixtures.creature(KNIGHT, KNIGHT_WIDTH, 4),
             GIANT, ShotFixtures.creature(GIANT, 0.9f, 5),
             IMP, ShotFixtures.creature(IMP, 0.9f, 1),
-            WORKER, CreatureSleepFixtures.worker(),
+            WORKER, ShotFixtures.creature(WORKER, EnumSet.of(Creature.CreatureFlag.IS_WORKER), EnumSet.noneOf(Creature.CreatureFlag3.class)),
             REAPER, ShotFixtures.creature(REAPER, EnumSet.of(Creature.CreatureFlag.IS_HORNY), EnumSet.noneOf(Creature.CreatureFlag3.class)));
     private final Set<Point> solidTiles = Set.of(new Point(2, 1), new Point(3, 1), new Point(4, 1), new Point(5, 1), new Point(6, 1),
             new Point(2, 3), new Point(3, 3), new Point(4, 3), new Point(5, 3), new Point(6, 3));
@@ -89,7 +89,7 @@ class CreatureSeparationTest {
         EntityId first = creature(KNIGHT, new Point(5, 6), new Point(5, 5), new Point(5, 4));
         EntityId second = creature(KNIGHT, new Point(7, 4), new Point(6, 4), new Point(5, 4));
 
-        run(600, frame -> {});
+        run(40, tick -> {});
 
         assertNull(entityData.getComponent(first, Navigation.class));
         assertNull(entityData.getComponent(second, Navigation.class));
@@ -105,7 +105,7 @@ class CreatureSeparationTest {
         EntityId walker = creature(IMP, new Point(2, 2), new Point(3, 2), new Point(4, 2), new Point(5, 2), new Point(6, 2));
 
         // The wall starts at 1.5, the imp is 0.9 wide
-        run(600, frame -> assertTrue(position(walker).y - 0.45f > 1.45f, "Pushed into the wall at frame " + frame));
+        run(40, tick -> assertTrue(position(walker).y - 0.45f > 1.45f, "Pushed into the wall at tick " + tick));
     }
 
     @Test
@@ -131,30 +131,22 @@ class CreatureSeparationTest {
     }
 
     @Test
-    void aCreatureSwingingAtItsTargetDoesNotPushHarder() {
-        EntityId standing = standing(KNIGHT, 5 + KNIGHT_WIDTH / 4, 5, CreatureState.IDLE);
-        EntityId walker = creature(KNIGHT, new Point(5, 5), new Point(5, 4));
-        SeparationSystem separationSystem = new SeparationSystem(entityData, kwdFile(), map(), positionLookup());
+    void aCreatureSwingingAtItsTargetIsPushedToo() {
+        standing(KNIGHT, 5, 5, CreatureState.IDLE);
+        float x = 5 + KNIGHT_WIDTH / 4;
+        EntityId fighter = standing(KNIGHT, x, 5, CreatureState.FIGHT);
+        entityData.setComponent(fighter, new Mobile(false, false, false, KNIGHT_SPEED));
 
-        separationSystem.processTick(1 / 4f);
-        float push = entityData.getComponent(walker, SeparationPush.class).push.length();
-        entityData.setComponent(standing, new CreatureAi(0, CreatureState.MELEE_ATTACK, KNIGHT));
-        separationSystem.processTick(1 / 4f);
+        // Between its blows it holds its ground
+        run(1, tick -> {});
+        assertEquals(x, position(fighter).x, 0.0001f);
 
-        // DK II's fight state sets the blocker flag only while no action runs (0x45F030, 0x496D00)
-        assertEquals(push, entityData.getComponent(walker, SeparationPush.class).push.length(), 0.001f);
-    }
-
-    @Test
-    void aCreatureSwingingAtItsTargetIsPushedWhereItStands() {
-        EntityId swinging = standing(KNIGHT, 5 + KNIGHT_WIDTH / 4, 5, CreatureState.MELEE_ATTACK);
-        entityData.setComponent(swinging, new Mobile(false, false, false, KNIGHT_SPEED));
-        creature(KNIGHT, new Point(5, 5), new Point(5, 4));
-
-        run(15, frame -> {});
-
-        assertTrue(position(swinging).x > 5 + KNIGHT_WIDTH / 4 + 0.01f, "Not pushed: " + position(swinging));
-        assertEquals(5, position(swinging).y, 0.01f);
+        // While the blow runs its pilot moves it by the push, no faster than it walks
+        entityData.setComponent(fighter, new CreatureAi(0, CreatureState.MELEE_ATTACK, KNIGHT));
+        run(1, tick -> {});
+        float moved = position(fighter).x - x;
+        assertTrue(moved > 0 && moved <= KNIGHT_SPEED / 4 + 0.0001f, "Moved " + moved);
+        assertEquals(5, position(fighter).y, 0.0001f);
     }
 
     @Test
@@ -163,7 +155,7 @@ class CreatureSeparationTest {
         EntityId fighter = standing(KNIGHT, 5.3f, 5.4f, CreatureState.FIGHT);
         entityData.setComponent(fighter, new Mobile(false, false, false, KNIGHT_SPEED));
 
-        run(15, frame -> assertTrue(position(fighter).dst(5, 7) > 1.49f, "Inside the heart at frame " + frame));
+        run(1, tick -> assertTrue(position(fighter).dst(5, 7) > 1.49f, "Inside the heart at tick " + tick));
 
         // Against the solid Dungeon Heart Obstacle (0x4D12B0) DK II's pilot adds a full force along its edge (0x4D4760)
         assertTrue(position(fighter).x > 5.3f + 0.05f, "Not sliding: " + position(fighter));
@@ -175,7 +167,7 @@ class CreatureSeparationTest {
         EntityId walker = creature(KNIGHT, new Point(1, 7), new Point(9, 7));
 
         // A tick's walk can take it a little way in before the pilot finds the obstacle (0x4D31D0)
-        run(60 * 60, frame -> assertTrue(position(walker).dst(5, 7) > 1.5f, "Inside the heart at frame " + frame));
+        run(4 * 60, tick -> assertTrue(position(walker).dst(5, 7) > 1.5f, "Inside the heart at tick " + tick));
 
         assertNull(entityData.getComponent(walker, Navigation.class), "Still walking");
         assertEquals(0, position(walker).dst(9, 7), 0.1f);
@@ -187,7 +179,7 @@ class CreatureSeparationTest {
         EntityId walker = creature(KNIGHT, new Point(5, 4), new Point(5, 6), new Point(8, 4));
 
         // DK II passes a waypoint inside an obstacle within 0.8 tiles (0x4D3C40, 0x4D2850)
-        run(60 * 60, frame -> assertTrue(position(walker).dst(5, 7) > 1.5f, "Inside the heart at frame " + frame));
+        run(4 * 60, tick -> assertTrue(position(walker).dst(5, 7) > 1.5f, "Inside the heart at tick " + tick));
 
         assertNull(entityData.getComponent(walker, Navigation.class), "Still walking");
         assertEquals(0, position(walker).dst(8, 4), 0.1f);
@@ -199,7 +191,7 @@ class CreatureSeparationTest {
         EntityId walker = creature(KNIGHT, new Point(5, 4), new Point(5, 6));
 
         // No headway in 5 of 15 ticks and the obstacles let it through (0x4D3C40)
-        run(60 * 60, frame -> {});
+        run(4 * 60, tick -> {});
 
         assertNull(entityData.getComponent(walker, Navigation.class), "Still walking");
         assertEquals(0, position(walker).dst(5, 6), 0.1f);
@@ -213,7 +205,7 @@ class CreatureSeparationTest {
         entityData.setComponent(walker, new Navigation(navigation.target, null, navigation.navigationPath, false, true));
 
         // A walk asked with 0x20 / 0x40 isn't held off obstacles near its end and lands on it (0x4D31D0, 0x4D4760)
-        run(60 * 7, frame -> {});
+        run(4 * 7, tick -> {});
 
         assertNull(entityData.getComponent(walker, Navigation.class), "Still walking");
         assertEquals(0, position(walker).dst(6, 6), 0.001f);
@@ -272,18 +264,16 @@ class CreatureSeparationTest {
     }
 
     /**
-     * Runs the separation on 4 game ticks a second and the movement on 60
-     * frames, like the game loops do
+     * Runs the separation and the movement on 4 game ticks a second, like the
+     * logic loop does
      */
-    private void run(int frames, IntConsumer afterFrame) {
+    private void run(int ticks, IntConsumer afterTick) {
         SeparationSystem separationSystem = new SeparationSystem(entityData, kwdFile(), map(), positionLookup());
-        MovementSystem movementSystem = new MovementSystem(entityData, kwdFile(), map());
-        for (int frame = 0; frame < frames; frame++) {
-            if (frame % 15 == 0) {
-                separationSystem.processTick(1 / 4f);
-            }
-            movementSystem.processTick(1 / 60f);
-            afterFrame.accept(frame);
+        MovementSystem movementSystem = new MovementSystem(entityData, map(), kwdFile());
+        for (int tick = 0; tick < ticks; tick++) {
+            separationSystem.processTick(1 / 4f);
+            movementSystem.processTick(1 / 4f);
+            afterTick.accept(tick);
         }
     }
 
@@ -296,7 +286,6 @@ class CreatureSeparationTest {
         return (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (proxy, method, args) -> switch (method.getName()) {
             case "getCreature" -> creatures.get((Short) args[0]);
-            case "getGameLevel" -> CreatureSleepFixtures.level(4);
             default -> throw new UnsupportedOperationException(method.getName());
         });
     }

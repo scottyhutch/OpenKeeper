@@ -207,6 +207,12 @@ public final class GameLoopManager {
                 new CreatureViewSystem(entityData, levelInfo.getLevelData()),
                 new DoorSystem(entityData, level, gameWorldController.getMapController(), levelInfo),
                 new DoorViewSystem(entityData, positionSystem, levelInfo),
+                // Authoritative movement/contact belongs to the logic tick.
+                // The former steering thread required cross-thread entity access.
+                new MovementSystem(entityData, gameWorldController.getMapController(), level,
+                        positionSystem, gameWorldController.getCreaturesController()),
+                new PossessedMovementSystem(entityData, gameWorldController.getMapController(),
+                        positionSystem, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
                 new BattleSystem(entityData, gameController.getGameTimer()),
                 new SpinSystem(entityData, gameController.getGameTimer()),
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),
@@ -234,11 +240,6 @@ public final class GameLoopManager {
                         levelInfo.getLevelData().getGameLevel().getTicksPerSec(),
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.GRAVITY_CONSTANT)));
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));
-
-        // Steering
-        loops.add(new GameLoop(new GameLogicManager(new MovementSystem(entityData, level, gameWorldController.getMapController()),
-                new PossessedMovementSystem(entityData, gameWorldController.getMapController(),
-                        positionSystem, gameWorldController.getCreaturesController(), gameController.getGameTimer())), GameLoop.INTERVAL_FPS_60, "Steering"));
 
         // A loaded game goes on from the time it was saved at, the times in its components are from that clock
         if (saveGame != null) {
