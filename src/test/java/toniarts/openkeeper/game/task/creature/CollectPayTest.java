@@ -88,6 +88,17 @@ class CollectPayTest {
     }
 
     @Test
+    void creatureThatTookItsPayWishesToGambleButOneThatGotNothingDoesNot() {
+        goldInRoom = 0;
+        task().executeTask(creature(), 0);
+        assertNull(entityData.getComponent(goblin, GamblingAfterPay.class));
+
+        goldInRoom = 1000;
+        task().executeTask(creature(), 0);
+        assertNotNull(entityData.getComponent(goblin, GamblingAfterPay.class));
+    }
+
+    @Test
     void comingAwayWithNothingCountsAsAFailedTry() {
         goldInRoom = 0;
 
