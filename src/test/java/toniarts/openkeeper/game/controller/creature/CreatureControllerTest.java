@@ -661,9 +661,15 @@ class CreatureControllerTest {
             f.keeper.setDungeonHeartLocation(new Point(3, 4));
             f.data.setComponent(f.bed, new Position(0, new Vector3f(8, WorldUtils.FLOOR_HEIGHT, 4)));
 
-            f.controller.flee();
+            assertTrue(f.controller.flee());
 
             assertEquals(new Point(8, 4), f.data.getComponent(f.entity, Navigation.class).target);
+
+            // Its lair out of reach, it doesn't withdraw at all, the heart isn't tried (0x4611D0)
+            f.data.removeComponent(f.entity, Navigation.class);
+            f.walkable = tile -> !tile.equals(new Point(8, 4));
+            assertFalse(f.controller.flee());
+            assertNull(f.data.getComponent(f.entity, Navigation.class));
         }
     }
 
