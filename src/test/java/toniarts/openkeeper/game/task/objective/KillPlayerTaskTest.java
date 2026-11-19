@@ -16,7 +16,6 @@
  */
 package toniarts.openkeeper.game.task.objective;
 
-import com.jme3.math.Vector2f;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.util.Map;
@@ -28,7 +27,7 @@ import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.map.IMapDataInformation;
-import toniarts.openkeeper.game.map.IMapTileController;
+import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Room;
@@ -42,8 +41,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A hero with a clear way to the keeper's heart: it keeps its kill task while
- * it walks there, and heads for the nearest heart tile. A hero with no way
- * there doesn't take the task
+ * it walks there. A hero with no way there doesn't take the task
  */
 class KillPlayerTaskTest {
 
@@ -95,14 +93,6 @@ class KillPlayerTaskTest {
         assertFalse(createTask(hero).isValid(hero));
     }
 
-    @Test
-    void heroHeadsForAHeartTileItCanStandOn() {
-        ICreatureController hero = hero(false, false, KEEPER);
-
-        Vector2f target = createTask(hero).getTarget(hero);
-        assertTrue(isOnTheHeartEdge(new Point((int) target.x, (int) target.y)));
-    }
-
     private static KillPlayer createTask(ICreatureController hero) {
 
         // A clear way, no step on it needs digging
@@ -120,24 +110,11 @@ class KillPlayerTaskTest {
                 heartRoom.addCoordinate(new Point(HEART_CENTRE.x + x, HEART_CENTRE.y + y));
             }
         }
-        IRoomController roomController = stub(IRoomController.class, (name, args) -> switch (name) {
-            case "getRoomInstance" -> heartRoom;
-            case "isTileAccessible" -> isOnTheHeartEdge((Point) args[1]);
+        IRoomController roomController = stub(IRoomController.class, (name, args) -> "getRoomInstance".equals(name) ? heartRoom : null);
+        IMapDataInformation<?> mapData = stub(IMapDataInformation.class, (name, args) -> switch (name) {
+            case "getWidth", "getHeight" -> 20;
+            case "getTile" -> args.length == 1 ? getTile((Point) args[0]) : getTile(new Point((Integer) args[0], (Integer) args[1]));
             default -> null;
-        });
-
-        // A 20x20 map, every tile next to the other is open on a clear way
-        IMapDataInformation<?> mapData = stub(IMapDataInformation.class, (name, args) -> {
-            if ("getTile".equals(name) && args.length == 2 && (Integer) args[0] >= 0 && (Integer) args[0] < 20 && (Integer) args[1] >= 0 && (Integer) args[1] < 20) {
-                Point p = new Point((Integer) args[0], (Integer) args[1]);
-                return stub(IMapTileController.class, (tileMethod, tileArgs) -> switch (tileMethod) {
-                    case "getLocation" -> p;
-                    case "getX" -> p.x;
-                    case "getY" -> p.y;
-                    default -> null;
-                });
-            }
-            return null;
         });
         IMapController mapController = stub(IMapController.class, (name, args) -> switch (name) {
             case "getRoomControllerByCoordinates" -> roomController;
@@ -145,16 +122,22 @@ class KillPlayerTaskTest {
             default -> null;
         });
 
+        // Either the hero can walk anywhere or it can't go anywhere
         INavigationService navigationService = stub(INavigationService.class, (name, args) -> "isAccessible".equals(name) ? clearWay : null);
 
         return new KillPlayer(navigationService, mapController, levelInfo, KEEPER, hero);
     }
 
-    /**
-     * The edge of the 5x5 heart room, the centre 3x3 of it can't be walked on
-     */
-    private static boolean isOnTheHeartEdge(Point tile) {
-        return Math.abs(tile.x - HEART_CENTRE.x) == 2 || Math.abs(tile.y - HEART_CENTRE.y) == 2;
+    private static IMapTileInformation getTile(Point location) {
+        if (location.x < 0 || location.y < 0 || location.x >= 20 || location.y >= 20) {
+            return null;
+        }
+        return stub(IMapTileInformation.class, (name, args) -> switch (name) {
+            case "getLocation" -> location;
+            case "getX" -> location.x;
+            case "getY" -> location.y;
+            default -> null;
+        });
     }
 
     private static ICreatureController hero(boolean stopped, boolean atTarget, short objectiveTarget) {

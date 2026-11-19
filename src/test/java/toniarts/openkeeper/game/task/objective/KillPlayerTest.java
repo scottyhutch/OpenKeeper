@@ -119,6 +119,7 @@ class KillPlayerTest {
     void loneFighterCanNotTunnel() {
         KillPlayer task = createTask(ROCK_ALL_ROUND, false);
 
+        // No way to the heart for him, so no task to take yet
         assertNull(task.getCurrentTask());
     }
 
