@@ -129,7 +129,7 @@ class CreatureTorturingSystemTest {
                         }
                         default -> throw new UnsupportedOperationException(method.getName());
                     });
-    private CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 0, lastChoice);
+    private CreatureTorturingSystem system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 0, 4, lastChoice);
 
     @Test
     void enemyTorturedToDeathRevealsOneOfItsKeepersRooms() {
@@ -151,7 +151,7 @@ class CreatureTorturingSystemTest {
     void victimTellsWhatTheKeeperDoesNotKnowYet() {
 
         // An artisan has two things to tell about its keeper, every victim one more thing
-        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 0, firstChoice);
+        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 0, 4, firstChoice);
         torturedToDeath(HERO_ID);
         torturedToDeath(HERO_ID);
         torturedToDeath(HERO_ID);
@@ -166,7 +166,7 @@ class CreatureTorturingSystemTest {
         torturedToDeath(HERO_ID);
 
         // A loaded game starts with a new system on the same entities
-        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 0, lastChoice);
+        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 0, 4, lastChoice);
         torturedToDeath(HERO_ID);
 
         assertEquals(List.of(heroGate.getCoordinates(), heroLair.getCoordinates()), revealed);
@@ -250,7 +250,7 @@ class CreatureTorturingSystemTest {
 
     @Test
     void victimDiesInsteadOfJoiningByTheLevelsChanceOfDying() {
-        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 100, lastChoice);
+        system = new CreatureTorturingSystem(entityData, creaturesController(), mapController(), players, events, 100, 4, lastChoice);
         EntityId victim = victim(HERO_ID, 2);
         entityData.setComponent(victim, new Health(300, 1000));
 
@@ -270,6 +270,22 @@ class CreatureTorturingSystemTest {
         tick(6);
 
         assertEquals(1, stats.getCreaturesConverted());
+    }
+
+    @Test
+    void enemyIsConvertedAfterItsTortureTimeInStepsOfFiveTicks() {
+
+        // DK II counts the 4 ticks of a second down to 0 before each step, a second of torture is 5 ticks (0x47B590)
+        EntityId victim = victim(HERO_ID, 2);
+        entityData.setComponent(victim, new CreatureTortured(0, 0, 0));
+        for (int tick = 0; tick < 9; tick++) {
+            system.processTick(0.25f);
+        }
+        assertTrue(converted.isEmpty());
+        assertEquals(1, entityData.getComponent(victim, CreatureTortured.class).timeTortured);
+
+        system.processTick(0.25f);
+        assertEquals(KEEPER_ID, converted.get(victim));
     }
 
     @Test
