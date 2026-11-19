@@ -25,6 +25,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.BeforeEach;
@@ -34,6 +35,8 @@ import toniarts.openkeeper.game.component.ChaseBackOff;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureMeleeAttack;
+import toniarts.openkeeper.game.component.CreatureSpell;
+import toniarts.openkeeper.game.component.CreatureSpells;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Navigation;
@@ -54,6 +57,7 @@ import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapData;
 import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.navigation.INavigationService;
+import toniarts.openkeeper.tools.convert.map.CombatCreatureFixtures;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.HeartAttackFixtures;
@@ -74,6 +78,7 @@ class DungeonHeartAttackTest {
 
     private static final short FIGHTER = 1;
     private static final short IMP = 2;
+    private static final short SUPPORT = 3;
     private static final short HERO = Player.GOOD_PLAYER_ID;
     private static final short KEEPER = Player.KEEPER1_ID;
     private static final Point HEART_TILE = new Point(10, 10);
@@ -93,6 +98,7 @@ class DungeonHeartAttackTest {
         creatures = new HashMap<>();
         creatures.put(FIGHTER, HeartAttackFixtures.creature(FIGHTER, Creature.FightStyle.BLOCKER));
         creatures.put(IMP, HeartAttackFixtures.creature(IMP, Creature.FightStyle.NON_FIGHTER));
+        creatures.put(SUPPORT, HeartAttackFixtures.creature(SUPPORT, Creature.FightStyle.SUPPORT));
         settings = Map.of(
                 Variable.MiscVariable.MiscType.GOOD_CREATURES_CHASE_ENEMY_DURATION_SECONDS,
                 CreatureSleepFixtures.variable(Variable.MiscVariable.MiscType.GOOD_CREATURES_CHASE_ENEMY_DURATION_SECONDS, 3),
@@ -208,6 +214,58 @@ class DungeonHeartAttackTest {
 
         controller.getStateMachine().changeState(CreatureState.MELEE_ATTACK);
         assertEquals(heart, controller.getAttackTarget().getEntityId());
+    }
+
+    @Test
+    void creatureCastingAtTheHeartPicksAgainWhileItsSpellRecharges() {
+        EntityId hero = createCreature(HERO, FIGHTER, new Point(10, 14));
+        EntityId heart = createHeart(KEEPER);
+        EntityId defender = createCreature(KEEPER, FIGHTER, new Point(10, 18));
+        sensed.put(hero, Set.of(heart, defender));
+        EntityId spell = entityData.createEntity();
+        entityData.setComponent(hero, new CreatureSpells(List.of(spell)));
+        CreatureController controller = createController(hero);
+        controller.getStateMachine().changeState(CreatureState.FIGHT);
+
+        // With the spell ready it casts, so it keeps the heart
+        entityData.setComponent(spell, new CreatureSpell((short) 1, hero, 5, 5));
+        entityData.setComponent(hero, new AttackTarget(heart, 9.9, new Point(10, 14), Double.NaN));
+        assertEquals(heart, controller.getAttackTarget().getEntityId());
+
+        // While it recharges, the pick runs every turn
+        entityData.setComponent(spell, new CreatureSpell(new CreatureSpell((short) 1, hero, 5, 5), 9.0));
+        entityData.setComponent(hero, new AttackTarget(heart, 9.9, new Point(10, 14), Double.NaN));
+        assertEquals(defender, controller.getAttackTarget().getEntityId());
+    }
+
+    @Test
+    void supportCreaturePicksAgainOnEveryTurnOfTheFightBetweenSwings() {
+        EntityId supporter = createCreature(HERO, SUPPORT, new Point(10, 8));
+        EntityId blocker = createCreature(HERO, FIGHTER, new Point(10, 8));
+        EntityId heart = createHeart(KEEPER);
+        EntityId defender = createCreature(KEEPER, FIGHTER, new Point(10, 4));
+        sensed.put(supporter, Set.of(heart, defender));
+        sensed.put(blocker, Set.of(heart, defender));
+        CreatureController supporterController = createController(supporter);
+        CreatureController blockerController = createController(blocker);
+
+        // In the middle of a swing at the pillar both keep the heart
+        supporterController.getStateMachine().changeState(CreatureState.MELEE_ATTACK);
+        entityData.setComponent(supporter, new AttackTarget(heart));
+        assertEquals(heart, supporterController.getAttackTarget().getEntityId());
+
+        // Between swings the blocker waits for its next one, the supporter picks again and the fighter comes first
+        blockerController.getStateMachine().changeState(CreatureState.FIGHT);
+        entityData.setComponent(blocker, new AttackTarget(heart));
+        assertEquals(heart, blockerController.getAttackTarget().getEntityId());
+        supporterController.getStateMachine().changeState(CreatureState.FIGHT);
+        entityData.setComponent(supporter, new AttackTarget(heart));
+        assertEquals(defender, supporterController.getAttackTarget().getEntityId());
+
+        // It keeps its target when the pick finds nothing
+        sensed.put(supporter, Set.of());
+        entityData.setComponent(supporter, new AttackTarget(heart));
+        assertEquals(heart, supporterController.getAttackTarget().getEntityId());
     }
 
     @Test
@@ -551,6 +609,7 @@ class DungeonHeartAttackTest {
         IKwdFile kwdFile = stub(IKwdFile.class, (name, args) -> switch (name) {
             case "getCreature" -> creatures.get((Short) args[0]);
             case "getGameLevel" -> CreatureSleepFixtures.level(4);
+            case "getCreatureSpellById" -> CombatCreatureFixtures.attackSpell();
             default -> null;
         });
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> switch (name) {
