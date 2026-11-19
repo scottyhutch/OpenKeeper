@@ -332,28 +332,19 @@ public enum CreatureState implements State<ICreatureController> {
                 return;
             }
 
-            // Native hunger and fatigue can interrupt compatible room work, including travel to it.
+            // Hunger, then fatigue, then pay day interrupt a room job, including travel to it. DK II gives the three
+            // one mask of job groups (0x800A3C3B, set in 0x4798F0 and checked in 0x477C20): research, the Workshop,
+            // guard duty, the Temple, training and the Casino, but not the Prison, the Torture Chamber or a fight
             Task task = entity.getAssignedTask();
-            if (task != null && (task.getTaskType() == TaskType.TRAIN
-                    || task.getTaskType() == TaskType.RESEARCH
-                    || task.getTaskType() == TaskType.GUARD
-                    || task.getTaskType() == TaskType.GAMBLE
-                    || task.getTaskType() == TaskType.MANUFACTURE)
-                    && ((entity.isHungry() && entity.goToEat())
-                    || (entity.hasLair() && entity.isNeedForSleep() && entity.goToSleep()))) {
+            boolean interruptible = task != null && switch (task.getTaskType()) {
+                case RESEARCH, MANUFACTURE, GUARD, PRAY, TRAIN, GAMBLE -> true;
+                default -> false;
+            };
+            if (interruptible && ((entity.isHungry() && entity.goToEat())
+                    || (entity.hasLair() && entity.isNeedForSleep() && entity.goToSleep())
+                    || entity.goToCollectPay())) {
                 // setAssignedTask released the previous job. Keep WORK so its exit cannot
-                // unassign the newly selected eat or sleep task.
-                entity.navigateToAssignedTask();
-                return;
-            }
-
-            // Pay day takes a creature out of any room job, as in DK II (0x4BE1A0, 0x472320)
-            if (task != null && (task.getTaskType() == TaskType.TRAIN
-                    || task.getTaskType() == TaskType.RESEARCH
-                    || task.getTaskType() == TaskType.MANUFACTURE
-                    || task.getTaskType() == TaskType.GUARD
-                    || task.getTaskType() == TaskType.GAMBLE)
-                    && entity.goToCollectPay()) {
+                // unassign the newly selected eat, sleep or pay task.
                 entity.navigateToAssignedTask();
                 return;
             }
