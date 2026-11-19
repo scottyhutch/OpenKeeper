@@ -20,6 +20,7 @@ import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
@@ -56,6 +57,7 @@ class RoomCaptureAnnouncementTest {
                     case "getGameLevel" -> CreatureSleepFixtures.level(1);
                     case "getThings" -> java.util.List.of();
                     case "getTerrain" -> (short) args[0] == 1 ? floor : roomTerrain;
+                    case "getThings" -> List.of();
                     default -> null;
                 });
                 var keepers = Map.of(Player.NEUTRAL_PLAYER_ID, new Keeper(false, Player.NEUTRAL_PLAYER_ID));
