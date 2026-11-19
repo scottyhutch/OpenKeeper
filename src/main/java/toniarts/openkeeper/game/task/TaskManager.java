@@ -1100,11 +1100,9 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                         playerControllers.get(creature.getOwnerId()).getManufactureControl(), objectsController,
                         playerControllers.get(creature.getOwnerId()).getStatsControl());
             }
-            case GAMBLER -> {
-                return new Gamble(navigationService, mapController, entityPositionLookup, target, creature.getOwnerId(), room, this, entityData,
-                        gameWorldController, objectsController, gameSettings,
-                        room instanceof CasinoController casino ? casino::getPayOut : () -> Casino.PayOut.SMILES,
-                        FastMath.rand);
+            case WORSHIPPER -> {
+                return new Pray(navigationService, mapController, target, creature.getOwnerId(), room, this, entityData, gameSettings, playerControllers.get(creature.getOwnerId()).getManaControl(),
+                        levelInfo.getLevelData().getGameLevel().getTicksPerSec());
             }
             case GUARD -> {
                 return new Guard(navigationService, mapController, target, creature.getOwnerId(), room, this,
@@ -1112,8 +1110,11 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                         (int) gameSettings.get(Variable.MiscVariable.MiscType.MAX_TIME_IN_GUARD_ROOM_BEFORE_WANDERING_TO_GUARD_POST_SECONDS).getValue(),
                         FastMath.rand);
             }
-            case WORSHIPPER -> {
-                return new Pray(navigationService, mapController, target, creature.getOwnerId(), room, this, entityData, gameSettings, playerControllers.get(creature.getOwnerId()).getManaControl());
+            case GAMBLER -> {
+                return new Gamble(navigationService, mapController, entityPositionLookup, target, creature.getOwnerId(), room, this, entityData,
+                        gameWorldController, objectsController, gameSettings,
+                        room instanceof CasinoController casino ? casino::getPayOut : () -> Casino.PayOut.SMILES,
+                        FastMath.rand, levelInfo.getLevelData().getGameLevel().getTicksPerSec());
             }
             default -> {
                 logger.log(Level.DEBUG, "No task defined for " + objectType);
