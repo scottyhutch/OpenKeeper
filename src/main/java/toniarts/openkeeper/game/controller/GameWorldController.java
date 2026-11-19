@@ -557,6 +557,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             return false;
         }
         substractGold(cost, playerId);
+        players.get(playerId).addGoldSpentOnBuilding(cost);
         return true;
     }
 
@@ -1955,6 +1956,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             return false;
         }
         substractGold(cost, playerId);
+        players.get(playerId).addGoldSpentOnBuilding(cost);
         return true;
     }
 
@@ -2013,6 +2015,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
             return false;
         }
         substractGold(cost, playerId);
+        players.get(playerId).addGoldSpentOnBuilding(cost);
         return true;
     }
 
