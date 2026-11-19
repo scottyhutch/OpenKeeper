@@ -368,39 +368,6 @@ class PossessedSpellTest {
         return positions;
     }
 
-    @Test
-    void impHasteSpeedsItUpForTheSecondsOfTheSpell() {
-        possessImp();
-
-        cast(createController(), 2);
-
-        SpeedUp speedUp = entityData.getComponent(us, SpeedUp.class);
-        assertEquals(150, speedUp.percentage);
-        assertEquals(gameTime + 15, speedUp.endTime);
-        assertEquals(gameTime, getSpell(HASTE).attactStartTime);
-        assertTrue(shotTargets.isEmpty());
-        assertNull(entityData.getComponent(us, CreatureViewState.class));
-    }
-
-    @Test
-    void impHasteDoesNotLengthenARunningSpeedUpButRecharges() {
-        possessImp();
-        CreatureController controller = createController();
-
-        cast(controller, 2);
-        double firstEnd = entityData.getComponent(us, SpeedUp.class).endTime;
-        gameTime += RECHARGE * 1.3;
-        cast(controller, 2);
-
-        assertEquals(firstEnd, entityData.getComponent(us, SpeedUp.class).endTime);
-        assertEquals(gameTime, getSpell(HASTE).attactStartTime);
-
-        // Once it has run out, the haste speeds up again
-        gameTime = firstEnd;
-        cast(controller, 2);
-        assertEquals(gameTime + 15, entityData.getComponent(us, SpeedUp.class).endTime);
-    }
-
     /**
      * We are an Imp with its teleport and haste
      */

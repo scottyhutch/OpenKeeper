@@ -4485,13 +4485,23 @@ public final class CreatureController extends EntityController implements ICreat
         }
 
         // The Imp's teleport and haste are no casts, and they recharge even when they do nothing
-        if (flags.contains(CreatureSpellFlag.IMP_TELEPORT) || flags.contains(CreatureSpellFlag.IMP_HASTE)) {
-            if (flags.contains(CreatureSpellFlag.IMP_TELEPORT)) {
-                teleportToDungeonHeart(position);
-            } else {
-                speedUp(creatureSpell);
-            }
+        if (flags.contains(CreatureSpellFlag.IMP_TELEPORT)) {
+            teleportToDungeonHeart(position);
             entityData.setComponent(spellEntity, new CreatureSpell(attack, gameTimer.getGameTime()));
+            return;
+        }
+
+        // Nor is the Imp's haste. It changes the speed with the spell's values and the same speed timer as a slap,
+        // so a speed change that is still running is left as it is, but the spell recharges all the same (0x48CAD0).
+        // A speed-up shows the speed blur for as many game ticks as the percentage (0x514830)
+        if (flags.contains(CreatureSpellFlag.IMP_HASTE)) {
+            shotsController.createShot(creatureSpell.getShotTypeId(), creatureSpell.getShotData1(), creatureSpell.getShotData2(), getOwnerId(),
+                    getPosition(), entityId, entityId);
+            entityData.setComponent(spellEntity, new CreatureSpell(attack, gameTimer.getGameTime()));
+            if (creatureSpell.getShotData1() > 100) {
+                entityData.setComponent(entityId, new SpeedBlur(gameTimer.getGameTime()
+                        + creatureSpell.getShotData1() / (double) levelInfo.getLevelData().getGameLevel().getTicksPerSec()));
+            }
             return;
         }
 
@@ -4531,21 +4541,6 @@ public final class CreatureController extends EntityController implements ICreat
             gameEventService.emitEffect(IMP_TELEPORT_OUT_EFFECT, position.position, 0);
             gameEventService.emitEffect(IMP_TELEPORT_IN_EFFECT, destination, 0);
             entityData.setComponent(entityId, new Position(position.rotation, destination));
-        }
-    }
-
-    /**
-     * Speeds the possessed Imp up with its haste (0x48CAD0). The spell's first
-     * shot data is the speed as a percentage and the second how many seconds
-     * it lasts. A speed up that is still running is left as it is.
-     *
-     * @param creatureSpell the haste
-     */
-    private void speedUp(toniarts.openkeeper.tools.convert.map.CreatureSpell creatureSpell) {
-        SpeedUp speedUp = entityData.getComponent(entityId, SpeedUp.class);
-        double now = gameTimer.getGameTime();
-        if (speedUp == null || speedUp.endTime <= now) {
-            entityData.setComponent(entityId, new SpeedUp(creatureSpell.getShotData1(), now + creatureSpell.getShotData2()));
         }
     }
 
