@@ -70,6 +70,7 @@ import toniarts.openkeeper.gui.nifty.table.TableControl;
 import toniarts.openkeeper.gui.nifty.table.TableRow;
 import toniarts.openkeeper.gui.nifty.table.player.PlayerTableBuilder;
 import toniarts.openkeeper.gui.nifty.table.player.PlayerTableRow;
+import toniarts.openkeeper.tools.convert.AssetsConverter;
 import toniarts.openkeeper.tools.convert.map.AI;
 import toniarts.openkeeper.tools.convert.map.GameLevel;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
@@ -78,6 +79,7 @@ import toniarts.openkeeper.utils.AssetUtils;
 import toniarts.openkeeper.utils.DisplayMode;
 import toniarts.openkeeper.utils.DisplayModeUtils;
 import toniarts.openkeeper.utils.PathUtils;
+import toniarts.openkeeper.utils.SettingUtils;
 import toniarts.openkeeper.utils.Utils;
 
 import java.io.File;
@@ -317,6 +319,7 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         CheckBox gamma = screen.findNiftyControl("gammaCorrection", CheckBox.class);
         DropDown shadows = screen.findNiftyControl("shadowQuality", DropDown.class);
         CheckBox embm = screen.findNiftyControl("embm", CheckBox.class);
+        CheckBox hdTextures = screen.findNiftyControl("hdTextures", CheckBox.class);
         DisplayMode mdm = (DisplayMode) res.getSelection();
 
         // TODO: See if we need a restart, but keep in mind that the settings are saved in the restart
@@ -335,6 +338,10 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         settings.setSetting(Settings.Setting.EMBM_ENABLED, embm.isChecked());
         settings.getAppSettings().setGammaCorrection(gamma.isChecked());
         settings.setSetting(Settings.Setting.SHADOW_LEVEL, shadows.getSelection());
+
+        // The asset conversion makes or deletes them at the next start
+        Main.getSettings().putBoolean(AssetsConverter.HD_TEXTURES_SETTING, hdTextures.isChecked());
+        SettingUtils.getInstance().saveSettings();
 
         // This fails and crashes on invalid settings
         if (needToRestart) {
@@ -963,6 +970,10 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         DropDown shadows = screen.findNiftyControl("shadowQuality", DropDown.class);
         shadows.addAllItems(Settings.SHADOW_LEVELS);
         shadows.selectItem(Math.clamp(Main.getUserSettings().getInteger(Settings.Setting.SHADOW_LEVEL), 0, 3));
+
+        // HD textures
+        CheckBox hdTextures = screen.findNiftyControl("hdTextures", CheckBox.class);
+        hdTextures.setChecked(Main.getSettings().getBoolean(AssetsConverter.HD_TEXTURES_SETTING));
     }
 
     private void setControlSettingsToGUI() {
