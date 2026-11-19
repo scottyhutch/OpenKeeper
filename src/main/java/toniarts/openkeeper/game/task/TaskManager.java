@@ -1597,6 +1597,11 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                 }
                 Task task = taskWorkerPriority.task;
                 ICreatureController carrier = task.isFull() ? getCarrierFurtherAway(task, taskWorkerPriority.creature) : null;
+
+                // A nearer worker takes a full claim over, the one that had it looks for work again (#1177)
+                if (carrier == null && task.isFull()) {
+                    task.makeRoomFor(taskWorkerPriority.creature);
+                }
                 if (carrier != null ? !task.isValid(taskWorkerPriority.creature) || !task.isReachable(taskWorkerPriority.creature)
                         : !task.canAssign(taskWorkerPriority.creature)) {
                     iter.remove();
