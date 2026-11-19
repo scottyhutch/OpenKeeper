@@ -153,48 +153,6 @@ class CreatureStateTest {
     }
 
     @Test
-    void neutralCreatureWithNothingToDoIdlesThenWanders() {
-        AtomicReference<CreatureState> currentState = new AtomicReference<>(CreatureState.IDLE);
-        AtomicInteger walks = new AtomicInteger();
-        AtomicBoolean stopped = new AtomicBoolean(true);
-        ICreatureController creature = idleCreature(stateMachine(currentState), false, walks, stopped);
-
-        CreatureState.IDLE.enter(creature);
-        assertEquals(CreatureState.IDLE, currentState.get());
-        assertEquals(0, walks.get());
-
-        CreatureState.IDLE.update(creature);
-        assertEquals(CreatureState.WANDER, currentState.get());
-
-        stopped.set(false);
-        CreatureState.WANDER.enter(creature);
-        CreatureState.WANDER.update(creature);
-        assertEquals(1, walks.get());
-        assertEquals(CreatureState.WANDER, currentState.get());
-
-    }
-
-    @Test
-    void wanderingNeutralCreatureSometimesStopsToDoNothing() {
-        AtomicReference<CreatureState> currentState = new AtomicReference<>(CreatureState.WANDER);
-        AtomicInteger walks = new AtomicInteger();
-        ICreatureController creature = idleCreature(stateMachine(currentState), false, walks, new AtomicBoolean(true));
-
-        // On arriving it picks the next point straight away, as DK II does, but now and then stands idle
-        int idles = 0;
-        for (int i = 0; i < 1000; i++) {
-            currentState.set(CreatureState.WANDER);
-            CreatureState.WANDER.update(creature);
-            if (currentState.get() == CreatureState.IDLE) {
-                idles++;
-            }
-        }
-
-        assertTrue(idles > 0 && idles < 300, "idles " + idles);
-        assertEquals(1000 - idles, walks.get());
-    }
-
-    @Test
     void ownedCreatureWithNothingToDoWalksAroundInIdle() {
         AtomicReference<CreatureState> currentState = new AtomicReference<>(CreatureState.IDLE);
         AtomicInteger walks = new AtomicInteger();
@@ -414,11 +372,9 @@ class CreatureStateTest {
 
                 CreatureState.IDLE.update(creature);
 
-                // In DK II a keeper's creature or a hero that has walked about decides again at once. A neutral one
-                // keeps its own pace
-                boolean owned = ownerId != Player.NEUTRAL_PLAYER_ID;
-                assertEquals(owned, lookedForWork.get());
-                assertEquals(owned, walked.get());
+                // In DK II a keeper's creature, a hero or a neutral creature that has walked about decides again at once
+                assertTrue(lookedForWork.get());
+                assertTrue(walked.get());
             }
         }
     }
