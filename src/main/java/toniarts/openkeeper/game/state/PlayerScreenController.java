@@ -243,6 +243,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 updatePayDay();
             }
             updateCallToArms();
+            if (state != null && screen != null && SCREEN_HUD_ID.equals(screen.getScreenId())) {
+                updateWorkshopAvailability();
+            }
             lastUpdate = 0;
         }
     }
@@ -1803,8 +1806,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
     /**
      * Nifty saves the effects of a tab when it is hidden and starts them again
      * when the tab is shown, even the ones that were stopped in between. Gives
-     * the room and spell icons their effects again so that an icon that was lit
-     * while its tab was hidden doesn't come back dark.
+     * the room, spell, door and trap icons their effects again so that an icon
+     * that was lit while its tab was hidden doesn't come back dark.
      */
     private void reapplyIconEffects() {
         if (state == null) {
