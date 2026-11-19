@@ -249,7 +249,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
 
     /**
      * Sizes the possession HUD health bar by the possessed creature's health.
-     * Called from the render thread, like the rest of the screen update.
+     * The creature is watched for its health while the possession screen is
+     * up, and released when the possession ends. Called from the render
+     * thread, like the rest of the screen update.
      */
     private void updatePossessionHealth() {
         WatchedEntity target = getPossessedTarget();
