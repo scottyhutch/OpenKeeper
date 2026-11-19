@@ -65,6 +65,7 @@ import toniarts.openkeeper.game.controller.KeeperSpellCost;
 import toniarts.openkeeper.game.controller.ReaperSummoner;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.player.PlayerResearchControl;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.state.session.SaveGame;
 import toniarts.openkeeper.game.state.session.SaveGameFolder;
@@ -107,6 +108,7 @@ import java.time.format.FormatStyle;
 import java.util.*;
 import java.util.List;
 import javax.annotation.Nullable;
+import java.util.stream.Collectors;
 
 /**
  *
@@ -144,6 +146,13 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private static final java.awt.Color RESEARCH_COLOR = new java.awt.Color(0.569f, 0.106f, 0.31f, 0.6f);
     private static final java.awt.Color RECHARGE_COLOR = new java.awt.Color(1f, 1f, 1f, 0.7f);
 
+    /**
+     * The parameters of a row of the Player Information window, the player and
+     * its stats in DK II's order (texts 1518 to 1528)
+     */
+    private static final String[] PLAYER_INFORMATION_COLUMNS = {"player", "kill", "death", "value", "mana",
+        "creature", "imp", "trap", "training", "research", "happiness", "mapPercent"};
+    
     public float lastUpdate = 0;
 
     private PlayerState state;
@@ -167,6 +176,9 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private RoomCycling roomCycling;
     private CreatureCardManager creatureCardManager;
     private EntitySet callToArmsBanners;
+    private EntitySet informationCreatures;
+    private EntitySet informationTraps;
+    private String playerInformation;
     private int lastImpCount = -1;
     private String reaperTalismanState;
     private EntitySet keeperCreatures;
@@ -246,6 +258,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
             updateCallToArms();
             if (state != null && screen != null && SCREEN_HUD_ID.equals(screen.getScreenId())) {
                 updateWorkshopAvailability();
+                updatePlayerInformation();
             }
             lastUpdate = 0;
         }
@@ -427,6 +440,12 @@ public final class PlayerScreenController implements IPlayerScreenController {
         if (callToArmsBanners != null) {
             callToArmsBanners.release();
             callToArmsBanners = null;
+        }
+        if (informationCreatures != null) {
+            informationCreatures.release();
+            informationCreatures = null;
+            informationTraps.release();
+            informationTraps = null;
         }
         releasePossessedTarget();
         payDayRing = null;
@@ -1680,6 +1699,10 @@ public final class PlayerScreenController implements IPlayerScreenController {
         }
         callToArmsBanners = entityData.getEntities(new FieldFilter(Owner.class, "ownerId", state.getPlayer().getId()),
                 CallToArms.class, ObjectViewState.class, Position.class, Owner.class);
+        informationCreatures = entityData.getEntities(CreatureComponent.class, CreatureExperience.class, CreatureMood.class, Owner.class);
+        informationTraps = entityData.getEntities(TrapComponent.class, Owner.class);
+        playerInformation = null;
+        // Rooms
 //        state.getRoomControl().addRoomAvailabilityListener(new PlayerRoomControl.IRoomAvailabilityListener() {
 //
 //            @Override
@@ -1955,6 +1978,105 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 updateWorkshopIcon(hud.findElementById("trap_" + state.getKwdFile().getTrapById(trap.getId()).getTrapId()), tint);
             }
         }
+    }
+
+    /**
+     * Fills the Player Information window (the I key) while it is shown, as
+     * DK II's 0x423450 does: a row for each keeper with the stats of 0x4C2C30,
+     * shown only for the player and its allies (0x4C2BC0) and "-" for the
+     * others, and 1000 or more in thousands ("12K"). The map area shows the
+     * share of the map the keeper owns, where DK II shows the kills again
+     * (0x423450 asks 0x4C2C30 for stat 1 in that column).
+     */
+    private void updatePlayerInformation() {
+        Screen hud = nifty.getScreen(SCREEN_HUD_ID);
+        Element window = hud.findElementById("statistics");
+        if (window == null || !window.isVisible() || informationCreatures == null) {
+            return;
+        }
+        informationCreatures.applyChanges();
+        informationTraps.applyChanges();
+        GameClientState gameState = state.stateManager.getState(GameClientState.class);
+        short impId = state.getKwdFile().getImp().getCreatureId();
+        List<String[]> rows = new ArrayList<>();
+        for (Keeper keeper : gameState.getPlayers()) {
+            if (keeper.getId() == Player.GOOD_PLAYER_ID || keeper.getId() == Player.NEUTRAL_PLAYER_ID) {
+                continue;
+            }
+            String[] row = new String[PLAYER_INFORMATION_COLUMNS.length];
+            Arrays.fill(row, "");
+            row[0] = gameState.getPlayerName(keeper);
+            if (!state.getPlayer().isAlly(keeper.getId())) {
+                Arrays.fill(row, 1, row.length, "-");
+                rows.add(row);
+                continue;
+            }
+
+            // Creatures (stat 5) leave out the Imps (stat 6); the training is their average level (stat 8) and the
+            // happiness comes from their average anger, each creature's the average of its 6 kinds (stat 10)
+            int creatures = 0;
+            int imps = 0;
+            int levels = 0;
+            int anger = 0;
+            for (Entity creature : informationCreatures) {
+                if (creature.get(Owner.class).ownerId != keeper.getId()) {
+                    continue;
+                }
+                if (creature.get(CreatureComponent.class).creatureId == impId) {
+                    imps++;
+                } else {
+                    creatures++;
+                }
+                levels += creature.get(CreatureExperience.class).level;
+                CreatureMood mood = creature.get(CreatureMood.class);
+                anger += (mood.general + mood.noFood + mood.noLair + mood.noWork + mood.noPay + mood.other) / 6;
+            }
+            int count = creatures + imps;
+            int traps = (int) informationTraps.stream().filter(trap -> trap.get(Owner.class).ownerId == keeper.getId()).count();
+            row[1] = formatPlayerStat(keeper.getEnemyCreaturesKilled() + keeper.getHeroesDestroyed());
+            row[2] = formatPlayerStat(keeper.getOwnCreaturesKilled());
+            row[3] = formatPlayerStat(getKeeperGold(keeper.getId()) + keeper.getGoldSpentOnBuilding());
+            row[4] = formatPlayerStat(keeper.getMaxMana());
+            row[5] = formatPlayerStat(creatures);
+            row[6] = formatPlayerStat(imps);
+            row[7] = formatPlayerStat(traps);
+            row[8] = formatPlayerStat(count > 0 ? levels / count : 0);
+            row[9] = formatPlayerStat(keeper.getResearchCompleted());
+            row[10] = formatPlayerStat(100 - (count > 0 ? anger / count : 0) * 100 / 0xFFFE);
+            row[11] = formatPlayerStat(gameState.getMapClientService().getMapData().getOwnedPercentage(keeper.getId()));
+            rows.add(row);
+        }
+
+        // Build the rows again only when something changed
+        String shown = rows.stream().map(row -> String.join("|", row)).collect(Collectors.joining("\n"));
+        if (shown.equals(playerInformation)) {
+            return;
+        }
+        playerInformation = shown;
+        Element list = hud.findElementById("playerStatistics");
+        removeAllChildElements(list);
+        for (String[] row : rows) {
+            ControlBuilder entry = new ControlBuilder("statisticEntry");
+            for (int i = 0; i < row.length; i++) {
+                entry.parameter(PLAYER_INFORMATION_COLUMNS[i], row[i]);
+            }
+            entry.build(list);
+        }
+    }
+
+    /**
+     * The gold of a keeper, on its keeper entity
+     */
+    private int getKeeperGold(short keeperId) {
+        for (EntityId keeperEntity : entityData.findEntities(new FieldFilter<>(KeeperComponent.class, "playerId", keeperId),
+                KeeperComponent.class, Gold.class)) {
+            return entityData.getComponent(keeperEntity, Gold.class).gold;
+        }
+        return 0;
+    }
+
+    private static String formatPlayerStat(int value) {
+        return value < 1000 ? Integer.toString(value) : value / 1000 + "K";
     }
 
     private void updateWorkshopIcon(Element icon, String tint) {

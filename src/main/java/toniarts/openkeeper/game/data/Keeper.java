@@ -48,6 +48,7 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
     private int roomsCapturedValue;
     private int specialsFound;
     private int ownCreaturesKilled;
+    private int researchCompleted;
     private int mana;
     private int manaGain;
     private int manaLoose;
@@ -165,6 +166,25 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
 
     public void setOwnCreaturesKilled(int ownCreaturesKilled) {
         this.ownCreaturesKilled = ownCreaturesKilled;
+    }
+
+    /**
+     * Get how many research items the keeper has finished, each once its book
+     * found room in a Library (DKII.EXE 0x4C2DC0, CPlayer +0x17B)
+     *
+     * @return the research items finished
+     */
+    public int getResearchCompleted() {
+        return researchCompleted;
+    }
+
+    /**
+     * Set how many research items the keeper has finished
+     *
+     * @param researchCompleted the research items finished
+     */
+    public void setResearchCompleted(int researchCompleted) {
+        this.researchCompleted = researchCompleted;
     }
 
     public void setManaGain(int manaGain) {
@@ -358,6 +378,16 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
     }
 
     /**
+     * Set the gold the keeper has paid for building, as the server tells it
+     *
+     * @param goldSpentOnBuilding the gold spent on building
+     * @see #getGoldSpentOnBuilding()
+     */
+    public void setGoldSpentOnBuilding(int goldSpentOnBuilding) {
+        this.goldSpentOnBuilding = goldSpentOnBuilding;
+    }
+
+    /**
      * Get the creatures that came in through the portals, the ones that count
      * towards the portal limit
      *
@@ -445,6 +475,7 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
         out.write(roomsCapturedValue, "roomsCapturedValue", 0);
         out.write(specialsFound, "specialsFound", 0);
         out.write(ownCreaturesKilled, "ownCreaturesKilled", 0);
+        out.write(researchCompleted, "researchCompleted", 0);
         out.write(mana, "mana", 0);
         out.write(manaGain, "manaGain", 0);
         out.write(manaLoose, "manaLoose", 0);
@@ -476,6 +507,7 @@ public final class Keeper implements Comparable<Keeper>, IIndexable, Savable {
         roomsCapturedValue = in.readInt("roomsCapturedValue", roomsCapturedValue);
         specialsFound = in.readInt("specialsFound", specialsFound);
         ownCreaturesKilled = in.readInt("ownCreaturesKilled", ownCreaturesKilled);
+        researchCompleted = in.readInt("researchCompleted", researchCompleted);
         mana = in.readInt("mana", mana);
         manaGain = in.readInt("manaGain", manaGain);
         manaLoose = in.readInt("manaLoose", manaLoose);

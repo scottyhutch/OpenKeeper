@@ -39,7 +39,7 @@ class PlayerResearchControlTest {
     private final Keeper keeper = new Keeper(false, (short) 1);
     private final ResearchableEntity first = new ResearchableEntity((short) 1, ResearchableType.ROOM);
     private final ResearchableEntity second = new ResearchableEntity((short) 2, ResearchableType.ROOM);
-    private final PlayerResearchControl control = new PlayerResearchControl(keeper, kwdFile);
+    private final PlayerResearchControl control = new PlayerResearchControl(keeper, kwdFile, new PlayerStatsControl(keeper));
 
     PlayerResearchControlTest() {
         keeper.getAvailableRooms().add(first);

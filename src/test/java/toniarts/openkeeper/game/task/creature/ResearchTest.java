@@ -21,6 +21,7 @@ import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.player.PlayerResearchControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.RoomSpellBookControl;
@@ -58,7 +59,7 @@ class ResearchTest {
         Keeper keeper = new Keeper();
         keeper.setCurrentResearch(new ResearchableEntity((short) 1, ResearchableType.SPELL));
         Research research = new Research(null, null, new Point(1, 1), (short) 1, library, null,
-                new PlayerResearchControl(keeper, null), null);
+                new PlayerResearchControl(keeper, null, new PlayerStatsControl(keeper)), null);
 
         assertTrue(research.isValid(null));
 

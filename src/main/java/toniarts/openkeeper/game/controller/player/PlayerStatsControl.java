@@ -16,12 +16,14 @@
  */
 package toniarts.openkeeper.game.controller.player;
 
+import com.jme3.util.SafeArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import toniarts.openkeeper.tools.convert.ConversionUtils;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.listener.PlayerStatsListener;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.TriggerAction;
 
@@ -43,6 +45,7 @@ public final class PlayerStatsControl {
     private int creaturesConverted = 0;
     // Saved with the players
     private final transient Keeper keeper;
+    private final transient SafeArrayList<PlayerStatsListener> listeners = new SafeArrayList<>(PlayerStatsListener.class);
 
     public PlayerStatsControl(Keeper keeper) {
         this.keeper = keeper;
@@ -60,6 +63,7 @@ public final class PlayerStatsControl {
         } else {
             keeper.setEnemyCreaturesKilled(keeper.getEnemyCreaturesKilled() + 1);
         }
+        updateListeners();
     }
 
     /**
@@ -68,6 +72,43 @@ public final class PlayerStatsControl {
      */
     public void ownCreatureKilled() {
         keeper.setOwnCreaturesKilled(keeper.getOwnCreaturesKilled() + 1);
+        updateListeners();
+    }
+
+    /**
+     * The player has finished a research item, its book has found room in a
+     * Library (DKII.EXE 0x4C2DC0, CPlayer +0x17B)
+     */
+    public void researchCompleted() {
+        keeper.setResearchCompleted(keeper.getResearchCompleted() + 1);
+        updateListeners();
+    }
+
+    /**
+     * The player has paid for building a room tile, a door or a trap, DK II
+     * adds it up for the Dungeon Value (CPlayer +0x177; 0x4C5C30, 0x4C33B0,
+     * 0x4C3860)
+     *
+     * @param cost the gold paid
+     */
+    public void paidForBuilding(int cost) {
+        keeper.addGoldSpentOnBuilding(cost);
+        updateListeners();
+    }
+
+    public void addListener(PlayerStatsListener listener) {
+        listeners.add(listener);
+    }
+
+    public void removeListener(PlayerStatsListener listener) {
+        listeners.remove(listener);
+    }
+
+    private void updateListeners() {
+        for (PlayerStatsListener listener : listeners.getArray()) {
+            listener.onStatsChange(keeper.getId(), keeper.getEnemyCreaturesKilled(), keeper.getHeroesDestroyed(),
+                    keeper.getOwnCreaturesKilled(), keeper.getResearchCompleted(), keeper.getGoldSpentOnBuilding());
+        }
     }
 
     public boolean hasSlapped() {

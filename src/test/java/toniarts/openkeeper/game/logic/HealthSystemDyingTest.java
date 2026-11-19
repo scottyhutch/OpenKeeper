@@ -104,8 +104,14 @@ class HealthSystemDyingTest {
 
     @Test
     void deathCountsALossToItsOwnerAndAKillToTheKeeperThatKnockedItOut() {
+        List<String> sent = new ArrayList<>();
+        enemyStats.addListener((keeperId, enemyCreaturesKilled, heroesDestroyed, ownCreaturesKilled, researchCompleted, goldSpentOnBuilding)
+                -> sent.add(keeperId + ":" + enemyCreaturesKilled + "," + heroesDestroyed + "," + ownCreaturesKilled + "," + researchCompleted));
         entityData.setComponent(creature, new Unconscious(0, enemy.getId()));
         runSeconds(DYING_SECONDS);
+
+        // The clients get the new stats for the window
+        assertEquals(List.of("4:1,0,0,0"), sent);
 
         // DK II's 0x487C70: CPlayer +0x146 for the killer, +0x173 for the owner
         assertEquals(1, enemy.getEnemyCreaturesKilled());
