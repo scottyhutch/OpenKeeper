@@ -143,6 +143,32 @@ class CreatureControllerTest {
     }
 
     @Test
+    void idleWorkerWalksOnAfterAnIdleAnimationUntilItsWaitRunsOut() {
+        try (Fixture f = new Fixture(9)) {
+            f.data.getComponent(f.entity, CreatureComponent.class).worker = true;
+            f.controller.getStateMachine().changeState(CreatureState.IDLE);
+            f.tick();
+
+            // DK II's worker that finds no work stays in its idle state for 240 to 479 ticks (0x463DF0)
+            double lookForWorkTime = f.data.getComponent(f.entity, IdleAnimation.class).lookForWorkTime;
+            assertTrue(lookForWorkTime >= .25 + 60 && lookForWorkTime < .25 + 120, "look for work at " + lookForWorkTime);
+
+            // After an idle animation it walks on without looking, and looks again when the walk ends
+            f.data.setComponent(f.entity, new IdleAnimation(Creature.AnimationType.IDLE_1, f.time, lookForWorkTime));
+            f.tick();
+            assertEquals(List.of(0.0, .25), f.workSearches);
+            assertNull(f.data.getComponent(f.entity, IdleAnimation.class).animation);
+            f.tick();
+            assertEquals(List.of(0.0, .25, .75), f.workSearches);
+
+            // Once the wait has run out it looks right after the animation
+            f.data.setComponent(f.entity, new IdleAnimation(Creature.AnimationType.IDLE_1, f.time, f.time));
+            f.tick();
+            assertEquals(List.of(0.0, .25, .75, 1.0), f.workSearches);
+        }
+    }
+
+    @Test
     void fatigueInterruptsRoomWorkAndKeepsTheNewSleepTaskAssigned() {
         // The job groups DK II lets fatigue interrupt (mask 0x800A3C3B, 0x477C20)
         for (TaskType type : List.of(TaskType.RESEARCH, TaskType.MANUFACTURE, TaskType.GUARD, TaskType.PRAY, TaskType.TRAIN,
@@ -1026,7 +1052,7 @@ class CreatureControllerTest {
             f.data.setComponent(f.entity, new Objective(Thing.HeroParty.Objective.KILL_PLAYER, (short) 3, 0));
             f.data.removeComponent(f.entity, CreatureSleep.class);
             f.controller.getStateMachine().changeState(CreatureState.IDLE);
-            f.data.setComponent(f.entity, new IdleAnimation(Creature.AnimationType.IDLE_1, 1));
+            f.data.setComponent(f.entity, new IdleAnimation(Creature.AnimationType.IDLE_1, 1, 0));
             for (int i = 0; i < 5; i++) {
                 f.tick();
             }
@@ -1077,7 +1103,7 @@ class CreatureControllerTest {
             f.data.getComponent(f.entity, CreatureComponent.class).worker = true;
             int worker = 0;
             for (int i = 0; i < 400; i++) {
-                f.data.setComponent(f.entity, new IdleAnimation(null, 0));
+                f.data.setComponent(f.entity, new IdleAnimation(null, 0, 0));
                 if (f.controller.playIdleAnimation()) {
                     worker++;
                 }
@@ -1089,7 +1115,7 @@ class CreatureControllerTest {
             f.data.setComponent(f.entity, new Owner(Player.NEUTRAL_PLAYER_ID, Player.NEUTRAL_PLAYER_ID));
             int neutral = 0;
             for (int i = 0; i < 400; i++) {
-                f.data.setComponent(f.entity, new IdleAnimation(null, 0));
+                f.data.setComponent(f.entity, new IdleAnimation(null, 0, 0));
                 if (f.controller.playIdleAnimation()) {
                     neutral++;
                 }
