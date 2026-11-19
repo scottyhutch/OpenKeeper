@@ -99,7 +99,7 @@ public final class PossessedMovementSystem implements IGameLogicUpdatable {
             Vector3f newPosition = position.position.clone();
             if (!movement.direction.equals(Vector2f.ZERO)) {
                 INavigable navigable = creaturesController.createController(entity.getId());
-                float speed = movement.speed;
+                float speed = movement.speed * getSpeedFactor(entity.getId(), newPosition);
                 SpeedUp speedUp = entityData.getComponent(entity.getId(), SpeedUp.class);
                 if (speedUp != null && speedUp.endTime > gameTimer.getGameTime()) {
                     speed *= speedUp.percentage / 100f;
@@ -118,6 +118,37 @@ public final class PossessedMovementSystem implements IGameLogicUpdatable {
             }
             holdCarriedWorker(entity.getId(), newPosition, movement.rotation);
         }
+    }
+
+    /**
+     * Like DK II (0x48ABB0), a possessed creature that isn't a worker moves at
+     * a fifth of its speed below a fifth of its health. One that doesn't fly
+     * moves at half speed in water and half as fast again on lava.
+     *
+     * @param entityId the possessed creature
+     * @param position where it stands
+     * @return what its speed is multiplied by
+     */
+    private float getSpeedFactor(EntityId entityId, Vector3f position) {
+        float factor = 1f;
+        CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        Health health = entityData.getComponent(entityId, Health.class);
+        if (creatureComponent != null && !creatureComponent.worker && health != null
+                && health.health < health.maxHealth * 20 / 100) {
+            factor = 0.2f;
+        }
+
+        Mobile mobile = entityData.getComponent(entityId, Mobile.class);
+        IMapTileInformation tile = mapController.getMapData().getTile(WorldUtils.vectorToPoint(position));
+        if (tile != null && (mobile == null || !mobile.canFly)) {
+            Terrain terrain = mapController.getTerrain(tile);
+            if (terrain != null && terrain.getFlags().contains(Terrain.TerrainFlag.WATER)) {
+                factor *= 0.5f;
+            } else if (terrain != null && terrain.getFlags().contains(Terrain.TerrainFlag.LAVA)) {
+                factor *= 1.5f;
+            }
+        }
+        return factor;
     }
 
     /**
