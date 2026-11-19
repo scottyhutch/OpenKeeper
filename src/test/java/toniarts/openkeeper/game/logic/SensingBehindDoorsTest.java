@@ -45,13 +45,16 @@ import static toniarts.openkeeper.tools.convert.map.Terrain.TerrainFlag.OWNABLE;
 import static toniarts.openkeeper.tools.convert.map.Terrain.TerrainFlag.SOLID;
 
 /**
- * A door that blocks a creature also blocks its senses, as in DK II
- * (0x4511A0), so what stands behind it is out of its reach
+ * Creatures see over barricades, but what stands behind a door that blocks
+ * them is out of their reach
  */
 class SensingBehindDoorsTest {
 
     private static final short PLAYER = Player.KEEPER1_ID;
     private static final short ENEMY = Player.KEEPER2_ID;
+
+    private static final short WOODEN_DOOR = 1;
+    private static final short BARRICADE = 6;
 
     private static final short CLAIMED_PATH = 8;
     private static final short REINFORCED_WALL = 9;
@@ -85,29 +88,43 @@ class SensingBehindDoorsTest {
     }
 
     @Test
+    void creatureIsSensedOverAnEnemyBarricade() {
+        door(ENEMY, BARRICADE, false);
+
+        assertTrue(positionSystem().getSensedEntities(creature).contains(neutralCreature));
+    }
+
+    @Test
     void creatureBehindAnEnemyDoorIsNotSensed() {
-        door(ENEMY, false);
+        door(ENEMY, WOODEN_DOOR, false);
 
         assertFalse(positionSystem().getSensedEntities(creature).contains(neutralCreature));
     }
 
     @Test
+    void creatureBehindAnEnemyBarricadeIsBehindABlockingDoor() {
+        door(ENEMY, BARRICADE, false);
+
+        assertTrue(positionSystem().isBehindBlockingDoor(creature, neutralCreature));
+    }
+
+    @Test
     void creatureBehindAnEnemyDoorIsBehindABlockingDoor() {
-        door(ENEMY, false);
+        door(ENEMY, WOODEN_DOOR, false);
 
         assertTrue(positionSystem().isBehindBlockingDoor(creature, neutralCreature));
     }
 
     @Test
     void creatureBehindALockedDoorIsBehindABlockingDoor() {
-        door(PLAYER, true);
+        door(PLAYER, WOODEN_DOOR, true);
 
         assertTrue(positionSystem().isBehindBlockingDoor(creature, neutralCreature));
     }
 
     @Test
     void creatureBehindOurOwnDoorIsNotBehindABlockingDoor() {
-        door(PLAYER, false);
+        door(PLAYER, WOODEN_DOOR, false);
 
         assertFalse(positionSystem().isBehindBlockingDoor(creature, neutralCreature));
     }
@@ -123,9 +140,9 @@ class SensingBehindDoorsTest {
         return entity;
     }
 
-    private void door(short ownerId, boolean locked) {
+    private void door(short ownerId, short doorId, boolean locked) {
         EntityId door = entity(DOOR, ownerId);
-        entityData.setComponent(door, new DoorComponent((short) 1, locked, false));
+        entityData.setComponent(door, new DoorComponent(doorId, locked, false));
     }
 
     private PositionSystem positionSystem() {
@@ -147,15 +164,14 @@ class SensingBehindDoorsTest {
             default ->
                 throw new UnsupportedOperationException(method.getName());
         });
-        IDoorController doorController = (IDoorController) Proxy.newProxyInstance(IDoorController.class.getClassLoader(),
-                new Class<?>[]{IDoorController.class}, (proxy, method, args) -> switch (method.getName()) {
+        IDoorsController doorsController = (IDoorsController) Proxy.newProxyInstance(IDoorsController.class.getClassLoader(),
+                new Class<?>[]{IDoorsController.class}, (doors, createController, door) -> Proxy.newProxyInstance(
+                IDoorController.class.getClassLoader(), new Class<?>[]{IDoorController.class}, (proxy, method, args) -> switch (method.getName()) {
             case "isBarricade" ->
-                false;
+                entityData.getComponent((EntityId) door[0], DoorComponent.class).doorId == BARRICADE;
             default ->
                 throw new UnsupportedOperationException(method.getName());
-        });
-        IDoorsController doorsController = (IDoorsController) Proxy.newProxyInstance(IDoorsController.class.getClassLoader(),
-                new Class<?>[]{IDoorsController.class}, (proxy, method, args) -> doorController);
+        }));
         positionSystem = new PositionSystem(mapController, entityData, null, doorsController, null);
         return positionSystem;
     }
