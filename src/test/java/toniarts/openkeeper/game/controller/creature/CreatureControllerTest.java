@@ -538,7 +538,9 @@ class CreatureControllerTest {
             f.data.setComponent(hero, new AttackTarget(f.entity));
             f.controller.getStateMachine().update();
 
-            // The fight state weighs withdrawing on every turn (0x45F030 calls 0x45EC80)
+            // It backs off (DK II's 0xCB), which for a worker lasts no time, then withdraws
+            assertEquals(CreatureState.BACK_OFF, f.state());
+            f.controller.getStateMachine().update();
             assertEquals(CreatureState.FLEE, f.state());
         }
     }
@@ -1081,6 +1083,7 @@ class CreatureControllerTest {
                 default -> throw new UnsupportedOperationException(method);
             });
             ILevelInfo levelInfo = proxy(ILevelInfo.class, (method, args) -> switch (method) {
+                case "getPlayer" -> keeper;
                 case "getLevelData" -> kwd;
                 default -> throw new UnsupportedOperationException(method);
             });

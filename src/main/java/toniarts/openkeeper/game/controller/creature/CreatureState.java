@@ -429,28 +429,29 @@ public enum CreatureState implements State<ICreatureController> {
 
         @Override
         public void update(ICreatureController entity) {
-
-            // DK II weighs withdrawing on every turn of a fight too (0x45F030 calls 0x45EC80)
-            if (entity.shouldFleeOrAttack() && entity.getStateMachine().isInState(FLEE)) {
-                return;
-            }
-
             IEntityController attackTarget = entity.getAttackTarget();
             if (attackTarget == null) {
                 entity.getStateMachine().changeState(entity.isCombatPitFighter() ? COMBAT_PIT : IDLE); // Nothing to do
                 return;
             }
 
-            // A badly hurt hero may withdraw to the hero lair, before fear is weighed (DK II 0x45F030)
-            if (entity.withdrawToHeroLair()) {
-                entity.getStateMachine().changeState(HERO_RECUPERATING);
-                return;
-            }
-
-            // A scared creature backs off from its target for a while, unless it is cornered (DK II 0x45F030)
-            if (!entity.isCornered() && entity.isScared()) {
-                entity.getStateMachine().changeState(BACK_OFF);
-                return;
+            // DK II checks first whether we are cornered (0x45F030 calls 0x460C50). Only one that isn't may withdraw,
+            // a badly hurt hero to the hero lair and a keeper's badly hurt creature far from its heart towards the
+            // heart (0x45EDA0, 0x4611D0), and then weigh its fear: a scared creature backs off from its target for a
+            // while, then withdraws (0x45EC80)
+            if (!entity.isCornered()) {
+                if (entity.withdrawToHeroLair()) {
+                    entity.getStateMachine().changeState(HERO_RECUPERATING);
+                    return;
+                }
+                if (entity.shouldWithdrawToHeart()) {
+                    entity.getStateMachine().changeState(FLEE);
+                    return;
+                }
+                if (entity.isScared()) {
+                    entity.getStateMachine().changeState(BACK_OFF);
+                    return;
+                }
             }
 
             // Our own creatures come first
