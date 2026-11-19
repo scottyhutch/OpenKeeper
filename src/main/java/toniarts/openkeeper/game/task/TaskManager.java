@@ -1098,7 +1098,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             case MANUFACTURER -> {
                 return new Manufacture(navigationService, mapController, target, creature.getOwnerId(), room, this,
                         playerControllers.get(creature.getOwnerId()).getManufactureControl(), objectsController,
-                        playerControllers.get(creature.getOwnerId()).getStatsControl());
+                        playerControllers.get(creature.getOwnerId()).getStatsControl(), gameWorldController.getGameEventService());
             }
             case WORSHIPPER -> {
                 return new Pray(navigationService, mapController, target, creature.getOwnerId(), room, this, entityData, gameSettings, playerControllers.get(creature.getOwnerId()).getManaControl(),

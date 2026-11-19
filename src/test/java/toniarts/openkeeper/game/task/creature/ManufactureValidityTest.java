@@ -84,7 +84,7 @@ class ManufactureValidityTest {
                     trap.getManufCrateObjectId()));
         }
 
-        return new Manufacture(null, null, new Point(5, 5), PLAYER_ID, workshop, null, manufactureControl, null, null);
+        return new Manufacture(null, null, new Point(5, 5), PLAYER_ID, workshop, null, manufactureControl, null, null, null);
     }
 
     private interface Answer {

@@ -39,8 +39,12 @@ import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.controller.room.storage.RoomCrateControl;
 import toniarts.openkeeper.game.data.ResearchableType;
+import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Room;
+import toniarts.openkeeper.tools.convert.map.RoomFixtures;
 import toniarts.openkeeper.tools.convert.map.Trap;
 import toniarts.openkeeper.tools.convert.map.TrapFixtures;
 import toniarts.openkeeper.utils.Point;
@@ -81,7 +85,7 @@ class ManufactureTest {
                     case "equals" -> proxy == args[0];
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
-        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, null, null, manufactureControl, null, null);
+        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, null, null, manufactureControl, null, null, null);
         task.assign(creature, false);
 
         for (int tick = 1; tick <= ticks; tick++) {
@@ -105,6 +109,8 @@ class ManufactureTest {
         IRoomController workshop = (IRoomController) Proxy.newProxyInstance(
                 IRoomController.class.getClassLoader(), new Class<?>[]{IRoomController.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "getObjectControl" -> crates;
+                    case "getRoom" -> RoomFixtures.roomWithEffects(0, 0);
+                    case "getRoomInstance" -> new RoomInstance(new Room());
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         IObjectsController objectsController = (IObjectsController) Proxy.newProxyInstance(
@@ -121,7 +127,7 @@ class ManufactureTest {
                 });
         PlayerStatsControl stats = new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
         Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, manufactureControl,
-                objectsController, stats);
+                objectsController, stats, events(new ArrayList<>()));
         task.assign(creature, false);
 
         task.executeTask(creature, 0.25f);
@@ -153,13 +159,15 @@ class ManufactureTest {
                     case "isRemoved", "isDestroyed" -> false;
                     case "getOwnerId" -> (short) 1;
                     case "getObjectControl" -> crates;
+                    case "getRoom" -> RoomFixtures.roomWithEffects(0, 0);
+                    case "getRoomInstance" -> new RoomInstance(new Room());
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         Trap trap = TrapFixtures.trapToManufacture((short) 1, Integer.MAX_VALUE);
         PlayerManufactureControl manufactureControl = new PlayerManufactureControl();
         manufactureControl.setOrder(new ManufactureOrders.Order(ResearchableType.TRAP, trap.getTrapId(), trap.getManufToBuild(),
                 trap.getManufCrateObjectId()));
-        return new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, manufactureControl, null, null);
+        return new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, manufactureControl, null, null, null);
     }
 
     @Test
@@ -181,6 +189,8 @@ class ManufactureTest {
         IRoomController workshop = (IRoomController) Proxy.newProxyInstance(
                 IRoomController.class.getClassLoader(), new Class<?>[]{IRoomController.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "getObjectControl" -> fullWorkshop;
+                    case "getRoom" -> RoomFixtures.roomWithEffects(0, 0);
+                    case "getRoomInstance" -> new RoomInstance(new Room());
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         Trap trap = TrapFixtures.trapToManufacture((short) 1, BILE_DEMON);
@@ -195,7 +205,8 @@ class ManufactureTest {
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         PlayerStatsControl stats = new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0));
-        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, manufactureControl, objectsController, stats);
+        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, manufactureControl, objectsController, stats,
+                events(new ArrayList<>()));
 
         // Not removed, the objects controller would be asked for the crate's controller
         task.executeTask(creature, 1f / TICKS_PER_SECOND);
@@ -220,6 +231,7 @@ class ManufactureTest {
                     case "isTileAccessible" -> true;
                     case "getFloorFurniture" -> Set.of();
                     case "getFloorFurnitureCount" -> 0;
+                    case "getRoom" -> RoomFixtures.roomWithEffects(0, 0);
                     case "getObjectControl" -> new RoomCrateControl(null, room[0], entityData, () -> 0) {
                         @Override
                         protected int getNumberOfAccessibleTiles() {
@@ -251,7 +263,8 @@ class ManufactureTest {
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, room[0], null, manufactureControl, objectsController,
-                new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0)));
+                new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0)),
+                events(new ArrayList<>()));
 
         task.executeTask(creature, 1f / TICKS_PER_SECOND);
 
@@ -260,6 +273,63 @@ class ManufactureTest {
         assertEquals(keeper, owner.ownerId);
         assertEquals(keeper, owner.controlId);
         assertNotNull(entityData.getComponent(crate[0], Stored.class));
+    }
+
+    @Test
+    void madeItemSoundsTellsItsKeeperAndSparklesOverTheWorkshop() {
+        IRoomObjectControl<?> fullWorkshop = (IRoomObjectControl<?>) Proxy.newProxyInstance(
+                IRoomObjectControl.class.getClassLoader(), new Class<?>[]{IRoomObjectControl.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "addItem" -> args[0];
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        RoomInstance roomInstance = new RoomInstance(new Room());
+        for (int x = 0; x < 20; x++) {
+            roomInstance.addCoordinate(new Point(x, 4));
+        }
+        IRoomController workshop = (IRoomController) Proxy.newProxyInstance(
+                IRoomController.class.getClassLoader(), new Class<?>[]{IRoomController.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "getObjectControl" -> fullWorkshop;
+                    case "getRoom" -> RoomFixtures.roomWithEffects(12, 49, 50, 51, 93, 0, 0, 0);
+                    case "getRoomInstance" -> roomInstance;
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        IObjectsController objectsController = (IObjectsController) Proxy.newProxyInstance(
+                IObjectsController.class.getClassLoader(), new Class<?>[]{IObjectsController.class}, (proxy, method, args) -> new EntityId(1));
+        Trap trap = TrapFixtures.trapToManufacture((short) 4, BILE_DEMON);
+        PlayerManufactureControl manufactureControl = new PlayerManufactureControl();
+        manufactureControl.setOrder(new ManufactureOrders.Order(ResearchableType.TRAP, trap.getTrapId(), trap.getManufToBuild(), (short) 5));
+        ICreatureController creature = (ICreatureController) Proxy.newProxyInstance(
+                ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
+                    case "getManufacturePerTick" -> BILE_DEMON;
+                    default -> throw new UnsupportedOperationException(method.getName());
+                });
+        List<List<Object>> emitted = new ArrayList<>();
+        Manufacture task = new Manufacture(null, null, new Point(3, 4), (short) 1, workshop, null, manufactureControl, objectsController,
+                new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0)), events(emitted));
+
+        task.executeTask(creature, 1f / TICKS_PER_SECOND);
+
+        // DK II (0x4F5240): the made sound of the trap at the crate, message 0x1A about the crate type to the workshop's
+        // keeper, the room's first effect (Manufactured Item) once for every 9 of the 20 tiles and its second one (New
+        // Manufacture Crate) at the crate
+        Vector3f crate = new Vector3f(3, WorldUtils.FLOOR_HEIGHT, 4);
+        assertEquals(List.of("emit", GameEventType.WORKSHOP_ITEM_MADE, ThingFlag.TRAP, 4, crate), emitted.get(0));
+        assertEquals(List.of("emitToPlayer", GameEventType.WORKSHOP_ITEM_MADE_MESSAGE, 5, (short) 1), emitted.get(1));
+        assertEquals(List.of("emitEffect", 12), emitted.get(2).subList(0, 2));
+        assertEquals(WorldUtils.FLOOR_HEIGHT + 1.5f, ((Vector3f) emitted.get(2).get(2)).y);
+        assertEquals(List.of("emitEffect", 12), emitted.get(3).subList(0, 2));
+        assertEquals(List.of("emitEffect", 49, crate, 0f), emitted.get(4));
+        assertEquals(5, emitted.size());
+    }
+
+    private static GameEventService events(List<List<Object>> emitted) {
+        return (GameEventService) Proxy.newProxyInstance(GameEventService.class.getClassLoader(), new Class<?>[]{GameEventService.class},
+                (proxy, method, args) -> {
+                    List<Object> call = new ArrayList<>(List.of(method.getName()));
+                    call.addAll(List.of(args));
+                    emitted.add(call);
+                    return null;
+                });
     }
 
 }

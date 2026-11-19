@@ -40,6 +40,7 @@ import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.Death;
+import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Interaction;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.controller.DropValidator;
@@ -152,6 +153,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         components.add(Death.class);
         components.add(CreatureComponent.class);
         components.add(SpeedBlur.class);
+        components.add(Health.class);
         return components;
     }
 
@@ -519,6 +521,16 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     public boolean isChicken() {
         CreatureAi creatureAi = getEntity().get(CreatureAi.class);
         return creatureAi != null && creatureAi.getCreatureState() == CreatureState.CHICKEN;
+    }
+
+    /**
+     * Whether the creature is at its full health
+     *
+     * @return true if the creature has all of its health
+     */
+    public boolean isAtFullHealth() {
+        Health health = getEntity().get(Health.class);
+        return health != null && health.health == health.maxHealth;
     }
 
     private boolean isWorkAnimation() {

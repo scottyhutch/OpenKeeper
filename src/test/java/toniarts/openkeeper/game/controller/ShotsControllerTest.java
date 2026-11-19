@@ -413,6 +413,19 @@ class ShotsControllerTest {
     }
 
     @Test
+    void upgradedCreateImpCreatesALevelFourImp() {
+
+        // The upgraded Create Imp fires shot 60 (Create Single Creature) with data 1 (Imp) and 4
+        shotsController.createShot(CREATE_SINGLE_CREATURE_ID, IMP_ID, 4, PLAYER_ID, new Vector3f(4.5f, 0f, 7.5f), null, null);
+
+        assertEquals(1, spawnedCreatures.size());
+        Object[] args = spawnedCreatures.get(0);
+        assertEquals(IMP_ID, args[0]);
+        assertEquals(PLAYER_ID, args[1]);
+        assertEquals(4, args[2]);
+    }
+
+    @Test
     void goldObjectShotCreatesAPileOfTheShotsAmount() {
 
         // Create Gold: object 1 (Gold), the second value is the amount of gold

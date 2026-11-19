@@ -206,7 +206,7 @@ public final class GameLoopManager {
                         gameController.getGameTimer()),
                 new CreatureViewSystem(entityData, levelInfo.getLevelData()),
                 new DoorSystem(entityData, level, gameWorldController.getMapController(), levelInfo),
-                new DoorViewSystem(entityData, positionSystem),
+                new DoorViewSystem(entityData, positionSystem, levelInfo),
                 new BattleSystem(entityData, gameController.getGameTimer()),
                 new SpinSystem(entityData, gameController.getGameTimer()),
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),

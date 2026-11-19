@@ -245,6 +245,7 @@ final class PauseMenuSettings {
         settings.setSetting(Settings.Setting.SFX_ENABLED, find("sfxEnabled", CheckBox.class).isChecked());
 
         Main.setupNiftySound(nifty);
+        Main.applySoundSettings();
         save();
     }
 

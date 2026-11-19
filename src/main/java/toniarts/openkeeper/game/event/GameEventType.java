@@ -55,6 +55,10 @@ public enum GameEventType {
      */
     CREATURE_SULK,
     /**
+     * A creature put gold in a Treasury or its Dungeon Heart
+     */
+    CREATURE_STORE_GOLD,
+    /**
      * The subject is the attacker's creature type, the target is the victim
      */
     MELEE_HIT,
@@ -96,6 +100,23 @@ public enum GameEventType {
      * keeper gets this
      */
     ALARM_RAISED,
+    /**
+     * The keeper tried to place a trap or a door without the gold for it, only
+     * that keeper gets this
+     */
+    NOT_ENOUGH_GOLD,
+
+    // The Workshop
+    /**
+     * A trap or a door was made, the subject is the trap or door type, at its
+     * crate
+     */
+    WORKSHOP_ITEM_MADE,
+    /**
+     * A trap or a door was made, only the Workshop's keeper gets this. The
+     * subject is the object type of its crate
+     */
+    WORKSHOP_ITEM_MADE_MESSAGE,
 
     // The Torture Chamber
     /**

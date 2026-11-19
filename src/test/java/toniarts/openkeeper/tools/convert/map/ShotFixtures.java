@@ -330,6 +330,10 @@ public final class ShotFixtures {
         return keeperSpell(castRule, targetRule, manaCost, 0, (short) 1);
     }
 
+    public static KeeperSpell keeperSpell(short keeperSpellId, KeeperSpell.CastRule castRule, KeeperSpell.TargetRule targetRule, int manaCost) {
+        return keeperSpell(castRule, targetRule, manaCost, 0, keeperSpellId);
+    }
+
     public static KeeperSpell keeperSpell(KeeperSpell.CastRule castRule, KeeperSpell.TargetRule targetRule, int manaCost, float rechargeTime, short keeperSpellId) {
         KeeperSpell keeperSpell = new KeeperSpell();
         keeperSpell.setKeeperSpellId(keeperSpellId);
