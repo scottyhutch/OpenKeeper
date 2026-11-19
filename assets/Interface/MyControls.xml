@@ -517,6 +517,7 @@
                 <onCustom name="colorBar" color="#000000AA" customKey="unaffordable" post="true" neverStopRendering="true" />
                 <onCustom customKey="flash" name="imageOverlayPulsate" pulsateType="rectangle" period="500" filename="$hoverImage" post="true" neverStopRendering="true" timeType="infinite" />
                 <onCustom name="imageOverlayPulsate" filename="Textures/GUI/Icons/hilight.png" customKey="hint" period="500" timeType="infinite" pulsateType="rectangle" post="true" neverStopRendering="true" />
+                <onCustom name="colorBar" color="#00000080" customKey="workshopless" post="true" neverStopRendering="true" />
             </effect>
             <interact onClick="$click" />
         </image>
