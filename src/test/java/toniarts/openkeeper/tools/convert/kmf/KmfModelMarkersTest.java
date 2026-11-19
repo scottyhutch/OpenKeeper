@@ -43,9 +43,9 @@ class KmfModelMarkersTest {
         AnimGeom last = geom(2, 3, 4, -5);
         anim.setGeometries(List.of(first, last));
         AnimControl control = new AnimControl();
-        control.setUnknown1(0);
-        control.setUnknown2(0);
-        control.setUnknown3(10001);
+        control.setSprite(0);
+        control.setVertex(0);
+        control.setId(10001);
         anim.setControls(List.of(control));
         Node model = new Node();
         var composer = new AnimComposer();

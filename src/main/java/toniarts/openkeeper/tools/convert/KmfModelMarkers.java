@@ -45,7 +45,7 @@ public final class KmfModelMarkers {
         var clip = composer.getAnimClip(KmfModelLoader.DUMMY_ANIM_CLIP_NAME);
         var tracks = new ArrayList<AnimTrack>(Arrays.asList(clip.getTracks()));
         for (var control : anim.getControls()) {
-            if (control.getUnknown3() != PORTAL_GEM || control.getUnknown1() != 0) {
+            if (control.getId() != PORTAL_GEM || control.getSprite() != 0) {
                 continue;
             }
             float[] times = new float[anim.getFrames()];
@@ -53,7 +53,7 @@ public final class KmfModelMarkers {
             for (int frame = 0; frame < times.length; frame++) {
                 // CTRL's second field addresses the same ITAB/OFFS stream used
                 // for mesh vertices. The final field is the native marker ID.
-                positions[frame] = sample(anim, control.getUnknown2(), frame);
+                positions[frame] = sample(anim, control.getVertex(), frame);
                 times[frame] = (frame + 1) / 30f;
             }
             Node marker = addMarker(model, positions[0]);

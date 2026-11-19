@@ -48,6 +48,9 @@ import toniarts.openkeeper.game.component.SpeedChange;
 import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.Tremor;
 import toniarts.openkeeper.game.component.Unconscious;
+import toniarts.openkeeper.game.component.SpeedBlur;
+import toniarts.openkeeper.game.component.SpeedChange;
+import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.game.controller.shot.IShotProcessor;
 import toniarts.openkeeper.game.controller.shot.InfernoShotProcessor;
@@ -194,14 +197,24 @@ public final class ShotsController implements IShotsController {
         });
         // Haste and Slow: the first value is the new speed as a percentage of the current one, the second how many
         // seconds it lasts. The speed stays between a quarter of the creature's own and a tile a game tick, and a
-        // speed change that is still running is left as it is
+        // speed change that is still running is left as it is. Then, like 0x4AE000, a creature faster than its own
+        // speed shows the speed blur for as many game ticks as the second value, a slower one none
         result.put(MODIFY_SPEED, request -> {
             Mobile mobile = entityData.getComponent(request.target(), Mobile.class);
             CreatureComponent creature = entityData.getComponent(request.target(), CreatureComponent.class);
-            if (mobile != null && creature != null && entityData.getComponent(request.target(), SpeedChange.class) == null) {
+            if (mobile == null || creature == null) {
+                return;
+            }
+            if (entityData.getComponent(request.target(), SpeedChange.class) == null) {
                 float speed = FastMath.clamp(mobile.maxSpeed * request.shotData1() / 100, creature.speed / 4, kwdFile.getGameLevel().getTicksPerSec());
-                entityData.setComponents(request.target(), new Mobile(mobile.canFly, mobile.canWalkOnWater, mobile.canWalkOnLava, speed),
-                        new SpeedChange(gameTimer.getGameTime() + request.shotData2()));
+                mobile = new Mobile(mobile.canFly, mobile.canWalkOnWater, mobile.canWalkOnLava, speed);
+                entityData.setComponents(request.target(), mobile, new SpeedChange(gameTimer.getGameTime() + request.shotData2()));
+            }
+            if (mobile.maxSpeed > creature.speed) {
+                entityData.setComponent(request.target(), new SpeedBlur(gameTimer.getGameTime()
+                        + request.shotData2() / (double) kwdFile.getGameLevel().getTicksPerSec()));
+            } else if (mobile.maxSpeed < creature.speed) {
+                entityData.removeComponent(request.target(), SpeedBlur.class);
             }
         });
         // Cast Armour: the first value is how long the armour lasts, in game ticks
