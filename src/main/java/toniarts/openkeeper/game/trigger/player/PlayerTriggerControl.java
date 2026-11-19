@@ -150,6 +150,7 @@ public class PlayerTriggerControl extends TriggerControl {
             pollStatEvent(TriggerGeneric.TargetType.PLAYER_CREATURE_SLAPPED, playerController.getStatsControl().getSlaps());
             pollButtonEvents(playerController.getStatsControl().getButtonPresses());
         }
+        pollPayDays();
     }
 
     private void pollButtonEvents(Map<PlayerStatsControl.PressedButton, Integer> current) {
