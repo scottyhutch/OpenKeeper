@@ -20,16 +20,16 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.CreatureViewState;
+import toniarts.openkeeper.game.component.DummyRecoil;
 import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.ObjectViewState.GameObjectAnimState;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.TaskComponent;
+import toniarts.openkeeper.game.component.TrainingBlow;
+import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.task.TaskType;
@@ -37,7 +37,6 @@ import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
-import toniarts.openkeeper.utils.GameTimeCounter;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -47,61 +46,59 @@ import toniarts.openkeeper.utils.WorldUtils;
  * first additional resource, when the blow lands at the end of the swing. A
  * swing takes the creature's melee recharge time
  */
-public final class TrainingDummySystem extends GameTimeCounter {
+public final class TrainingDummySystem implements IGameLogicUpdatable {
 
     private final EntityData entityData;
     private final IKwdFile kwdFile;
     private final IMapController mapController;
+    private final IGameTimer gameTimer;
     private final EntitySet trainees;
-    private final Map<EntityId, Double> nextBlows = new HashMap<>();
-    private final Map<EntityId, Double> recoilEnds = new HashMap<>();
+    private final EntitySet recoils;
 
-    public TrainingDummySystem(EntityData entityData, IKwdFile kwdFile, IMapController mapController) {
+    public TrainingDummySystem(EntityData entityData, IKwdFile kwdFile, IMapController mapController,
+            IGameTimer gameTimer) {
         this.entityData = entityData;
         this.kwdFile = kwdFile;
         this.mapController = mapController;
+        this.gameTimer = gameTimer;
 
         trainees = entityData.getEntities(TaskComponent.class, CreatureViewState.class, CreatureMeleeAttack.class);
+        recoils = entityData.getEntities(DummyRecoil.class, ObjectViewState.class);
     }
 
     @Override
     public void processTick(float tpf) {
-        super.processTick(tpf);
+        double gameTime = gameTimer.getGameTime();
 
-        if (trainees.applyChanges()) {
-            for (Entity entity : trainees.getRemovedEntities()) {
-                nextBlows.remove(entity.getId());
-            }
-        }
-
+        trainees.applyChanges();
         for (Entity entity : trainees) {
-            swing(entity);
+            swing(entity, gameTime);
         }
 
-        endRecoils();
+        endRecoils(gameTime);
     }
 
-    private void swing(Entity trainee) {
+    private void swing(Entity trainee, double gameTime) {
         TaskComponent task = trainee.get(TaskComponent.class);
         CreatureViewState view = trainee.get(CreatureViewState.class);
 
         // Swinging at the dummy, not on the way there
         if (task.taskType != TaskType.TRAIN || task.targetLocation == null || view.state != Creature.AnimationType.MELEE_ATTACK) {
-            nextBlows.remove(trainee.getId());
+            entityData.removeComponent(trainee.getId(), TrainingBlow.class);
             return;
         }
 
         double swingTime = Math.max(trainee.get(CreatureMeleeAttack.class).rechargeTime, 0.1f);
-        Double nextBlow = nextBlows.get(trainee.getId());
+        TrainingBlow nextBlow = entityData.getComponent(trainee.getId(), TrainingBlow.class);
         if (nextBlow == null) {
-            nextBlows.put(trainee.getId(), timeElapsed + swingTime);
-        } else if (timeElapsed >= nextBlow) {
-            nextBlows.put(trainee.getId(), nextBlow + swingTime);
-            hitDummy(task.targetLocation);
+            entityData.setComponent(trainee.getId(), new TrainingBlow(gameTime + swingTime));
+        } else if (gameTime >= nextBlow.nextBlowTime) {
+            entityData.setComponent(trainee.getId(), new TrainingBlow(nextBlow.nextBlowTime + swingTime));
+            hitDummy(task.targetLocation, gameTime);
         }
     }
 
-    private void hitDummy(Point dummyTile) {
+    private void hitDummy(Point dummyTile, double gameTime) {
         IRoomController room = mapController.getRoomControllerByCoordinates(dummyTile);
         if (room == null) {
             return;
@@ -122,24 +119,21 @@ public final class TrainingDummySystem extends GameTimeCounter {
             // A new state each blow, so the recoil starts over
             entityData.setComponent(furniture, new ObjectViewState(view.objectId, view.state,
                     GameObjectAnimState.ADDITIONAL_RESOURCE_1, view.visible));
-            recoilEnds.put(furniture, timeElapsed + getAnimationTime(recoil));
+            entityData.setComponent(furniture, new DummyRecoil(gameTime + getAnimationTime(recoil)));
         }
     }
 
-    private void endRecoils() {
-        Iterator<Map.Entry<EntityId, Double>> iterator = recoilEnds.entrySet().iterator();
-        while (iterator.hasNext()) {
-            Map.Entry<EntityId, Double> recoilEnd = iterator.next();
-            if (timeElapsed < recoilEnd.getValue()) {
+    private void endRecoils(double gameTime) {
+        recoils.applyChanges();
+        for (Entity recoil : recoils) {
+            if (gameTime < recoil.get(DummyRecoil.class).endTime) {
                 continue;
             }
 
-            iterator.remove();
-            ObjectViewState view = entityData.getComponent(recoilEnd.getKey(), ObjectViewState.class);
-            if (view != null) {
-                entityData.setComponent(recoilEnd.getKey(), new ObjectViewState(view.objectId, view.state,
-                        GameObjectAnimState.MESH_RESOURCE, view.visible));
-            }
+            ObjectViewState view = recoil.get(ObjectViewState.class);
+            entityData.removeComponent(recoil.getId(), DummyRecoil.class);
+            entityData.setComponent(recoil.getId(), new ObjectViewState(view.objectId, view.state,
+                    GameObjectAnimState.MESH_RESOURCE, view.visible));
         }
     }
 
@@ -178,8 +172,7 @@ public final class TrainingDummySystem extends GameTimeCounter {
     @Override
     public void stop() {
         trainees.release();
-        nextBlows.clear();
-        recoilEnds.clear();
+        recoils.release();
     }
 
 }

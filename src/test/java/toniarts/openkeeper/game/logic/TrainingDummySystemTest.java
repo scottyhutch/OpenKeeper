@@ -28,6 +28,7 @@ import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.ObjectViewState.GameObjectAnimState;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.TaskComponent;
+import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.task.TaskType;
@@ -53,6 +54,7 @@ class TrainingDummySystemTest {
 
     private final DefaultEntityData entityData = new DefaultEntityData();
     private final EntityId dummy = entityData.createEntity();
+    private final double[] gameTime = new double[1];
     private final TrainingDummySystem system;
 
     TrainingDummySystemTest() {
@@ -76,7 +78,8 @@ class TrainingDummySystemTest {
                     case "getRoomControllerByCoordinates" -> DUMMY_TILE.equals(args[0]) ? trainingRoom : null;
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
-        system = new TrainingDummySystem(entityData, kwdFile, mapController);
+        IGameTimer gameTimer = () -> gameTime[0];
+        system = new TrainingDummySystem(entityData, kwdFile, mapController, gameTimer);
     }
 
     @Test
@@ -134,6 +137,7 @@ class TrainingDummySystemTest {
 
     private void tick(float seconds) {
         for (int i = 0; i < Math.round(seconds / TICK); i++) {
+            gameTime[0] += TICK;
             system.processTick(TICK);
         }
     }
