@@ -121,6 +121,7 @@ class WorkerTaskAssignmentTest {
         addLand(0, 19, 10);
 
         // DK II's idle imps (0x463DF0) send the fifth imp of a player looking for work on a tick off to wander
+        addLand(0, 20, 10);
         TaskManager taskManager = taskManager();
         List<Task> tasks = new ArrayList<>();
         for (int i = 0; i < 10; i++) {
