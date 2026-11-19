@@ -1032,7 +1032,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
     @Override
     public void pickUp(EntityId entity, short playerId) {
         ThreadCheck.logic("GameWorldController.pickUp");
-        if (activateSpecialOnOwnLand(entity, playerId) || turnLevelIndicator(entity, 1) || switchRoomFurniture(entity, playerId)) {
+        if (activateSpecialOnOwnLand(entity, playerId) || switchRoomFurniture(entity, playerId) || turnLevelIndicator(entity, 1)) {
             return;
         }
 
@@ -1367,7 +1367,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
         ObjectComponent objectComponent = entityData.getComponent(entityId, ObjectComponent.class);
         Owner owner = entityData.getComponent(entityId, Owner.class);
-        if (!isTool(entityId, entityData) && !EntityPickupValidator.isValidOwner(objectComponent, owner, playerId)) {
+        if (!EntityPickupValidator.isValidOwner(objectComponent, owner, playerId, isTool(entityId, entityData))) {
             return false;
         }
 
