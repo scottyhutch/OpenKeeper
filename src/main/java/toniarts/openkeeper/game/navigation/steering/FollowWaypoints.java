@@ -66,7 +66,12 @@ public final class FollowWaypoints extends SteeringBehavior<Vector2> {
     private static final float FINISH_RADII = 0.5f;
     private static final float WORKER_FINISH_DISTANCE = 0x1999 / 65536f;
     private static final float OBSTACLE_PASS_DISTANCE = 0xCCCC / 65536f;
-    private static final int HEADWAY_TICKS = 0x7FFF;
+
+    /**
+     * Of the last 15 ticks, with 5 without headway the obstacles let a
+     * creature through, with 2 or fewer they hold it again (0x4D3C40)
+     */
+    private static final int LAST_15_TICKS = 0x7FFF;
     private static final int HELD_UP = 5;
     private static final int CLEAR = 2;
 
@@ -178,7 +183,7 @@ public final class FollowWaypoints extends SteeringBehavior<Vector2> {
         for (int i = waypoint + 1; i < waypoints.size(); i++) {
             left += waypoints.get(i - 1).dst(waypoints.get(i));
         }
-        stalls = (stalls << 1 | (left >= remaining ? 1 : 0)) & HEADWAY_TICKS;
+        stalls = (stalls << 1 | (left >= remaining ? 1 : 0)) & LAST_15_TICKS;
         remaining = left;
         int heldUp = Integer.bitCount(stalls);
         if (heldUp >= HELD_UP) {
