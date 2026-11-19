@@ -208,7 +208,7 @@ public final class NetworkServer {
         this.port = port;
     }
 
-    private static void initialize() {
+    static void initialize() {
         if (!initialized) {
             initialized = true;
 
