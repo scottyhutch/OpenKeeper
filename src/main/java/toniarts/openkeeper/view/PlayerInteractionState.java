@@ -164,6 +164,11 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
     private boolean inputListenerAdded = false;
     private final Set<Integer> keys = new HashSet<>();
     private IEntityViewControl interactiveControl;
+    /**
+     * The creature clicked with the Query Tool, its text stays in the tooltip
+     * until the tool is put away
+     */
+    private EntityId queriedCreature;
     private Label tooltip;
     private MapHoverHint fogHint;
     private KeeperHandState keeperHandState;
@@ -340,6 +345,9 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
             selectionHandler.setActive(false);
         }
         interactionState.setState(type, id);
+        if (type != Type.QUERY) {
+            queriedCreature = null;
+        }
 
         // Call the update
         onInteractionStateChange(interactionState);
@@ -437,6 +445,15 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         } else if (isOnMap) {
             p = selectionHandler.getPointedTileIndex();
             tooltip.setText(getTileTooltip(p));
+        }
+
+        // Like DK II (0x4242F0), the queried creature's text is shown instead, until the creature is gone
+        if (queriedCreature != null) {
+            if (playerEntityViewState.getEntityViewControl(queriedCreature) instanceof CreatureViewControl creatureControl) {
+                tooltip.setText(creatureControl.getQueryText(player.getPlayerId()));
+            } else {
+                queriedCreature = null;
+            }
         }
 
         // If debug, show tile coordinate
@@ -687,7 +704,8 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
                 // Play the reaction once, then fall through to normal cursor logic
                 inputManager.setMouseCursor(CursorFactory.getCursor(reactionCursor, assetManager));
-            } else if (isOnGui || isInteractable || interactionState.getType() == Type.SPELL) {
+            } else if (isOnGui || isInteractable || interactionState.getType() == Type.SPELL
+                    || interactionState.getType() == Type.QUERY) {
                 inputManager.setMouseCursor(CursorFactory.getCursor(CursorFactory.CursorType.POINTER, assetManager));
                 if (showSpellIcon) {
                     keeperHandState.setVisible(true);
@@ -798,7 +816,13 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         }
 
         private void onLeftMouseButtonPressed() {
-            if (interactionState.getType() == Type.SPELL) {
+            if (interactionState.getType() == Type.QUERY) {
+
+                // Like DK II (0x4075E0, interaction state 10), only a creature can be queried
+                if (interactiveControl instanceof CreatureViewControl) {
+                    queriedCreature = interactiveControl.getEntityId();
+                }
+            } else if (interactionState.getType() == Type.SPELL) {
                 castSpell(kwdFile.getKeeperSpellById(interactionState.getItemId()), interactiveControl, selectionHandler.getPointedTileIndex(), selectionHandler.getActualPointedPosition());
             } else if (interactionState.getType() == Type.TRAP) {
                 Point p = selectionHandler.getPointedTileIndex();
@@ -1347,7 +1371,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
 
         public enum Type {
 
-            NONE, ROOM, SELL, SPELL, TRAP, DOOR, STUFF_IN_HAND
+            NONE, ROOM, SELL, SPELL, TRAP, DOOR, STUFF_IN_HAND, QUERY
         }
 
         private int itemId = 0;
