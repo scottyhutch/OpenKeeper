@@ -23,6 +23,10 @@ import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
+import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.Frozen;
+import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAbility;
@@ -33,6 +37,7 @@ import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.pathfinding.INavigable;
+import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
 
@@ -80,6 +85,12 @@ public final class PossessedMovementSystem implements IGameLogicUpdatable {
         possessedEntities.applyChanges();
 
         for (Entity entity : possessedEntities) {
+
+            // Like DK II (0x40E910), a frozen possessed creature can neither move nor look around
+            if (entityData.getComponent(entity.getId(), Frozen.class) != null) {
+                continue;
+            }
+
             PossessedMovement movement = entity.get(PossessedMovement.class);
             Position position = entityData.getComponent(entity.getId(), Position.class);
             if (position == null) {
