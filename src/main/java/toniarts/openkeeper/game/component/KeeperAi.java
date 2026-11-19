@@ -149,9 +149,9 @@ public final class KeeperAi implements EntityComponent {
     public boolean goldAttemptLooked;
 
     /**
-     * Gold tiles near the centers of the seams nearest to its rooms when it
-     * last looked, nearest first. DK II heads for the seam of its last look
-     * and then looks again.
+     * The middles of the gold seams nearest to its rooms when it last
+     * looked, the nearest first. DK II heads for the seam of its last look
+     * and then looks again
      */
     public Point[] goldDeposits = new Point[4];
 
@@ -218,8 +218,13 @@ public final class KeeperAi implements EntityComponent {
      */
     public Point[] failedTargets = new Point[4];
     public int[] failedTargetTicks = new int[4];
-    /** Game ticks before a room with no available site may be searched again, indexed by room id. */
-    public int[] failedRoomTicks = new int[32];
+
+    /**
+     * How many times in a row the search for a room site gave up. For each
+     * the next search is for a room a tile shorter each way, down to 3 by 3.
+     * DK II keeps looking for a room of the default size
+     */
+    public int roomSitesNotFound;
 
     public KeeperAi() {
         // For serialization
@@ -269,6 +274,7 @@ public final class KeeperAi implements EntityComponent {
         this.rallyTile = keeperAi.rallyTile;
         this.failedTargets = keeperAi.failedTargets.clone();
         this.failedTargetTicks = keeperAi.failedTargetTicks.clone();
+        this.roomSitesNotFound = keeperAi.roomSitesNotFound;
     }
 
 }

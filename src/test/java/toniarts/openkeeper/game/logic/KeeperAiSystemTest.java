@@ -326,7 +326,7 @@ class KeeperAiSystemTest {
         // The search gives up on 1 in 20 rounds of the four directions
         for (int tick = 0; tick < 4000 && built.size() < 9; tick++) {
             system.processTick(0.25f);
-            if (getKeeperAi().task == KeeperAi.Task.FIND_ROOM_SITE) {
+            if (getKeeperAi().task == KeeperAi.Task.FIND_ROOM_SITE && getKeeperAi().roomSitesNotFound == 0) {
                 assertTrue(tagged.isEmpty());
             }
             for (Point p : tagged) {
@@ -337,6 +337,7 @@ class KeeperAiSystemTest {
 
         // It gave up on the 16 tiles and built 3 by 3, the next room is looked for at its full size again
         assertEquals(9, built.size());
+        assertEquals(0, getKeeperAi().roomSitesNotFound);
     }
 
     @Test
@@ -360,6 +361,7 @@ class KeeperAiSystemTest {
 
         // Right next to the heart a 3 by 3 room fits. Its open sides don't count then, as for a computer player that leaves no gap
         assertEquals(9, built.size());
+        assertEquals(0, getKeeperAi().roomSitesNotFound);
     }
 
     @Test
@@ -482,7 +484,7 @@ class KeeperAiSystemTest {
     }
 
     @Test
-    void doesNotTryToBuildABridgeWithoutEnoughGold() {
+    void waitsOnTheTileWhileItIsShortOfGoldForTheBridge() {
         KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
         roomControl.setTypeAvailable(bridges.get(WOODEN_BRIDGE), true, true);
         createNeutralPortal(new Point(9, 6));
@@ -490,14 +492,27 @@ class KeeperAiSystemTest {
         chargeGoldForBuild = true;
         setGold(ROOM_COST - 1);
 
-        digPath(system);
+        for (int tick = 0; tick < 20; tick++) {
+            system.processTick(0.25f);
+            for (Point p : tagged) {
+                map[p.y][p.x] = '.';
+            }
+            tagged.clear();
+        }
 
-        assertTrue(buildAttempts.isEmpty());
+        // DK II stays on the tile until it can build the bridge
         assertTrue(built.isEmpty());
-        assertEquals('W', map[6][7]);
-        assertEquals(ROOM_COST - 1, goldControl.getGold());
-        assertEquals(KeeperAi.Task.PLAN, getKeeperAi().task);
-        assertTrue(getKeeperAi().failedTargetTicks[0] > 0);
+        assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
+        assertEquals(new Point(7, 6), getKeeperAi().current);
+        assertEquals(0, getKeeperAi().failedTargetTicks[0]);
+
+        setGold(ROOM_COST);
+        for (int tick = 0; tick < 5 && built.isEmpty(); tick++) {
+            system.processTick(0.25f);
+        }
+
+        assertEquals(List.of(new Point(7, 6)), built);
+        assertEquals(List.of(WOODEN_BRIDGE), builtRoomIds);
     }
 
     @Test
@@ -518,31 +533,35 @@ class KeeperAiSystemTest {
     }
 
     @Test
-    void backsOffWhenBridgePlacementDoesNotCreateARoom() {
+    void staysOnTheTileWhenTheBridgeItPickedIsNotPlacedAndDoesNotTryTheOther() {
         KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
         roomControl.setTypeAvailable(bridges.get(WOODEN_BRIDGE), true, true);
+        roomControl.setTypeAvailable(bridges.get(STONE_BRIDGE), true, true);
         createNeutralPortal(new Point(9, 6));
         map[6][7] = 'W';
         rejectedRoomBuildId = WOODEN_BRIDGE;
 
-        digPath(system);
+        for (int tick = 0; tick < 20; tick++) {
+            system.processTick(0.25f);
+            for (Point p : tagged) {
+                map[p.y][p.x] = '.';
+            }
+            tagged.clear();
+        }
 
-        assertEquals(1, rejectedBuildAttempts);
+        assertTrue(rejectedBuildAttempts > 1);
         assertTrue(built.isEmpty());
-        assertEquals('W', map[6][7]);
-        assertNotEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
-        assertNotEquals(KeeperAi.Task.TAG_GOLD, getKeeperAi().task);
-        assertTrue(getKeeperAi().failedTargetTicks[0] > 0);
+        assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
+        assertEquals(new Point(7, 6), getKeeperAi().current);
+        assertEquals(0, getKeeperAi().failedTargetTicks[0]);
     }
 
     @Test
-    void doesNotRunTheDependentTaskAfterBridgePlacementFails() {
+    void stillTagsTheGoldWhenThePathIsGivenUp() {
         KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
-        roomControl.setTypeAvailable(bridges.get(WOODEN_BRIDGE), true, true);
         createNeutralPortal(new Point(9, 6));
         map[6][7] = 'W';
         map[7][9] = 'G';
-        rejectedRoomBuildId = WOODEN_BRIDGE;
 
         system.processTick(0.25f);
         assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
@@ -559,8 +578,9 @@ class KeeperAiSystemTest {
             system.processTick(0.25f);
         }
 
+        // No bridge to cross the water with, DK II still goes on to the task the path was for
         assertTrue(getKeeperAi().failedTargetTicks[0] > 0);
-        assertFalse(taggedHistory.contains(new Point(9, 7)));
+        assertTrue(taggedHistory.contains(new Point(9, 7)));
     }
 
     @Test
@@ -1505,14 +1525,20 @@ class KeeperAiSystemTest {
     }
 
     @Test
-    void digsATunnelToTheEnemyHeartWhenItHasAtLeastTheNumberOfFightersItsSettingsAskFor() {
+    void digsATunnelToTheEnemyHeartOnceItHasMoreFightersThanItsSettingsAskFor() {
         KeeperAiSystem system = createSystem(withInvasion(ai(0, 0, 9, 1, 50, 0, List.of()), 1, 50, AI.CallToArmsUsagePolicy.AT_HEART, 0), 1000);
         enemyRoomControl.onBuild(createRoom(DUNGEON_HEART, new Point(13, 6)));
         createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.WORK);
 
         system.processTick(0.25f);
 
-        // One fighter meets the configured threshold of one.
+        // One fighter is not more than the setting of one
+        assertEquals(KeeperAi.Task.PLAN, getKeeperAi().task);
+
+        createCreature(PLAYER_ID, new Point(1, 8), 100, 100, CreatureState.WORK);
+        system.processTick(0.25f);
+
+        // From its own heart to the enemy's, by the settings
         assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
         assertEquals(HEART, getKeeperAi().current);
         assertEquals(new Point(13, 6), getKeeperAi().target);
@@ -1524,46 +1550,38 @@ class KeeperAiSystemTest {
     }
 
     @Test
-    void digsTowardAHostileHeroPortalWithoutAnEnemyDungeonHeart() {
-        KeeperAiSystem system = createSystem(withInvasion(ai(0, 0, 9, 1, 50, 0, List.of()), 2, 50,
+    void neverPicksTheHeroesAsTheEnemyToInvade() {
+        KeeperAiSystem system = createSystem(withInvasion(ai(0, 0, 9, 1, 50, 0, List.of()), 1, 50,
                 AI.CallToArmsUsagePolicy.AT_HEART, 0), 1000, Player.GOOD_PLAYER_ID);
+        enemyRoomControl.onBuild(createRoom(DUNGEON_HEART, new Point(11, 6)));
         enemyRoomControl.onBuild(createRoom(HERO_PORTAL, new Point(13, 6)));
         createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.WORK);
-        system.processTick(0.25f);
-
-        assertEquals(KeeperAi.Task.PLAN, getKeeperAi().task);
-
         createCreature(PLAYER_ID, new Point(1, 8), 100, 100, CreatureState.WORK);
+
         system.processTick(0.25f);
 
-        assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
-        assertEquals(HEART, getKeeperAi().current);
-        assertEquals(new Point(13, 6), getKeeperAi().target);
-        assertEquals(Player.GOOD_PLAYER_ID, getKeeperAi().invasionTargetId);
-        assertEquals(1, getEnemy(Player.GOOD_PLAYER_ID).tunnelsLeft);
-        assertTrue(getEnemy(Player.GOOD_PLAYER_ID).invaded);
+        // DK II's enemy loop skips player 1, even with a heart
+        assertNotEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
+        assertEquals(0, getKeeperAi().invasionTargetId);
+        assertNull(getEnemy(Player.GOOD_PLAYER_ID));
     }
 
     @Test
-    void digsTowardNearestRoomWhenTheEnemyDungeonHeartIsDestroyed() {
-        KeeperAiSystem system = createSystem(withInvasion(ai(0, 0, 9, 1, 50, 0, List.of()), 2, 50,
-                AI.CallToArmsUsagePolicy.AT_HEART, 0), 1000, Player.GOOD_PLAYER_ID);
+    void doesNotInvadeAKeeperWhoseDungeonHeartIsDestroyed() {
+        KeeperAiSystem system = createSystem(withInvasion(ai(0, 0, 9, 1, 50, 0, List.of()), 1, 50,
+                AI.CallToArmsUsagePolicy.AT_HEART, 0), 1000);
         IRoomController heart = createRoom(DUNGEON_HEART, new Point(11, 6));
         heart.getRoomInstance().setDestroyed(true);
         enemyRoomControl.onBuild(heart);
-        enemyRoomControl.onBuild(createRoom(HERO_PORTAL, new Point(13, 6)));
+        enemyRoomControl.onBuild(createRoom(TREASURY, new Point(13, 6)));
         createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.WORK);
-        system.processTick(0.25f);
-
-        assertEquals(KeeperAi.Task.PLAN, getKeeperAi().task);
-
         createCreature(PLAYER_ID, new Point(1, 8), 100, 100, CreatureState.WORK);
+
         system.processTick(0.25f);
 
-        assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
-        assertEquals(new Point(13, 6), getKeeperAi().target);
-        assertEquals(Player.GOOD_PLAYER_ID, getKeeperAi().invasionTargetId);
-        assertTrue(getEnemy(Player.GOOD_PLAYER_ID).invaded);
+        assertNotEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
+        assertEquals(0, getKeeperAi().invasionTargetId);
+        assertNull(getEnemy());
     }
 
     @Test
@@ -1836,6 +1854,23 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void aimsAtTheMiddleOfASeamEvenWhenTheMiddleHasNoGold() {
+        map[6][10] = '#';
+        map[6][11] = '#';
+        for (int y = 2; y <= 4; y++) {
+            for (int x = 9; x <= 11; x++) {
+                map[y][x] = 'G';
+            }
+        }
+        map[3][10] = '#';
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 1000, List.of()), 0);
+        system.processTick(0.25f);
+
+        // DK II takes the mean of the seam's tiles, rock it can dig is fine
+        assertEquals(new Point(10, 3), getKeeperAi().goldDeposits[0]);
+    }
+
+    @Test
     void headsForTheNextSeamWhenThePathToTheNearestTookTooLong() {
         map[2][13] = 'G';
         KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 1000, List.of()), 0);
@@ -1896,7 +1931,7 @@ class KeeperAiSystemTest {
     }
 
     @Test
-    void returnsToPlanningWhenRoomConstructionBecomesUnaffordable() {
+    void triesTheSameRoomTileAgainEachTickWhileShortOfGold() {
         KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 1000);
         roomControl.setTypeAvailable(rooms.get(TREASURY), true, true);
         chargeGoldForBuild = true;
@@ -1921,10 +1956,18 @@ class KeeperAiSystemTest {
             tagged.clear();
         }
 
-        assertNotEquals(KeeperAi.Task.BUILD_ROOM, getKeeperAi().task);
+        // It stays on the room, trying the one tile, and builds the rest once the gold comes in
+        assertEquals(KeeperAi.Task.BUILD_ROOM, getKeeperAi().task);
         assertEquals(buildsBeforeGoldWasSpent, built.size());
-        assertEquals(buildsBeforeGoldWasSpent, buildAttempts.size());
-        assertEquals(0, rejectedBuildAttempts);
+        assertTrue(rejectedBuildAttempts > 1);
+        assertEquals(1, new HashSet<>(buildAttempts.subList(buildsBeforeGoldWasSpent, buildAttempts.size())).size());
+
+        setGold(1000);
+        for (int tick = 0; tick < 100 && getKeeperAi().task == KeeperAi.Task.BUILD_ROOM; tick++) {
+            system.processTick(0.25f);
+        }
+
+        assertEquals(9, built.size());
     }
 
     @Test
@@ -1947,22 +1990,23 @@ class KeeperAiSystemTest {
     }
 
     @Test
-    void buildsASmallerRoomWhenItsPreferredSizeHasNoSite() {
+    void triesOneDirectionATickForARoomSite() {
         KeeperAiSystem system = createSystem(ai(0, 0, 100, 2, 50, 0, List.of(TREASURY)), 1000);
         roomControl.setTypeAvailable(rooms.get(TREASURY), true, true);
-
-        for (int tick = 0; tick < 200 && (built.isEmpty() || getKeeperAi().task != KeeperAi.Task.PLAN); tick++) {
+        for (int tick = 0; tick < 10 && getKeeperAi().task != KeeperAi.Task.FIND_ROOM_SITE; tick++) {
             system.processTick(0.25f);
-            for (Point p : tagged) {
-                map[p.y][p.x] = '.';
-            }
-            tagged.clear();
         }
+        int preferred = getKeeperAi().direction;
+        Point start = getKeeperAi().current;
 
-        assertEquals(KeeperAi.Task.PLAN, getKeeperAi().task);
-        assertEquals(TREASURY, builtRoomIds.getFirst());
-        assertTrue(built.size() > 0);
-        assertTrue(built.size() < 100);
+        // No 10 by 10 site fits anywhere: each tick tries the next direction at the default size, from the same room
+        for (int direction : new int[]{preferred + 1, preferred - 1, preferred + 2}) {
+            system.processTick(0.25f);
+            assertEquals(KeeperAi.Task.FIND_ROOM_SITE, getKeeperAi().task);
+            assertEquals(direction & 3, getKeeperAi().direction);
+            assertEquals(start, getKeeperAi().current);
+            assertEquals(0, getKeeperAi().roomSitesNotFound);
+        }
     }
 
     @Test

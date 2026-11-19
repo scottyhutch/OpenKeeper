@@ -159,7 +159,6 @@ final class KeeperAiInvasions {
         int ownThreat = getThreat(keeperAi.playerId);
         Point heart = playerController.getKeeper().getDungeonHeartLocation();
         IPlayerController target = null;
-        IRoomController targetBreachRoom = null;
         int targetDistance = Integer.MAX_VALUE;
         for (IPlayerController enemy : getEnemies(playerControllers, playerController.getKeeper())) {
             KeeperAiEnemy keeperAiEnemy = getEnemy(keeperAi, enemy.getKeeper().getId(), ai);
@@ -171,15 +170,10 @@ final class KeeperAiInvasions {
                 }
                 continue;
             }
-            IRoomController breachRoom = getBreachRoom(enemy, ai.getFirstAttemptToBreachRoom(), heart);
-            if (breachRoom == null) {
-                continue;
-            }
-            int distance = getDistance(heart, breachRoom.getRoomInstance().getCenter());
+            int distance = getDistance(heart, enemy.getKeeper().getDungeonHeartLocation());
             if (getThreat(enemy.getKeeper().getId()) * ai.getTotalThreatGreaterThanTheEnemy() / 100 <= ownThreat
                     && distance < targetDistance) {
                 target = enemy;
-                targetBreachRoom = breachRoom;
                 targetDistance = distance;
             }
         }
@@ -193,8 +187,8 @@ final class KeeperAiInvasions {
         IRoomController startRoom;
         if (!keeperAiEnemy.breached) {
             keeperAiEnemy.breached = true;
-            breachRoom = targetBreachRoom;
-            startRoom = getStartRoom(playerController, ai.getFirstDigToEnemyPoint(), breachRoom);
+            breachRoom = getBreachRoom(target, ai.getFirstAttemptToBreachRoom());
+            startRoom = breachRoom != null ? getStartRoom(playerController, ai.getFirstDigToEnemyPoint(), breachRoom) : null;
         } else {
             startRoom = getRandomRoom(playerController);
             breachRoom = getRandomRoom(target);
@@ -478,9 +472,11 @@ final class KeeperAiInvasions {
     }
 
     /**
-     * The army is ready with at least the number of fighters its settings
-     * ask for, all of them at the level it wants. When only a few are below
-     * that level, as many as the level or fewer, they go up one level first.
+     * The army is ready with more fighters than its settings ask for, all of
+     * them at the level it wants. When only a few are below that level, as
+     * many as the level or fewer, they go up one level first. DK II
+     * (0x4FAB10) wants more than attackWhenNumberOfCreaturesIsAtLeast, not
+     * at least that many.
      */
     boolean isArmyReady(short playerId, AI ai, int creatureLevel) {
         List<Entity> fighters = new ArrayList<>();
@@ -493,7 +489,7 @@ final class KeeperAiInvasions {
                 }
             }
         }
-        if (fighters.size() < ai.getAttackWhenNumberOfCreaturesIsAtLeast()) {
+        if (fighters.size() <= ai.getAttackWhenNumberOfCreaturesIsAtLeast()) {
             return false;
         }
         if (below.size() <= creatureLevel && below.size() < fighters.size()) {
@@ -537,17 +533,20 @@ final class KeeperAiInvasions {
     }
 
     /**
-     * Hostile players with a living Dungeon Heart or another room the AI can
-     * use as an invasion target. Campaign hero factions do not have Hearts.
+     * The keepers it is at war with that still have their Dungeon Heart, by
+     * id. DK II's enemy loop (0x4FAEF0) skips the heroes (player 1), the
+     * neutral player (2), its allies and the keepers that are out, so the
+     * computer player never picks the heroes this way. Only a computer player
+     * set to invade its last attacker can tunnel to them, when they attacked
+     * it last.
      */
     private static List<IPlayerController> getEnemies(Map<Short, IPlayerController> playerControllers, Keeper keeper) {
         List<IPlayerController> enemies = new ArrayList<>();
         for (IPlayerController other : playerControllers.values()) {
             Keeper enemy = other.getKeeper();
             IRoomController heart = other.getRoomControl().getDungeonHeart();
-            boolean hasLivingHeart = heart != null && !heart.getRoomInstance().isDestroyed();
-            if (keeper.isEnemy(enemy.getId()) && !enemy.isDestroyed()
-                    && (hasLivingHeart || !getRooms(other).isEmpty())) {
+            if (enemy.getId() >= Player.KEEPER1_ID && keeper.isEnemy(enemy.getId()) && !enemy.isDestroyed()
+                    && heart != null && !heart.getRoomInstance().isDestroyed()) {
                 enemies.add(other);
             }
         }
@@ -587,11 +586,10 @@ final class KeeperAiInvasions {
      * room, or the room with the least or the most of the enemy's threat
      * around it. A room is only the most defended with some threat around it
      */
-    private IRoomController getBreachRoom(IPlayerController enemy, AI.BreachRoomPolicy policy, Point from) {
+    private IRoomController getBreachRoom(IPlayerController enemy, AI.BreachRoomPolicy policy) {
         switch (policy) {
             case ENEMY_DUNGEON_HEART -> {
-                IRoomController heart = enemy.getRoomControl().getDungeonHeart();
-                return heart != null && !heart.getRoomInstance().isDestroyed() ? heart : getNearestRoom(enemy, from);
+                return enemy.getRoomControl().getDungeonHeart();
             }
             case RANDOM -> {
                 return getRandomRoom(enemy);
