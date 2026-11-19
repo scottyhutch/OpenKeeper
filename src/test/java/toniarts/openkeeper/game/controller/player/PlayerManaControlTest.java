@@ -16,13 +16,11 @@
  */
 package toniarts.openkeeper.game.controller.player;
 
-import java.util.EnumMap;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.data.Keeper;
-import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
+import toniarts.openkeeper.tools.convert.map.TrapFiringFixtures;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
-import static toniarts.openkeeper.tools.convert.map.ManaRulesFixtures.manaVariable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -35,7 +33,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class PlayerManaControlTest {
 
     private final Keeper keeper = new Keeper(false, (short) 3);
-    private final PlayerManaControl manaControl = new PlayerManaControl(keeper, settings());
+    private final PlayerManaControl manaControl = new PlayerManaControl(keeper, Map.of(
+            MiscType.MAXIMUM_MANA_THRESHOLD, TrapFiringFixtures.miscVariable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000),
+            MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, TrapFiringFixtures.miscVariable(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, 500)));
 
     @Test
     void gainUnderTheLimitIsKept() {
@@ -71,37 +71,28 @@ class PlayerManaControlTest {
     }
 
     @Test
-    void spentManaIsTakenAtOnce() {
+    void spentManaIsTakenAtOnceAndShowsWithTheLoss() {
         keeper.setMana(1000);
-
-        manaControl.spendMana(250);
-
-        assertEquals(750, keeper.getMana());
-    }
-
-    @Test
-    void spentManaShowsWithTheLossOfThatSecond() {
-        keeper.setMana(1000);
-        manaControl.spendMana(250);
-
         manaControl.updateMana(20, 5, 0, 0);
 
+        manaControl.spendMana(250);
+
+        assertEquals(765, keeper.getMana());
         assertEquals(255, keeper.getManaLoose());
         assertEquals(20, keeper.getManaGain());
-
-        // The spent mana isn't taken a second time
-        assertEquals(765, keeper.getMana());
     }
 
     @Test
-    void spentManaShowsOnlyOnce() {
+    void spentManaLeavesTheLossAtTheNextUpdate() {
         keeper.setMana(1000);
         manaControl.spendMana(250);
-        manaControl.updateMana(20, 5, 0, 0);
 
         manaControl.updateMana(20, 5, 0, 0);
 
         assertEquals(5, keeper.getManaLoose());
+
+        // The spent mana isn't taken a second time
+        assertEquals(765, keeper.getMana());
     }
 
     @Test
@@ -129,31 +120,28 @@ class PlayerManaControlTest {
     }
 
     @Test
-    void possessionEndsWhenTheManaIsBelowTheCost() {
-        keeper.setMana(600);
+    void possessionEndsWhenTheManaLessTheImpUpkeepIsBelowTheCost() {
+
+        // A Vampire costs 600 a second, plus an imp's 7
+        manaControl.updateMana(230, 607, 0, 600);
+
+        keeper.setMana(607);
         assertTrue(manaControl.hasEnoughMana(600));
 
-        keeper.setMana(599);
+        keeper.setMana(606);
         assertFalse(manaControl.hasEnoughMana(600));
     }
 
     @Test
     void manaJustSpentDoesNotEndThePossession() {
-        keeper.setMana(1500);
-        manaControl.spendMana(500);
+        keeper.setMana(2000);
+        manaControl.updateMana(0, 607, 0, 600);
 
-        // The 500 just spent shows in the loss, but it is gone from the mana already
-        manaControl.updateMana(230, 600, 0, 600);
+        // The mana just spent shows in the loss until the next update, but it is gone from the mana already
+        manaControl.spendMana(1286);
 
-        assertEquals(900, keeper.getMana());
+        assertEquals(607, keeper.getMana());
         assertTrue(manaControl.hasEnoughMana(600));
-    }
-
-    private static Map<MiscType, MiscVariable> settings() {
-        Map<MiscType, MiscVariable> settings = new EnumMap<>(MiscType.class);
-        settings.put(MiscType.MAXIMUM_MANA_THRESHOLD, manaVariable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000));
-        settings.put(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, manaVariable(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, 500));
-        return settings;
     }
 
 }

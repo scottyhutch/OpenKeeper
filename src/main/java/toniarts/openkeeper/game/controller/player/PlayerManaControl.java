@@ -33,7 +33,6 @@ public final class PlayerManaControl {
     private final Keeper keeper;
     private final int maxManaGain;
     private final SafeArrayList<PlayerManaListener> listeners = new SafeArrayList<>(PlayerManaListener.class);
-    private int manaSpent;
 
     public PlayerManaControl(Keeper keeper,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings) {
@@ -48,24 +47,26 @@ public final class PlayerManaControl {
      * The gain is limited to the maximum mana gain per second, raised by the
      * owned tiles (mana vaults), and the loose is paid after the limit
      * (DKII.EXE 0x4C10E0; a tile changing owner moves its raise in 0x4559D0).<br>
-     * The possession cost is in the loose, but DKII.EXE also adds it to the
-     * gain before the limit (0x4C10E0, the loss from 0x4C17A0). So possessing
-     * only costs the part of it that pushes the gain over the limit.
+     * The possession and Call to Arms upkeep is in the loose, but DKII.EXE
+     * also adds it to the gain before the limit (0x4C10E0, the loss from
+     * 0x4C17A0). So it only costs the part of it that pushes the gain over the
+     * limit. The imp and trap upkeep is paid in full after the limit.<br>
+     * The mana spent at once since the last update leaves the loose here, like
+     * DKII.EXE clears it before the update (0x4C10E0)
      *
      * @param gain mana gain
-     * @param loose mana loose, with the possession cost
+     * @param loose mana loose, with the possession and Call to Arms upkeep
      * @param maxGainIncrease how much the owned mana sources raise the gain
      * limit
-     * @param possessionManaDrain the possession cost per second
+     * @param spellUpkeep the possession and Call to Arms upkeep per second
      */
-    public void updateMana(int gain, int loose, int maxGainIncrease, int possessionManaDrain) {
+    public void updateMana(int gain, int loose, int maxGainIncrease, int spellUpkeep) {
 
-        int cappedGain = Math.min(gain + possessionManaDrain, maxManaGain + maxGainIncrease);
+        int cappedGain = Math.min(gain + spellUpkeep, maxManaGain + maxGainIncrease);
 
-        // The mana spent at once this second is gone already, it only shows with the loss
         keeper.setManaGain(cappedGain);
-        keeper.setManaLoose(loose + manaSpent);
-        manaSpent = 0;
+        keeper.setManaLoose(loose);
+        keeper.setManaUpkeep(loose - spellUpkeep);
 
         addMana(cappedGain - loose);
 
@@ -73,15 +74,17 @@ public final class PlayerManaControl {
     }
 
     /**
-     * Spends mana at once, like a spell that is cast. DKII.EXE adds it to the
-     * keeper's loss of the second it is spent in (0x4C17A0), so it shows with
-     * the other losses
+     * Spends mana at once, like a spell that is cast or a trap that fires.
+     * DKII.EXE adds it to the keeper's loss of the second it is spent in
+     * (0x4C17A0), so it shows with the other losses until the next update
      *
      * @param amount the mana spent
      */
     public void spendMana(int amount) {
         addMana(-amount);
-        manaSpent += amount;
+        keeper.setManaLoose(keeper.getManaLoose() + amount);
+
+        updateListerners();
     }
 
     public void addMana(int value) {
@@ -105,14 +108,14 @@ public final class PlayerManaControl {
 
     /**
      * Whether the keeper has the mana to go on possessing. DKII.EXE ends the
-     * possession once the mana is below the possession cost per second
-     * (0x4C10E0). It takes the imp and trap upkeep off the mana first, here
-     * the loose also holds the mana just spent, so only the mana is compared.
+     * possession once the mana less the imp and trap upkeep per second is
+     * below the possession cost per second (0x4C10E0). The mana just spent
+     * is already gone from the mana, it doesn't count again.
      *
      * @param manaDrain the possession cost per second
      * @return true if the possession can go on
      */
     public boolean hasEnoughMana(int manaDrain) {
-        return keeper.getMana() >= manaDrain;
+        return keeper.getMana() - keeper.getManaUpkeep() >= manaDrain;
     }
 }
