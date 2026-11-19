@@ -318,17 +318,28 @@ public final class ReaperSummoner {
 
         EntitySet creatures = entityData.getEntities(new FieldFilter<>(Owner.class, "ownerId", player.getId()), Owner.class, CreatureComponent.class);
         try {
-            for (Entity entity : creatures) {
-                Creature creature = kwdFile.getCreature(entity.get(CreatureComponent.class).creatureId);
-                if (creature != null && creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)) {
-                    return false;
-                }
-            }
+            return !hasReaper(kwdFile, creatures);
         } finally {
             creatures.release();
         }
+    }
 
-        return true;
+    /**
+     * Is there a Horned Reaper among the creatures
+     *
+     * @param kwdFile the level
+     * @param creatures the creatures of a keeper, with the creature component
+     * @return true if one of them is a Horned Reaper
+     */
+    public static boolean hasReaper(IKwdFile kwdFile, Iterable<Entity> creatures) {
+        for (Entity entity : creatures) {
+            Creature creature = kwdFile.getCreature(entity.get(CreatureComponent.class).creatureId);
+            if (creature != null && creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     private static Creature getReaper(IKwdFile kwdFile) {
