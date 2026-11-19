@@ -286,7 +286,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     }
 
     private CreatureTrail updateTrail(CreatureTrail trail, boolean shown, String pointsKey, ColorRGBA color) {
-        if (shown && trail == null) {
+        if (shown && trail == null && assetManager != null) {
             trail = new CreatureTrail(assetManager, pointsKey, color);
         }
         if (trail != null) {
