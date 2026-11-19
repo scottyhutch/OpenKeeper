@@ -252,18 +252,13 @@ public final class CreatureController extends EntityController implements ICreat
 
     /**
      * A possessed Bile Demon picks up a worker closer than a tile (0x516EC0)
-     * and holds it half a tile in front of it (0x4831D0). It throws the worker
-     * forward two tiles a turn and up a quarter of a tile a turn (0x4831D0).
+     * and holds it half a tile in front of it, at its eye height (0x4831D0).
+     * It throws the worker forward two tiles a turn and up a quarter of a tile
+     * a turn (0x4831D0).
      */
     private static final float POSSESSED_PICK_UP_REACH = WorldUtils.TILE_WIDTH;
-    private static final float POSSESSED_CARRY_DISTANCE = WorldUtils.TILE_WIDTH / 2;
     private static final float THROWN_WORKER_SPEED = 2 * WorldUtils.TILE_WIDTH;
     private static final float THROWN_WORKER_LIFT = WorldUtils.TILE_WIDTH / 4;
-
-    /**
-     * A thrown or dropped worker takes this much damage as it lands (0x4833C0)
-     */
-    private static final int THROWN_WORKER_DAMAGE = 50;
 
     /**
      * The possessed Maiden's fear attack frightens its target for 20 game
@@ -4421,12 +4416,20 @@ public final class CreatureController extends EntityController implements ICreat
      * Picks up the nearest worker of our keeper in front of us, or throws the
      * one we carry (0x516EC0). The worker has to be within a tile and 60
      * degrees of the view. It leaves its work and its AI while it is carried.
+     * DK II's throw only marks the worker thrown, along the view (flag 0x200
+     * and +0x48D), and the worker's own turn throws it (0x4831D0). Here the
+     * HaulingSystem throws it on the game logic tick.
      */
     private void pickUpOrThrowWorker() {
         PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
         if (possessedAbility != null && possessedAbility.entity != null) {
-            entityData.removeComponent(entityId, PossessedAbility.class);
-            releaseWorker(possessedAbility.entity, true);
+            Position position = entityData.getComponent(entityId, Position.class);
+            if (possessedAbility.releaseVelocity == null && position != null) {
+                Vector3f velocity = new Vector3f(FastMath.sin(position.rotation) * THROWN_WORKER_SPEED, THROWN_WORKER_LIFT,
+                        FastMath.cos(position.rotation) * THROWN_WORKER_SPEED);
+                entityData.setComponent(entityId, new PossessedAbility(possessedAbility.ability, possessedAbility.checkTime,
+                        possessedAbility.entity, velocity));
+            }
             return;
         }
 
@@ -4460,30 +4463,6 @@ public final class CreatureController extends EntityController implements ICreat
         Owner owner = entityData.getComponent(entity, Owner.class);
         return !entityId.equals(entity) && creaturesController.isValidEntity(entity) && owner != null
                 && owner.ownerId == getOwnerId() && !isIncapacitated(entity) && creaturesController.createController(entity).isWorker();
-    }
-
-    /**
-     * Lets go of the worker we carry, from where we hold it. It flies or falls
-     * down and takes damage as it lands (0x4833C0).
-     *
-     * @param worker the worker we carry
-     * @param thrown whether we throw it forward or just drop it
-     */
-    private void releaseWorker(EntityId worker, boolean thrown) {
-
-        // The keeper's hand may have taken it, or it has died
-        Position position = entityData.getComponent(entityId, Position.class);
-        if (position == null || entityData.getComponent(worker, Position.class) == null) {
-            return;
-        }
-
-        Vector3f direction = new Vector3f(FastMath.sin(position.rotation), 0, FastMath.cos(position.rotation));
-        Vector3f start = position.position.add(direction.mult(POSSESSED_CARRY_DISTANCE));
-        start.y += creature.getAttributes().getHeight();
-        Vector3f velocity = thrown ? direction.multLocal(THROWN_WORKER_SPEED).setY(THROWN_WORKER_LIFT) : new Vector3f();
-
-        entityData.setComponent(worker, new Position(position.rotation, start));
-        entityData.setComponent(worker, new CreatureFall(velocity, THROWN_WORKER_DAMAGE));
     }
 
     /**
@@ -4916,13 +4895,14 @@ public final class CreatureController extends EntityController implements ICreat
             entityData.setComponent(entityId, new Mana(manaGeneration));
         }
 
-        // The abilities only last the possession, a carried worker falls down (0x4831D0)
+        // The abilities only last the possession. A carried worker falls down on its own turn once its carrier is
+        // no longer possessed (0x4831D0), here on the HaulingSystem's tick
         PossessedAbility possessedAbility = entityData.getComponent(entityId, PossessedAbility.class);
-        if (possessedAbility != null) {
-            togglePossessedAbility(possessedAbility.ability);
-        }
         if (possessedAbility != null && possessedAbility.entity != null) {
-            releaseWorker(possessedAbility.entity, false);
+            entityData.setComponent(entityId, new PossessedAbility(possessedAbility.ability, possessedAbility.checkTime,
+                    possessedAbility.entity, new Vector3f()));
+        } else if (possessedAbility != null) {
+            togglePossessedAbility(possessedAbility.ability);
         }
 
         // The hypnotised creature is let go (0x514590)

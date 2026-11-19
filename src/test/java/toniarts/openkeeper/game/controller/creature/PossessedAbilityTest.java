@@ -62,9 +62,10 @@ import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.logic.HaulingSystem;
 import toniarts.openkeeper.game.logic.HealthSystem;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
-import toniarts.openkeeper.game.logic.PossessedMovementSystem;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -251,6 +252,7 @@ class PossessedAbilityTest {
     void bileDemonPicksUpTheNearestOwnWorkerInFrontAndHoldsIt() {
         PossessionFixtures.setAbilities(creature, Creature.SpecialAbility.PICK_UP_WORKERS, Creature.SpecialAbility.NONE);
         ShotFixtures.setSize(creature, 1, 0.65f);
+        PossessionFixtures.setEyeHeight(creature, 0.37f);
         EntityId worker = createWorker(KEEPER, new Vector3f(10, 0, 2.6f));
         createWorker(HERO, new Vector3f(10, 0, 2.4f));
         createCreature(KEEPER, new Vector3f(10, 0, 2.3f));
@@ -264,27 +266,30 @@ class PossessedAbilityTest {
         assertNull(entityData.getComponent(worker, CreatureAi.class));
         assertEquals(Creature.AnimationType.IN_HAND, entityData.getComponent(worker, CreatureViewState.class).state);
 
-        // It is held half a tile in front, at the height of the Bile Demon
-        entityData.setComponent(us, new PossessedMovement(Vector2f.ZERO, 0, 0, 0));
-        PossessedMovementSystem movementSystem = new PossessedMovementSystem(entityData, createMapController(),
-                createPositionLookup(), createCreaturesController(),
-                stub(IGameTimer.class, (name, args) -> "getGameTime".equals(name) ? gameTime : null));
-        movementSystem.processTick(0.1f);
-        assertEquals(new Vector3f(10, 0.65f, 2.5f), entityData.getComponent(worker, Position.class).position);
+        // It is held half a tile in front, at the eye height of the Bile Demon, on the game logic tick (0x4831D0)
+        HaulingSystem haulingSystem = new HaulingSystem(entityData, createCreaturesController());
+        haulingSystem.processTick(0.25f);
+        assertEquals(new Vector3f(10, 0.37f, 2.5f), entityData.getComponent(worker, Position.class).position);
     }
 
     @Test
     void bileDemonThrowsTheWorkerForwardAndUp() {
         PossessionFixtures.setAbilities(creature, Creature.SpecialAbility.PICK_UP_WORKERS, Creature.SpecialAbility.NONE);
         ShotFixtures.setSize(creature, 1, 0.65f);
+        PossessionFixtures.setEyeHeight(creature, 0.37f);
         EntityId worker = createWorker(KEEPER, new Vector3f(10, 0, 2.6f));
         CreatureController controller = createController();
+        HaulingSystem haulingSystem = new HaulingSystem(entityData, createCreaturesController());
         controller.usePossessedAbility(1);
+        haulingSystem.processTick(0.25f);
 
+        // The keeper's throw only marks the worker thrown (0x516EC0), it flies on the game logic tick (0x4831D0)
         controller.usePossessedAbility(1);
+        assertNull(entityData.getComponent(worker, CreatureFall.class));
+        haulingSystem.processTick(0.25f);
 
         assertNull(entityData.getComponent(us, PossessedAbility.class));
-        assertEquals(new Vector3f(10, 0.65f, 2.5f), entityData.getComponent(worker, Position.class).position);
+        assertEquals(new Vector3f(10, 0.37f, 2.5f), entityData.getComponent(worker, Position.class).position);
         CreatureFall fall = entityData.getComponent(worker, CreatureFall.class);
         assertEquals(new Vector3f(0, 0.25f, 2), fall.velocity);
         assertEquals(50, fall.damage);
@@ -296,9 +301,14 @@ class PossessedAbilityTest {
         PossessionFixtures.setAbilities(creature, Creature.SpecialAbility.PICK_UP_WORKERS, Creature.SpecialAbility.NONE);
         EntityId worker = createWorker(KEEPER, new Vector3f(10, 0, 2.6f));
         CreatureController controller = createController();
+        HaulingSystem haulingSystem = new HaulingSystem(entityData, createCreaturesController());
         controller.usePossessedAbility(1);
+        haulingSystem.processTick(0.25f);
 
+        // It falls on the game logic tick, once its carrier is no longer possessed (0x4831D0)
         controller.setPossession(false);
+        assertNull(entityData.getComponent(worker, CreatureFall.class));
+        haulingSystem.processTick(0.25f);
 
         assertNull(entityData.getComponent(us, PossessedAbility.class));
         assertEquals(2.5f, entityData.getComponent(worker, Position.class).position.z);

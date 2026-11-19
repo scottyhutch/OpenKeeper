@@ -1137,8 +1137,8 @@ class CreatureControllerTest {
         }
 
         Fixture(Creature definition) {
-            fall = new CreatureFallSystem(data, null, 4, 0f);
-            landing = new CreatureLandingSystem(data, () -> time, eventService);
+            fall = new CreatureFallSystem(data);
+            landing = new CreatureLandingSystem(data, null, 0f, () -> time, eventService);
             CreatureComponent component = new CreatureComponent();
             component.creatureId = 6;
             component.stunDuration = .1f;

@@ -189,7 +189,9 @@ public final class GameLoopManager {
                         gameEventService),
                 new PossessedSystem(playerControllers.values(), entityData, gameController,
                         gameWorldController.getCreaturesController()),
-                new CreatureLandingSystem(entityData, gameController.getGameTimer(), gameEventService),
+                new CreatureLandingSystem(entityData, gameWorldController.getMapController(),
+                        gameController.getLevelVariable(Variable.MiscVariable.MiscType.GRAVITY_CONSTANT),
+                        gameController.getGameTimer(), gameEventService),
                 new CreatureLeaveSystem(entityData, gameWorldController.getCreaturesController()),
                 new SummonedReaperSystem(entityData, playerControllers.values(), gameWorldController.getCreaturesController(),
                         gameController.getGameTimer(), gameController.getNavigationService()),
@@ -216,7 +218,7 @@ public final class GameLoopManager {
                 new BattleSystem(entityData, gameController.getGameTimer()),
                 new SpinSystem(entityData, gameController.getGameTimer()),
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),
-                new HaulingSystem(entityData),
+                new HaulingSystem(entityData, gameWorldController.getCreaturesController()),
                 new TrapSystem(entityData, level, gameController.getGameTimer(), positionSystem, playerControllers,
                         gameWorldController.getShotsController(), gameEventService),
                 new FreezeSystem(entityData, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
@@ -236,9 +238,7 @@ public final class GameLoopManager {
                         gameController.getLevelVariable(Variable.MiscVariable.MiscType.TIME_BEFORE_DUNGEON_HEART_CONSTRUCTION_BEGINS),
                         levelInfo.getLevelData().getObject(FiveByFiveRotatedController.OBJECT_PLUG_ID).getMiscEffectId(),
                         levelInfo.getLevelData().getGameLevel().getTicksPerSec(), gameEventService),
-                new CreatureFallSystem(entityData, gameWorldController.getMapController(),
-                        levelInfo.getLevelData().getGameLevel().getTicksPerSec(),
-                        gameController.getLevelVariable(Variable.MiscVariable.MiscType.GRAVITY_CONSTANT)));
+                new CreatureFallSystem(entityData));
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));
 
         // A loaded game goes on from the time it was saved at, the times in its components are from that clock
