@@ -42,6 +42,22 @@ import toniarts.openkeeper.view.camera.ReaperChaseCamera;
  */
 public final class EndGameState extends AbstractAppState implements RawInputListener {
 
+    /**
+     * How many times the Horned Reaper's height the picture shows, so that
+     * there is room around him
+     */
+    private static final float REAPER_FRAMING = 2f;
+
+    /**
+     * The part of the picture the wide screen bars leave visible
+     */
+    private static final float VISIBLE_PART = 0.75f;
+
+    /**
+     * How much of the way to the Reaper the camera goes in a second
+     */
+    private static final float FOLLOW_SPEED = 2f;
+
     private Main app;
     private AppStateManager stateManager;
     private final PlayerState playerState;

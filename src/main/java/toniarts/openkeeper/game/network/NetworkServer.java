@@ -158,6 +158,7 @@ import toniarts.openkeeper.game.component.StolenLoot;
 import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.Storage;
 import toniarts.openkeeper.game.component.Stored;
+import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Teleport;
 import toniarts.openkeeper.game.component.Threat;
