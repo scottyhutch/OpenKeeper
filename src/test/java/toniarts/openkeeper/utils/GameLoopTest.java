@@ -34,7 +34,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * The overrun log of the game loop
+ * The overrun log of the game loop, and holding a game loop between frames
  */
 class GameLoopTest {
 

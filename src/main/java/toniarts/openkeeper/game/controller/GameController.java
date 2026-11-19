@@ -35,7 +35,6 @@ import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import com.simsilica.es.filter.FieldFilter;
-import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.component.HauledBy;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.TaskComponent;
