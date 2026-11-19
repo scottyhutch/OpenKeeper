@@ -180,7 +180,6 @@ public class PlayerTriggerControl extends TriggerControl {
             seenEnemyBreaches = enemyBreaches;
             fire(TriggerGeneric.TargetType.PLAYER_ENEMY_BREACHED);
         }
-        pollPayDays();
     }
 
     /**
