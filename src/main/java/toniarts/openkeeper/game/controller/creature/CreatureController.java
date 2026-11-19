@@ -92,6 +92,7 @@ import toniarts.openkeeper.game.component.SpeedChange;
 import toniarts.openkeeper.game.component.SpeedUp;
 import toniarts.openkeeper.game.component.StolenLoot;
 import toniarts.openkeeper.game.component.Stored;
+import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Teleport;
 import toniarts.openkeeper.game.component.Threat;
@@ -209,7 +210,7 @@ public final class CreatureController extends EntityController implements ICreat
     private static final Set<CreatureState> CHICKEN_INTERRUPTIBLE_STATES = EnumSet.of(CreatureState.IDLE,
             CreatureState.WANDER, CreatureState.WORK, CreatureState.FIGHT, CreatureState.FOLLOW, CreatureState.FLEE,
             CreatureState.SLEEPING, CreatureState.MELEE_ATTACK, CreatureState.CAST_SPELL, CreatureState.EATING,
-            CreatureState.DANCING, CreatureState.CHICKEN);
+            CreatureState.DANCING, CreatureState.CHICKEN, CreatureState.REAPER_HUNT, CreatureState.REAPER_WANDER);
     private static final int MOOD_JOB_INTERVAL_SECONDS = 5;
 
     /**
@@ -661,6 +662,72 @@ public final class CreatureController extends EntityController implements ICreat
         if (here.dst(spot) > 0.1f) {
             entityData.setComponent(entityId, new Navigation(tile, null, List.of(here, spot)));
         }
+    }
+
+    @Override
+    public boolean isSummonedReaper() {
+
+        // One sent for the Portal Gem only goes for the gem, SummonedReaperSystem walks him there
+        SummonedReaper summonedReaper = entityData.getComponent(entityId, SummonedReaper.class);
+        return summonedReaper != null && !summonedReaper.isLeaving() && summonedReaper.gem == null;
+    }
+
+    @Override
+    public boolean huntNearestEnemy() {
+        Vector3f ourPosition = getPosition();
+        Optional<EntityId> enemy = entityData.findEntities(null, CreatureComponent.class, Owner.class, Position.class, Health.class).stream()
+                .filter(this::isReaperPrey)
+                .sorted(Comparator.comparingDouble(entity -> getPosition(entityData, entity).distanceSquared(ourPosition)))
+                .filter(this::hasPathToEntity)
+                .findFirst();
+        enemy.ifPresent(this::setAttackTarget);
+        return enemy.isPresent();
+    }
+
+    /**
+     * Can the Reaper go after the creature. Not one that is out of the fight
+     * or held captive, nor another Reaper on its way out.
+     */
+    private boolean isReaperPrey(EntityId entity) {
+        SummonedReaper otherReaper = entityData.getComponent(entity, SummonedReaper.class);
+        return isEnemy(entity) && entityData.getComponent(entity, Health.class).health > 0
+                && !isIncapacitated(entity) && !isCaptive(entity)
+                && (otherReaper == null || !otherReaper.isLeaving());
+    }
+
+    @Override
+    public boolean attackNearestEnemyHeart() {
+        Point from = getCreatureCoordinates();
+        Keeper keeper = levelInfo.getPlayer(getOwnerId());
+        CreatureMeleeAttack meleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
+        if (keeper == null || meleeAttack == null) {
+            return false;
+        }
+
+        // DK II measures the way to a heart as dx * dx + 2 * dy in tiles, compared unsigned,
+        // so a heart at a smaller y can count as far away (0x45E1B0)
+        List<EntityId> hearts = new ArrayList<>();
+        for (EntityId entity : entityData.findEntities(null, ObjectComponent.class, Owner.class, Position.class, Health.class)) {
+            if (DungeonHeartTarget.isDungeonHeart(entityData, entity) && entityData.getComponent(entity, Health.class).health > 0
+                    && keeper.isEnemy(entityData.getComponent(entity, Owner.class).ownerId)) {
+                hearts.add(entity);
+            }
+        }
+        hearts.sort(Comparator.comparing(heart -> {
+            Point tile = WorldUtils.vectorToPoint(getPosition(entityData, heart));
+            return (tile.x - from.x) * (tile.x - from.x) + 2 * (tile.y - from.y);
+        }, Integer::compareUnsigned));
+        for (EntityId heart : hearts) {
+            Point heartTile = WorldUtils.vectorToPoint(getPosition(entityData, heart));
+            Point attackTile = DungeonHeartTarget.getAttackTile(from, heartTile, meleeAttack.range,
+                    tile -> tile.equals(from) || navigationService.findPath(from, tile, this) != null);
+            if (attackTile != null) {
+                entityData.setComponent(entityId, new AttackTarget(heart));
+                return true;
+            }
+        }
+
+        return false;
     }
 
     @Override

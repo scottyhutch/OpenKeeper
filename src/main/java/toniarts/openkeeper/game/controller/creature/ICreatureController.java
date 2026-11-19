@@ -68,6 +68,29 @@ public interface ICreatureController extends IGameLogicUpdatable, INavigable, IE
     public void navigateToRandomPoint();
 
     /**
+     * Is the creature a summoned Horned Reaper that hasn't started to leave
+     *
+     * @return true if it hunts instead of taking jobs
+     */
+    public boolean isSummonedReaper();
+
+    /**
+     * Takes the nearest enemy creature we can reach, anywhere on the map, as
+     * our attack target (DK II 0x45E1B0)
+     *
+     * @return true if there is one to go after
+     */
+    public boolean huntNearestEnemy();
+
+    /**
+     * Takes the nearest enemy Dungeon Heart we can get next to as our attack
+     * target (DK II 0x45E1B0)
+     *
+     * @return true if there is one to attack
+     */
+    public boolean attackNearestEnemyHeart();
+
+    /**
      * Walks to a random tile in the Combat Pit we fight in, off its edge
      */
     public void navigateToRandomPointInCombatPit();

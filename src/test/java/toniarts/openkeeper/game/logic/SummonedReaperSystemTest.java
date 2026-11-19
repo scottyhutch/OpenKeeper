@@ -48,8 +48,6 @@ class SummonedReaperSystemTest {
     private final EntityData entityData = new DefaultEntityData();
     private final Keeper keeper = new Keeper(false, PLAYER_ID);
     private final List<EntityId> removedCreatures = new ArrayList<>();
-    private final List<EntityId> thinkingReapers = new ArrayList<>();
-    private boolean somethingToDo = true;
     private final List<EntityId> fetchedGems = new ArrayList<>();
     private double now = 0;
 
@@ -171,22 +169,25 @@ class SummonedReaperSystemTest {
     }
 
     @Test
-    void reaperThinksWhileHeIsAround() {
+    void reaperStaysWhileItHunts() {
         EntityId reaper = addReaper(0, MANA_DRAIN);
+        entityData.setComponent(reaper, new CreatureAi(now, CreatureState.REAPER_HUNT, (short) 27));
 
         tickAt(system(), 1);
 
-        assertEquals(List.of(reaper), thinkingReapers);
+        assertFalse(isLeaving(reaper));
+        assertNotNull(entityData.getComponent(reaper, CreatureAi.class));
     }
 
     @Test
-    void reaperLeavesWhenThereIsNothingLeftForHim() {
-        somethingToDo = false;
+    void reaperLeavesWhenItsStateSaysThereIsNothingLeft() {
         EntityId reaper = addReaper(0, MANA_DRAIN);
+        entityData.setComponent(reaper, new CreatureAi(now, CreatureState.REAPER_LEAVE, (short) 27));
 
         tickAt(system(), 1);
 
         assertTrue(isLeaving(reaper));
+        assertNull(entityData.getComponent(reaper, CreatureAi.class));
     }
 
     @Test
@@ -203,28 +204,13 @@ class SummonedReaperSystemTest {
     }
 
     @Test
-    void fallingReaperDoesNotThinkYet() {
+    void fallingReaperStays() {
         EntityId reaper = addReaper(0, MANA_DRAIN);
         entityData.removeComponent(reaper, CreatureAi.class);
 
         tickAt(system(), 1);
 
-        assertTrue(thinkingReapers.isEmpty());
         assertFalse(isLeaving(reaper));
-    }
-
-    @Test
-    void leavingReaperDoesNotThink() {
-        keeper.setMana(0);
-        addReaper(0, MANA_DRAIN);
-        SummonedReaperSystem system = system();
-        tickAt(system, 50);
-        tickAt(system, 51);
-        thinkingReapers.clear();
-
-        tickAt(system, 52);
-
-        assertTrue(thinkingReapers.isEmpty());
     }
 
     @Test
@@ -244,7 +230,6 @@ class SummonedReaperSystemTest {
         // No upkeep, no slap and no other plans can stop him now
         assertFalse(isLeaving(reaper));
         assertNull(entityData.getComponent(reaper, Mana.class));
-        assertTrue(thinkingReapers.isEmpty());
         assertEquals(List.of(gem, gem), fetchedGems);
     }
 
@@ -276,17 +261,7 @@ class SummonedReaperSystemTest {
                     return keeper;
                 });
         return new SummonedReaperSystem(entityData, List.of(playerController), creaturesController(), () -> now,
-                new SummonedReaperSystem.ReaperDecisions() {
-            @Override
-            public boolean think(EntityId reaper, short ownerId) {
-                return thinkingReapers.add(reaper) && somethingToDo;
-            }
-
-            @Override
-            public void fetchPortalGem(EntityId reaper, EntityId gem) {
-                fetchedGems.add(gem);
-            }
-        });
+                (reaper, gem) -> fetchedGems.add(gem));
     }
 
     private ICreaturesController creaturesController() {
