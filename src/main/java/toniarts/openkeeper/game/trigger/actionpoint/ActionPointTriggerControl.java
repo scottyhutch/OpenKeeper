@@ -24,6 +24,7 @@ import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.controller.object.IObjectController;
 import toniarts.openkeeper.game.data.ActionPoint;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
@@ -31,6 +32,7 @@ import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.game.trigger.TriggerControl;
 import toniarts.openkeeper.game.trigger.TriggerGenericData;
+import toniarts.openkeeper.tools.convert.map.Terrain;
 
 /**
  *
@@ -60,21 +62,20 @@ public final class ActionPointTriggerControl extends TriggerControl {
 
             case AP_CLAIM_PART_OF: {
                 short playerId = trigger.getUserData("playerId", short.class);
-                return compare(trigger, countTiles(tile -> playerId == tile.getOwnerId()),
-                        trigger.getUserData("value", int.class));
+                return compare(trigger, countTiles(playerId, (short) 0), trigger.getUserData("value", int.class));
             }
 
             case AP_CLAIM_ALL_OF: {
+
+                // DK II ignores the comparison and the value, the count has to equal the area (DKII.EXE 0x4B0D70)
                 short playerId = trigger.getUserData("playerId", short.class);
-                return allTiles(tile -> playerId == tile.getOwnerId());
+                return countTiles(playerId, (short) 0) == countTiles((short) 0, (short) 0);
             }
 
             case AP_SLAB_TYPES: {
                 short playerId = trigger.getUserData("playerId", short.class);
                 short terrainId = trigger.getUserData("terrainId", short.class);
-                return compare(trigger,
-                        countTiles(tile -> (playerId == 0 || playerId == tile.getOwnerId()) && terrainId == tile.getTerrainId()),
-                        trigger.getUserData("value", int.class));
+                return compare(trigger, countTiles(playerId, terrainId), trigger.getUserData("value", int.class));
             }
 
             case AP_TAG_PART_OF: {
@@ -85,9 +86,12 @@ public final class ActionPointTriggerControl extends TriggerControl {
             }
 
             case AP_TAG_ALL_OF: {
+
+                // DK II counts the player's dig tasks and the taggable tiles of the point apart, and ignores the
+                // comparison and the value: the tasks have to be at least as many (#1157)
                 short playerId = trigger.getUserData("playerId", short.class);
-                // TODO check who tagged tile
-                return allTiles(tile -> tile.isSelected(playerId));
+                return countTiles(tile -> tile.isSelected(playerId))
+                        >= countTiles(tile -> mapController.getTerrain(tile).getFlags().contains(Terrain.TerrainFlag.TAGGABLE));
             }
 
             default:
@@ -136,20 +140,42 @@ public final class ActionPointTriggerControl extends TriggerControl {
         short targetId = trigger.getUserData("targetId", short.class);
         int value = trigger.getUserData("value", int.class);
         short type = trigger.getUserData("targetType", short.class);
-        switch (type) {
-            case 0:
-            case 3: // Creature
-                return compare(trigger, countCreatures(creature -> isWanted(creature, playerId, targetId)), value);
-            case 6: // Object
-                // STUB: count the objects (by object type, e.g. a chicken) on the AP. The
-                // object controllers do not know their object type ID, only the room
-                // function they serve, so they can not be filtered by the ID in the map
-                logStub(trigger, "Objects on the AP can not be counted: the object controllers do not know their object type ID, only the room function they serve, so they can not be filtered by the ID in the map");
-                return false;
-            default:
-                logStub(trigger, "unknown targetType " + type);
-                return false;
+
+        // DK II counts objects for target type 6 and creatures for every other type (DKII.EXE 0x4B0D70)
+        if (type == 6) {
+            return compare(trigger, countObjects(playerId, targetId), value);
         }
+        return compare(trigger, countCreatures(creature -> isWanted(creature, playerId, targetId)), value);
+    }
+
+    private int countObjects(short playerId, short targetId) {
+        int count = 0;
+        for (int x = (int) ap.getStart().x; x <= (int) ap.getEnd().x; x++) {
+            for (int y = (int) ap.getStart().y; y <= (int) ap.getEnd().y; y++) {
+                for (IObjectController object : entityPositionLookup.getEntityTypesInLocation(x, y, IObjectController.class)) {
+                    if ((playerId == 0 || object.getOwnerId() == playerId) && (targetId == 0 || object.getObjectId() == targetId)) {
+                        count++;
+                    }
+                }
+            }
+        }
+        return count;
+    }
+
+    /**
+     * Counts the action point's tiles the way DK II does for the claim and
+     * slab type conditions (DKII.EXE 0x4B07E0). With a terrain the tile has to
+     * be of that terrain. Without one, a player's tiles only count on ownable
+     * terrain. With neither, every tile counts.
+     *
+     * @param playerId the tile owner, 0 for any
+     * @param terrainId the terrain, 0 for none
+     * @return the number of matching tiles
+     */
+    private int countTiles(short playerId, short terrainId) {
+        return countTiles(tile -> (playerId == 0 || playerId == tile.getOwnerId())
+                && (terrainId != 0 ? terrainId == tile.getTerrainId()
+                        : playerId == 0 || mapController.getTerrain(tile).getFlags().contains(Terrain.TerrainFlag.OWNABLE)));
     }
 
     private int countTiles(Predicate<IMapTileInformation> filter) {
@@ -163,17 +189,5 @@ public final class ActionPointTriggerControl extends TriggerControl {
             }
         }
         return count;
-    }
-
-    private boolean allTiles(Predicate<IMapTileInformation> filter) {
-        IMapDataInformation map = mapController.getMapData();
-        for (int x = (int) ap.getStart().x; x <= (int) ap.getEnd().x; x++) {
-            for (int y = (int) ap.getStart().y; y <= (int) ap.getEnd().y; y++) {
-                if (!filter.test(map.getTile(x, y))) {
-                    return false;
-                }
-            }
-        }
-        return true;
     }
 }
