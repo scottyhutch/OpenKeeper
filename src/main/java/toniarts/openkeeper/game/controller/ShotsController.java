@@ -72,6 +72,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_CREA
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJECT;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_SINGLE_CREATURE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.DRAIN;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.FEAR;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.FREEZE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INFERNO;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INSTANTANEOUS_HIT;
@@ -253,6 +254,11 @@ public final class ShotsController implements IShotsController {
         result.put(ALARM, this::raiseAlarm);
         result.put(POISON_SPIT, this::poison);
         result.put(WEB_AREA_EFFECT, this::web);
+
+        // The Fear Trap's shot does nothing itself: DK II's handler for it is empty (the FEAR entry of the shot table
+        // filled at 0x4AD1B0). The trap scares with the threat it makes after it fires, see TrapSystem
+        result.put(FEAR, request -> {
+        });
 
         return result;
     }

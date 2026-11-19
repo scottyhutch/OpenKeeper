@@ -107,6 +107,8 @@ class ShotsControllerTest {
     private static final short DOOR_FIREBALL_ID = 57;
     private static final short ALARM_ID = 13;
     private static final short POISON_SPIT_ID = 62;
+    private static final short FEAR_ID = 25;
+    private static final short REAPER_ID = 2;
     private static final short PLAYER_ID = 3;
     private static final short ENEMY_ID = 4;
     private static final int TICKS_PER_SECOND = 4;
@@ -153,6 +155,7 @@ class ShotsControllerTest {
         shotsById.put(ALARM_ID, TrapFiringFixtures.shot(ALARM_ID, Shot.ProcessType.ALARM, Shot.DamageType.NONE));
         shotsById.put(POISON_SPIT_ID, ShotFixtures.shot(POISON_SPIT_ID, Shot.ProcessType.POISON_SPIT, 0, EnumSet.of(Shot.ShotProcessFlag.HIT_COLLIDE_THING)));
         shotsById.put(ShotFixtures.WEB_ID, ShotFixtures.web());
+        shotsById.put(FEAR_ID, TrapFiringFixtures.shot(FEAR_ID, Shot.ProcessType.FEAR, Shot.DamageType.NONE));
         IKwdFile kwdFile = (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (proxy, method, args) -> switch (method.getName()) {
             case "getShotById" -> shotsById.get((Short) args[0]);
@@ -438,6 +441,18 @@ class ShotsControllerTest {
             assertEquals(new Vector2f(4.5f, 7.5f), args[3]);
             assertEquals(ICreaturesController.SpawnType.CONJURE, args[4]);
         }
+    }
+
+    @Test
+    void fearShotDoesNothingItself() {
+        EntityId creature = createCreature();
+
+        shotsController.createShot(FEAR_ID, 0, 0, PLAYER_ID, new Vector3f(), creature, null);
+
+        assertNull(entityData.getComponent(creature, Damage.class));
+        assertEquals(0, countShotEntities());
+        assertTrue(loadedObjects.isEmpty());
+        assertTrue(spawnedCreatures.isEmpty());
     }
 
     @Test
