@@ -1081,7 +1081,6 @@ class CreatureControllerTest {
                 default -> throw new UnsupportedOperationException(method);
             });
             ILevelInfo levelInfo = proxy(ILevelInfo.class, (method, args) -> switch (method) {
-                case "getPlayer" -> keeper;
                 case "getLevelData" -> kwd;
                 default -> throw new UnsupportedOperationException(method);
             });
