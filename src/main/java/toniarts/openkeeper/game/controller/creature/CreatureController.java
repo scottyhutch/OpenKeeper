@@ -60,9 +60,12 @@ import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.DoorTarget;
 import toniarts.openkeeper.game.component.Fearless;
 import toniarts.openkeeper.game.component.FollowTarget;
+import toniarts.openkeeper.game.component.Food;
+import toniarts.openkeeper.game.component.FoodHunt;
 import toniarts.openkeeper.game.component.Frightened;
 import toniarts.openkeeper.game.component.GamblingAfterPay;
 import toniarts.openkeeper.game.component.Gold;
+import toniarts.openkeeper.game.component.GuardedRoom;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Hypnotised;
 import toniarts.openkeeper.game.component.IdleAnimation;
@@ -208,6 +211,13 @@ public final class CreatureController extends EntityController implements ICreat
      */
     private static final float BIG_WINNER_CELEBRATION_SECONDS = 10f;
 
+    /**
+     * Out of 100 each tick an idle prisoner rolls: below the first it plays
+     * an animation, below the second it moves on (DKII.EXE 0x473350)
+     */
+    private static final int PRISONER_ANIMATION_ROLL = 10;
+    private static final int PRISONER_MOVE_ROLL = 20;
+    private static final Point[] NEIGHBOUR_TILES = {new Point(0, -1), new Point(1, 0), new Point(0, 1), new Point(-1, 0)};
     /**
      * How long a creature that got a job from its job list doesn't pick from the list again, as in DK II (DKII.EXE
      * 0x4780E0)
@@ -769,6 +779,110 @@ public final class CreatureController extends EntityController implements ICreat
         }
     }
 
+    /**
+     * Like in DK II (DKII.EXE 0x473350, 0x4731F0, 0x4E50F0), an idle prisoner
+     * rolls 100 every tick. One in ten it moves on: starting from a random
+     * one, it takes the first of the four tiles next to it that is in the cage
+     * with it and walks there. Another one in ten, if it has the animation, it
+     * is angry instead, two to four times over, and rolls for nothing until
+     * that is done. A creature without the animation moves on then too.
+     * <br>
+     * A hungry prisoner goes after food instead of moving on, no more often
+     * than a free creature tries to eat (0x4731F0), and so does every
+     * prisoner when food is dropped into the cage. A prisoner after food
+     * walks to the nearest food in the Prison (0x473550) and eats it when it
+     * stands on its tile: one chicken fills a prisoner, gives it the health a
+     * chicken gives and takes its anger about food away (0x473750). Then it
+     * goes for the next one, and when no food is left it gets its anger for
+     * having no food and is idle again
+     */
+    @Override
+    public void idleInPrison() {
+        Point tile = getCreatureCoordinates();
+        IRoomController prison = mapController.getRoomControllerByCoordinates(tile);
+        if (prison == null) {
+            return;
+        }
+        if (entityData.getComponent(entityId, FoodHunt.class) != null) {
+            huntFoodInPrison(prison, tile);
+            return;
+        }
+
+        // The state lasts as long as the animation plays
+        CreatureAi ai = entityData.getComponent(entityId, CreatureAi.class);
+        double gameTime = gameTimer.getGameTime();
+        if (ai != null && gameTime < ai.stateStartTime + ai.stateDuration) {
+            return;
+        }
+        int roll = Utils.getRandom().nextInt(100);
+        ArtResource angry = creature.getAnimation(Creature.AnimationType.ANGRY);
+        if (roll < PRISONER_ANIMATION_ROLL && ai != null && angry != null && angry.getType() != ArtResource.ArtResourceType.NONE) {
+            entityData.setComponent(entityId, new CreatureAi(gameTime, CreatureState.IMPRISONED, ai.creatureId, ai.getTargetState(),
+                    (2 + Utils.getRandom().nextInt(3)) * getAnimationTime(creature, Creature.AnimationType.ANGRY)));
+            return;
+        }
+        if (roll >= PRISONER_MOVE_ROLL) {
+            return;
+        }
+        if (isHungry() && startEatAttempt()) {
+            entityData.setComponent(entityId, new FoodHunt());
+            huntFoodInPrison(prison, tile);
+            return;
+        }
+        int first = Utils.getRandom().nextInt(NEIGHBOUR_TILES.length);
+        for (int i = 0; i < NEIGHBOUR_TILES.length; i++) {
+            Point offset = NEIGHBOUR_TILES[(first + i) % NEIGHBOUR_TILES.length];
+            Point next = new Point(tile.x + offset.x, tile.y + offset.y);
+            if (mapController.getRoomControllerByCoordinates(next) == prison && prison.isTileAccessible(tile, next)) {
+                createNavigation(tile, next, null);
+                return;
+            }
+        }
+    }
+
+    private void huntFoodInPrison(IRoomController prison, Point tile) {
+        CreatureMood mood = entityData.getComponent(entityId, CreatureMood.class);
+        EntityId food = getFood(tile);
+        if (food != null) {
+            entityPositionLookup.getEntityController(food).remove();
+            entityData.setComponent(entityId, new CreatureHunger(gameTimer.getGameTime(), 0));
+            setDamage(-creature.getAttributes().getHpFromChicken());
+            if (mood != null) {
+                entityData.setComponent(entityId, mood.clear(CreatureMood.REASON_NO_FOOD));
+            }
+            return;
+        }
+
+        Point nearest = null;
+        int nearestDistance = Integer.MAX_VALUE;
+        for (Point p : prison.getRoomInstance().getCoordinates()) {
+            int distance = (p.x - tile.x) * (p.x - tile.x) + (p.y - tile.y) * (p.y - tile.y);
+            if (distance < nearestDistance && getFood(p) != null) {
+                nearest = p;
+                nearestDistance = distance;
+            }
+        }
+        if (nearest != null && !createNavigation(tile, nearest, null)) {
+            return;
+        }
+
+        // No food left, or no way to it
+        entityData.removeComponent(entityId, FoodHunt.class);
+        if (nearest == null && mood != null) {
+            entityData.setComponent(entityId, mood.add(CreatureMood.REASON_NO_FOOD,
+                    CreatureMood.toRuntimeValue(creature.getAttributes().getAngerNoFood())));
+        }
+    }
+
+    private EntityId getFood(Point tile) {
+        for (EntityId thing : entityPositionLookup.getEntitiesInLocation(tile)) {
+            if (entityData.getComponent(thing, Food.class) != null) {
+                return thing;
+            }
+        }
+        return null;
+    }
+
     @Override
     public IPartyController getParty() {
         Party party = entityData.getComponent(entityId, Party.class);
@@ -901,6 +1015,13 @@ public final class CreatureController extends EntityController implements ICreat
                 }
                 workResult.accept(foundWork);
             });
+            return;
+        }
+
+        // DKII sends a creature that has stood guard back to guard duty before it picks from its jobs. Guard duty is the
+        // only job it returns to like that (0x4778E0 tries the job 0x462850 has set)
+        if (entityData.getComponent(entityId, GuardedRoom.class) != null && taskManager.assignTask(this, Creature.JobType.GUARD)) {
+            workResult.accept(true);
             return;
         }
 
@@ -1090,6 +1211,22 @@ public final class CreatureController extends EntityController implements ICreat
     @Override
     public boolean isStopped() {
         return entityData.getComponent(entityId, Navigation.class) == null;
+    }
+
+    @Override
+    public void walkToHeartToDie() {
+        EntityController.setDamage(entityData, entityId, 1);
+        Keeper keeper = levelInfo.getPlayer(getOwnerId());
+        if (keeper == null || keeper.getDungeonHeartLocation() == null) {
+            return;
+        }
+
+        Point deathbed = new Point(keeper.getDungeonHeartLocation().x + 1, keeper.getDungeonHeartLocation().y + 1);
+        if (deathbed.equals(getCreatureCoordinates())) {
+            EntityController.setDamage(entityData, entityId, 50);
+        } else if (isStopped()) {
+            createNavigation(getCreatureCoordinates(), deathbed, null);
+        }
     }
 
     @Override
@@ -4213,6 +4350,10 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public boolean goToEat() {
+        return startEatAttempt() && taskManager.assignEatTask(this);
+    }
+
+    private boolean startEatAttempt() {
         double gameTime = gameTimer.getGameTime();
         CreatureHunger hunger = entityData.getComponent(entityId, CreatureHunger.class);
         if (hunger == null || gameTime - hunger.lastEatAttemptTime
@@ -4223,7 +4364,7 @@ public final class CreatureController extends EntityController implements ICreat
         CreatureHunger updated = new CreatureHunger(hunger.lastEatTime, hunger.amountNeeded);
         updated.lastEatAttemptTime = gameTime;
         entityData.setComponent(entityId, updated);
-        return taskManager.assignEatTask(this);
+        return true;
     }
 
     @Override

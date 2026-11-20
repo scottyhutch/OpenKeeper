@@ -28,6 +28,8 @@ import java.util.Map;
 import java.util.Set;
 import toniarts.openkeeper.game.component.Alarm;
 import toniarts.openkeeper.game.component.Armour;
+import toniarts.openkeeper.game.component.Boulder;
+import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.Decay;
@@ -52,6 +54,7 @@ import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.component.SpeedBlur;
 import toniarts.openkeeper.game.component.SpeedChange;
 import toniarts.openkeeper.game.component.TrapComponent;
+import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.entity.EntityController;
 import toniarts.openkeeper.game.controller.shot.IShotProcessor;
 import toniarts.openkeeper.game.controller.shot.InfernoShotProcessor;
@@ -59,6 +62,7 @@ import toniarts.openkeeper.game.controller.shot.LightningShotProcessor;
 import toniarts.openkeeper.game.controller.shot.ShotFlightRules;
 import toniarts.openkeeper.game.controller.shot.ShotRequest;
 import toniarts.openkeeper.game.controller.shot.WindShotProcessor;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
@@ -68,6 +72,7 @@ import toniarts.openkeeper.tools.convert.map.GameObject;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Shot;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.ALARM;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.BOULDER;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CHICKEN;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_CREATURE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJECT;
@@ -79,6 +84,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INFERNO;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INSTANTANEOUS_HIT;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INVISIBLE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INVUNERABLE;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.JACK_IN_THE_BOX;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.LIGHTNING;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_ARMOUR;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.MODIFY_HEALTH;
@@ -126,6 +132,12 @@ public final class ShotsController implements IShotsController {
      * the original doesn't read it
      */
     private static final int ON_FIRE_TICKS = 10;
+
+    /**
+     * Jack, the creature in the Jack in the Box. DKII.EXE names it by number
+     * (0x4B02E0)
+     */
+    private static final short CREATURE_JACK_ID = 46;
 
     private final IKwdFile kwdFile;
     private final EntityData entityData;
@@ -260,6 +272,8 @@ public final class ShotsController implements IShotsController {
         // filled at 0x4AD1B0). The trap scares with the threat it makes after it fires, see TrapSystem
         result.put(FEAR, request -> {
         });
+        result.put(BOULDER, this::rollBoulder);
+        result.put(JACK_IN_THE_BOX, this::releaseJack);
 
         return result;
     }
@@ -537,6 +551,68 @@ public final class ShotsController implements IShotsController {
         }
     }
 
+    /**
+     * The Boulder Trap turns into a boulder: the trap is gone and a boulder
+     * with the level's boulder health sets off for the tile of the trap's
+     * victim. It belongs to the trap's owner. {@code BoulderSystem} rolls it
+     * (0x4AEBD0)
+     *
+     * @param request the shot
+     */
+    private void rollBoulder(ShotRequest request) {
+        IEntityPositionLookup entityPositionLookup = gameController.getEntityLookupService();
+        Point tile = WorldUtils.vectorToPoint(request.position());
+        for (EntityId entityId : entityPositionLookup.getEntitiesInLocation(tile)) {
+            if (entityData.getComponent(entityId, TrapComponent.class) != null) {
+                entityPositionLookup.getEntityController(entityId).remove();
+                break;
+            }
+        }
+
+        // DK II turns the tiles between the two into an angle that points up the map at 0
+        Vector3f targetPosition = request.target() != null ? EntityController.getPosition(entityData, request.target()) : null;
+        Point targetTile = targetPosition != null ? WorldUtils.vectorToPoint(targetPosition) : tile;
+        float distance = FastMath.sqrt(FastMath.sqr(targetTile.x - tile.x) + FastMath.sqr(targetTile.y - tile.y));
+        float directionX = distance > 0 ? (targetTile.x - tile.x) / distance : 0;
+        float directionY = distance > 0 ? (targetTile.y - tile.y) / distance : -1;
+
+        int health = (int) gameSettings.get(Variable.MiscVariable.MiscType.BOULDER_INITIAL_HEALTH).getValue();
+        EntityId boulder = objectsController.loadObject(ObjectsController.OBJECT_BOULDER_ID, request.playerId(), tile.x, tile.y);
+        entityData.setComponents(boulder, new Health(health, health),
+                new Boulder(directionX, directionY, (int) Math.signum(directionX), (int) Math.signum(directionY)));
+    }
+
+    /**
+     * The Jack in the Box goes off under an enemy: the enemy takes the shot's
+     * data 1 as damage, the trap is gone and Jack jumps out of it, a creature
+     * of the trap's owner that walks to its keeper's Dungeon Heart and dies
+     * there. Under anybody else nothing happens (0x4B02E0)
+     *
+     * @param request the shot
+     */
+    private void releaseJack(ShotRequest request) {
+        Owner owner = request.target() != null ? entityData.getComponent(request.target(), Owner.class) : null;
+        Keeper keeper = levelInfo.getPlayer(request.playerId());
+        if (owner == null || keeper == null || !keeper.isEnemy(owner.ownerId)) {
+            return;
+        }
+        EntityController.setDamage(entityData, request.target(), request.shotData1());
+
+        IEntityPositionLookup entityPositionLookup = gameController.getEntityLookupService();
+        for (EntityId entityId : entityPositionLookup.getEntitiesInLocation(WorldUtils.vectorToPoint(request.position()))) {
+            if (entityData.getComponent(entityId, TrapComponent.class) != null) {
+                entityPositionLookup.getEntityController(entityId).remove();
+                break;
+            }
+        }
+        EntityId jack = creaturesController.spawnCreature(CREATURE_JACK_ID, request.playerId(), 1,
+                WorldUtils.vector3fToVector2f(request.position()), ICreaturesController.SpawnType.PLACE);
+        if (jack != null) {
+            creaturesController.createController(jack).getStateMachine().changeState(CreatureState.JACK_IN_THE_BOX);
+            entityData.setComponent(jack, new CreatureAi(gameTimer.getGameTime(), CreatureState.JACK_IN_THE_BOX, CREATURE_JACK_ID));
+        }
+    }
+
     @Override
     public boolean fireShot(short shotTypeId, int shotData1, int shotData2, short playerId, Vector3f position, EntityId target,
             EntityId shooter, float maxRange) {
@@ -565,6 +641,12 @@ public final class ShotsController implements IShotsController {
         }
 
         gameEventService.emit(GameEventType.SHOT_LAUNCH, ThingFlag.SHOT, shotTypeId, position);
+
+        // A shot that does its work as it appears, like the Boulder, does it where it is fired from
+        if (isProcessedAtStartOnly(shot)) {
+            process(new ShotRequest(shot, shotData1, shotData2, playerId, position, target, shooter));
+        }
+
         Vector3f velocity = ShotFlightRules.aim(position, targetPosition, shot.getSpeed());
         addShot(new ShotFlight(shotTypeId, playerId, shooter, target, shotData1, shotData2, velocity, new Vector3f(position),
                 maxRange, shot.getHealth()));
@@ -686,6 +768,10 @@ public final class ShotsController implements IShotsController {
     private boolean isOwnDoor(EntityId thing, short ownerId) {
         Owner owner = entityData.getComponent(thing, Owner.class);
         return owner != null && owner.ownerId == ownerId && entityData.getComponent(thing, DoorComponent.class) != null;
+    }
+
+    private static boolean isProcessedAtStartOnly(Shot shot) {
+        return shot.getShotProcessFlags().equals(EnumSet.of(Shot.ShotProcessFlag.AT_START));
     }
 
     /**

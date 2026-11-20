@@ -62,6 +62,7 @@ import toniarts.openkeeper.game.component.DiggingTiles;
 import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.DropArea;
 import toniarts.openkeeper.game.component.Food;
+import toniarts.openkeeper.game.component.GuardedRoom;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.KeeperAiNoPrisoner;
 import toniarts.openkeeper.game.component.ObjectComponent;
@@ -104,6 +105,7 @@ import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.creature.ClaimLair;
 import toniarts.openkeeper.game.task.creature.CollectWinnings;
+import toniarts.openkeeper.game.task.creature.Explore;
 import toniarts.openkeeper.game.task.creature.Gamble;
 import toniarts.openkeeper.game.task.creature.CollectPay;
 import toniarts.openkeeper.game.task.creature.GoToEat;
@@ -1077,8 +1079,11 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      * @return true if the task was assigned
      */
     private boolean assignClosestRoomTask(ICreatureController creature, ObjectType objectType, EntityId targetEntity, boolean assign) {
-        return assignClosestRoomTask(creature, objectType, targetEntity, assign,
-                room -> room.getObjectControl(objectType).isFullCapacity() ? Collections.emptyList() : room.getObjectControl(objectType).getAvailableCoordinates());
+        return assignClosestRoomTask(creature, objectType, targetEntity, assign, room -> getFreeSpots(room, objectType));
+    }
+
+    private static Collection<Point> getFreeSpots(IRoomController room, ObjectType objectType) {
+        return room.getObjectControl(objectType).isFullCapacity() ? Collections.emptyList() : room.getObjectControl(objectType).getAvailableCoordinates();
     }
 
     private boolean assignClosestRoomTask(ICreatureController creature, ObjectType objectType, EntityId targetEntity, boolean assign,
@@ -1086,18 +1091,23 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         Point currentPosition = creature.getCreatureCoordinates();
 
         // Get all the rooms of the given type
+        // A room without creatures of the other side in it comes before a nearer room with them (0x4C6AE0)
         List<IRoomController> rooms = mapController.getRoomsByFunction(objectType, creature.getOwnerId());
         Map<Integer, IRoomController> distancesToRooms = new TreeMap<>();
+        Map<Integer, IRoomController> distancesToRoomsWithHatedCompany = new TreeMap<>();
         for (IRoomController room : rooms) {
+
             // A destroyed room serves nobody, like a claimed ruined Dungeon Heart that no longer stores gold
             if (!room.isDestroyed() && !spots.apply(room).isEmpty()) {
-                distancesToRooms.put(getShortestDistance(currentPosition, room.getRoomInstance().getCoordinates().toArray(new Point[0])), room
-                );
+                (hasHatedCompany(creature, objectType, room) ? distancesToRoomsWithHatedCompany : distancesToRooms)
+                        .put(getShortestDistance(currentPosition, room.getRoomInstance().getCoordinates().toArray(new Point[0])), room);
             }
         }
+        List<IRoomController> roomsInOrder = new ArrayList<>(distancesToRooms.values());
+        roomsInOrder.addAll(distancesToRoomsWithHatedCompany.values());
 
         // See that are they really accessible starting from the least distance one
-        for (IRoomController room : distancesToRooms.values()) {
+        for (IRoomController room : roomsInOrder) {
 
             // The whole rooms are always accessible, take a random point from the room like DK II seems to do
             IRoomObjectControl control = room.getObjectControl(objectType);
@@ -1257,6 +1267,41 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         return distance;
     }
 
+    /**
+     * Tells whether a creature of the other side has a job in the room: an
+     * evil creature for a good one, a good creature for any other. DK II's
+     * finders of the Library, Training Room, Temple and Guard Room prefer a
+     * room without such company even when it is further away (DKII.EXE
+     * 0x4C6AE0, 0x4E2500, 0x4F3560, 0x4F1A20, with 0x45C640 for the company).
+     * The Torture Chamber's finder doesn't care
+     *
+     * @param creature the creature looking for a room
+     * @param objectType the job it is looking for
+     * @param room the room
+     * @return true if the creature would rather work elsewhere
+     */
+    private boolean hasHatedCompany(ICreatureController creature, ObjectType objectType, IRoomController room) {
+        Map<Long, Point> taskPoints = roomTasks.get(room);
+        if (taskPoints == null || creature.getCreature() == null || !(objectType == ObjectType.RESEARCHER
+                || objectType == ObjectType.TRAINEE || objectType == ObjectType.WORSHIPPER || objectType == ObjectType.GUARD)) {
+            return false;
+        }
+        Creature.CreatureFlag hated = creature.getCreature().getFlags().contains(Creature.CreatureFlag.IS_GOOD)
+                ? Creature.CreatureFlag.IS_EVIL : Creature.CreatureFlag.IS_GOOD;
+        for (Long taskId : taskPoints.keySet()) {
+            if (!(tasksByIds.get(taskId) instanceof AbstractTask task)) {
+                continue;
+            }
+            for (ICreatureController other : task.getAssignees()) {
+                if (other.getCreature() != null && other.getCreature().getFlags().contains(hated)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
+    }
+
     private AbstractTask getRoomTask(ObjectType objectType, Point target, EntityId targetEntity, ICreatureController creature, IRoomController room) {
         switch (objectType) {
             case GOLD -> {
@@ -1295,7 +1340,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                         levelInfo.getLevelData().getGameLevel().getTicksPerSec());
             }
             case GUARD -> {
-                return new Guard(navigationService, mapController, target, creature.getOwnerId(), room, this,
+                return new Guard(navigationService, mapController, target, creature.getOwnerId(), room, this, entityData,
                         levelInfo.getLevelData().getGameLevel().getTicksPerSec(),
                         (int) gameSettings.get(Variable.MiscVariable.MiscType.MAX_TIME_IN_GUARD_ROOM_BEFORE_WANDERING_TO_GUARD_POST_SECONDS).getValue(),
                         FastMath.rand);
@@ -1498,7 +1543,13 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                 return assignClosestRoomTask(creature, ObjectType.GAMBLER, null, assign);
             }
             case GUARD: {
-                return assignClosestRoomTask(creature, ObjectType.GUARD, null, assign);
+
+                // As in the original (0x462850), back to the Guard Room it guarded last while that is still its keeper's
+                // and has space, otherwise to the nearest one
+                GuardedRoom guardedRoom = entityData.getComponent(creature.getEntityId(), GuardedRoom.class);
+                return (guardedRoom != null && assignClosestRoomTask(creature, ObjectType.GUARD, null, assign,
+                        room -> room.getEntityId().equals(guardedRoom.room) ? getFreeSpots(room, ObjectType.GUARD) : Collections.emptyList()))
+                        || assignClosestRoomTask(creature, ObjectType.GUARD, null, assign);
             }
             case PRAY: {
                 return assignClosestRoomTask(creature, ObjectType.WORSHIPPER, null, assign);
@@ -1544,6 +1595,20 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                     tasksByIds.put(task.getId(), task);
                 }
                 return true;
+            }
+            case EXPLORE: {
+
+                // There is always somewhere to explore, the tile is picked when the creature sets off
+                if (!assign) {
+                    return true;
+                }
+                Explore task = new Explore(navigationService, mapController);
+                if (task.chooseDestination(creature, Utils.getRandom())) {
+                    task.assign(creature, true);
+                    tasksByIds.put(task.getId(), task);
+                    return true;
+                }
+                return false;
             }
             default:
                 return false;

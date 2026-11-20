@@ -159,6 +159,11 @@ public final class CreatureViewSystem extends GameTimeCounter {
                         targetState = getTortureAnimation(tortured != null ? tortured.device : null, state);
                     } else if (aiState != null && aiState.getCreatureState() == CreatureState.CELEBRATING) {
                         targetState = getCelebrationAnimation(state);
+                    } else if (aiState != null && aiState.getCreatureState() == CreatureState.IMPRISONED) {
+
+                        // A prisoner is angry only now and then, for as long as its state says (DKII.EXE 0x473350)
+                        targetState = timeElapsed < aiState.stateStartTime + aiState.stateDuration
+                                ? Creature.AnimationType.ANGRY : Creature.AnimationType.STAND_STILL;
                     } else if (aiState != null) {
                         targetState = getAnimation(aiState.getCreatureState());
                         CreatureMeleeAttack meleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);
@@ -299,8 +304,6 @@ public final class CreatureViewSystem extends GameTimeCounter {
                 return Creature.AnimationType.GET_UP;
             case ENTERING_DUNGEON:
                 return Creature.AnimationType.ENTRANCE;
-            case IMPRISONED:
-                return Creature.AnimationType.ANGRY;
             case TORTURED:
                 return Creature.AnimationType.TORTURED_WHEEL; // hmmm....
             case SLEEPING:

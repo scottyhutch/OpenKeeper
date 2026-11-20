@@ -140,7 +140,7 @@ public abstract class AbstractTask implements Task {
      *
      * @return a copy of the assignees
      */
-    protected List<ICreatureController> getAssignees() {
+    public List<ICreatureController> getAssignees() {
         return List.copyOf(assignees.keySet());
     }
 
