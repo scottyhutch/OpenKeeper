@@ -17,6 +17,7 @@
 package toniarts.openkeeper.audio.plugins;
 
 import com.jme3.asset.AssetInfo;
+import com.jme3.asset.AssetLoadException;
 import com.jme3.asset.AssetLoader;
 import com.jme3.audio.AudioBuffer;
 import com.jme3.audio.AudioData;
@@ -172,7 +173,8 @@ public final class MP2Loader implements AssetLoader {
             }
             return data;
         } catch (IOException e) {
-            return new AudioBuffer(); // Failed
+            // fail the load, an empty buffer would crash the audio renderer when played
+            throw new AssetLoadException("Failed to load " + info.getKey(), e);
         } finally {
             if (inputStream != null) {
                 inputStream.close();
