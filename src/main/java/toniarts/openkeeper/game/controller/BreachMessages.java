@@ -73,7 +73,8 @@ public final class BreachMessages {
             return;
         }
         shownAt.put(ownerId, now);
-        playerService.showMentorMessage(BREACHED_SPEECH_ID, WorldUtils.pointToVector3f(tile), (short) 0, ownerId);
+        playerService.showMentorMessage(BREACHED_SPEECH_ID, WorldUtils.pointToVector3f(tile), (short) 0, ownerId,
+                (float) DURATION, (float) DURATION, 1);
     }
 
 }

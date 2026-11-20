@@ -103,7 +103,8 @@ public final class NewSpeciesSystem implements IGameLogicUpdatable {
                     playerService.playSpeech(introductionId, true, false, 0, ownerId);
                 } else {
                     Vector3f position = entityData.getComponent(entity.getId(), Position.class).position;
-                    playerService.showMentorMessage(MentorType.SPECIES_CREATURE_ENTERED.getId(), position, (short) 0, ownerId);
+                    playerService.showMentorMessage(MentorType.SPECIES_CREATURE_ENTERED.getId(), position, (short) 0, ownerId,
+                            60f, 50f, 1);
                 }
             }
         }
