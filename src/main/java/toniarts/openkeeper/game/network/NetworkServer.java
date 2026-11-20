@@ -181,6 +181,7 @@ import toniarts.openkeeper.game.component.TriggerWave;
 import toniarts.openkeeper.game.component.Turncoat;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.component.ViewType;
+import toniarts.openkeeper.game.component.WithdrawnFrom;
 import toniarts.openkeeper.game.component.WoodenBridgeDecay;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.data.GameResult;
@@ -414,6 +415,7 @@ public final class NetworkServer {
             Serializer.registerClass(Trigger.class, new FieldSerializer());
             Serializer.registerClass(Turncoat.class, new FieldSerializer());
             Serializer.registerClass(Unconscious.class, new FieldSerializer());
+            Serializer.registerClass(WithdrawnFrom.class, new FieldSerializer());
         }
     }
 

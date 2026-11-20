@@ -98,6 +98,12 @@ public enum CreatureState implements State<ICreatureController> {
                 return;
             }
 
+            // Back to where we withdrew from, right after the hypnotised check (DK II's idle state 0x4773D0)
+            if (entity.goBackToWhereWeFought()) {
+                workResult.accept(true);
+                return;
+            }
+
             // See if we should just follow
             if (entity.getParty() != null && !entity.getParty().isPartyLeader(entity)) {
                 entity.setFollowTarget(entity.getParty().getPartyLeader().getEntityId());
