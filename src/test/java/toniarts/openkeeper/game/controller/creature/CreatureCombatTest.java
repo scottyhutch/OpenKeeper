@@ -471,7 +471,7 @@ class CreatureCombatTest {
     void spellStillRechargingOrOutOfRangeIsNotCast() {
         EntityId target = createCreature(HERO, FIGHTER, new Vector3f(5, 0, 7), 0);
         CreatureSpell shortRanged = new CreatureSpell(new CreatureSpell((short) 2, us, 1, 2), 1.0);
-        giveAttackSpells(us, castAt((short) 1, 5, 6.0), shortRanged, castAt((short) 3, 3, 6.5));
+        giveAttackSpells(us, castAt((short) 1, 5, 6.0), shortRanged, castAt((short) 3, 3, 6.0));
 
         createController(us).executeAttack(target);
 

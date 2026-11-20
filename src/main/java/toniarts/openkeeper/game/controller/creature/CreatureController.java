@@ -314,10 +314,12 @@ public final class CreatureController extends EntityController implements ICreat
     /**
      * Of the attack spells, the one that was ready first: the smallest last
      * cast plus recharge, and the earlier slot on a tie (DK II 0x45CB00,
-     * 0x48C800). A spell never cast counts as cast at 0.
+     * 0x48C800). A spell never cast counts as cast at 0. The recharge is
+     * divided by the work modifier, as in isAttackRecharged.
      */
     private static final Comparator<CreatureSpell> READY_FIRST = Comparator.comparingDouble(
-            creatureSpell -> (creatureSpell.attactStartTime != null ? creatureSpell.attactStartTime : 0) + creatureSpell.rechargeTime);
+            creatureSpell -> (creatureSpell.attactStartTime != null ? creatureSpell.attactStartTime : 0)
+            + creatureSpell.rechargeTime / ATTACK_WORK_MODIFIER);
 
     private final INavigationService navigationService;
     private final ITaskManager taskManager;
