@@ -64,7 +64,7 @@ class FurnitureMovementTest {
         set(object, "width", .6f);
         Creature definition = new Creature();
         set(definition.getAttributes(), "width", .2f);
-        set(definition, "unk3cc", .5f);
+        set(definition, "turnSpeed", .5f);
         IKwdFile level = (IKwdFile) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (p, m, args) -> m.getName().equals("getObject") ? object : definition);
         obstacle(5, 5);
