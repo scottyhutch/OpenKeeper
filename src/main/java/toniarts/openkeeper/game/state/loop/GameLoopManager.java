@@ -189,6 +189,8 @@ public final class GameLoopManager {
                 new ManaCalculatorLogic(playerControllers.values(), entityData),
                 new LowManaSystem(entityData, level, playerControllers.values(), gameSettings, gameWorldController.getRoomAttackMessages(),
                         gameEventService),
+                new MentorHintSystem(entityData, level, playerControllers.values(), gameWorldController.getRoomAttackMessages(),
+                        gameController.getGameTimer()),
                 new PossessedSystem(playerControllers.values(), entityData, gameController,
                         gameWorldController.getCreaturesController()),
                 new CreatureLandingSystem(entityData, gameWorldController.getMapController(),

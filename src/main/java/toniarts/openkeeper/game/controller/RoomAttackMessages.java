@@ -179,7 +179,27 @@ public final class RoomAttackMessages {
          * "An Imp has become angry because it has no Lair" and the like,
          * message 0x12
          */
-        CREATURE_ANGRY(50, 0, Map.of(), false, CREATURE_TAB);
+        CREATURE_ANGRY(50, 0, Map.of(), false, CREATURE_TAB),
+        /**
+         * The advice for a keeper with a Horned Reaper and little mana,
+         * message 0x5F (0x4B9740)
+         */
+        REAPER_ADVICE(50, 1350, Map.of()),
+        /**
+         * The mentor's general hints and taunts, message 0x59 variants 1 to
+         * 27. Posted even while another one is held (0x4B9740)
+         */
+        HINT(20, 0, Map.ofEntries(Map.entry(1, 1168), Map.entry(2, 1169), Map.entry(3, 1172), Map.entry(4, 1174),
+                Map.entry(5, 1175), Map.entry(6, 1176), Map.entry(7, 1177), Map.entry(8, 1178), Map.entry(9, 1179),
+                Map.entry(10, 1180), Map.entry(11, 1181), Map.entry(12, 1182), Map.entry(13, 1183), Map.entry(14, 1184),
+                Map.entry(15, 1185), Map.entry(16, 1187), Map.entry(17, 1188), Map.entry(18, 1189), Map.entry(19, 1190),
+                Map.entry(20, 1191), Map.entry(21, 1192), Map.entry(22, 1193), Map.entry(23, 1194), Map.entry(24, 1195),
+                Map.entry(25, 1196), Map.entry(26, 1197), Map.entry(27, 1199)), true, INFO_TAB),
+        /**
+         * The hints for a keeper whose creatures are not fighting, message
+         * 0x58 variants 1 to 8 (0x4B9740)
+         */
+        QUIET_HINT(20, 0, Map.of(1, 509, 2, 510, 3, 511, 4, 512, 5, 513, 6, 514, 7, 515, 8, 516), true, INFO_TAB);
 
         private final double duration;
         private final int defaultSpeechId;
@@ -347,6 +367,35 @@ public final class RoomAttackMessages {
      */
     public void combatPitOver(short ownerId) {
         show(Message.COMBAT_PIT_OVER, ownerId, (short) 0, null);
+    }
+
+    /**
+     * The keeper has a Horned Reaper and little mana left
+     *
+     * @param ownerId the keeper
+     */
+    public void reaperAdvice(short ownerId) {
+        show(Message.REAPER_ADVICE, ownerId, (short) 0, null);
+    }
+
+    /**
+     * One of the mentor's general hints
+     *
+     * @param ownerId the keeper
+     * @param variant which one, 1 to 27
+     */
+    public void hint(short ownerId, int variant) {
+        show(Message.HINT, ownerId, (short) variant, null);
+    }
+
+    /**
+     * One of the mentor's hints for a quiet dungeon
+     *
+     * @param ownerId the keeper
+     * @param variant which one, 1 to 8
+     */
+    public void quietHint(short ownerId, int variant) {
+        show(Message.QUIET_HINT, ownerId, (short) variant, null);
     }
 
     /**
