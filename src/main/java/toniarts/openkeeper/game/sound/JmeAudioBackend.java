@@ -65,10 +65,6 @@ public final class JmeAudioBackend implements AudioBackend {
         } catch (RuntimeException ex) {
             throw new IllegalArgumentException("Failed to load " + path, ex);
         }
-        if (node.getAudioData() == null) {
-            // jME can swallow a decoder failure and leave a node with no data, which throws when played
-            throw new IllegalArgumentException("Failed to load " + path);
-        }
 
         node.setLooping(spec.looping());
         node.setPositional(spec.positional());
