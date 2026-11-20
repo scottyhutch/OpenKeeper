@@ -43,6 +43,7 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Poisoned;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.ShotFlight;
+import toniarts.openkeeper.game.component.ShotTarget;
 import toniarts.openkeeper.game.component.ShotViewState;
 import toniarts.openkeeper.game.component.SpeedChange;
 import toniarts.openkeeper.game.component.TrapComponent;
@@ -565,6 +566,9 @@ public final class ShotsController implements IShotsController {
                 new Position(FastMath.atan2(flight.velocity.x, flight.velocity.z), new Vector3f(flight.start)),
                 new ShotViewState(flight.shotId, flight.velocity.mult(ticksPerSecond)),
                 flight);
+        if (kwdFile.getShotById(flight.shotId).getProcessType() == Shot.ProcessType.GUIDED) {
+            entityData.setComponent(entity, new ShotTarget(flight.target));
+        }
     }
 
     /**

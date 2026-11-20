@@ -36,6 +36,7 @@ public final class ShotFixtures {
      * fireball
      */
     public static final short FIREBALL_ID = 1;
+    public static final short GUIDED_BOLT_ID = 35;
 
     /**
      * The Cyclone of the Wind spell
@@ -217,6 +218,21 @@ public final class ShotFixtures {
         shot.setDamageType(Shot.DamageType.NONE);
         shot.setDeathShotId(HAIL_STORM_CLOUD_ID);
         shot.setFlags(EnumSet.of(Shot.ShotFlag.DIE_WHEN_HIT_THING));
+        return shot;
+    }
+
+    /**
+     * The Guided Bolt of the Dark Elf and the Elven Archer, with the values of
+     * the original data
+     *
+     * @return the shot
+     */
+    public static Shot guidedBolt() {
+        Shot shot = fireball();
+        shot.setShotId(GUIDED_BOLT_ID);
+        shot.setProcessType(Shot.ProcessType.GUIDED);
+        shot.setSpeed(0.7f);
+
         return shot;
     }
 
