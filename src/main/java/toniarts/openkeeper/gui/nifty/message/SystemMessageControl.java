@@ -37,6 +37,7 @@ public final class SystemMessageControl extends AbstractController {
     private Nifty nifty;
     private Element element;
     private boolean unread = true;
+    private boolean dismissed;
     private String text = "";
     private final Long createdAt = System.currentTimeMillis();
     private Screen hud;
@@ -88,7 +89,15 @@ public final class SystemMessageControl extends AbstractController {
      */
     public void dismissMessage() {
         NiftyUtils.playSound(nifty, GlobalCategory.GUI_BUTTON_DEFAULT, GlobalType.GUI_BUTTON_CKICK.getId());
+        this.dismissed = true;
         this.element.markForRemoval();
+    }
+
+    /**
+     * @return true if the player dismissed the message's tab
+     */
+    public boolean isDismissed() {
+        return this.dismissed;
     }
 
     /**
