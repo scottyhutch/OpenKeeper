@@ -25,6 +25,8 @@ import com.simsilica.es.EntitySet;
 import java.util.Map;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Death;
+import toniarts.openkeeper.game.component.DoorComponent;
+import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
@@ -39,6 +41,7 @@ import toniarts.openkeeper.game.controller.shot.ShotFlightRules;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.Door;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Shot;
@@ -284,7 +287,7 @@ public final class ShotSystem implements IGameLogicUpdatable {
 
     /**
      * Looks for a thing the shot touches, on the tiles under the shot. For now
-     * the shots hit creatures, dead bodies and traps.
+     * the shots hit creatures, dead bodies, traps and doors.
      *
      * @param shot the shot
      * @param flight the shot's flight
@@ -322,6 +325,10 @@ public final class ShotSystem implements IGameLogicUpdatable {
         }
 
         CreatureComponent creatureComponent = entityData.getComponent(entityId, CreatureComponent.class);
+        DoorComponent doorComponent = entityData.getComponent(entityId, DoorComponent.class);
+        if (doorComponent != null) {
+            return isDoorHit(shot, position, doorComponent, entityData.getComponent(entityId, DoorViewState.class), thingPosition);
+        }
         if (creatureComponent == null) {
             Health health = entityData.getComponent(entityId, Health.class);
             Owner owner = entityData.getComponent(entityId, Owner.class);
@@ -377,6 +384,23 @@ public final class ShotSystem implements IGameLogicUpdatable {
         }
 
         return ShotFlightRules.touches(position, shot.getRadius(), trapPosition.position, 0, 0);
+    }
+
+    /**
+     * A closed door that isn't a barricade stops every shot that hits things,
+     * whoever owns the door: the shots aimed at enemies (0x4B5800) and those
+     * aimed at our own (0x4B58E0) both take a door that isn't a barricade
+     * (flag 0x40 of the door data), a blueprint (+0x109) or open (+0x10D). A
+     * door has no width nor height (0x402AD0 for both in the door's vtable).
+     */
+    private boolean isDoorHit(Shot shot, Vector3f position, DoorComponent doorComponent, DoorViewState doorViewState,
+            Position doorPosition) {
+        if (doorComponent.blueprint || doorViewState != null && doorViewState.open
+                || kwdFile.getDoorById(doorComponent.doorId).getFlags().contains(Door.DoorFlag.IS_BARRICADE)) {
+            return false;
+        }
+
+        return ShotFlightRules.touches(position, shot.getRadius(), doorPosition.position, 0, 0);
     }
 
     private boolean isEnemy(short shotOwnerId, short creatureOwnerId) {

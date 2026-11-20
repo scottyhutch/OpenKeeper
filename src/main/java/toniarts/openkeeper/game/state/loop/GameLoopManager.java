@@ -203,6 +203,8 @@ public final class GameLoopManager {
                         gameWorldController.getCreaturesController(), gameController.getGameTimer(), gameEventService),
                 new DungeonHeartCallSystem(entityData, gameSettings, levelInfo, positionSystem,
                         gameWorldController.getCreaturesController(), gameController.getGameTimer()),
+                new GuardPostSystem(entityData, gameSettings, levelInfo, gameWorldController.getMapController(), positionSystem,
+                        gameWorldController.getCreaturesController(), gameController.getGameTimer()),
                 new CreatureAiSystem(entityData, gameWorldController.getCreaturesController(), taskManager),
                 new NewSpeciesSystem(entityData, gameService,
                         levelInfo.getLevelData().getGameLevel().getIntroductionOverrideTextIds()),

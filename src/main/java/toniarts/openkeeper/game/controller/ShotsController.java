@@ -608,9 +608,9 @@ public final class ShotsController implements IShotsController {
         Shot shot = kwdFile.getShotById(flight.shotId);
 
         // The shot's data 1 is its damage. An invulnerable creature takes none
-        // and isn't set alight either (0x4AC420)
+        // and isn't set alight either, and a door of the shot's own side takes none (0x4AC420)
         if (shot.getDamageType() == Shot.DamageType.HIT_THING && flight.shotData1 > 0
-                && entityData.getComponent(thing, Invulnerable.class) == null) {
+                && entityData.getComponent(thing, Invulnerable.class) == null && !isOwnDoor(thing, flight.ownerId)) {
             if (shot.getAttackCategory() == Shot.AttackCategory.FIRE) {
                 setAlight(thing);
             }
@@ -681,6 +681,11 @@ public final class ShotsController implements IShotsController {
         // The new shot keeps the old one's values and target, not its own (0x4AB180)
         addShot(new ShotFlight(shotTypeId, flight.ownerId, flight.shooter, flight.target, flight.shotData1, flight.shotData2,
                 new Vector3f(), new Vector3f(position), 0, childShot.getHealth()));
+    }
+
+    private boolean isOwnDoor(EntityId thing, short ownerId) {
+        Owner owner = entityData.getComponent(thing, Owner.class);
+        return owner != null && owner.ownerId == ownerId && entityData.getComponent(thing, DoorComponent.class) != null;
     }
 
     /**

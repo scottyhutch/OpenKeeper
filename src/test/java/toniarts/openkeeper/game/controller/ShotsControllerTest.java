@@ -643,6 +643,18 @@ class ShotsControllerTest {
     }
 
     @Test
+    void shotDoesNotDamageADoorOfItsOwnSide() {
+        EntityId ownDoor = createDoor(PLAYER_ID);
+        EntityId enemyDoor = createDoor(ENEMY_ID);
+
+        hitWithFireball(ownDoor);
+        hitWithFireball(enemyDoor);
+
+        assertNull(entityData.getComponent(ownDoor, Damage.class));
+        assertEquals(50, entityData.getComponent(enemyDoor, Damage.class).damage);
+    }
+
+    @Test
     void fireballSetsABadlyHurtCreatureAlightForTenTicks() {
         EntityId target = createCreature(ENEMY_ID, 10, 10);
         entityData.setComponent(target, new Health(20, 100));
@@ -1098,6 +1110,13 @@ class ShotsControllerTest {
                 entityData.createEntity(), null, shotData1, shotData2, new Vector3f(), new Vector3f(10, 1, 10), 3, 20));
 
         shotsController.hit(shot, target);
+    }
+
+    private EntityId createDoor(short ownerId) {
+        EntityId door = entityData.createEntity();
+        entityData.setComponents(door, new Position(0, new Vector3f(10, 1f, 10)), new DoorComponent((short) 1, false, false),
+                new Owner(ownerId, ownerId), new Health(100, 100));
+        return door;
     }
 
     private void hitWithFireball(EntityId target) {
