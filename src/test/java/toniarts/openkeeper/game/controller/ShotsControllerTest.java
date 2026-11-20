@@ -73,6 +73,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -126,7 +127,7 @@ class ShotsControllerTest {
     private final List<Object[]> effects = new ArrayList<>();
     private final List<List<Object>> playerEvents = new ArrayList<>();
     private final Set<Point> waterTiles = new HashSet<>();
-    private final List<EntityId> pickedUp = new ArrayList<>();
+    private final List<EntityId> pickedUpThings = new ArrayList<>();
     private final ShotsController shotsController;
     private double gameTime = 0;
 
@@ -220,7 +221,7 @@ class ShotsControllerTest {
         // The things picked up this tick are still on their tiles until the lookup catches up
         IEntityPositionLookup entityPositionLookup = (IEntityPositionLookup) Proxy.newProxyInstance(IEntityPositionLookup.class.getClassLoader(), new Class<?>[]{IEntityPositionLookup.class},
                 (proxy, method, args) -> args.length == 2
-                        ? java.util.stream.Stream.concat(pickedUp.stream(), entityData.findEntities(null, Position.class).stream()
+                        ? Stream.concat(pickedUpThings.stream(), entityData.findEntities(null, Position.class).stream()
                                 .filter(entity -> new Point((int) args[0], (int) args[1]).equals(WorldUtils.vectorToPoint(entityData.getComponent(entity, Position.class).position))))
                                 .toList()
                         : deadBodies.stream().filter(entity -> args[0].equals(WorldUtils.vectorToPoint(entityData.getComponent(entity, Position.class).position))).toList());
@@ -716,6 +717,20 @@ class ShotsControllerTest {
     }
 
     @Test
+    void constantDamageShotPassesOverAThingPickedUpThisTick() {
+        EntityId target = createCreature(ENEMY_ID, 10, 10);
+        // Still in the position lookup, but picked up so it has no position
+        EntityId pickedUp = entityData.createEntity();
+        entityData.setComponents(pickedUp, new CreatureComponent(), new Owner(ENEMY_ID, ENEMY_ID), new Health(100, 100));
+        pickedUpThings.add(pickedUp);
+
+        shotsController.createShot(SPIKE_ID, 750, 1, PLAYER_ID, new Vector3f(10, 1, 10), target, null);
+
+        assertEquals(750, entityData.getComponent(target, Damage.class).damage);
+        assertNull(entityData.getComponent(pickedUp, Damage.class));
+    }
+
+    @Test
     void damageFromOriginRunsDownFromThingToThingRowByRow() {
         EntityId neutral = createCreature((short) 2, 10, 9);
         EntityId own = createCreature(PLAYER_ID, 9, 10);
@@ -778,7 +793,7 @@ class ShotsControllerTest {
     void damageFromOriginPassesOverAThingPickedUpThisTick() {
         EntityId held = createCreature(ENEMY_ID, 10, 10);
         entityData.removeComponent(held, Position.class);
-        pickedUp.add(held);
+        pickedUpThings.add(held);
         EntityId target = createCreature(ENEMY_ID, 10, 10);
 
         shotsController.createShot(FIREBURST_ID, 800, 1, PLAYER_ID, new Vector3f(10, 1, 10), null, null);
