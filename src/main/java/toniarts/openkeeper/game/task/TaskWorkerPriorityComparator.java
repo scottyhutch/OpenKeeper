@@ -17,7 +17,6 @@
 package toniarts.openkeeper.game.task;
 
 import java.util.Comparator;
-import toniarts.openkeeper.game.task.worker.ClaimTileTask;
 
 /**
  * The order in which the unemployed workers take the tasks
@@ -33,14 +32,8 @@ final class TaskWorkerPriorityComparator implements Comparator<TaskManager.TaskW
             return result;
         }
 
-        // Trap and door crates are brought to their blueprints before digging, claiming and the like, as in the
-        // original's imp work order (DKII.EXE 0x463DF0). Both are one job there (0x46C1A0, and 0x468910 for a loose crate)
-        result = Boolean.compare(isCrateForBlueprint(o2.task()), isCrateForBlueprint(o1.task()));
-        if (result != 0) {
-            return result;
-        }
-
-        // A digging or claiming worker carries on with the closest work of the same kind, however far
+        // A digging or claiming worker carries on with the closest work of the same kind, however far. The original
+        // tries that before its work list (DKII.EXE 0x463DF0, the flag at 0x6986B4 for each kind of job)
         result = Boolean.compare(o2.sameWork(), o1.sameWork());
         if (result != 0) {
             return result;
@@ -52,9 +45,11 @@ final class TaskWorkerPriorityComparator implements Comparator<TaskManager.TaskW
             }
         }
 
-        // The floor that digging has left, with no digging tagged around it, is claimed before the other usual work. It
-        // is the first job on the original's work list (DKII.EXE 0x469600, list at 0x698658)
-        result = Boolean.compare(isDugFloorToClaim(o2.task()), isDugFloorToClaim(o1.task()));
+        // Then the original goes down its work list (DKII.EXE 0x698658): trap and door crates are brought to their
+        // blueprints, before digging, claiming and the like. Both are one job there (0x46C1A0, and 0x468910 for a loose
+        // crate, from the object job 0x46B9C0). The floor that digging has left heads the list, but its dispatcher
+        // (0x468520) has no case for it, that floor is claimed by workers walking over it (0x464170)
+        result = Boolean.compare(isCrateForBlueprint(o2.task()), isCrateForBlueprint(o1.task()));
         if (result != 0) {
             return result;
         }
@@ -85,10 +80,6 @@ final class TaskWorkerPriorityComparator implements Comparator<TaskManager.TaskW
             default ->
                 false;
         };
-    }
-
-    private static boolean isDugFloorToClaim(Task task) {
-        return task instanceof ClaimTileTask claimTileTask && claimTileTask.isDugFloorToClaim();
     }
 
     private static boolean isWallWork(Task task) {

@@ -71,10 +71,10 @@ public class ClaimTileTask extends AbstractTileTask {
     }
 
     /**
-     * The floor that digging has left is claimed before the other usual work,
-     * but not while any of the eight tiles around it is still tagged for
+     * The floor that digging has left is claimed by a worker that walks over
+     * it, but not while any of the eight tiles around it is still tagged for
      * digging. Tiles tagged for mining gold or gems don't hold it up (DKII.EXE
-     * 0x469600, the first job of the imp's work list at 0x698658)
+     * 0x469600, job 0xE)
      *
      * @return {@code true} if this is such floor, with no digging left around
      * it
@@ -111,7 +111,10 @@ public class ClaimTileTask extends AbstractTileTask {
     public boolean makeRoomFor(ICreatureController creature) {
         Vector2f tile = WorldUtils.pointToVector2f(getTaskLocation());
         for (ICreatureController assignee : getAssignees()) {
-            if (assignee.isAtAssignedTaskTarget() || getDistanceSquared(assignee, tile) <= getDistanceSquared(creature, tile)) {
+
+            // One in the keeper's hand isn't on its way, it has no position
+            if (assignee.getPosition() != null && (assignee.isAtAssignedTaskTarget()
+                    || getDistanceSquared(assignee, tile) <= getDistanceSquared(creature, tile))) {
                 return false;
             }
         }

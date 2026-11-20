@@ -37,8 +37,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * A worker nearer to a tile takes its claim over from the one assigned to it
- * (0x46AB50). The floor that digging has left is claimed first, once no tile
- * around it is tagged for digging anymore (0x469600)
+ * (0x46AB50). The floor that digging has left is claimed by a worker walking
+ * over it, once no tile around it is tagged for digging anymore (0x469600)
  */
 class ClaimTileTakeOverTest {
 
@@ -69,6 +69,19 @@ class ClaimTileTakeOverTest {
         assertEquals(task, near.task.get());
     }
 
+    /**
+     * A worker in the keeper's hand has no position, it is not on its way to
+     * the tile
+     */
+    @Test
+    void workerInTheHandLosesTheClaim() {
+        Imp held = new Imp(null, false);
+        task.assign(held.creature, true);
+
+        assertTrue(task.makeRoomFor(new Imp(new Vector3f(16, 0, 10), false).creature));
+        assertNull(held.task.get());
+    }
+
     @Test
     void workerClaimingTheTileKeepsIt() {
         Imp claiming = new Imp(new Vector3f(16, 0, 10), true);
@@ -79,7 +92,7 @@ class ClaimTileTakeOverTest {
     }
 
     @Test
-    void floorLeftByDiggingIsClaimedFirst() {
+    void onlyFloorLeftByDiggingIsClaimedOnTheWay() {
         assertTrue(dugFloor().isDugFloorToClaim());
         assertFalse(task.isDugFloorToClaim(), "Other floor is claimed in its turn");
     }
