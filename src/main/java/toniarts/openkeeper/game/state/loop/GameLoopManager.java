@@ -142,6 +142,8 @@ public final class GameLoopManager {
                 new WallDeteriorationSystem(gameWorldController.getMapController(), playerControllers.values(),
                         (int) gameController.getLevelVariable(Variable.MiscVariable.MiscType.NUMBER_OF_RANDOM_WALL_DETERIORATIONS_PER_SECOND),
                         (int) gameController.getLevelVariable(Variable.MiscVariable.MiscType.WALL_DETERIORATION_DAMAGE)),
+                new VerminSystem(entityData, gameWorldController.getMapController(),
+                        gameWorldController.getObjectsController(), playerControllers.values()),
                 new CreatureExperienceSystem(entityData, levelInfo.getLevelData(), gameSettings,
                         gameWorldController.getCreaturesController()),
                 new CreatureSleepSystem(entityData, levelInfo.getLevelData(),
