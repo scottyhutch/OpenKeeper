@@ -73,6 +73,7 @@ import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
+import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.PossessionFixtures;
 import toniarts.openkeeper.tools.convert.map.ShotFixtures;
 import toniarts.openkeeper.tools.convert.map.Variable;
@@ -668,6 +669,7 @@ class PossessedAbilityTest {
             case "getCreatureFirstPersonStats" -> new HashMap<>();
             case "getCreature" -> creatures.getOrDefault((Short) args[0], creature);
             case "getGameLevel" -> ShotFixtures.gameLevel(4);
+            case "getImp" -> CreatureSleepFixtures.worker();
             default -> null;
         });
         ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> switch (name) {
