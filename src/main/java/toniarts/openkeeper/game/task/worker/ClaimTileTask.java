@@ -23,6 +23,7 @@ import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.TileWork;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.AbstractTileTask;
 import toniarts.openkeeper.game.task.TaskType;
@@ -45,10 +46,50 @@ public class ClaimTileTask extends AbstractTileTask {
     private static final int TICKS_TO_START_CLAIMING = 3;
 
     private final float tickLength;
+    private final boolean leftByDigging;
 
     public ClaimTileTask(final INavigationService navigationService, final IMapController mapController, Point p, short playerId, int ticksPerSecond) {
+        this(navigationService, mapController, p, playerId, ticksPerSecond, false);
+    }
+
+    /**
+     * Claim a tile
+     *
+     * @param navigationService the navigation service
+     * @param mapController the map controller
+     * @param p the tile
+     * @param playerId the claiming player
+     * @param ticksPerSecond the level's game ticks per second
+     * @param leftByDigging whether the tile is the floor that digging by the
+     * player's workers has just left
+     */
+    public ClaimTileTask(final INavigationService navigationService, final IMapController mapController, Point p, short playerId, int ticksPerSecond,
+            boolean leftByDigging) {
         super(navigationService, mapController, p, playerId);
         this.tickLength = 1f / ticksPerSecond;
+        this.leftByDigging = leftByDigging;
+    }
+
+    /**
+     * The floor that digging has left is claimed before the other usual work,
+     * but not while any of the eight tiles around it is still tagged for
+     * digging. Tiles tagged for mining gold or gems don't hold it up (DKII.EXE
+     * 0x469600, the first job of the imp's work list at 0x698658)
+     *
+     * @return {@code true} if this is such floor, with no digging left around
+     * it
+     */
+    public boolean isDugFloorToClaim() {
+        if (!leftByDigging) {
+            return false;
+        }
+        for (Point p : WorldUtils.getSurroundingTiles(mapController.getMapData(), getTaskLocation(), true)) {
+            IMapTileInformation tile = mapController.getMapData().getTile(p);
+            if (tile.isSelected(playerId) && tile.getGold() == 0) {
+                return false;
+            }
+        }
+        return true;
     }
 
     @Override

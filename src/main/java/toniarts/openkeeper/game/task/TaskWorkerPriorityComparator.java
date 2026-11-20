@@ -17,6 +17,7 @@
 package toniarts.openkeeper.game.task;
 
 import java.util.Comparator;
+import toniarts.openkeeper.game.task.worker.ClaimTileTask;
 
 /**
  * The order in which the unemployed workers take the tasks
@@ -28,6 +29,13 @@ final class TaskWorkerPriorityComparator implements Comparator<TaskManager.TaskW
 
         // A dropped worker first takes the closest work around the drop, whatever it is
         int result = Integer.compare(o1.dropRing(), o2.dropRing());
+        if (result != 0) {
+            return result;
+        }
+
+        // Trap and door crates are brought to their blueprints before digging, claiming and the like, as in the
+        // original's imp work order (DKII.EXE 0x463DF0). Both are one job there (0x46C1A0, and 0x468910 for a loose crate)
+        result = Boolean.compare(isCrateForBlueprint(o2.task()), isCrateForBlueprint(o1.task()));
         if (result != 0) {
             return result;
         }
@@ -44,9 +52,9 @@ final class TaskWorkerPriorityComparator implements Comparator<TaskManager.TaskW
             }
         }
 
-        // Trap crates are brought to their blueprints before digging, claiming and the like, as in the original's imp
-        // work order (DKII.EXE 0x463DF0)
-        result = Boolean.compare(isArmingTrap(o2.task()), isArmingTrap(o1.task()));
+        // The floor that digging has left, with no digging tagged around it, is claimed before the other usual work. It
+        // is the first job on the original's work list (DKII.EXE 0x469600, list at 0x698658)
+        result = Boolean.compare(isDugFloorToClaim(o2.task()), isDugFloorToClaim(o1.task()));
         if (result != 0) {
             return result;
         }
@@ -70,12 +78,21 @@ final class TaskWorkerPriorityComparator implements Comparator<TaskManager.TaskW
         return o1.task().getTaskCreated().compareTo(o2.task().getTaskCreated());
     }
 
-    private static boolean isWallWork(Task task) {
-        return task.getTaskType() == TaskType.CLAIM_WALL || task.getTaskType() == TaskType.REPAIR_WALL;
+    private static boolean isCrateForBlueprint(Task task) {
+        return switch (task.getTaskType()) {
+            case FETCH_TRAP_CRATE, DELIVER_TRAP_CRATE, FETCH_DOOR_CRATE, DELIVER_DOOR_CRATE ->
+                true;
+            default ->
+                false;
+        };
     }
 
-    private static boolean isArmingTrap(Task task) {
-        return task.getTaskType() == TaskType.FETCH_TRAP_CRATE || task.getTaskType() == TaskType.DELIVER_TRAP_CRATE;
+    private static boolean isDugFloorToClaim(Task task) {
+        return task instanceof ClaimTileTask claimTileTask && claimTileTask.isDugFloorToClaim();
+    }
+
+    private static boolean isWallWork(Task task) {
+        return task.getTaskType() == TaskType.CLAIM_WALL || task.getTaskType() == TaskType.REPAIR_WALL;
     }
 
 }
