@@ -20,7 +20,9 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
+import java.util.Set;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.player.PlayerResearchControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
@@ -29,6 +31,7 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
 import toniarts.openkeeper.game.data.ResearchableType;
 import toniarts.openkeeper.utils.Point;
+import toniarts.openkeeper.utils.WorldUtils;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -39,6 +42,10 @@ class ResearchTest {
     void researchInSoldLibraryIsNoLongerValid() {
         EntityData entityData = new DefaultEntityData();
         EntityId roomEntity = entityData.createEntity();
+
+        // One bookcase, the spell books are stored in the bookcases
+        EntityId bookcase = entityData.createEntity();
+        entityData.setComponent(bookcase, new Position(0, WorldUtils.pointToVector3f(1, 1)));
         boolean[] removed = {false};
         RoomSpellBookControl[] spellBooks = new RoomSpellBookControl[1];
         IRoomController library = (IRoomController) Proxy.newProxyInstance(
@@ -48,6 +55,8 @@ class ResearchTest {
                     case "isRemoved" -> removed[0];
                     case "isDestroyed" -> false;
                     case "getObjectControl" -> spellBooks[0];
+                    case "getFloorFurnitureCount" -> 1;
+                    case "getFloorFurniture" -> Set.of(bookcase);
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         spellBooks[0] = new RoomSpellBookControl(null, library, entityData, () -> 0) {
