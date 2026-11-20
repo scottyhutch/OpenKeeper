@@ -316,16 +316,17 @@ public final class HealthSystem extends GameTimeCounter {
 
     private void processHealthDepleted(EntityId entityId, Health health) {
 
+        // A Vampire comes back in the Graveyard instead. One that is possessed stays possessed, DK II ends the
+        // possession only when the creature really dies (0x4B2CE0 calls 0x48FFC0 first, 0x487C70 ends it)
+        if (returnToGraveyard(entityId, health)) {
+            return;
+        }
+
         // A possessed creature is never knocked out, it dies. The possession
         // ends and its keeper loses mana for it
         boolean possessed = entityData.getComponent(entityId, Possessed.class) != null;
         if (possessed) {
             endPossessionByDeath(entityId);
-        }
-
-        // A Vampire comes back in the Graveyard instead
-        if (returnToGraveyard(entityId, health)) {
-            return;
         }
 
         // Death or destruction!!!!
@@ -495,7 +496,11 @@ public final class HealthSystem extends GameTimeCounter {
                 new Position(position.rotation, new Vector3f(centre.x, position.position.y, centre.z)),
                 new Health(health.maxHealth, health.maxHealth));
         creaturesController.levelUpCreature(entityId, experience.level - 1, 0);
-        creaturesController.createController(entityId).getStateMachine().changeState(CreatureState.IDLE);
+
+        // A possessed one has no AI to restart, it gets its AI back when the possession ends
+        if (entityData.getComponent(entityId, Possessed.class) == null) {
+            creaturesController.createController(entityId).getStateMachine().changeState(CreatureState.IDLE);
+        }
         return true;
     }
 

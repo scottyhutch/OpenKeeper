@@ -41,6 +41,7 @@ import toniarts.openkeeper.game.component.CreatureSpells;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.component.MeleeHit;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
@@ -343,6 +344,20 @@ class CreatureCombatTest {
 
         assertNull(entityData.getComponent(us, CastShot.class));
         assertEquals(200, entityData.getComponent(door, Damage.class).damage);
+    }
+
+    @Test
+    void doorHitLandsTheShotDelayIntoTheSwing() {
+        EntityId door = createDoor(WOODEN_DOOR, new Point(5, 5));
+        CreatureSleepFixtures.setShotDelay(creatures.get(FIGHTER), 1.0f);
+
+        // 0x498E30 lands the hit on a door as on a creature, the creature's shot delay into the swing
+        createController(us).attackAdjacentDoor();
+
+        assertNull(entityData.getComponent(door, Damage.class));
+        MeleeHit meleeHit = entityData.getComponent(us, MeleeHit.class);
+        assertEquals(door, meleeHit.target);
+        assertEquals(11.0, meleeHit.hitTime, 0.0001);
     }
 
     @Test

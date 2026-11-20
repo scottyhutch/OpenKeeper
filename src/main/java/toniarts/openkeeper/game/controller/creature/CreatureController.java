@@ -1598,9 +1598,7 @@ public final class CreatureController extends EntityController implements ICreat
                 castAttackSpell(spell.get(), door);
             }
         } else if (creatureMeleeAttack != null && isAttackRecharged(creatureMeleeAttack)) {
-            entityData.setComponent(entityId, new CreatureMeleeAttack(creatureMeleeAttack, gameTimer.getGameTime()));
-            stateMachine.changeState(CreatureState.MELEE_ATTACK);
-            hitWithMelee(door, creatureMeleeAttack, creatureMeleeAttack.damage);
+            swingMelee(door, creatureMeleeAttack);
         }
     }
 
@@ -2363,25 +2361,38 @@ public final class CreatureController extends EntityController implements ICreat
         if (DungeonHeartTarget.isDungeonHeart(entityData, attackTarget)
                 ? isWithinAttackDistance(attackTarget) : isInRange(creatureMeleeAttack.range, attackTarget)) {
             if (isAttackRecharged(creatureMeleeAttack)) {
-                // Half of the swings play the second melee animation, if the first one is flagged for it (0x4B37D0)
-                CreatureMeleeAttack swing = new CreatureMeleeAttack(creatureMeleeAttack, gameTimer.getGameTime());
-                ArtResource melee = creature.getAnimation(Creature.AnimationType.MELEE_ATTACK);
-                swing.swipe = melee != null && melee.getFlags().contains(ArtResource.ArtResourceFlag.UNKNOWN_1)
-                        && creature.getAnimation(Creature.AnimationType.SWIPE) != null && FastMath.rand.nextBoolean();
-                entityData.setComponent(entityId, swing);
-                stateMachine.changeState(CreatureState.MELEE_ATTACK);
-
-                // The hit lands the creature's shot delay into the swing (0x498E30), counted in whole turns rounded
-                // down (0x492320)
-                int ticksPerSec = levelInfo.getLevelData().getGameLevel().getTicksPerSec();
-                double hitDelay = (int) (creature.getShotDelay() * ticksPerSec) / (double) ticksPerSec;
-                entityData.setComponent(entityId, new MeleeHit(attackTarget, gameTimer.getGameTime() + hitDelay));
-                turnOnUs(attackTarget);
-                releaseMeleeHit();
+                swingMelee(attackTarget, creatureMeleeAttack);
             }
         } else {
             getPreferredAttackSpell(attackTarget).ifPresent(attack -> castAttackSpell(attack, attackTarget));
         }
+    }
+
+    /**
+     * Swings our melee attack at the target, a creature or a door, which then
+     * needs to recharge. The hit lands the creature's shot delay into the
+     * swing, on a door too (0x498E30)
+     *
+     * @param attackTarget the target
+     * @param creatureMeleeAttack our melee attack
+     */
+    private void swingMelee(EntityId attackTarget, CreatureMeleeAttack creatureMeleeAttack) {
+
+        // Half of the swings play the second melee animation, if the first one is flagged for it (0x4B37D0)
+        CreatureMeleeAttack swing = new CreatureMeleeAttack(creatureMeleeAttack, gameTimer.getGameTime());
+        ArtResource melee = creature.getAnimation(Creature.AnimationType.MELEE_ATTACK);
+        swing.swipe = melee != null && melee.getFlags().contains(ArtResource.ArtResourceFlag.UNKNOWN_1)
+                && creature.getAnimation(Creature.AnimationType.SWIPE) != null && FastMath.rand.nextBoolean();
+        entityData.setComponent(entityId, swing);
+        stateMachine.changeState(CreatureState.MELEE_ATTACK);
+
+        // The hit lands the creature's shot delay into the swing (0x498E30), counted in whole turns rounded
+        // down (0x492320)
+        int ticksPerSec = levelInfo.getLevelData().getGameLevel().getTicksPerSec();
+        double hitDelay = (int) (creature.getShotDelay() * ticksPerSec) / (double) ticksPerSec;
+        entityData.setComponent(entityId, new MeleeHit(attackTarget, gameTimer.getGameTime() + hitDelay));
+        turnOnUs(attackTarget);
+        releaseMeleeHit();
     }
 
     /**

@@ -35,6 +35,7 @@ import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
@@ -74,6 +75,7 @@ class HealthSystemVampireTest {
     private final EntityData entityData = new DefaultEntityData();
     private final List<List<Object>> levelChanges = new ArrayList<>();
     private final List<CreatureState> states = new ArrayList<>();
+    private final List<Object> possessionChanges = new ArrayList<>();
     private int graveyardPlaces = 1;
 
     @Test
@@ -91,6 +93,20 @@ class HealthSystemVampireTest {
         assertEquals(WorldUtils.pointToVector3f(GRAVEYARD_CENTRE).z, position.z);
         assertEquals(List.of(CreatureState.IDLE), states);
         assertNull(entityData.getComponent(vampire, Unconscious.class));
+    }
+
+    @Test
+    void possessedVampireComesBackStillPossessed() {
+        EntityId vampire = createVampire(3, new Owner(KEEPER, KEEPER));
+        entityData.setComponents(vampire, new Possessed(0, 0), new Damage(500));
+
+        // DK II brings it back (0x48FFC0) before anything ends the possession, only its real death does that and
+        // takes the mana (0x487C70)
+        createHealthSystem().processTick(0.25f);
+
+        assertEquals(List.of(List.of(vampire, 2, 0)), levelChanges);
+        assertTrue(possessionChanges.isEmpty());
+        assertTrue(states.isEmpty());
     }
 
     @Test
@@ -186,8 +202,14 @@ class HealthSystemVampireTest {
             }
             return null;
         });
-        ICreatureController creatureController = proxy(ICreatureController.class,
-                (method, args) -> method.equals("getStateMachine") ? stateMachine : null);
+        ICreatureController creatureController = proxy(ICreatureController.class, (method, args) -> switch (method) {
+            case "getStateMachine" -> stateMachine;
+            case "setPossession" -> {
+                possessionChanges.add(args[0]);
+                yield null;
+            }
+            default -> null;
+        });
         ICreaturesController creaturesController = proxy(ICreaturesController.class, (method, args) -> switch (method) {
             case "levelUpCreature" -> {
                 levelChanges.add(List.of(args));
