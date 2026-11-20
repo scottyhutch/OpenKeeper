@@ -51,6 +51,7 @@ import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.RoomFixtures;
+import toniarts.openkeeper.tools.convert.map.ShotFixtures;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.TerrainFixtures;
 import toniarts.openkeeper.utils.Point;
@@ -99,7 +100,8 @@ class TaskManagerRoomChangeTest {
         taskManager = new TaskManager(entityData, gameWorldController, mapController, stub(IObjectsController.class, Map.of()),
                 creaturesController, stub(INavigationService.class, Map.of()),
                 List.of(stub(IPlayerController.class, Map.of("getKeeper", new Keeper(false, Player.KEEPER1_ID)))),
-                stub(ILevelInfo.class, Map.of("getLevelData", stub(IKwdFile.class, Map.of("getRoomByTerrain", RoomFixtures.room((short) 1, 0))))),
+                stub(ILevelInfo.class, Map.of("getLevelData", stub(IKwdFile.class, Map.of("getRoomByTerrain", RoomFixtures.room((short) 1, 0),
+                        "getGameLevel", ShotFixtures.gameLevel(4))))),
                 stub(IEntityPositionLookup.class, Map.of()), Map.of());
     }
 
