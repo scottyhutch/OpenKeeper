@@ -58,6 +58,24 @@ class SoundEngineTest {
     }
 
     @Test
+    void unreadableSoundIsSkippedAndNotRetried() {
+        int[] attempts = {0};
+        SoundEngine failing = new SoundEngine(spec -> {
+            attempts[0]++;
+            throw new IllegalArgumentException("Failed to load " + spec.assetPath());
+        });
+
+        int first = failing.play(category, EVENT);
+        failing.tick();
+        int second = failing.play(category, EVENT);
+        failing.tick();
+
+        assertEquals(1, attempts[0]);
+        assertFalse(failing.isPlaying(first));
+        assertFalse(failing.isPlaying(second));
+    }
+
+    @Test
     void unknownEventIsNotPlayed() {
         assertEquals(SoundEngine.NO_HANDLE, engine.play(category, 0x4711));
         assertEquals(0, backends.size());
