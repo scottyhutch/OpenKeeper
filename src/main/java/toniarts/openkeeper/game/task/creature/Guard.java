@@ -89,13 +89,6 @@ public final class Guard extends AbstractCapacityCriticalRoomTask {
     }
 
     @Override
-    public void assign(ICreatureController creature, boolean setToCreature) {
-        super.assign(creature, setToCreature);
-
-        entityData.setComponent(creature.getEntityId(), new GuardedRoom(getRoom().getEntityId()));
-    }
-
-    @Override
     public Vector2f getTarget(ICreatureController creature) {
         if (guardPost == null) {
             guardPost = getNearest(getGuardPosts(getRoomTiles()), creature.getCreatureCoordinates());
@@ -111,7 +104,8 @@ public final class Guard extends AbstractCapacityCriticalRoomTask {
     /**
      * Counts the guard in the room's used capacity from the moment it is sent.
      * Unlike the other rooms, DK II's capacity check (0x4E53B0) counts the
-     * creatures on their way to a Guard Room
+     * creatures on their way to a Guard Room. The guard remembers the room,
+     * DK II sends it back there for its next guard duty (DKII.EXE 0x462850)
      *
      * @param creature the guard
      * @param setToCreature whether to set the task to the creature
@@ -121,6 +115,7 @@ public final class Guard extends AbstractCapacityCriticalRoomTask {
         super.assign(creature, setToCreature);
 
         getRoomObjectControl().addItem(creature.getEntityId(), null);
+        entityData.setComponent(creature.getEntityId(), new GuardedRoom(getRoom().getEntityId()));
     }
 
     @Override
