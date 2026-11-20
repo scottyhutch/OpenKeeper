@@ -298,6 +298,9 @@ class PrisonerIdleTest {
         IMapController mapController = proxy(IMapController.class, (method, args) -> method.equals("getRoomControllerByCoordinates")
                 && prisonTiles.contains((Point) args[0]) ? prison : null);
         INavigationService navigationService = proxy(INavigationService.class, (method, args) -> {
+            if (method.equals("smoothPath")) {
+                return args[0];
+            }
             DefaultGraphPath<IMapTileInformation> path = new DefaultGraphPath<>();
             for (Point tile : List.of((Point) args[0], (Point) args[1])) {
                 path.add(proxy(IMapTileInformation.class, (tileMethod, tileArgs) -> tile));

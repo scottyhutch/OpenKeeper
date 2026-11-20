@@ -154,7 +154,11 @@ class HealthSystemVampireTest {
         Creature vampire = ShotFixtures.creature(VAMPIRE_ID,
                 EnumSet.of(Creature.CreatureFlag.GENERATE_DEAD_BODY, Creature.CreatureFlag.CAN_BE_RESURECTED),
                 EnumSet.noneOf(Creature.CreatureFlag3.class));
-        IKwdFile kwdFile = proxy(IKwdFile.class, (method, args) -> method.equals("getCreature") ? vampire : null);
+        IKwdFile kwdFile = proxy(IKwdFile.class, (method, args) -> switch (method) {
+            case "getCreature" -> vampire;
+            case "getGameLevel" -> CreatureSleepFixtures.level(4);
+            default -> null;
+        });
         ILevelInfo levelInfo = proxy(ILevelInfo.class, (method, args) -> method.equals("getLevelData") ? kwdFile : null);
         IMapTileInformation tile = proxy(IMapTileInformation.class, (method, args) -> switch (method) {
             case "getLocation" -> new Point(1, 1);
