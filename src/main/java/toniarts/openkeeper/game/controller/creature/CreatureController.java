@@ -1065,7 +1065,7 @@ public final class CreatureController extends EntityController implements ICreat
 
                 Point destination = WorldUtils.vectorToPoint(loc);
                 if (!teleport(assignedTask.getTaskType(), destination, workPosition != null ? workPosition : loc)) {
-                    createNavigation(getCreatureCoordinates(), destination, assignedTask.isFaceTarget() ? assignedTask.getTaskLocation() : null, workPosition);
+                    createNavigation(getCreatureCoordinates(), destination, assignedTask.isFaceTarget() ? assignedTask.getTaskLocation() : null, workPosition, false, true);
                 }
             }
         }
@@ -1200,6 +1200,7 @@ public final class CreatureController extends EntityController implements ICreat
             destination = tiles.get(doorIndex - 1);
             faceTarget = tiles.get(doorIndex);
             workPosition = null;
+            endInObstacle = false;
         }
 
         List<Vector2> navigationPath = SteeringUtils.pathToList(path);
@@ -1212,6 +1213,8 @@ public final class CreatureController extends EntityController implements ICreat
         if (navigationPath.size() > 1) {
             navigationPath = navigationService.smoothPath(navigationPath, CreatureSizing.getBodyRadius(creature), this);
         }
+        // Task destinations, including beds, can lie inside furniture. Ordinary walks
+        // keep contact through their final leg; native job flags remain to be mapped.
         entityData.setComponent(entityId, new Navigation(destination, faceTarget, navigationPath, pursuingAttackTarget, endInObstacle));
         return false;
     }
