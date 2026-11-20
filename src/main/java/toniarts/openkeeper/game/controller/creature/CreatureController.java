@@ -68,6 +68,7 @@ import toniarts.openkeeper.game.component.IdleAnimation;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.Invisible;
 import toniarts.openkeeper.game.component.Invulnerable;
+import toniarts.openkeeper.game.component.JobPicked;
 import toniarts.openkeeper.game.component.Mana;
 import toniarts.openkeeper.game.component.MeleeHit;
 import toniarts.openkeeper.game.component.Mobile;
@@ -204,6 +205,11 @@ public final class CreatureController extends EntityController implements ICreat
      */
     private static final float BIG_WINNER_CELEBRATION_SECONDS = 10f;
 
+    /**
+     * How long a creature that got a job from its job list doesn't pick from the list again, as in DK II (DKII.EXE
+     * 0x4780E0)
+     */
+    private static final float JOB_PICK_INTERVAL_SECONDS = 5f;
     /**
      * The states the Chicken spell interrupts, the creature is going about its own business in these
      */
@@ -890,10 +896,15 @@ public final class CreatureController extends EntityController implements ICreat
             return;
         }
 
+        // DKII doesn't let a creature pick from its jobs again for 5 seconds after a pick that got it one. Until
+        // then it goes on to its other choices, and the lack of work doesn't anger it (0x4780E0)
+        JobPicked jobPicked = entityData.getComponent(entityId, JobPicked.class);
+        boolean pickedLately = jobPicked != null && gameTimer.getGameTime() - jobPicked.time < JOB_PICK_INTERVAL_SECONDS;
+
         // See that is there a prefered job for us
         // FIXME: moods
         List<Creature.JobPreference> jobs = new ArrayList<>();
-        if (creature.getHappyJobs() != null) {
+        if (!pickedLately && creature.getHappyJobs() != null) {
             for (Creature.JobPreference jobPreference : creature.getHappyJobs()) {
                 if (taskManager.isTaskAvailable(this, jobPreference.getJobType())) {
                     jobs.add(jobPreference);
@@ -903,6 +914,7 @@ public final class CreatureController extends EntityController implements ICreat
 
         // Choose
         if (!jobs.isEmpty() && taskManager.assignTask(this, chooseOnWeight(jobs).getJobType())) {
+            entityData.setComponent(entityId, new JobPicked(gameTimer.getGameTime()));
             workResult.accept(true);
             return;
         }
@@ -916,7 +928,9 @@ public final class CreatureController extends EntityController implements ICreat
         }
 
         // DKII angers a creature each time it looks for a job and finds none
-        addNoWorkAnger();
+        if (!pickedLately) {
+            addNoWorkAnger();
+        }
         workResult.accept(false);
     }
 
