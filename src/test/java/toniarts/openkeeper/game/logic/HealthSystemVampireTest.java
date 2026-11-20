@@ -197,7 +197,7 @@ class HealthSystemVampireTest {
                 Map.of(MiscType.CREATURE_DYING_STATE_DURATION_SECONDS, CreatureSleepFixtures.variable(MiscType.CREATURE_DYING_STATE_DURATION_SECONDS, 10),
                         MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND, CreatureSleepFixtures.variable(MiscType.PRISON_MODIFY_CREATURE_HEALTH_PER_SECOND, -5),
                         MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, CreatureSleepFixtures.variable(MiscType.MODIFY_HEALTH_OF_CREATURE_IN_LAIR_PER_SECOND, 10)),
-                creaturesController, levelInfo, List.of(), mapController, () -> 0.0, proxy(GameEventService.class, (method, args) -> null));
+                creaturesController, null, levelInfo, List.of(), mapController, () -> 0.0, proxy(GameEventService.class, (method, args) -> null));
     }
 
     @SuppressWarnings("unchecked")

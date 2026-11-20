@@ -99,7 +99,7 @@ class CreatureLevelLossTest {
                 });
         IGameController gameController = (IGameController) Proxy.newProxyInstance(IGameController.class.getClassLoader(),
                 new Class<?>[]{IGameController.class}, (proxy, method, args) -> method.getName().equals("getGameEventService") ? gameEventService : null);
-        return new CreaturesController(kwdFile, entityData, Map.of(), null, gameController, null, null);
+        return new CreaturesController(kwdFile, entityData, Map.of(), null, gameController, null, null, null);
     }
 
 }
