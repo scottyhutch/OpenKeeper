@@ -18,10 +18,12 @@ package toniarts.openkeeper.view.control;
 
 import com.jme3.asset.AssetManager;
 import com.jme3.material.Material;
+import com.jme3.math.ColorRGBA;
 import com.simsilica.es.EntityComponent;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import java.util.Collection;
+import java.util.function.IntFunction;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureExperience;
@@ -60,8 +62,13 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
     private Status currentStatus = Status.LEVEL;
 
     public CreatureFlowerControl(EntityId entityId, EntityData entityData, Creature data, AssetManager assetManager) {
-        super(entityId, entityData, data, assetManager);
+        this(entityId, entityData, data, assetManager, ownerId -> getPlayerColor((short) ownerId));
+    }
 
+    // Package-private so scene tests can supply a synthetic palette without converted assets.
+    CreatureFlowerControl(EntityId entityId, EntityData entityData, Creature data, AssetManager assetManager,
+            IntFunction<ColorRGBA> playerColors) {
+        super(entityId, entityData, data, assetManager, playerColors);
         currentDrawnOwnerId = getOwnerId();
     }
 
@@ -398,7 +405,7 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
         short currentOwnerId = getOwnerId();
         if (currentDrawnOwnerId != currentOwnerId && hasPlayerColor(currentOwnerId)) {
             currentDrawnOwnerId = currentOwnerId;
-            setFlowerColor(getPlayerColor(currentDrawnOwnerId));
+            setFlowerColor(getPaletteColor(currentDrawnOwnerId));
         }
         boolean neutral = currentOwnerId == Player.NEUTRAL_PLAYER_ID;
         material.setBoolean("FlashColors", neutral);
@@ -411,13 +418,13 @@ public final class CreatureFlowerControl extends UnitFlowerControl<Creature> {
     @Override
     protected void onMaterialCreated(Material material) {
         // Populate the palette even for owned creatures: ownership can change.
-        material.setColor("Color1", getPlayerColor(Player.GOOD_PLAYER_ID));
-        material.setColor("Color2", getPlayerColor(Player.NEUTRAL_PLAYER_ID));
-        material.setColor("Color3", getPlayerColor(Player.KEEPER1_ID));
-        material.setColor("Color4", getPlayerColor(Player.KEEPER2_ID));
-        material.setColor("Color5", getPlayerColor(Player.KEEPER3_ID));
-        material.setColor("Color6", getPlayerColor(Player.KEEPER4_ID));
-        material.setColor("Color7", getPlayerColor(Player.KEEPER5_ID));
+        material.setColor("Color1", getPaletteColor(Player.GOOD_PLAYER_ID));
+        material.setColor("Color2", getPaletteColor(Player.NEUTRAL_PLAYER_ID));
+        material.setColor("Color3", getPaletteColor(Player.KEEPER1_ID));
+        material.setColor("Color4", getPaletteColor(Player.KEEPER2_ID));
+        material.setColor("Color5", getPaletteColor(Player.KEEPER3_ID));
+        material.setColor("Color6", getPaletteColor(Player.KEEPER4_ID));
+        material.setColor("Color7", getPaletteColor(Player.KEEPER5_ID));
     }
 
     @Override
