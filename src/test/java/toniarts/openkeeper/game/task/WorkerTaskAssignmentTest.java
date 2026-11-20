@@ -313,7 +313,7 @@ class WorkerTaskAssignmentTest {
         // another imp can take (DKII.EXE 0x464170, 0x469600)
         addLand(0, 20, 10);
         TaskManager taskManager = taskManager();
-        ClaimTileTask dugFloor = new ClaimTileTask(navigationService, mapController, new Point(5, 10), PLAYER_ID, true);
+        ClaimTileTask dugFloor = new ClaimTileTask(navigationService, mapController, new Point(5, 10), PLAYER_ID, 4, true);
         taskManager.addTask(PLAYER_ID, dugFloor);
         AtomicReference<Task> work = new AtomicReference<>(work(TaskType.DIG_TILE, new Point(12, 10)));
         ICreatureController imp = walkingImp(new Point(5, 10), work);
@@ -328,7 +328,7 @@ class WorkerTaskAssignmentTest {
     void dugFloorWithinTwoTilesOfTheWorkIsLeftForLater() {
         addLand(0, 20, 10);
         TaskManager taskManager = taskManager();
-        taskManager.addTask(PLAYER_ID, new ClaimTileTask(navigationService, mapController, new Point(5, 10), PLAYER_ID, true));
+        taskManager.addTask(PLAYER_ID, new ClaimTileTask(navigationService, mapController, new Point(5, 10), PLAYER_ID, 4, true));
 
         assertFalse(taskManager.assignDugFloorOnTheWay(walkingImp(new Point(5, 10),
                 new AtomicReference<>(work(TaskType.DIG_TILE, new Point(7, 9))))));
@@ -340,8 +340,8 @@ class WorkerTaskAssignmentTest {
     void onlyDugFloorIsClaimedOnTheWayAndOnlyToDiggingClaimingWallsOrGold() {
         addLand(0, 20, 10);
         TaskManager taskManager = taskManager();
-        taskManager.addTask(PLAYER_ID, new ClaimTileTask(navigationService, mapController, new Point(5, 10), PLAYER_ID, false));
-        taskManager.addTask(PLAYER_ID, new ClaimTileTask(navigationService, mapController, new Point(6, 10), PLAYER_ID, true));
+        taskManager.addTask(PLAYER_ID, new ClaimTileTask(navigationService, mapController, new Point(5, 10), PLAYER_ID, 4, false));
+        taskManager.addTask(PLAYER_ID, new ClaimTileTask(navigationService, mapController, new Point(6, 10), PLAYER_ID, 4, true));
 
         assertFalse(taskManager.assignDugFloorOnTheWay(walkingImp(new Point(5, 10),
                 new AtomicReference<>(work(TaskType.DIG_TILE, new Point(12, 10))))), "Other floor is claimed in its turn");
