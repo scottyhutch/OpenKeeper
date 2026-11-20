@@ -689,14 +689,9 @@ public final class ShotsController implements IShotsController {
         ShotFlight flight = entityData.getComponent(shotEntity, ShotFlight.class);
         Shot shot = kwdFile.getShotById(flight.shotId);
 
-        // The shot's data 1 is its damage. An invulnerable creature takes none
-        // and isn't set alight either, and a door of the shot's own side takes none (0x4AC420)
-        if (shot.getDamageType() == Shot.DamageType.HIT_THING && flight.shotData1 > 0
-                && entityData.getComponent(thing, Invulnerable.class) == null && !isOwnDoor(thing, flight.ownerId)) {
-            if (shot.getAttackCategory() == Shot.AttackCategory.FIRE) {
-                setAlight(thing);
-            }
-            EntityController.setDamage(entityData, thing, flight.shotData1);
+        // A shot that hits things does its damage to the thing it hits (0x4ABD60)
+        if (shot.getDamageType() == Shot.DamageType.HIT_THING) {
+            dealDamage(shotEntity, thing);
         }
 
         notifyShotHit(shot, thing);
@@ -705,6 +700,22 @@ public final class ShotsController implements IShotsController {
         // every turn (0x4ABD60)
         if (shot.getShotProcessFlags().contains(Shot.ShotProcessFlag.HIT_COLLIDE_THING)) {
             process(shotEntity, flight, shot, thing);
+        }
+    }
+
+    @Override
+    public void dealDamage(EntityId shotEntity, EntityId thing) {
+        ShotFlight flight = entityData.getComponent(shotEntity, ShotFlight.class);
+        Shot shot = kwdFile.getShotById(flight.shotId);
+
+        // The shot's data 1 is its damage. An invulnerable creature takes none
+        // and isn't set alight either, and a door of the shot's own side takes none (0x4AC420)
+        if (flight.shotData1 > 0 && entityData.getComponent(thing, Invulnerable.class) == null
+                && !isOwnDoor(thing, flight.ownerId)) {
+            if (shot.getAttackCategory() == Shot.AttackCategory.FIRE) {
+                setAlight(thing);
+            }
+            EntityController.setDamage(entityData, thing, flight.shotData1);
         }
     }
 
