@@ -160,7 +160,7 @@ class SlapSystemTest {
     void slapMakesTheCreatureWorkFasterForAHundredTicks() {
         EntityId creature = slappedCreature(2f);
         entityData.setComponent(creature, new CreatureEfficiency(80));
-        slapSystem = new SlapSystem(entityData, kwdFile(), List.of(player()), gameSettings, objectsController());
+        slapSystem = new SlapSystem(entityData, kwdFile(), List.of(player()), gameSettings, objectsController(), null);
         assertEquals(90, entityData.getComponent(creature, CreatureEfficiency.class).efficiencyPercentage);
 
         // DK II's work faster timer is 100 ticks, 25 seconds at 4 ticks a second (0x48B8A0, 0x48E160)
