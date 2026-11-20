@@ -100,6 +100,8 @@ class ShotsControllerTest {
     private static final short HORNY_ID = 22;
     private static final short SKELETON_ID = 9;
     private static final int RAISE_DEAD_EFFECT_ID = 324;
+    private static final short CHICKEN_OBJECT_ID = 9;
+    private static final short TRAINING_DUMMY_OBJECT_ID = 14;
     private static final short SPIKE_ID = 27;
     private static final short GAS_CLOUD_ID = 58;
     private static final short FIREBURST_ID = 14;
@@ -124,6 +126,7 @@ class ShotsControllerTest {
     private final List<Object[]> effects = new ArrayList<>();
     private final List<List<Object>> playerEvents = new ArrayList<>();
     private final Set<Point> waterTiles = new HashSet<>();
+    private final List<EntityId> pickedUp = new ArrayList<>();
     private final ShotsController shotsController;
     private double gameTime = 0;
 
@@ -162,7 +165,12 @@ class ShotsControllerTest {
                 (proxy, method, args) -> switch (method.getName()) {
             case "getShotById" -> shotsById.get((Short) args[0]);
             case "getGameLevel" -> ShotFixtures.gameLevel(TICKS_PER_SECOND);
-            case "getObject" -> (int) args[0] == GOLD_OBJECT_ID ? GameObjectFixtures.gameObject("Gold", GameObject.ObjectFlag.OBJECT_TYPE_GOLD) : null;
+            case "getObject" -> switch ((int) args[0]) {
+                case GOLD_OBJECT_ID -> GameObjectFixtures.gameObject("Gold", GameObject.ObjectFlag.OBJECT_TYPE_GOLD);
+                case CHICKEN_OBJECT_ID -> GameObjectFixtures.gameObject("Chicken", GameObject.ObjectFlag.OBJECT_TYPE_FOOD, GameObject.ObjectFlag.DAMAGEABLE);
+                case TRAINING_DUMMY_OBJECT_ID -> GameObjectFixtures.gameObject("Training Dummy");
+                default -> null;
+            };
             case "getCreature" -> (Short) args[0] == 0 ? null : ShotFixtures.creature((Short) args[0], (Short) args[0] == HORNY_ID
                     ? EnumSet.of(Creature.CreatureFlag.IS_HORNY) : EnumSet.noneOf(Creature.CreatureFlag.class), EnumSet.noneOf(Creature.CreatureFlag3.class));
             default -> null;
@@ -209,10 +217,11 @@ class ShotsControllerTest {
             return null;
         });
 
+        // The things picked up this tick are still on their tiles until the lookup catches up
         IEntityPositionLookup entityPositionLookup = (IEntityPositionLookup) Proxy.newProxyInstance(IEntityPositionLookup.class.getClassLoader(), new Class<?>[]{IEntityPositionLookup.class},
                 (proxy, method, args) -> args.length == 2
-                        ? entityData.findEntities(null, Position.class).stream()
-                                .filter(entity -> new Point((int) args[0], (int) args[1]).equals(WorldUtils.vectorToPoint(entityData.getComponent(entity, Position.class).position)))
+                        ? java.util.stream.Stream.concat(pickedUp.stream(), entityData.findEntities(null, Position.class).stream()
+                                .filter(entity -> new Point((int) args[0], (int) args[1]).equals(WorldUtils.vectorToPoint(entityData.getComponent(entity, Position.class).position))))
                                 .toList()
                         : deadBodies.stream().filter(entity -> args[0].equals(WorldUtils.vectorToPoint(entityData.getComponent(entity, Position.class).position))).toList());
         IGameController gameController = (IGameController) Proxy.newProxyInstance(IGameController.class.getClassLoader(), new Class<?>[]{IGameController.class},
@@ -737,7 +746,7 @@ class ShotsControllerTest {
 
     @Test
     void damageFromOriginHurtsTheObjectsDoorsAndTrapsOfOtherPlayers() {
-        EntityId object = createThing(ENEMY_ID, new ObjectComponent(GOLD_OBJECT_ID, null));
+        EntityId object = createThing(ENEMY_ID, new ObjectComponent(CHICKEN_OBJECT_ID, null));
         EntityId door = createThing(ENEMY_ID, new DoorComponent(DOOR_ID, false, false));
         EntityId trap = createThing(ENEMY_ID, new TrapComponent(TRAP_ID));
         EntityId ownDoor = createThing(PLAYER_ID, new DoorComponent(DOOR_ID, false, false));
@@ -750,9 +759,37 @@ class ShotsControllerTest {
         assertNull(entityData.getComponent(ownDoor, Damage.class));
     }
 
+    /**
+     * DK II hurts only the objects marked damageable, like chickens, not room
+     * furniture or gold (0x4B2CE0)
+     */
+    @Test
+    void damageFromOriginSparesTheObjectsThatAreNotDamageable() {
+        EntityId dummy = createThing(ENEMY_ID, new ObjectComponent(TRAINING_DUMMY_OBJECT_ID, null));
+        EntityId gold = createThing(ENEMY_ID, new ObjectComponent(GOLD_OBJECT_ID, null));
+
+        shotsController.createShot(FIREBURST_ID, 800, 1, PLAYER_ID, new Vector3f(10, 1, 10), null, null);
+
+        assertNull(entityData.getComponent(dummy, Damage.class));
+        assertNull(entityData.getComponent(gold, Damage.class));
+    }
+
+    @Test
+    void damageFromOriginPassesOverAThingPickedUpThisTick() {
+        EntityId held = createCreature(ENEMY_ID, 10, 10);
+        entityData.removeComponent(held, Position.class);
+        pickedUp.add(held);
+        EntityId target = createCreature(ENEMY_ID, 10, 10);
+
+        shotsController.createShot(FIREBURST_ID, 800, 1, PLAYER_ID, new Vector3f(10, 1, 10), null, null);
+
+        assertNull(entityData.getComponent(held, Damage.class));
+        assertEquals(800, entityData.getComponent(target, Damage.class).damage);
+    }
+
     @Test
     void gasSparesDoorsAndTraps() {
-        EntityId object = createThing(ENEMY_ID, new ObjectComponent(GOLD_OBJECT_ID, null));
+        EntityId object = createThing(ENEMY_ID, new ObjectComponent(CHICKEN_OBJECT_ID, null));
         EntityId door = createThing(ENEMY_ID, new DoorComponent(DOOR_ID, false, false));
         EntityId trap = createThing(ENEMY_ID, new TrapComponent(TRAP_ID));
 

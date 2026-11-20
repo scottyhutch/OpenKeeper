@@ -397,7 +397,11 @@ public final class ShotsController implements IShotsController {
                         continue;
                     }
 
+                    // One picked up this tick is still in the lookup, but not on the map
                     Vector3f position = EntityController.getPosition(entityData, entityId);
+                    if (position == null) {
+                        continue;
+                    }
                     float distance = FastMath.sqrt(FastMath.sqr(position.x - origin.x) + FastMath.sqr(position.z - origin.z));
                     if (distance >= radius) {
                         continue;
@@ -417,9 +421,14 @@ public final class ShotsController implements IShotsController {
         if (owner == null || owner.ownerId == playerId || entityData.getComponent(entityId, Health.class) == null) {
             return false;
         }
-        if (entityData.getComponent(entityId, CreatureComponent.class) != null
-                || entityData.getComponent(entityId, ObjectComponent.class) != null) {
+        if (entityData.getComponent(entityId, CreatureComponent.class) != null) {
             return true;
+        }
+
+        // Of the objects only the damageable ones are hurt, like chickens, not the furniture (0x4B2CE0)
+        ObjectComponent object = entityData.getComponent(entityId, ObjectComponent.class);
+        if (object != null) {
+            return kwdFile.getObject(object.objectId).getFlags().contains(GameObject.ObjectFlag.DAMAGEABLE);
         }
         return !gas && (entityData.getComponent(entityId, DoorComponent.class) != null
                 || entityData.getComponent(entityId, TrapComponent.class) != null);
