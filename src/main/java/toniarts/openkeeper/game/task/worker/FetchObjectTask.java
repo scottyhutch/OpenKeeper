@@ -68,7 +68,7 @@ public final class FetchObjectTask extends AbstractTileTask {
      * @return true for gold
      */
     public boolean isGold() {
-        return gameObject.getType() == AbstractRoomController.ObjectType.GOLD;
+        return gameObject.getType() == ObjectType.GOLD;
     }
 
     @Override
