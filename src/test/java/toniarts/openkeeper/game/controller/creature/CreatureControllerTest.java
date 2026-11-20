@@ -1285,7 +1285,7 @@ class CreatureControllerTest {
                     settings, creatures, lookup, map, levelInfo, null, null, eventService);
             controller = controllers.get();
             sleepSystem = new CreatureSleepSystem(data, kwd, () -> time);
-            moodSystem = new CreatureMoodSystem(data, kwd, List.of(), () -> time, settings);
+            moodSystem = new CreatureMoodSystem(data, kwd, List.of(), () -> time, settings, null);
             healthSystem = new HealthSystem(data, lookup, settings, null, null, null, List.of(), map, () -> time, eventService);
         }
 

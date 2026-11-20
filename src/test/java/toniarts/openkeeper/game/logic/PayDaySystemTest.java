@@ -72,7 +72,7 @@ class PayDaySystemTest {
         creatures.put(IMP, PayDayFixtures.creature(IMP, 0));
         payDaySystem = new PayDaySystem(entityData, kwdFile(), () -> gameTime,
                 List.of(playerController(Player.GOOD_PLAYER_ID, new PlayerStatsControl(new toniarts.openkeeper.game.data.Keeper(false, (short) 0))), playerController(KEEPER, keeperStats)),
-                gameSettings());
+                gameSettings(), null);
     }
 
     @Test

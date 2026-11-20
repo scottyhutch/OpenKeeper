@@ -21,8 +21,11 @@ import java.util.Map;
 import java.util.concurrent.ThreadLocalRandom;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
+import toniarts.openkeeper.game.component.CreatureMood;
+import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.RoomMessageShown;
 import toniarts.openkeeper.game.state.session.PlayerService;
+import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -47,6 +50,14 @@ import toniarts.openkeeper.utils.WorldUtils;
 public final class RoomAttackMessages {
 
     /**
+     * DK II's reasons for a creature's mood getting worse, which pick the
+     * speech (0x478B80)
+     */
+    public static final int MOOD_REASON_NO_LAIR = 0;
+    public static final int MOOD_REASON_NO_PAY = 2;
+    public static final int MOOD_REASON_SLAPPED = 4;
+
+    /**
      * How many messages the queue holds, for all the keepers together
      */
     private static final int QUEUE_SIZE = 256;
@@ -60,6 +71,7 @@ public final class RoomAttackMessages {
      * DK II's graphic ids of the tab icons the messages here use
      */
     private static final int INFO_TAB = 1;
+    private static final int CREATURE_TAB = 2;
     private static final int FIGHT_TAB = 3;
 
     private enum Message {
@@ -135,16 +147,67 @@ public final class RoomAttackMessages {
          * "You do not have enough Mana to maintain your Imps", message 0x35
          * variant 3 (0x4C1BC0)
          */
-        NOT_ENOUGH_MANA_FOR_IMPS(20, 1333, Map.of());
+        NOT_ENOUGH_MANA_FOR_IMPS(20, 1333, Map.of()),
+        /**
+         * "The battle in the Combat Pit is over", message 9, told when a
+         * fight is down to one fighter standing (0x4D7A60). It has no tile
+         */
+        COMBAT_PIT_OVER(50, 354, Map.of(), true, INFO_TAB),
+        /**
+         * "Your Lair is too small", message 0x2A. The Treasury's and the
+         * Hatchery's are held for 240 seconds and the Lair's for 90
+         */
+        TOO_SMALL(300, 213, Map.ofEntries(Map.entry(1, 198), Map.entry(2, 199), Map.entry(4, 200), Map.entry(6, 210),
+                Map.entry(7, 201), Map.entry(9, 211), Map.entry(10, 204), Map.entry(11, 209), Map.entry(12, 208),
+                Map.entry(13, 203), Map.entry(14, 206), Map.entry(15, 205), Map.entry(16, 202)),
+                Map.of(1, 240, 2, 90, 4, 240), 300),
+        /**
+         * "You need a Graveyard", message 0x29. A room type without an entry
+         * of its own has no speech and isn't told
+         */
+        NEEDED(300, 0, Map.ofEntries(Map.entry(1, 1307), Map.entry(2, 1308), Map.entry(4, 1309), Map.entry(6, 1506),
+                Map.entry(7, 1509), Map.entry(9, 1512), Map.entry(10, 1507), Map.entry(11, 1312), Map.entry(12, 1311),
+                Map.entry(13, 1511), Map.entry(14, 1310), Map.entry(15, 1508), Map.entry(16, 1510)),
+                Map.of(1, 420, 2, 180, 4, 180, 11, 600, 14, 600), 300),
+        /**
+         * "An Imp has become unhappy because it has no Lair" and the like,
+         * message 0x11. The speech is the creature type's own, by the reason
+         * (0x4C4600). It has the creature icon
+         */
+        CREATURE_UNHAPPY(50, 0, Map.of(), false, CREATURE_TAB),
+        /**
+         * "An Imp has become angry because it has no Lair" and the like,
+         * message 0x12
+         */
+        CREATURE_ANGRY(50, 0, Map.of(), false, CREATURE_TAB);
 
         private final double duration;
         private final int defaultSpeechId;
         private final Map<Integer, Integer> speechIdsByRoom;
         private final boolean alwaysPosted;
         private final int graphic;
+        private final Map<Integer, Integer> durationsByRoom;
+        private final double otherRoomDuration;
 
         private Message(double duration, int defaultSpeechId, Map<Integer, Integer> speechIdsByRoom) {
-            this(duration, defaultSpeechId, speechIdsByRoom, false, INFO_TAB);
+            this(duration, defaultSpeechId, speechIdsByRoom, Map.of(), 20);
+        }
+
+        /**
+         * @param durationsByRoom the room types whose message is held for a
+         * time of its own
+         * @param otherRoomDuration how long the message is held for a room
+         * type without an entry of its own, the table's last entry
+         */
+        private Message(double duration, int defaultSpeechId, Map<Integer, Integer> speechIdsByRoom,
+                Map<Integer, Integer> durationsByRoom, double otherRoomDuration) {
+            this.duration = duration;
+            this.defaultSpeechId = defaultSpeechId;
+            this.speechIdsByRoom = speechIdsByRoom;
+            this.alwaysPosted = false;
+            this.graphic = INFO_TAB;
+            this.durationsByRoom = durationsByRoom;
+            this.otherRoomDuration = otherRoomDuration;
         }
 
         /**
@@ -158,14 +221,19 @@ public final class RoomAttackMessages {
             this.speechIdsByRoom = speechIdsByRoom;
             this.alwaysPosted = alwaysPosted;
             this.graphic = graphic;
+            this.durationsByRoom = Map.of();
+            this.otherRoomDuration = 20;
         }
 
         /**
          * How long the queue holds the message. A room type without an entry
-         * of its own gets the table's last entry, 20 seconds
+         * of its own gets the table's last entry
          */
         private double getDuration(short roomId) {
-            return speechIdsByRoom.isEmpty() || speechIdsByRoom.containsKey((int) roomId) ? duration : 20;
+            if (speechIdsByRoom.isEmpty()) {
+                return duration;
+            }
+            return speechIdsByRoom.containsKey((int) roomId) ? durationsByRoom.getOrDefault((int) roomId, (int) duration) : otherRoomDuration;
         }
 
     }
@@ -273,6 +341,61 @@ public final class RoomAttackMessages {
     }
 
     /**
+     * A fight in the keeper's Combat Pit is down to one fighter standing
+     *
+     * @param ownerId the owner of the Combat Pit
+     */
+    public void combatPitOver(short ownerId) {
+        show(Message.COMBAT_PIT_OVER, ownerId, (short) 0, null);
+    }
+
+    /**
+     * A creature found no free place in the keeper's rooms of the type
+     *
+     * @param ownerId the keeper
+     * @param room the room type
+     */
+    public void roomTooSmall(short ownerId, Room room) {
+        show(Message.TOO_SMALL, ownerId, room.getRoomId(), null);
+    }
+
+    /**
+     * The keeper has no room of a type that there is work for
+     *
+     * @param ownerId the keeper
+     * @param room the room type
+     */
+    public void roomNeeded(short ownerId, Room room) {
+        show(Message.NEEDED, ownerId, room.getRoomId(), null);
+    }
+
+    /**
+     * A creature's anger went up. The keeper is told when that turns the
+     * creature unhappy or angry (DKII.EXE 0x478B80, messages 0x11 and 0x12).
+     * The speech is the creature type's: its first unhappy or angry speech
+     * plus the reason (0x4C4600). The level data has the two speech numbers
+     * under the names of the lair and the food anger strings
+     *
+     * @param creatureId the creature
+     * @param ownerId the creature's keeper
+     * @param creature the creature type
+     * @param before the mood before the anger was added
+     * @param after the mood after
+     * @param reason DK II's reason, one of the MOOD_REASON values
+     */
+    public void creatureMoodWorsened(EntityId creatureId, short ownerId, Creature creature, CreatureMood before, CreatureMood after, int reason) {
+        int unhappyThreshold = CreatureMood.toRuntimeThreshold(creature.getAttributes().getUnhappyThreshold());
+        int state = after.getState(unhappyThreshold);
+        int firstSpeechId = state == 1 ? creature.getAngerStringIdLair() : creature.getAngerStringIdFood();
+        if (state <= before.getState(unhappyThreshold) || firstSpeechId == 0) {
+            return;
+        }
+        Position position = entityData.getComponent(creatureId, Position.class);
+        show(state == 1 ? Message.CREATURE_UNHAPPY : Message.CREATURE_ANGRY, ownerId, (short) 0,
+                position != null ? WorldUtils.vectorToPoint(position.position) : null, firstSpeechId + 1 + reason, (short) 0);
+    }
+
+    /**
      * The room lost a tile. The keeper hears of it if he has fewer rooms of the
      * type than before
      *
@@ -293,7 +416,7 @@ public final class RoomAttackMessages {
     }
 
     private void show(Message message, short ownerId, short roomId, Point tile, int speechId, short namedPlayerId) {
-        if (playerService == null) {
+        if (playerService == null || speechId == 0) {
             return;
         }
         double now = gameTimer.getGameTime();

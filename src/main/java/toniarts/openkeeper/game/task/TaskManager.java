@@ -73,6 +73,7 @@ import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.TrapViewState;
 import toniarts.openkeeper.game.component.Unconscious;
+import toniarts.openkeeper.game.controller.RoomAttackMessages;
 import toniarts.openkeeper.game.controller.TrapDeliveries;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameWorldController;
@@ -165,6 +166,8 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      * around a dropped imp before its usual work.
      */
     static final int DROP_AREA_RADIUS = 2;
+
+    private static final short GRAVEYARD_ROOM_ID = 14;
 
     private final IMapController mapController;
     private final IGameWorldController gameWorldController;
@@ -538,8 +541,41 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             }
             for (Short playerId : taskQueues.keySet()) {
                 addTask(playerId, new FetchCorpseTask(navigationService, mapController, entityData, this, entity.getId(), playerId));
+                tellGraveyardMissing(playerId, entity.getId());
             }
         }
+    }
+
+    /**
+     * A body on the keeper's land that can't be cleared is told to the keeper
+     * (DKII.EXE 0x46CF40 and 0x46D3C0): with no Graveyard, and only when the
+     * keeper can build one, that a Graveyard is needed (message 0x29), and
+     * with no Graveyard that has room, that it is too small (message 0x2A)
+     *
+     * @param playerId the keeper
+     * @param corpse the body
+     */
+    private void tellGraveyardMissing(short playerId, EntityId corpse) {
+        RoomAttackMessages messages = gameWorldController.getRoomAttackMessages();
+        IMapTileInformation tile = mapController.getMapData().getTile(WorldUtils.vectorToPoint(entityData.getComponent(corpse, Position.class).position));
+        if (messages == null || tile == null || tile.getOwnerId() != playerId) {
+            return;
+        }
+        List<IRoomController> graveyards = mapController.getRoomsByFunction(ObjectType.CORPSE, playerId);
+        if (graveyards.isEmpty()) {
+            for (Room room : playerControllers.get(playerId).getRoomControl().getTypesAvailable()) {
+                if (room.getRoomId() == GRAVEYARD_ROOM_ID) {
+                    messages.roomNeeded(playerId, room);
+                }
+            }
+            return;
+        }
+        for (IRoomController graveyard : graveyards) {
+            if (!graveyard.isFullCapacity()) {
+                return;
+            }
+        }
+        messages.roomTooSmall(playerId, graveyards.get(0).getRoom());
     }
 
     private void processDeletedCorpseEntities(Set<Entity> entities) {
@@ -808,7 +844,8 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             addTask(playerId, new RepairWallTileTask(navigationService, mapController, tile, playerId));
         } // Claim room
         else if (mapController.isClaimableRoom(mapTile, terrain, playerId)) {
-            addTask(playerId, new ClaimRoomTask(navigationService, mapController, tile, playerId, levelInfo.getLevelData().getGameLevel().getTicksPerSec()));
+            addTask(playerId, new ClaimRoomTask(navigationService, mapController, gameWorldController, tile, playerId,
+                    levelInfo.getLevelData().getGameLevel().getTicksPerSec()));
         }
     }
 
@@ -860,7 +897,32 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     @Override
     public boolean assignClosestRoomTask(ICreatureController creature, ObjectType objectType, EntityId target) {
         ThreadCheck.logic("TaskManager.assignClosestRoomTask");
-        return assignClosestRoomTask(creature, objectType, target, true);
+        boolean assigned = assignClosestRoomTask(creature, objectType, target, true);
+        if (!assigned && objectType == ObjectType.LAIR) {
+            tellLairTooSmall(creature.getOwnerId());
+        }
+        return assigned;
+    }
+
+    /**
+     * A creature that comes to make its bed and finds no free spot in the Lair
+     * tells its keeper that the Lair is too small (DKII.EXE 0x46F4F0, message
+     * 0x2A for the Lair). A keeper without a Lair isn't told here
+     *
+     * @param playerId the keeper
+     */
+    private void tellLairTooSmall(short playerId) {
+        RoomAttackMessages messages = gameWorldController.getRoomAttackMessages();
+        List<IRoomController> lairs = mapController.getRoomsByFunction(ObjectType.LAIR, playerId);
+        if (messages == null || lairs.isEmpty()) {
+            return;
+        }
+        for (IRoomController lair : lairs) {
+            if (!lair.getObjectControl(ObjectType.LAIR).isFullCapacity()) {
+                return;
+            }
+        }
+        messages.roomTooSmall(playerId, lairs.get(0).getRoom());
     }
 
     /**

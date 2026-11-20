@@ -128,7 +128,7 @@ public final class GameLoopManager {
         final GameEventService gameEventService = gameController.getGameEventService();
 
         payDaySystem = new PayDaySystem(entityData, levelInfo.getLevelData(), gameController.getGameTimer(),
-                playerControllers.values(), gameSettings);
+                playerControllers.values(), gameSettings, gameWorldController.getRoomAttackMessages());
 
         // Game logic
         gameLogicThread = new GameLogicManager(
@@ -149,10 +149,10 @@ public final class GameLoopManager {
                 new CreatureSleepSystem(entityData, levelInfo.getLevelData(),
                         gameController.getGameTimer()),
                 new CreatureMoodSystem(entityData, levelInfo.getLevelData(), playerControllers.values(),
-                        gameController.getGameTimer(), gameSettings),
+                        gameController.getGameTimer(), gameSettings, gameWorldController.getRoomAttackMessages()),
                 payDaySystem,
                 new SlapSystem(entityData, levelInfo.getLevelData(), playerControllers.values(), gameSettings,
-                        gameWorldController.getObjectsController()),
+                        gameWorldController.getObjectsController(), gameWorldController.getRoomAttackMessages()),
                 new TurncoatSystem(entityData, gameController.getGameTimer()),
                 new HealthSystem(entityData, positionSystem, gameSettings, gameWorldController.getCreaturesController(),
                         gameWorldController.getRoomAttackMessages(),
