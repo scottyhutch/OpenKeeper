@@ -22,6 +22,7 @@ import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,6 +69,8 @@ public class SoundEngine {
 
     private final Map<Integer, SoundVoice> voices = new LinkedHashMap<>();
     private final List<SoundVoice> pending = new ArrayList<>();
+    /** Asset paths that failed to load, they are skipped from then on and were logged once. */
+    private final Set<String> unplayable = new HashSet<>();
     private final ArrayDeque<SoundVoice> deferred = new ArrayDeque<>(MAX_VOICES);
 
     private final int[] slotGenerations = new int[MAX_VOICES];
@@ -620,7 +623,7 @@ public class SoundEngine {
     @Nullable
     private AudioBackend createBackend(SoundVoice voice, SoundSample sample, float pitch) {
         String path = sample.getAssetPath();
-        if (path == null) {
+        if (path == null || unplayable.contains(path)) {
             return null;
         }
 
@@ -641,6 +644,8 @@ public class SoundEngine {
         try {
             return factory.create(spec);
         } catch (RuntimeException ex) {
+            // a damaged or blank file plays nothing, as in DK II, and is not tried again
+            unplayable.add(path);
             logger.log(Level.WARNING, () -> "Failed to play " + path, ex);
             return null;
         }
