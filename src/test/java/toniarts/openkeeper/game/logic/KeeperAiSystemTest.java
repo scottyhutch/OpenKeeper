@@ -1314,7 +1314,7 @@ class KeeperAiSystemTest {
 
         system.processTick(0.25f);
 
-        assertEquals(850, keeper.getGold());
+        assertEquals(850, goldControl.getGold());
         assertEquals(1, droppedOn.size());
         EntityId gold = droppedOn.keySet().iterator().next();
         assertEquals(150, entityData.getComponent(gold, Gold.class).gold);
@@ -1323,14 +1323,14 @@ class KeeperAiSystemTest {
 
         // DK II's computer player hears of it once, when the mood turns
         system.processTick(0.25f);
-        assertEquals(850, keeper.getGold());
+        assertEquals(850, goldControl.getGold());
 
         // Happy and then unhappy again is news again
         entityData.setComponent(creature, new CreatureMood());
         system.processTick(0.25f);
         entityData.setComponent(creature, new CreatureMood().add(CreatureMood.REASON_GENERAL, 1000));
         system.processTick(0.25f);
-        assertEquals(700, keeper.getGold());
+        assertEquals(700, goldControl.getGold());
     }
 
     @Test
@@ -2493,8 +2493,8 @@ class KeeperAiSystemTest {
                         case "getGold" -> {
                             EntityId pay = createObject((short) 1, new Point(0, 0));
                             entityData.setComponent(pay, new Gold((int) args[0], (int) args[0]));
-                            keeper.setGold(keeper.getGold() - (int) args[0]);
-                            handControl.push(pay);
+                            goldControl.subGold((int) args[0]);
+                            handControl.push(pay, gameTime);
                         }
                         case "placeTrap", "placeDoor" -> {
                             Point tile = (Point) args[1];
