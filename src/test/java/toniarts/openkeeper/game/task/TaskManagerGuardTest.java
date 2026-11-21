@@ -38,6 +38,7 @@ import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.player.PlayerResearchControl;
+import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.data.Keeper;
@@ -243,7 +244,7 @@ class TaskManagerGuardTest {
     private TaskManager taskManager(List<IRoomController> rooms) {
         Keeper keeper = new Keeper(false, KEEPER);
         keeper.setCurrentResearch(new ResearchableEntity((short) 1, ResearchableType.DOOR));
-        PlayerResearchControl researchControl = new PlayerResearchControl(keeper, null);
+        PlayerResearchControl researchControl = new PlayerResearchControl(keeper, null, new PlayerStatsControl(keeper));
         IPlayerController player = stub(IPlayerController.class, (proxy, method, args) -> switch (method.getName()) {
             case "getKeeper" -> keeper;
             case "getResearchControl" -> researchControl;
