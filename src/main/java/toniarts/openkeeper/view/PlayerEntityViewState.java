@@ -189,6 +189,7 @@ public class PlayerEntityViewState extends AbstractAppState {
     private final TrapModelContainer trapModelContainer;
     private final RoomEffectContainer roomEffectContainer;
     private final PortalEffectState portalEffects;
+    private final HaulingSoundState haulingSounds;
     private final ShotModelContainer shotModelContainer;
     private final EventListener<GameEvent> gameEventListener = this::onGameEvent;
     private final EventListener<GeneratedEffect> generatedEffectListener = (type, effect) ->
@@ -276,6 +277,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         trapModelContainer = new TrapModelContainer(entityData);
         roomEffectContainer = new RoomEffectContainer(entityData);
         portalEffects = new PortalEffectState(kwdFile, entityData, rootNode, fogOfWarInformation);
+        haulingSounds = new HaulingSoundState(kwdFile, entityData, fogOfWarInformation);
         shotModelContainer = new ShotModelContainer(entityData);
     }
 
@@ -300,6 +302,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         roomEffectContainer.start();
         EventBus.addListener(ClientEvents.GAME_EVENT, gameEventListener);
         stateManager.attach(portalEffects);
+        stateManager.attach(haulingSounds);
         shotModelContainer.start();
         EventBus.addListener(ClientEvents.GENERATED_EFFECT, generatedEffectListener);
     }
@@ -308,6 +311,7 @@ public class PlayerEntityViewState extends AbstractAppState {
     public void setEnabled(boolean enabled) {
         super.setEnabled(enabled);
         portalEffects.setEnabled(enabled);
+        haulingSounds.setEnabled(enabled);
     }
 
     @Override
@@ -506,6 +510,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         trapModelContainer.stop();
         roomEffectContainer.stop();
         stateManager.detach(portalEffects);
+        stateManager.detach(haulingSounds);
         shotModelContainer.stop();
         EventBus.removeListener(ClientEvents.GAME_EVENT, gameEventListener);
         EventBus.removeListener(ClientEvents.GENERATED_EFFECT, generatedEffectListener);
