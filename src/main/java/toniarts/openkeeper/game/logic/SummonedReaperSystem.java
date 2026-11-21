@@ -93,9 +93,10 @@ public final class SummonedReaperSystem implements IGameLogicUpdatable {
     private final ReaperDecisions decisions;
 
     public SummonedReaperSystem(EntityData entityData, Collection<IPlayerController> playerControllers,
-            ICreaturesController creaturesController, IGameTimer gameTimer, INavigationService navigationService) {
+            ICreaturesController creaturesController, IGameTimer gameTimer, INavigationService navigationService,
+            IEntityPositionLookup entityPositionLookup) {
         this(entityData, playerControllers, creaturesController, gameTimer,
-                new ReaperAi(entityData, creaturesController, navigationService));
+                new ReaperAi(entityData, creaturesController, navigationService, entityPositionLookup));
     }
 
     SummonedReaperSystem(EntityData entityData, Collection<IPlayerController> playerControllers,

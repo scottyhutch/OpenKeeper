@@ -200,7 +200,7 @@ public final class GameLoopManager {
                         gameController.getGameTimer(), gameEventService),
                 new CreatureLeaveSystem(entityData, gameWorldController.getCreaturesController()),
                 new SummonedReaperSystem(entityData, playerControllers.values(), gameWorldController.getCreaturesController(),
-                        gameController.getGameTimer(), gameController.getNavigationService()),
+                        gameController.getGameTimer(), gameController.getNavigationService(), positionSystem),
                 new CallToArmsSystem(entityData, level, playerControllers.values(),
                         gameWorldController.getCreaturesController(), gameController.getGameTimer(), gameEventService),
                 new DungeonHeartCallSystem(entityData, gameSettings, levelInfo, positionSystem,

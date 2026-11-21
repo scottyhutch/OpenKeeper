@@ -22,9 +22,15 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import toniarts.openkeeper.game.component.AttackTarget;
 import toniarts.openkeeper.game.component.CreatureAi;
+import toniarts.openkeeper.game.component.Damage;
+import toniarts.openkeeper.game.component.DoorComponent;
+import toniarts.openkeeper.game.component.DoorViewState;
+import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Navigation;
+import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
@@ -38,7 +44,9 @@ import toniarts.openkeeper.utils.WorldUtils;
  * Sends a summoned Horned Reaper for the Portal Gem at the end of the level:
  * he walks to it and picks it up, and that is the end of his job. The Reaper's
  * hunt is in his own creature states (REAPER_HUNT, REAPER_WANDER and
- * REAPER_LEAVE), the gem isn't part of it.
+ * REAPER_LEAVE), the gem isn't part of it. On his walk to the gem he destroys
+ * the traps and unlocks his keeper's doors on his tile and the four next to it
+ * (0x474F80).
  */
 final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
 
@@ -48,11 +56,14 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
     private final EntityData entityData;
     private final ICreaturesController creaturesController;
     private final INavigationService navigationService;
+    private final IEntityPositionLookup entityPositionLookup;
 
-    ReaperAi(EntityData entityData, ICreaturesController creaturesController, INavigationService navigationService) {
+    ReaperAi(EntityData entityData, ICreaturesController creaturesController, INavigationService navigationService,
+            IEntityPositionLookup entityPositionLookup) {
         this.entityData = entityData;
         this.creaturesController = creaturesController;
         this.navigationService = navigationService;
+        this.entityPositionLookup = entityPositionLookup;
     }
 
     @Override
@@ -72,12 +83,42 @@ final class ReaperAi implements SummonedReaperSystem.ReaperDecisions {
             return;
         }
 
+        clearTheWay(reaper, from);
+
         // Keep him on his way, whatever else he might think of
         if (navigation != null && Math.abs(navigation.target.x - gemTile.x) <= GEM_RADIUS
                 && Math.abs(navigation.target.y - gemTile.y) <= GEM_RADIUS) {
             return;
         }
         walkToPortalGem(reaper, reaperController, from, gemTile);
+    }
+
+    /**
+     * On each tick of his walk to the gem the Reaper clears his tile and the
+     * four next to it, like DK II's state for that walk (0x474F80): a built
+     * trap is destroyed, whoever owns it, and a locked door of his own keeper
+     * is unlocked. A blueprint is left alone.
+     */
+    private void clearTheWay(EntityId reaper, Point from) {
+        short ownerId = entityData.getComponent(reaper, Owner.class).ownerId;
+        for (Point tile : new Point[]{from, new Point(from.x - 1, from.y), new Point(from.x + 1, from.y),
+            new Point(from.x, from.y - 1), new Point(from.x, from.y + 1)}) {
+            for (EntityId entityId : entityPositionLookup.getEntitiesInLocation(tile)) {
+                Health health = entityData.getComponent(entityId, Health.class);
+                if (entityData.getComponent(entityId, TrapComponent.class) != null && health != null) {
+                    entityData.setComponent(entityId, new Damage(health.health));
+                    continue;
+                }
+                DoorComponent door = entityData.getComponent(entityId, DoorComponent.class);
+                if (door != null && door.locked && !door.blueprint && entityData.getComponent(entityId, Owner.class).ownerId == ownerId) {
+                    entityData.setComponent(entityId, new DoorComponent(door.doorId, false, false, door.secret));
+                    DoorViewState viewState = entityData.getComponent(entityId, DoorViewState.class);
+                    if (viewState != null) {
+                        entityData.setComponent(entityId, new DoorViewState(viewState.doorId, false, viewState.blueprint, viewState.open));
+                    }
+                }
+            }
+        }
     }
 
     /**
