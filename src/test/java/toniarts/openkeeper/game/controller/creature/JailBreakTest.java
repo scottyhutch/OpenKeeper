@@ -57,6 +57,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The jail break as DK II does it: the hero walks to the door of the Prison
@@ -127,9 +128,11 @@ class JailBreakTest {
         EntityId prisoner = imprison(GOOD, new Point(4, 4));
         CreatureController controller = controllers.get(prisoner);
 
-        // Not before it is let out
+        // Not before it is let out, it only walks about the cage
         CreatureState.IMPRISONED.update(controller);
-        assertNull(entityData.getComponent(prisoner, Navigation.class));
+        Navigation idleWalk = entityData.getComponent(prisoner, Navigation.class);
+        assertTrue(idleWalk == null || !BELOW_DOOR.equals(idleWalk.target) && !DOOR.equals(idleWalk.target));
+        entityData.removeComponent(prisoner, Navigation.class);
 
         entityData.setComponent(prisoner, new PrisonEscape());
         CreatureState.IMPRISONED.update(controller);
@@ -178,7 +181,11 @@ class JailBreakTest {
                 stub(INavigationService.class, (name, args) -> "findPath".equals(name) ? new DefaultGraphPath<>() : null),
                 stub(ITaskManager.class, (name, args) -> null), () -> 0, Map.of(),
                 stub(ICreaturesController.class, (name, args) -> "createController".equals(name) ? controllers.get((EntityId) args[0]) : null),
-                stub(IEntityPositionLookup.class, (name, args) -> "getSensedEntities".equals(name) ? Set.of() : null),
+                stub(IEntityPositionLookup.class, (name, args) -> switch (name) {
+                    case "getSensedEntities" -> Set.of();
+                    case "getEntitiesInLocation" -> List.of();
+                    default -> null;
+                }),
                 stub(IMapController.class, (name, args) -> "getRoomControllerByCoordinates".equals(name)
                         && prison.getRoomInstance().hasCoordinate((Point) args[0]) ? prison : null),
                 levelInfo(), null, null, null);
