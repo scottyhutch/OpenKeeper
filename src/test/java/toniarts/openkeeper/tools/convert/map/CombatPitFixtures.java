@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.tools.convert.map;
 
+import java.util.Collections;
 import java.util.EnumSet;
 
 /**
@@ -35,6 +36,12 @@ public final class CombatPitFixtures {
         creature.setFightStyle(Creature.FightStyle.BLOCKER);
         creature.setFlags(EnumSet.of(Creature.CreatureFlag.GENERATE_DEAD_BODY));
         return creature;
+    }
+
+    public static Room pitRoom() {
+        Room room = RoomFixtures.room((short) 16, 0);
+        room.setObjects(Collections.nCopies(6, (short) 0));
+        return room;
     }
 
     public static Variable.MiscVariable pitVariable(Variable.MiscVariable.MiscType type, int value) {
