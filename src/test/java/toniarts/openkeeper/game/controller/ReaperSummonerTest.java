@@ -31,6 +31,7 @@ import java.util.Random;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.AttackTarget;
+import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.InHand;
@@ -39,6 +40,7 @@ import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.SummonedReaper;
+import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
@@ -97,6 +99,9 @@ class ReaperSummonerTest {
         assertEquals(position, spawn[3]);
         assertEquals(ICreaturesController.SpawnType.CONJURE, spawn[4]);
         assertNotNull(entityData.getComponent(reaper, SummonedReaper.class));
+
+        // Once it has landed and is on its feet, it stands and roars before it hunts
+        assertEquals(CreatureState.REAPER_ARRIVE, entityData.getComponent(reaper, CreatureAi.class).getTargetState());
     }
 
     @Test

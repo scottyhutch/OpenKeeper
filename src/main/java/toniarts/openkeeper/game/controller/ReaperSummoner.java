@@ -25,6 +25,7 @@ import com.simsilica.es.filter.FieldFilter;
 import java.lang.System.Logger;
 import java.util.Random;
 import toniarts.openkeeper.game.component.AttackTarget;
+import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureTortured;
@@ -38,6 +39,7 @@ import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.Unconscious;
+import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
@@ -124,6 +126,10 @@ public final class ReaperSummoner {
 
         EntityId entityId = creaturesController.spawnCreature(reaper.getId(), playerId, level, position, ICreaturesController.SpawnType.CONJURE);
         entityData.setComponent(entityId, new SummonedReaper(gameTimer.getGameTime(), timed ? shotData1 : 0, manaDrain));
+
+        // Once on its feet the Reaper stands and roars before it hunts (DK II sets state 0xEB, 0x4AFAF0)
+        entityData.setComponent(entityId, new CreatureAi(gameTimer.getGameTime(), CreatureState.FALLEN, reaper.getCreatureId(),
+                CreatureState.REAPER_ARRIVE));
 
         return entityId;
     }

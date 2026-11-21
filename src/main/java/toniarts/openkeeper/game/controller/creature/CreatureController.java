@@ -212,6 +212,11 @@ public final class CreatureController extends EntityController implements ICreat
     private static final float BIG_WINNER_CELEBRATION_SECONDS = 10f;
 
     /**
+     * The game ticks a summoned Horned Reaper stands before it roars: DK II
+     * waits 12 ticks and fades it in over 8 more (0x474740, 0x4747E0)
+     */
+    private static final int REAPER_ARRIVE_TICKS = 20;
+    /**
      * Out of 100 each tick an idle prisoner rolls: below the first it plays
      * an animation, below the second it moves on (DKII.EXE 0x473350)
      */
@@ -4283,6 +4288,12 @@ public final class CreatureController extends EntityController implements ICreat
             }
             case CELEBRATING -> {
                 stateTargetTime = BIG_WINNER_CELEBRATION_SECONDS;
+            }
+            case REAPER_ARRIVE -> {
+                stateTargetTime = (double) REAPER_ARRIVE_TICKS / levelInfo.getLevelData().getGameLevel().getTicksPerSec();
+            }
+            case REAPER_ROAR -> {
+                stateTargetTime = getAnimationTime(creature, Creature.AnimationType.ROAR);
             }
             case CHICKEN -> {
                 stateTargetTime = entityData.getComponent(entityId, CreatureAi.class).stateDuration;

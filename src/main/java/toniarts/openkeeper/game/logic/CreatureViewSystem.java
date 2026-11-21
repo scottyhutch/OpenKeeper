@@ -42,6 +42,7 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAbility;
 import toniarts.openkeeper.game.component.PossessedMovement;
+import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.Teleport;
 import toniarts.openkeeper.game.component.Unconscious;
@@ -132,6 +133,10 @@ public final class CreatureViewSystem extends GameTimeCounter {
                 targetState = Creature.AnimationType.SPECIAL_1; // The Imp's jump
             } else if (entityData.getComponent(entityId, Possessed.class) != null) {
                 targetState = getPossessedAnimation(entityId, state);
+            } else if (isLeavingReaper(entityId)) {
+
+                // A Horned Reaper that leaves roars (DK II 0x474CC0)
+                targetState = Creature.AnimationType.ROAR;
             } else {
                 TaskComponent taskComponent = entityData.getComponent(entityId, TaskComponent.class);
                 if (taskComponent != null && taskComponent.taskType == TaskType.GAMBLE) {
@@ -292,6 +297,11 @@ public final class CreatureViewSystem extends GameTimeCounter {
         return state.state != Creature.AnimationType.TORTURED_CHAIR || time - state.stateStartTime >= ELECTROCUTION_TIME;
     }
 
+    private boolean isLeavingReaper(EntityId entityId) {
+        SummonedReaper summonedReaper = entityData.getComponent(entityId, SummonedReaper.class);
+        return summonedReaper != null && summonedReaper.isLeaving();
+    }
+
     private static Creature.AnimationType getAnimation(CreatureState creatureState) {
         switch (creatureState) {
             case IDLE:
@@ -319,6 +329,8 @@ public final class CreatureViewSystem extends GameTimeCounter {
                 return Creature.AnimationType.HAPPY;
             case EATING:
                 return Creature.AnimationType.EATING;
+            case REAPER_ROAR:
+                return Creature.AnimationType.ROAR;
             default:
                 return Creature.AnimationType.STAND_STILL;
         }
