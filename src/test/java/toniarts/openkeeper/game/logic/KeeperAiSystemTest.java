@@ -47,7 +47,9 @@ import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureExperience;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
+import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.DoorComponent;
+import toniarts.openkeeper.game.component.Food;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.KeeperAi;
@@ -78,6 +80,7 @@ import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
 import toniarts.openkeeper.game.controller.player.PlayerSpellControl;
 import toniarts.openkeeper.game.controller.player.PlayerTrapControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileController;
@@ -94,6 +97,7 @@ import static toniarts.openkeeper.tools.convert.map.AiFixtures.withBattleSpells;
 import static toniarts.openkeeper.tools.convert.map.AiFixtures.withBuildAreaEndX;
 import static toniarts.openkeeper.tools.convert.map.AiFixtures.withCallToArms;
 import static toniarts.openkeeper.tools.convert.map.AiFixtures.withInvasion;
+import static toniarts.openkeeper.tools.convert.map.AiFixtures.withMoodCare;
 import static toniarts.openkeeper.tools.convert.map.AiFixtures.withNeutralRoomRange;
 import static toniarts.openkeeper.tools.convert.map.AiFixtures.withPrisonerFate;
 import static toniarts.openkeeper.tools.convert.map.AiFixtures.withSightOfEvil;
@@ -221,7 +225,7 @@ class KeeperAiSystemTest {
             Map.entry(GUARD_ROOM, room(GUARD_ROOM, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND, Room.RoomFlag.BUILDABLE)),
             Map.entry(LIBRARY, room(LIBRARY, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND)),
             Map.entry(WORKSHOP, room(WORKSHOP, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND)),
-            Map.entry(TRAINING_ROOM, room(TRAINING_ROOM, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND)),
+            Map.entry(TRAINING_ROOM, room(TRAINING_ROOM, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND, Room.RoomFlag.BUILDABLE)),
             Map.entry(TORTURE_CHAMBER, room(TORTURE_CHAMBER, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND)),
             Map.entry(TEMPLE, room(TEMPLE, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND)),
             Map.entry(COMBAT_PIT, room(COMBAT_PIT, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND)),
@@ -253,6 +257,8 @@ class KeeperAiSystemTest {
     private final List<Point> callToArmsCasts = new ArrayList<>();
     private int callToArmsCancels;
     private final Map<EntityId, Point> dropped = new HashMap<>();
+    private final Map<EntityId, EntityId> droppedOn = new HashMap<>();
+    private final Map<Point, List<EntityId>> hatcheryFood = new HashMap<>();
     private final List<Point> dropAttempts = new ArrayList<>();
     private boolean rejectPreferredHeartDrop;
     private Room dungeonHeartTileRoom;
@@ -1068,6 +1074,31 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void looksAtLiftingTheCallToArmsOnlyOnATurnWithoutAnAttackToAnswer() {
+        KeeperAiSystem system = createSystem(withCallToArms(ai(0, 0, 9, 1, 50, 0, List.of()), 50, 240, 1, 5, 1, 90), 1000);
+        system.processTick(0.25f);
+        EntityId entityId = entityData.findEntity(null, KeeperAi.class);
+        KeeperAi keeperAi = new KeeperAi(entityData.getComponent(entityId, KeeperAi.class));
+        keeperAi.callToArms = true;
+        keeperAi.callToArmsTile = new Point(8, 3);
+        keeperAi.callToArmsTicks = 240;
+        keeperAi.attacks = 1;
+        keeperAi.attackNeeds[0] = 100;
+        keeperAi.attackTiles[0] = new Point(5, 4);
+        entityData.setComponent(entityId, keeperAi);
+
+        // No enemy is near the flag, but the attack takes the whole turn (0x500C20)
+        system.processTick(0.25f);
+
+        assertEquals(0, callToArmsCancels);
+        assertEquals(0, getKeeperAi().attacks);
+
+        system.processTick(0.25f);
+
+        assertEquals(1, callToArmsCancels);
+    }
+
+    @Test
     void createsNoImpsWhileItsCreaturesFight() {
         KeeperAiSystem system = createSystem(ai(4, 10, 9, 1, 50, 0, List.of()), 1000);
         EntityId fighter = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.FIGHT);
@@ -1269,6 +1300,144 @@ class KeeperAiSystemTest {
         }
 
         assertEquals(Map.of(prisoner, new Point(5, 4)), dropped);
+    }
+
+    @Test
+    void dropsItsPayOnACreatureThatTurnsUnhappyOverItsPayOnce() {
+        KeeperAiSystem system = createSystem(withMoodCare(ai(0, 0, 9, 1, 50, 0, List.of()), true, false, false), 1000);
+        roomControl.onBuild(createRoom(TREASURY, new Point(1, 4)));
+        EntityId creature = createUnhappyCreature(CreatureMood.REASON_NO_PAY, 1000);
+        CreatureComponent creatureComponent = new CreatureComponent();
+        creatureComponent.creatureId = EATER;
+        creatureComponent.pay = 150;
+        entityData.setComponent(creature, creatureComponent);
+
+        system.processTick(0.25f);
+
+        assertEquals(850, keeper.getGold());
+        assertEquals(1, droppedOn.size());
+        EntityId gold = droppedOn.keySet().iterator().next();
+        assertEquals(150, entityData.getComponent(gold, Gold.class).gold);
+        assertEquals(creature, droppedOn.get(gold));
+        assertEquals(new Point(8, 3), dropped.get(gold));
+
+        // DK II's computer player hears of it once, when the mood turns
+        system.processTick(0.25f);
+        assertEquals(850, keeper.getGold());
+
+        // Happy and then unhappy again is news again
+        entityData.setComponent(creature, new CreatureMood());
+        system.processTick(0.25f);
+        entityData.setComponent(creature, new CreatureMood().add(CreatureMood.REASON_GENERAL, 1000));
+        system.processTick(0.25f);
+        assertEquals(700, keeper.getGold());
+    }
+
+    @Test
+    void dropsNoPayWithoutATreasuryOrWhenItDoesNotLookAfterTheUnhappy() {
+        KeeperAiSystem system = createSystem(withMoodCare(ai(0, 0, 9, 1, 50, 0, List.of()), true, false, false), 1000);
+        createUnhappyCreature(CreatureMood.REASON_NO_PAY, 100);
+        system.processTick(0.25f);
+        assertTrue(dropped.isEmpty());
+
+        entityData.removeEntity(entityData.findEntity(null, KeeperAi.class));
+        system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
+        roomControl.onBuild(createRoom(TREASURY, new Point(1, 4)));
+        createUnhappyCreature(CreatureMood.REASON_NO_PAY, 100);
+        system.processTick(0.25f);
+        assertTrue(dropped.isEmpty());
+    }
+
+    @Test
+    void dropsAChickenFromItsHatcheryOnAHungryUnhappyCreature() {
+        KeeperAiSystem system = createSystem(withMoodCare(ai(0, 0, 9, 1, 50, 0, List.of()), true, false, false), 1000);
+        roomControl.onBuild(createRoom(HATCHERY, new Point(1, 4)));
+        EntityId chicken = createObject((short) 1, new Point(1, 4));
+        entityData.setComponent(chicken, new Food());
+        hatcheryFood.put(new Point(1, 4), List.of(chicken));
+        EntityId creature = createUnhappyCreature(CreatureMood.REASON_NO_FOOD, 100);
+
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(chicken, new Point(8, 3)), dropped);
+        assertEquals(Map.of(chicken, creature), droppedOn);
+    }
+
+    @Test
+    void carriesAnUnhappyCreatureWithoutALairToItsLair() {
+        KeeperAiSystem system = createSystem(withMoodCare(ai(0, 0, 9, 1, 50, 0, List.of()), true, false, false), 1000);
+        roomControl.onBuild(createRoom(LAIR, new Point(1, 4)));
+        EntityId creature = createUnhappyCreature(CreatureMood.REASON_NO_LAIR, 100);
+
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(creature, new Point(1, 4)), dropped);
+    }
+
+    @Test
+    void carriesAnUnhappyCreatureWithoutWorkToTheRoomForAJobItLikesUnlessItJustDroppedIt() {
+        KeeperAiSystem system = createSystem(withMoodCare(ai(0, 0, 9, 1, 50, 0, List.of()), true, false, false), 1000);
+        roomControl.onBuild(createRoom(LIBRARY, new Point(1, 4)));
+        EntityId justDropped = createUnhappyCreature(CreatureMood.REASON_NO_WORK, 1000);
+        EntityId creature = createUnhappyCreature(CreatureMood.REASON_NO_WORK, 1000);
+        CreatureComponent creatureComponent = new CreatureComponent();
+        creatureComponent.creatureId = EATER;
+        entityData.setComponent(justDropped, creatureComponent);
+        entityData.setComponent(creature, creatureComponent);
+        entityData.setComponent(justDropped, new KeeperAiDropped(0));
+        gameTime = 10;
+
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(creature, new Point(1, 4)), dropped);
+    }
+
+    @Test
+    void getsRidOfAnAngryCreatureInItsTempleOrElseOnAPortalWhenItsSettingsSaySo() {
+        KeeperAiSystem system = createSystem(withMoodCare(ai(0, 0, 9, 1, 50, 0, List.of()), true, true, true), 1000);
+        roomControl.onBuild(createRoom(PORTAL, new Point(1, 8)));
+        EntityId creature = createUnhappyCreature(CreatureMood.REASON_NO_PAY, 40000);
+
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(creature, new Point(1, 8)), dropped);
+
+        // Calming down to unhappy is no news, turning angry again is
+        dropped.clear();
+        entityData.setComponent(creature, new CreatureMood().add(CreatureMood.REASON_NO_PAY, 100));
+        system.processTick(0.25f);
+        assertTrue(dropped.isEmpty());
+
+        roomControl.onBuild(createRoom(TEMPLE, new Point(5, 4)));
+        entityData.setComponent(creature, new CreatureMood().add(CreatureMood.REASON_NO_PAY, 40000));
+        gameTime = 100;
+        system.processTick(0.25f);
+        assertEquals(Map.of(creature, new Point(5, 4)), dropped);
+    }
+
+    @Test
+    void makesAnAngryCreatureHappyLikeAnUnhappyOneWhenItDoesNotGetRidOfThem() {
+        KeeperAiSystem system = createSystem(withMoodCare(ai(0, 0, 9, 1, 50, 0, List.of()), false, true, false), 1000);
+        roomControl.onBuild(createRoom(LAIR, new Point(1, 4)));
+        roomControl.onBuild(createRoom(PORTAL, new Point(1, 8)));
+        createUnhappyCreature(CreatureMood.REASON_NO_LAIR, 100);
+        EntityId angry = createUnhappyCreature(CreatureMood.REASON_NO_LAIR, 40000);
+
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(angry, new Point(1, 4)), dropped);
+    }
+
+    /**
+     * A working creature of the computer player at (8, 3) with one reason
+     * for its anger. The creature type with jobs is unhappy from an anger
+     * of 327, the others from any
+     */
+    private EntityId createUnhappyCreature(int reason, int anger) {
+        EntityId creature = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.WORK);
+        entityData.setComponent(creature, new CreatureMood().add(reason, anger));
+
+        return creature;
     }
 
     @Test
@@ -1722,6 +1891,34 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void doesNotLookAtLiftingTheFlagOnTheTurnItMovesIt() {
+        KeeperAiSystem system = createSystem(withInvasion(ai(0, 0, 9, 1, 50, 0, List.of()), 5, 1,
+                AI.CallToArmsUsagePolicy.TOWARDS_HEART, 0), 1000);
+        spellControl.setTypeAvailable(callToArms, true, true);
+        enemyRoomControl.onBuild(createRoom(DUNGEON_HEART, new Point(13, 6)));
+        KeeperAiEnemy invaded = new KeeperAiEnemy(PLAYER_ID, ENEMY_ID, 0);
+        invaded.invaded = true;
+        entityData.setComponent(entityData.createEntity(), invaded);
+        createCreature(PLAYER_ID, new Point(4, 4), 100, 100, CreatureState.WORK);
+        createCreature(PLAYER_ID, new Point(4, 8), 100, 100, CreatureState.WORK);
+        reachable = true;
+        system.processTick(0.25f);
+        EntityId entityId = entityData.findEntity(null, KeeperAi.class);
+        KeeperAi keeperAi = new KeeperAi(entityData.getComponent(entityId, KeeperAi.class));
+        keeperAi.callToArms = true;
+        keeperAi.callToArmsTile = new Point(5, 6);
+        keeperAi.rallyTile = new Point(5, 6);
+        entityData.setComponent(entityId, keeperAi);
+
+        // The flag's time is up, but moving it takes the action and gives it its time again (0x4FECE0)
+        system.processTick(0.25f);
+
+        assertEquals(0, callToArmsCancels);
+        assertEquals(1, callToArmsCasts.size());
+        assertTrue(getKeeperAi().callToArms);
+    }
+
+    @Test
     void doesNothingOnceItsDungeonHeartIsGone() {
         KeeperAiSystem system = createSystem(ai(4, 10, 9, 1, 50, 0, List.of()), 1000);
         creatureControl.onCreatureAdded(new EntityId(1), imp);
@@ -2101,6 +2298,19 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void growsAFullTrainingRoomToo() {
+        KeeperAiSystem system = createSystem(withMoreSpace(ai(0, 0, 9, 1, 50, 0, List.of(TRAINING_ROOM)), AI.RoomExpandPolicy.EXPAND_EXISTING, false), 1000);
+        roomControl.setTypeAvailable(rooms.get(TRAINING_ROOM), true, true);
+        roomControl.onBuild(createRoom(TRAINING_ROOM, new Point(9, 2), new Point(11, 4)));
+        fullRooms.add(TRAINING_ROOM);
+
+        system.processTick(0.25f);
+
+        assertEquals(KeeperAi.Task.TAG_ROOM, getKeeperAi().task);
+        assertEquals(TRAINING_ROOM, getKeeperAi().roomId);
+    }
+
+    @Test
     void buildsAnotherRoomOrNoneForAFullRoomByItsSettings() {
         AI ai = withMoreSpace(ai(0, 0, 9, 1, 50, 0, List.of(LAIR)), AI.RoomExpandPolicy.IGNORE, false);
         KeeperAiSystem system = createSystem(ai, 1000);
@@ -2273,12 +2483,19 @@ class KeeperAiSystemTest {
                         }
                         case "pickUp" -> {
                             pickedUp.add((EntityId) args[0]);
-                            if (entityData.getComponent((EntityId) args[0], CreatureComponent.class) != null) {
+                            if (entityData.getComponent((EntityId) args[0], CreatureComponent.class) != null
+                                    || entityData.getComponent((EntityId) args[0], Food.class) != null) {
                                 handControl.push((EntityId) args[0], gameTime);
                             }
                         }
                         case "interact" ->
                             slapped.add((EntityId) args[0]);
+                        case "getGold" -> {
+                            EntityId pay = createObject((short) 1, new Point(0, 0));
+                            entityData.setComponent(pay, new Gold((int) args[0], (int) args[0]));
+                            keeper.setGold(keeper.getGold() - (int) args[0]);
+                            handControl.push(pay);
+                        }
                         case "placeTrap", "placeDoor" -> {
                             Point tile = (Point) args[1];
                             placed.put(tile, method.getName());
@@ -2292,6 +2509,9 @@ class KeeperAiSystemTest {
                             dropAttempts.add(tile);
                             if (!rejectPreferredHeartDrop || !HEART_DROP.equals(tile)) {
                                 dropped.put(handControl.pop(), tile);
+                                if (args[3] != null) {
+                                    droppedOn.put((EntityId) args[0], (EntityId) args[3]);
+                                }
                                 entityData.setComponent((EntityId) args[0], new Position(0, new Vector3f(((Vector2f) args[2]).x, 0, ((Vector2f) args[2]).y)));
                             }
                         }
@@ -2349,6 +2569,9 @@ class KeeperAiSystemTest {
             case "isDungeonHeart" -> roomId == DUNGEON_HEART;
             case "getRoomInstance" -> roomInstance;
             case "isFullCapacity" -> fullRooms.contains(roomId);
+            case "hasObjectControl" -> roomId == HATCHERY;
+            case "getObjectControl" -> Proxy.newProxyInstance(getClass().getClassLoader(),
+            new Class<?>[]{IRoomObjectControl.class}, (control, controlMethod, controlArgs) -> hatcheryFood.get((Point) controlArgs[0]));
             case "hashCode" -> System.identityHashCode(proxy);
             case "equals" -> proxy == args[0];
             default -> throw new UnsupportedOperationException(method.getName());
