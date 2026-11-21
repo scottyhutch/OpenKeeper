@@ -80,6 +80,7 @@ import toniarts.openkeeper.game.component.DoorTarget;
 import toniarts.openkeeper.game.component.DoorViewState;
 import toniarts.openkeeper.game.component.DropArea;
 import toniarts.openkeeper.game.component.DroppedJob;
+import toniarts.openkeeper.game.component.Drunk;
 import toniarts.openkeeper.game.component.DummyRecoil;
 import toniarts.openkeeper.game.component.DungeonHeart;
 import toniarts.openkeeper.game.component.Fearless;
@@ -320,6 +321,7 @@ public final class NetworkServer {
             Serializer.registerClass(DoorViewState.class, new FieldSerializer());
             Serializer.registerClass(DropArea.class, new FieldSerializer());
             Serializer.registerClass(DroppedJob.class, new FieldSerializer());
+            Serializer.registerClass(Drunk.class, new FieldSerializer());
             Serializer.registerClass(DummyRecoil.class, new FieldSerializer());
             Serializer.registerClass(DungeonHeart.class, new FieldSerializer());
             Serializer.registerClass(Fearless.class, new FieldSerializer());

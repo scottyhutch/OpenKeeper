@@ -968,7 +968,7 @@ public enum CreatureState implements State<ICreatureController> {
         @Override
         public void enter(ICreatureController entity) {
             entity.unassingCurrentTask();
-            entity.navigateToRandomPoint();
+            entity.navigateAsChicken();
         }
 
         @Override
@@ -980,9 +980,9 @@ public enum CreatureState implements State<ICreatureController> {
                 return;
             }
 
-            // Just peck about
+            // Off to the Hatchery, again and again
             if (entity.isStopped()) {
-                entity.navigateToRandomPoint();
+                entity.navigateAsChicken();
             }
         }
 
