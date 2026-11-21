@@ -150,6 +150,8 @@ public final class GameLoopManager {
                         gameController.getGameTimer()),
                 new CreatureMoodSystem(entityData, levelInfo.getLevelData(), playerControllers.values(),
                         gameController.getGameTimer(), gameSettings, gameWorldController.getRoomAttackMessages()),
+                new CreatureDisturbanceSystem(entityData, levelInfo.getLevelData(), gameWorldController.getMapController(),
+                        gameWorldController.getCreaturesController(), gameController.getGameTimer()),
                 payDaySystem,
                 new HatedCompanySystem(entityData, levelInfo.getLevelData(), gameSettings, gameWorldController.getMapController(),
                         gameController.getGameTimer()),
