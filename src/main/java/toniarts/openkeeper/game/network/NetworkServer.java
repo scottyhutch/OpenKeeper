@@ -147,6 +147,7 @@ import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Possessed;
 import toniarts.openkeeper.game.component.PossessedAbility;
 import toniarts.openkeeper.game.component.PossessedMovement;
+import toniarts.openkeeper.game.component.PrisonEscape;
 import toniarts.openkeeper.game.component.PrisonStatus;
 import toniarts.openkeeper.game.component.ReaperAdvised;
 import toniarts.openkeeper.game.component.Regeneration;
@@ -388,6 +389,7 @@ public final class NetworkServer {
             Serializer.registerClass(Possessed.class, new FieldSerializer());
             Serializer.registerClass(PossessedAbility.class, new FieldSerializer());
             Serializer.registerClass(PossessedMovement.class, new FieldSerializer());
+            Serializer.registerClass(PrisonEscape.class, new FieldSerializer());
             Serializer.registerClass(PrisonStatus.class, new FieldSerializer());
             Serializer.registerClass(ReaperAdvised.class, new FieldSerializer());
             Serializer.registerClass(Regeneration.class, new FieldSerializer());

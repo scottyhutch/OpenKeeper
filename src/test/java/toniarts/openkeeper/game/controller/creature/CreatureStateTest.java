@@ -233,6 +233,17 @@ class CreatureStateTest {
         assertEquals(1, attacks.get());
     }
 
+    @Test
+    void prisonerSetFreeLeavesTheImprisonedState() {
+        AtomicReference<CreatureState> currentState = new AtomicReference<>(CreatureState.IMPRISONED);
+        ICreatureController creature = creature(stateMachine(currentState), false, new AtomicReference<>(false));
+
+        // The Prison was lost: the creature is no longer imprisoned
+        CreatureState.IMPRISONED.update(creature);
+
+        assertEquals(CreatureState.IDLE, currentState.get());
+    }
+
     private static void assertMissingLairChangesStateToIdle(CreatureState state) {
         AtomicReference<CreatureState> currentState = new AtomicReference<>(state);
         StateMachine<ICreatureController, CreatureState> stateMachine = stateMachine(currentState);

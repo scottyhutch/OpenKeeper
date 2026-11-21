@@ -83,6 +83,16 @@ public final class PrisonController extends DoubleQuadController {
         }
     }
 
+    /**
+     * The door of the Prison: the tile of the room above the first tile of
+     * the cage, as in DK II (DKII.EXE 0x4E32C0)
+     *
+     * @return the door tile, or {@code null} when the Prison has no cage
+     */
+    public Point getDoor() {
+        return door;
+    }
+
     @Override
     public void construct() {
         super.construct();
