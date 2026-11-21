@@ -273,18 +273,18 @@ class PrisonerIdleTest {
         List<String> calls = new ArrayList<>();
         ICreatureController walking = proxy(ICreatureController.class, (method, args) -> {
             calls.add(method);
-            return false;
+            return method.equals("isImprisoned");
         });
         ICreatureController standing = proxy(ICreatureController.class, (method, args) -> {
             calls.add(method);
-            return true;
+            return !method.equals("escapePrison");
         });
 
         CreatureState.IMPRISONED.update(walking);
-        assertEquals(List.of("isStopped"), calls);
+        assertEquals(List.of("isImprisoned", "escapePrison", "isStopped"), calls);
 
         CreatureState.IMPRISONED.update(standing);
-        assertEquals(List.of("isStopped", "isStopped", "idleInPrison"), calls);
+        assertEquals(List.of("isImprisoned", "escapePrison", "isStopped", "isImprisoned", "escapePrison", "isStopped", "idleInPrison"), calls);
     }
 
     private CreatureController createController() {
