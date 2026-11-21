@@ -3896,11 +3896,12 @@ public final class CreatureController extends EntityController implements ICreat
         if (otherOwner != null) {
 
             // We take a creature disguised as one of ours for one of ours (0x45B140)
+            short sideId = getSideId(entityId, getOwnerId());
             Disguised disguised = entityData.getComponent(entity, Disguised.class);
-            if (disguised != null && disguised.ownerId == getSideId(entityId, getOwnerId())) {
+            if (disguised != null && disguised.ownerId == sideId) {
                 return false;
             }
-            Keeper keeper = levelInfo.getPlayer(getSideId(entityId, getOwnerId()));
+            Keeper keeper = levelInfo.getPlayer(sideId);
             if (keeper != null) {
                 return keeper.isEnemy(getSideId(entity, otherOwner.ownerId));
             }
