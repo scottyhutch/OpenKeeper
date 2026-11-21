@@ -833,11 +833,11 @@ public final class Main extends SimpleApplication {
             config.disposeImagesBetweenScreens = false;
             config.useHighQualityTextures = true;
 
-            // Init Nifty, HD copies of the interface images are laid out at their original's size
+            // Init Nifty, the cuts of the HD interface images are in their original's pixels
             niftyDisplay = new HdImageNiftyJmeDisplay(assetManager,
                     inputManager,
                     getAudioRenderer(),
-                    getGuiViewPort(), config, Paths.get(AssetsConverter.getAssetsFolder()));
+                    getGuiViewPort(), config);
 
             // Attach the nifty display to the gui view port as a processor
             getGuiViewPort().addProcessor(niftyDisplay);

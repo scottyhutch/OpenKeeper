@@ -2475,6 +2475,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
                 id("creature-ability_" + index);
                 filename(AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER
                         + File.separator + name + ".png"));
+                width("64px");
+                height("64px");
                 valignCenter();
                 onFocusEffect(new EffectBuilder("imageOverlay") {
                     {
@@ -2501,6 +2503,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
             {
                 filename(AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER
                         + File.separator + name + ".png"));
+                width("64px");
+                height("64px");
                 valignCenter();
             }
         };
@@ -2511,6 +2515,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
             {
                 filename(AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER
                         + File.separator + name + ".png"));
+                width("64px");
+                height("64px");
                 valignCenter();
                 marginLeft("6px");
                 focusable(true);
@@ -2531,6 +2537,8 @@ public final class PlayerScreenController implements IPlayerScreenController {
             {
                 filename(AssetUtils.getCanonicalAssetKey(AssetsConverter.TEXTURES_FOLDER
                         + File.separator + cs.getGuiIcon().getName() + ".png"));
+                width("64px");
+                height("64px");
                 valignCenter();
                 marginLeft("6px");
                 focusable(true);
