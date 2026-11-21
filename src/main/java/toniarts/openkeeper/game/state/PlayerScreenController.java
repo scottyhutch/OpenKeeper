@@ -1972,22 +1972,31 @@ public final class PlayerScreenController implements IPlayerScreenController {
     }
 
     /**
-     * Tints the trap and door icons while the player has no Workshop to
-     * manufacture them in, as DKII.EXE does (0x412FC0, colour 0x808080)
+     * Tints the trap and door icons as DKII.EXE does (0x412FC0): 0x808080
+     * while the player has no Workshop to manufacture them in, and 0x646464
+     * while it doesn't have the gold a blueprint takes (door +0x8F, trap
+     * +0x92). The Workshop tint is set last, so it wins when both apply.
      */
     private void updateWorkshopAvailability() {
         Screen hud = nifty.getScreen(SCREEN_HUD_ID);
-        String tint = state.hasWorkshop() ? null : "workshopless";
+        boolean hasWorkshop = state.hasWorkshop();
+        int gold = getKeeperGold(state.getPlayer().getId());
         for (ResearchableEntity door : state.getAvailableDoors()) {
             if (door.isDiscovered()) {
-                updateWorkshopIcon(hud.findElementById("door_" + state.getKwdFile().getDoorById(door.getId()).getDoorId()), tint);
+                Door data = state.getKwdFile().getDoorById(door.getId());
+                updateWorkshopIcon(hud.findElementById("door_" + data.getDoorId()), getWorkshopTint(hasWorkshop, data.getGoldCost() > gold));
             }
         }
         for (ResearchableEntity trap : state.getAvailableTraps()) {
             if (trap.isDiscovered()) {
-                updateWorkshopIcon(hud.findElementById("trap_" + state.getKwdFile().getTrapById(trap.getId()).getTrapId()), tint);
+                Trap data = state.getKwdFile().getTrapById(trap.getId());
+                updateWorkshopIcon(hud.findElementById("trap_" + data.getTrapId()), getWorkshopTint(hasWorkshop, data.getGoldCost() > gold));
             }
         }
+    }
+
+    private static String getWorkshopTint(boolean hasWorkshop, boolean unaffordable) {
+        return !hasWorkshop ? "workshopless" : unaffordable ? "unaffordable" : null;
     }
 
     /**
