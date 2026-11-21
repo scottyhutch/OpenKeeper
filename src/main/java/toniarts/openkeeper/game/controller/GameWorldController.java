@@ -402,8 +402,10 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         // Copy the coordinates: the client's selection vectors can be reused after submission.
         Vector2f first = start.clone();
         Vector2f last = end.clone();
+        List<Point> changedTiles = new ArrayList<>();
         roomActions.add(WorldUtils.vectorToPoint(first), WorldUtils.vectorToPoint(last),
-                () -> prepareRoomBuild(first, last, playerId, roomId));
+                () -> prepareRoomBuild(first, last, playerId, roomId, changedTiles),
+                () -> notifyOnRoomSelectionComplete(playerId, changedTiles));
     }
 
     void processRoomActions() {
@@ -414,7 +416,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         roomActions.clear();
     }
 
-    private Consumer<List<Point>> prepareRoomBuild(Vector2f start, Vector2f end, short playerId, short roomId) {
+    private Consumer<List<Point>> prepareRoomBuild(Vector2f start, Vector2f end, short playerId, short roomId,
+            List<Point> changedTiles) {
         Keeper player = players.get(playerId);
         if (player == null) {
             return null;
@@ -449,6 +452,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
                     buildRoomInstance(List.of(tile), room, playerId, built);
                 }
                 if (!built.isEmpty()) {
+                    changedTiles.addAll(built);
                     notifyOnBuild(playerId, built);
                     notifyBuildEvents(room, placement.plots(), built, !placementAnnounced);
                     placementAnnounced = true;
@@ -672,10 +676,12 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         if (first.x > last.x || first.y > last.y) {
             return;
         }
-        roomActions.add(first, last, () -> diagonal -> sellRoomTiles(diagonal, playerId));
+        List<Point> changedTiles = new ArrayList<>();
+        roomActions.add(first, last, () -> diagonal -> sellRoomTiles(diagonal, playerId, changedTiles),
+                () -> notifyOnRoomSelectionComplete(playerId, changedTiles));
     }
 
-    private void sellRoomTiles(List<Point> tiles, short playerId) {
+    private void sellRoomTiles(List<Point> tiles, short playerId, List<Point> changedTiles) {
         Sale sale = sellTiles(tiles, playerId);
         if (sale.soldTiles.isEmpty()) {
             return;
@@ -686,6 +692,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         reattachLairs(detachedLairs);
         restoreGoldCapacity(sale.roomCoordinates);
         returnSaleRevenue(playerId, sale.moneyToReturnByPoint);
+        changedTiles.addAll(sale.soldTiles);
         notifyOnSold(playerId, sale.soldTiles);
     }
 
@@ -1015,6 +1022,16 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
     private void notifyOnSpecialActivated(short playerId, short objectId) {
         for (SpecialListener listener : specialListeners.getArray()) {
             listener.onSpecialActivated(playerId, objectId);
+        }
+    }
+
+    private void notifyOnRoomSelectionComplete(short playerId, List<Point> changedTiles) {
+        if (changedTiles.isEmpty()) {
+            return;
+        }
+        List<Point> completedTiles = List.copyOf(changedTiles);
+        for (PlayerActionListener listener : listeners.getArray()) {
+            listener.onRoomSelectionComplete(playerId, completedTiles);
         }
     }
 
