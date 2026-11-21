@@ -357,7 +357,7 @@ public enum CreatureState implements State<ICreatureController> {
             // guard duty, the Temple, training and the Casino, but not the Prison, the Torture Chamber or a fight
             Task task = entity.getAssignedTask();
             boolean interruptible = task != null && switch (task.getTaskType()) {
-                case RESEARCH, MANUFACTURE, GUARD, PRAY, TRAIN, GAMBLE -> true;
+                case RESEARCH, MANUFACTURE, GUARD, PRAY, TRAIN, GAMBLE, WATCH_COMBAT_PIT -> true;
                 default -> false;
             };
             if (interruptible && ((entity.isHungry() && entity.goToEat())

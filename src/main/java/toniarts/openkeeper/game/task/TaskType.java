@@ -59,5 +59,6 @@ public enum TaskType {
     COLLECT_WINNINGS,
     TORTURE,
     COLLECT_PAY,
-    EXPLORE
+    EXPLORE,
+    WATCH_COMBAT_PIT
 }
