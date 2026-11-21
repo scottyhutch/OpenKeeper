@@ -89,6 +89,7 @@ import toniarts.openkeeper.game.component.FoodHunt;
 import toniarts.openkeeper.game.component.Frightened;
 import toniarts.openkeeper.game.component.Frozen;
 import toniarts.openkeeper.game.component.GamblingAfterPay;
+import toniarts.openkeeper.game.component.GameEnded;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.GraveyardDecompose;
 import toniarts.openkeeper.game.component.GuardedRoom;
@@ -328,6 +329,7 @@ public final class NetworkServer {
             Serializer.registerClass(Frightened.class, new FieldSerializer());
             Serializer.registerClass(Frozen.class, new FieldSerializer());
             Serializer.registerClass(GamblingAfterPay.class, new FieldSerializer());
+            Serializer.registerClass(GameEnded.class, new FieldSerializer());
             Serializer.registerClass(Gold.class, new FieldSerializer());
             Serializer.registerClass(GraveyardDecompose.class, new FieldSerializer());
             Serializer.registerClass(GuardedRoom.class, new FieldSerializer());

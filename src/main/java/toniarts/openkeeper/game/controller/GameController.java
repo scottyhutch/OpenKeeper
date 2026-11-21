@@ -31,6 +31,7 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import toniarts.openkeeper.game.component.CreatureExperience;
+import toniarts.openkeeper.game.component.GameEnded;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.component.ObjectComponent;
@@ -488,6 +489,12 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
         Keeper keeper = levelInfo.getPlayer(playerId);
         if (keeper != null && !keeper.claimResult()) {
             return;
+        }
+
+        // From here on the player gets no more messages
+        EntityId playerEntity = entityData.findEntity(new FieldFilter<>(KeeperComponent.class, "playerId", playerId), KeeperComponent.class);
+        if (playerEntity != null) {
+            entityData.setComponent(playerEntity, new GameEnded(win));
         }
 
         // Determine what happens to the game & players
