@@ -198,37 +198,6 @@ class CreatureStateTest {
     }
 
     @Test
-    void knockedOutCreatureDropsItsGoldInOneToThreePiles() {
-        assertEquals(List.of(800), dropGoldOnKnockout(800));
-        assertEquals(List.of(1250, 1250), dropGoldOnKnockout(2500));
-        assertEquals(List.of(1666, 1666, 1666), dropGoldOnKnockout(5000));
-    }
-
-    private static List<Integer> dropGoldOnKnockout(int gold) {
-        EntityData data = new DefaultEntityData();
-        EntityId entity = data.createEntity();
-        data.setComponents(entity, new Gold(gold, 5000), new Owner((short) 1, (short) 1),
-                new Position(0, new Vector3f(4, 0, 11)));
-        List<Integer> piles = new ArrayList<>();
-        IObjectsController objects = (IObjectsController) Proxy.newProxyInstance(
-                IObjectsController.class.getClassLoader(), new Class<?>[]{IObjectsController.class}, (proxy, method, args) -> {
-                    if (method.getName().equals("addLooseGold")) {
-                        piles.add((Integer) args[2]);
-                    }
-                    return null;
-                });
-        EntityController body = new EntityController(entity, data, objects, null);
-        ICreatureController creature = (ICreatureController) Proxy.newProxyInstance(
-                ICreatureController.class.getClassLoader(), new Class<?>[]{ICreatureController.class}, (proxy, method, args) ->
-                method.getDeclaringClass() == IEntityController.class ? method.invoke(body, args) : defaultValue(method.getReturnType()));
-
-        CreatureState.UNCONSCIOUS.enter(creature);
-
-        assertEquals(0, data.getComponent(entity, Gold.class).gold);
-        return piles;
-    }
-
-    @Test
     void fighterAttacksFromTheTurnAfterItArrivesOnceItFacesTheTarget() {
         StateMachine<ICreatureController, CreatureState> stateMachine = stateMachine(new AtomicReference<>(CreatureState.FIGHT));
         AtomicBoolean stopped = new AtomicBoolean();

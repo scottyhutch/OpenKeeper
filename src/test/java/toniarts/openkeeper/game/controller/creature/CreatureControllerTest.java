@@ -1244,7 +1244,7 @@ class CreatureControllerTest {
         List<IRoomController> rooms = List.of();
         final Keeper keeper = new Keeper(false, (short) 3);
         IRoomController roomHere;
-        Set<EntityId> sensed = Set.of();
+        Set<EntityId> sensed = new java.util.HashSet<>();
         CreatureController controller;
         final java.util.function.Supplier<CreatureController> controllers;
         final CreatureSleepSystem sleepSystem;
@@ -1253,7 +1253,6 @@ class CreatureControllerTest {
         final CreatureFallSystem fall;
         final CreatureLandingSystem landing;
         final List<GameEventType> events = new java.util.ArrayList<>();
-        final Set<EntityId> sensed = new java.util.HashSet<>();
         final ICreaturesController creatures;
         boolean clearSight = true;
         final GameEventService eventService = proxy(GameEventService.class, (method, args) -> {
@@ -1381,6 +1380,11 @@ class CreatureControllerTest {
                 case "getLevelData" -> kwd;
                 default -> throw new UnsupportedOperationException(method);
             });
+            INavigationService navigation = proxy(INavigationService.class, (method, args) -> switch (method) {
+                case "findPath" -> walkable.test((Point) args[1]) ? new DefaultGraphPath<>() : null;
+                case "findRandomAccessibleTile" -> null;
+                default -> throw new UnsupportedOperationException(method);
+            });
             ICreaturesController[] creaturesController = new ICreaturesController[1];
             creaturesController[0] = proxy(ICreaturesController.class, (method, args) -> switch (method) {
                 case "createController" -> new CreatureController((EntityId) args[0], data, definition, navigation, taskManager, () -> time,
@@ -1389,11 +1393,6 @@ class CreatureControllerTest {
                 default -> throw new UnsupportedOperationException(method);
             });
             creatures = creaturesController[0];
-            INavigationService navigation = proxy(INavigationService.class, (method, args) -> switch (method) {
-                case "findPath" -> walkable.test((Point) args[1]) ? new DefaultGraphPath<>() : null;
-                case "findRandomAccessibleTile" -> null;
-                default -> throw new UnsupportedOperationException(method);
-            });
             controllers = () -> new CreatureController(entity, data, definition, navigation, taskManager, () -> time,
                     settings, creaturesController[0], lookup, map, levelInfo, null, null, eventService);
             controller = controllers.get();

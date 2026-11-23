@@ -168,7 +168,7 @@ class CreatureFallSystemTest {
 
     @Test
     void droppedCreatureRaisesNoDust() {
-        fall(new CreatureFall(), 3f);
+        land(new CreatureFall(), 3f);
 
         assertTrue(effects.isEmpty());
     }

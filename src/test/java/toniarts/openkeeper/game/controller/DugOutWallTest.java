@@ -165,7 +165,7 @@ class DugOutWallTest {
                 Player.NEUTRAL_PLAYER_ID, new Keeper(false, Player.NEUTRAL_PLAYER_ID)));
         MapController mapController = new MapController(kwdFile, null,
                 Map.of(MiscType.REINFORCE_WALL_HEALTH, CreatureSleepFixtures.variable(MiscType.REINFORCE_WALL_HEALTH, 100)),
-                null, new DefaultEntityData(), levelInfo, proxy(GameEventService.class, (name, args) -> null));
+                null, new DefaultEntityData(), levelInfo, proxy(GameEventService.class, (name, args) -> null), null);
         IMapTileController tile = mapController.getMapData().getTile(0, 0);
 
         mapController.applyClaimTile(new Point(0, 0), KEEPER_ID, null);
@@ -213,7 +213,7 @@ class DugOutWallTest {
         EntityId trapNextToIt = trap(entityData, 1);
         MapController mapController = new MapController(kwdFile, null,
                 Map.of(MiscType.ATTACK_TILE_HEALTH, CreatureSleepFixtures.variable(MiscType.ATTACK_TILE_HEALTH, 100)),
-                null, entityData, levelInfo, proxy(GameEventService.class, (name, args) -> null));
+                null, entityData, levelInfo, proxy(GameEventService.class, (name, args) -> null), null);
 
         mapController.damageTile(new Point(0, 0), HERO_ID, null);
         assertNull(entityData.getComponent(trapOnTheFloor, Damage.class));

@@ -52,7 +52,7 @@ class StunImpsTest {
 
     private final EntityData entityData = new DefaultEntityData();
     private final CreaturesController controller = new CreaturesController(kwdFile(), entityData,
-            Collections.emptyMap(), () -> 0, stub(IGameController.class), stub(IMapController.class), null);
+            Collections.emptyMap(), () -> 0, stub(IGameController.class), stub(IMapController.class), null, null);
 
     @Test
     void everyWorkerOfThePlayerIsStunnedAndNothingElse() {

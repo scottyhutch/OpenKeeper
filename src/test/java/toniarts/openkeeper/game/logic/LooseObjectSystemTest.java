@@ -86,7 +86,7 @@ class LooseObjectSystemTest {
 
         assertNull(entityData.getComponent(gold, ObjectComponent.class));
         assertEquals(List.of(500), storedInRoom);
-        assertEquals(500, heroKeeper.getGold());
+        assertEquals(500, heroGold.getGold());
     }
 
     @Test

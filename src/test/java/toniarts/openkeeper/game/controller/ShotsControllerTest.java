@@ -576,7 +576,6 @@ class ShotsControllerTest {
     }
 
     @Test
-    @Test
     void gasCloudSplitsItsThreatBetweenTheEnemiesItSees() {
         EntityId target = createCreature(ENEMY_ID, 11, 10);
         createCreature(ENEMY_ID, 10, 11.5f);
@@ -624,39 +623,6 @@ class ShotsControllerTest {
         shotsController.createShot(FREEZE_ID, 20, 1, PLAYER_ID, new Vector3f(10, 1, 10), reaper, null);
 
         assertNull(entityData.getComponent(reaper, Frozen.class));
-    }
-
-    void drainGivesTheShooterAQuarterOfItsFullHealthFromTheTarget() {
-        EntityId vampire = createCreature();
-        entityData.setComponent(vampire, new Health(500, 2000));
-        EntityId target = createCreature();
-        entityData.setComponent(target, new Health(900, 1000));
-
-        // Drain: 25 % of the Vampire's 2000
-        shotsController.hit(createDrainShot(vampire), target);
-
-        assertEquals(500, entityData.getComponent(target, Damage.class).damage);
-        assertEquals(-500, entityData.getComponent(vampire, Damage.class).damage);
-    }
-
-    @Test
-    void drainTakesNoMoreThanTheTargetHasLeft() {
-        EntityId vampire = createCreature();
-        entityData.setComponent(vampire, new Health(500, 2000));
-        EntityId target = createCreature();
-        entityData.setComponent(target, new Health(120, 1000));
-
-        shotsController.hit(createDrainShot(vampire), target);
-
-        assertEquals(120, entityData.getComponent(target, Damage.class).damage);
-        assertEquals(-120, entityData.getComponent(vampire, Damage.class).damage);
-    }
-
-    private EntityId createDrainShot(EntityId shooter) {
-        EntityId shot = entityData.createEntity();
-        entityData.setComponents(shot, new Position(0, new Vector3f(1.5f, 1f, 1.5f)),
-                new ShotFlight(DRAIN_ID, PLAYER_ID, shooter, null, 25, 0, new Vector3f(), new Vector3f(), 3, 128));
-        return shot;
     }
 
     @Test

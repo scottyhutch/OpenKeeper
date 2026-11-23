@@ -69,10 +69,6 @@ public final class BuildDoorTask extends AbstractTask {
         this.playerId = playerId;
     }
 
-    public EntityId getBlueprint() {
-        return blueprint;
-    }
-
     public EntityId getCrate() {
         return crate;
     }

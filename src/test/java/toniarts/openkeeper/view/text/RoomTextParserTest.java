@@ -76,7 +76,6 @@ class RoomTextParserTest {
                     case "isDungeonHeart" -> false;
                     case "getUsedCapacity" -> 2;
                     case "getMaxCapacity" -> 9;
-                    case "isDungeonHeart" -> false;
                     default -> throw new UnsupportedOperationException(method.getName());
                 });
         var rooms = new IRoomsInformation<IRoomInformation>() {

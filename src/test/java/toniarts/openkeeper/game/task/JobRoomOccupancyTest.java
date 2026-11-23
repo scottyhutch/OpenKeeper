@@ -201,7 +201,7 @@ class JobRoomOccupancyTest {
     }
 
     private Guard guard(GuardRoomController guardRoom) {
-        return new Guard(null, null, new Point(1, 1), KEEPER, guardRoom, taskManager(guardRoom), entityData, 4, 0, null);
+        return new Guard(null, null, new Point(1, 1), KEEPER, guardRoom, taskManager(guardRoom), entityData, 4, 0, 0, null);
     }
 
     private CasinoController casino() {
