@@ -506,7 +506,7 @@ public final class ShotsController implements IShotsController {
     private void poison(ShotRequest request) {
         EntityId target = request.target();
         if (target == null || entityData.getComponent(target, CreatureComponent.class) == null
-                || entityData.getComponent(target, Unconscious.class) != null || isHornedReaper(target)) {
+                || entityData.getComponent(target, Unconscious.class) != null) {
             return;
         }
 
