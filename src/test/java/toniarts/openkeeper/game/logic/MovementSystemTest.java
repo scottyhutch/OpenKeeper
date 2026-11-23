@@ -309,7 +309,8 @@ class MovementSystemTest {
     /**
      * The creatures move on the logic tick, four times a second. The view
      * shows a walking creature between the ticks only from the published
-     * motion, so the motion is published unless it is switched off.
+     * motion, so the motion is published unless it is switched off. It is
+     * published after the move, the view then lags a tick less behind.
      */
     @Test
     void aWalkOnTheLogicTickIsShownBetweenTheTicks() {
@@ -321,14 +322,19 @@ class MovementSystemTest {
         MovementSystem movementSystem = new MovementSystem(entityData, map(false, false));
         CreatureViewSystem creatureViewSystem = new CreatureViewSystem(entityData, null, null,
                 (Boolean) Settings.Setting.ANIMATION_INTERPOLATION.getDefaultValue());
+        IGameLogicUpdatable motionPublication = creatureViewSystem.getMotionPublication();
         MotionHistory history = new MotionHistory(8);
         List<CreatureMotion> published = new ArrayList<>();
         try {
+
+            // In the order of the logic loop
             for (int tick = 0; tick < 4; tick++) {
                 creatureViewSystem.processTick(1 / 4f);
                 movementSystem.processTick(1 / 4f);
+                motionPublication.processTick(1 / 4f);
                 CreatureMotion motion = entityData.getComponent(creature, CreatureMotion.class);
                 assertNotNull(motion, "no motion published for the view");
+                assertEquals(entityData.getComponent(creature, Position.class).position.x, motion.x, "not where the tick moved it");
                 history.add(motion);
                 published.add(motion);
             }

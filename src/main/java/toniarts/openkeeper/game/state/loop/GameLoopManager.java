@@ -130,6 +130,10 @@ public final class GameLoopManager implements IGameLoopManager {
         payDaySystem = new PayDaySystem(entityData, levelInfo.getLevelData(), gameController.getGameTimer(),
                 playerControllers.values(), gameSettings, gameWorldController.getRoomAttackMessages());
 
+        // The creatures' motion is published after they have moved
+        final CreatureViewSystem creatureViewSystem = new CreatureViewSystem(entityData, levelInfo.getLevelData(), gameController.getGameTimer(),
+                toniarts.openkeeper.Main.getUserSettings().getBoolean(toniarts.openkeeper.game.data.Settings.Setting.ANIMATION_INTERPOLATION));
+
         // Game logic
         gameLogicThread = new GameLogicManager(
                 gameWorldController.getMapController(),
@@ -218,8 +222,7 @@ public final class GameLoopManager implements IGameLoopManager {
                 new SeparationSystem(entityData, level, gameWorldController.getMapController(), positionSystem),
                 new TrainingDummySystem(entityData, levelInfo.getLevelData(), gameWorldController.getMapController(),
                         gameController.getGameTimer()),
-                new CreatureViewSystem(entityData, levelInfo.getLevelData(), gameController.getGameTimer(),
-                        toniarts.openkeeper.Main.getUserSettings().getBoolean(toniarts.openkeeper.game.data.Settings.Setting.ANIMATION_INTERPOLATION)),
+                creatureViewSystem,
                 new DoorSystem(entityData, level, gameWorldController.getMapController(), levelInfo),
                 new DoorViewSystem(entityData, positionSystem, levelInfo),
                 // Authoritative movement/contact belongs to the logic tick.
@@ -232,6 +235,7 @@ public final class GameLoopManager implements IGameLoopManager {
                 new SpinSystem(entityData, gameController.getGameTimer()),
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),
                 new HaulingSystem(entityData, gameWorldController.getCreaturesController()),
+                creatureViewSystem.getMotionPublication(),
                 new TrapSystem(entityData, level, gameController.getGameTimer(), positionSystem, playerControllers,
                         gameWorldController.getShotsController(), gameEventService),
                 new BoulderSystem(entityData, level, gameSettings, gameWorldController.getMapController(), positionSystem,

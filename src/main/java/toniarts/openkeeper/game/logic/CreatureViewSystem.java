@@ -90,6 +90,7 @@ public final class CreatureViewSystem extends GameTimeCounter {
     private final toniarts.openkeeper.game.controller.IGameTimer gameTimer;
     private final EntityId clockEntity;
     private final boolean publishMotion;
+    private boolean publishMotionAfterTick;
     private long motionSequence;
     private final java.util.Map<EntityId, Position> previousPositions = new java.util.HashMap<>();
 
@@ -121,8 +122,7 @@ public final class CreatureViewSystem extends GameTimeCounter {
     public void processTick(float tpf) {
         super.processTick(tpf);
         if (gameTimer != null) timeElapsed = gameTimer.getGameTime();
-        entityData.setComponent(clockEntity, new toniarts.openkeeper.game.component.SimulationTime(timeElapsed, tpf));
-        motionSequence++;
+        if (!publishMotionAfterTick) publishClock(tpf);
         // Add new & remove old
         if (creatureViewEntities.applyChanges()) {
             processAddedEntities(creatureViewEntities.getAddedEntities());
@@ -243,16 +243,59 @@ public final class CreatureViewSystem extends GameTimeCounter {
                 state = state.next(timeElapsed, targetState);
                 entityData.setComponent(entityId, state);
             }
-            if (publishMotion) {
-                var hauled = entityData.getComponent(entityId, toniarts.openkeeper.game.component.HauledBy.class);
-                var snapshot = new toniarts.openkeeper.game.component.CreatureMotion(
-                    timeElapsed, tpf, motionSequence, position, state,
-                    entityData.getComponent(entityId, Possessed.class) != null
-                    || hauled != null || state.state == Creature.AnimationType.TORTURED_WHEEL);
-                snapshot.hauler = hauled == null ? null : hauled.entityId;
-                entityData.setComponent(entityId, snapshot);
-            }
+            if (!publishMotionAfterTick) publishMotion(entityId, position, state, tpf);
         }
+    }
+
+    /**
+     * Publishes the motion at the end of the logic tick, after the creatures
+     * have moved, instead of when the animations are chosen. The creatures
+     * move on the logic tick and the view interpolates up to the last
+     * publication, so this shows them a tick closer to where they are.
+     *
+     * @return the publication, to run after the movement
+     */
+    public IGameLogicUpdatable getMotionPublication() {
+        publishMotionAfterTick = true;
+        return new IGameLogicUpdatable() {
+            @Override
+            public void start() {
+            }
+
+            @Override
+            public void processTick(float tpf) {
+                publishClock(tpf);
+                for (EntityId entityId : creatureEntities.getArray()) {
+                    CreatureViewState state = entityData.getComponent(entityId, CreatureViewState.class);
+                    Position position = entityData.getComponent(entityId, Position.class);
+                    if (state != null && position != null) {
+                        publishMotion(entityId, position, state, tpf);
+                    }
+                }
+            }
+
+            @Override
+            public void stop() {
+            }
+        };
+    }
+
+    private void publishClock(float tpf) {
+        entityData.setComponent(clockEntity, new toniarts.openkeeper.game.component.SimulationTime(timeElapsed, tpf));
+        motionSequence++;
+    }
+
+    private void publishMotion(EntityId entityId, Position position, CreatureViewState state, float tpf) {
+        if (!publishMotion) {
+            return;
+        }
+        var hauled = entityData.getComponent(entityId, toniarts.openkeeper.game.component.HauledBy.class);
+        var snapshot = new toniarts.openkeeper.game.component.CreatureMotion(
+                timeElapsed, tpf, motionSequence, position, state,
+                entityData.getComponent(entityId, Possessed.class) != null
+                || hauled != null || state.state == Creature.AnimationType.TORTURED_WHEEL);
+        snapshot.hauler = hauled == null ? null : hauled.entityId;
+        entityData.setComponent(entityId, snapshot);
     }
 
     /**
