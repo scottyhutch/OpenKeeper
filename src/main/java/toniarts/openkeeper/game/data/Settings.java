@@ -80,7 +80,8 @@ public final class Settings {
         ANIMATION_CACHE_CLIPS(Integer.class, 0, SettingCategory.GRAPHICS),
         ANIMATION_CACHE_KIB(Integer.class, 256, SettingCategory.GRAPHICS),
         ANIMATION_PACKED_KIB(Integer.class, 0, SettingCategory.GRAPHICS),
-        ANIMATION_INTERPOLATION(Boolean.class, false, SettingCategory.GRAPHICS),
+        // The creatures move on the logic tick, a few times a second, the view interpolates between the ticks
+        ANIMATION_INTERPOLATION(Boolean.class, true, SettingCategory.GRAPHICS),
         ANIMATION_PHASE_VARIATION(Boolean.class, false, SettingCategory.GRAPHICS),
         ANIMATION_BACKEND(String.class, "CPU", SettingCategory.GRAPHICS),
         SSAO(Boolean.class, false, SettingCategory.GRAPHICS),

@@ -17,6 +17,7 @@
 package toniarts.openkeeper.game.logic;
 
 import com.badlogic.gdx.math.Vector2;
+import com.jme3.math.Transform;
 import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityComponent;
 import com.simsilica.es.EntityData;
@@ -29,14 +30,20 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import toniarts.openkeeper.game.component.CreatureComponent;
+import toniarts.openkeeper.game.component.CreatureMotion;
+import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.map.IMapInformation;
+import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.utils.Point;
+import toniarts.openkeeper.view.animation.MotionHistory;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -295,5 +302,45 @@ class MovementSystemTest {
         Vector3f position = entityData.getComponent(creature, Position.class).position;
         assertTrue(position.x > 15, "not walking");
         assertEquals(1, position.y);
+    }
+
+    /**
+     * The creatures move on the logic tick, four times a second. The view
+     * shows a walking creature between the ticks only from the published
+     * motion, so the motion is published unless it is switched off.
+     */
+    @Test
+    void aWalkOnTheLogicTickIsShownBetweenTheTicks() {
+        EntityData entityData = new DefaultEntityData();
+        EntityId creature = entityData.createEntity();
+        entityData.setComponents(creature, new Position(0, new Vector3f(15, 1, 23)), new Mobile(false, false, false, 1),
+                new CreatureViewState((short) 1, 0, Creature.AnimationType.STAND_STILL),
+                new Navigation(new Point(19, 23), null, List.of(new Vector2(15, 23), new Vector2(19, 23))));
+        MovementSystem movementSystem = new MovementSystem(entityData, map(false, false));
+        CreatureViewSystem creatureViewSystem = new CreatureViewSystem(entityData, null, null,
+                (Boolean) Settings.Setting.ANIMATION_INTERPOLATION.getDefaultValue());
+        MotionHistory history = new MotionHistory(8);
+        List<CreatureMotion> published = new ArrayList<>();
+        try {
+            for (int tick = 0; tick < 4; tick++) {
+                creatureViewSystem.processTick(1 / 4f);
+                movementSystem.processTick(1 / 4f);
+                CreatureMotion motion = entityData.getComponent(creature, CreatureMotion.class);
+                assertNotNull(motion, "no motion published for the view");
+                history.add(motion);
+                published.add(motion);
+            }
+        } finally {
+            creatureViewSystem.stop();
+            movementSystem.stop();
+        }
+
+        CreatureMotion before = published.get(2);
+        CreatureMotion after = published.get(3);
+        assertTrue(after.x > before.x, "not walking");
+        Transform shown = new Transform();
+        assertTrue(history.sample((before.time + after.time) / 2, shown));
+        float x = shown.getTranslation().x;
+        assertTrue(x > before.x && x < after.x, "shown at " + x + ", not between the ticks at " + before.x + " and " + after.x);
     }
 }
