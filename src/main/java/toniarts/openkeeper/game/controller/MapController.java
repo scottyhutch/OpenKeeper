@@ -525,7 +525,9 @@ public final class MapController extends Container implements IMapController {
         ThreadCheck.logic("MapController.applyClaimTile");
         IMapTileController tile = getMapData().getTile(point);
         Terrain terrain = getTerrain(tile);
-        if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE) && tile.getOwnerId() != playerId) {
+        // Nobody's reinforced wall is repaired, not dug out (DKII.EXE 0x497960)
+        if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE) && tile.getOwnerId() != playerId
+                && !(terrain.getFlags().contains(Terrain.TerrainFlag.SOLID) && tile.getOwnerId() == Player.NEUTRAL_PLAYER_ID)) {
             if (terrain.getFlags().contains(Terrain.TerrainFlag.ROOM)) {
                 damageRoom(point, playerId, creature);
             } else {
@@ -709,18 +711,14 @@ public final class MapController extends Container implements IMapController {
         boolean oneTicksWorth = false;
         if (terrain.getFlags().contains(Terrain.TerrainFlag.SOLID)) {
 
-            if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE)) {
-                if (tile.getOwnerId() == playerId) {
+            if (terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE) && tile.getOwnerId() == playerId) {
 
-                    // Repairing, which goes on every tick (DK II 0x497AC0)
-                    rate = getLevelVariable(Variable.MiscVariable.MiscType.REPAIR_WALL_HEALTH);
-                    oneTicksWorth = true;
-                } else {
-                    rate = getLevelVariable(Variable.MiscVariable.MiscType.CLAIM_TILE_HEALTH);
-                }
+                // Repairing, which goes on every tick (DK II 0x497AC0)
+                rate = getLevelVariable(Variable.MiscVariable.MiscType.REPAIR_WALL_HEALTH);
+                oneTicksWorth = true;
             } else {
 
-                // Reinforcing, which goes on every tick (DK II 0x497960)
+                // Reinforcing rock, and nobody's reinforced wall, which stays nobody's at full health (DK II 0x497960, 0x452F60)
                 rate = getLevelVariable(Variable.MiscVariable.MiscType.REINFORCE_WALL_HEALTH);
                 oneTicksWorth = true;
             }
