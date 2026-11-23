@@ -29,7 +29,7 @@ class FailedCreatureDeathTest {
         data.setComponents(id,new Position(0,0,0,0),new Owner((short)1,(short)1));
         Node owner = new Node(); owner.setCullHint(Spatial.CullHint.Always);
         owner.setUserData("charred",true); // Isolate scheduling from the installed charred texture.
-        var control = new CreatureViewControl(id,data,creature,Creature.AnimationType.IDLE_1,assets,null); owner.addControl(control);
+        var control = new CreatureViewControl(id,data,creature,Creature.AnimationType.IDLE_1,null,assets,null); owner.addControl(control);
         var states = new AppStateManager(null); int[] plays = {0};
         states.attach(new EffectManagerState(level,assets) {
             @Override public VisualEffect load(Node root,com.jme3.math.Vector3f position,int effect,boolean infinite,short player) { plays[0]++; return null; }

@@ -24,7 +24,7 @@ class FailedAnimationAudioTest {
             var creature = new Creature();
             creature.getAnimations().put(Creature.AnimationType.DIG,new ArtResource("hidden-audio-dig",ArtResource.ArtResourceType.MESH));
             Node parent = new Node(), root = new Node(); parent.attachChild(root);
-            var control = new CreatureViewControl(id,data,creature,Creature.AnimationType.DIG,assets,null); root.addControl(control);
+            var control = new CreatureViewControl(id,data,creature,Creature.AnimationType.DIG,null,assets,null); root.addControl(control);
             try {
                 var category = loopingCategory();
                 var engine = SoundManager.getEngine(); int handle = engine.play(category,1); engine.tick();
@@ -47,7 +47,7 @@ class FailedAnimationAudioTest {
         };
         var creature = new Creature();
         creature.getAnimations().put(Creature.AnimationType.RESEARCHING,new ArtResource("failed-audio-work",ArtResource.ArtResourceType.MESH));
-        Node root = new Node(); var control = new CreatureViewControl(id,data,creature,Creature.AnimationType.RESEARCHING,assets,null); root.addControl(control);
+        Node root = new Node(); var control = new CreatureViewControl(id,data,creature,Creature.AnimationType.RESEARCHING,null,assets,null); root.addControl(control);
         try {
             var category = loopingCategory();
             var engine = SoundManager.getEngine();

@@ -137,7 +137,13 @@ public final class CreatureViewSystem extends GameTimeCounter {
             Creature.AnimationType currentState = state.state;
             Creature.AnimationType targetState = currentState;
             Position position = entityData.getComponent(entityId, Position.class);
-            if (position == null) continue;
+            if (position == null) {
+
+                // In the hand, or gone from the map: nothing to present
+                previousPositions.remove(entityId);
+                if (publishMotion) entityData.removeComponent(entityId, toniarts.openkeeper.game.component.CreatureMotion.class);
+                continue;
+            }
             Position previous = previousPositions.put(entityId, position);
             float dx = previous == null || position == null ? 0 : position.position.x - previous.position.x;
             float dz = previous == null || position == null ? 0 : position.position.z - previous.position.z;
@@ -153,19 +159,15 @@ public final class CreatureViewSystem extends GameTimeCounter {
                 } else {
                     targetState = creatureFall.conjured ? Creature.AnimationType.IDLE_1 : Creature.AnimationType.FALLBACK;
                 }
-            } else if (entityData.getComponent(entityId, Navigation.class) != null) {
-
-                // A creature that is held up on its route stands instead of walking on the spot
-                Navigation navigation = entityData.getComponent(entityId, Navigation.class);
-                if (!moving) {
-                    targetState = Creature.AnimationType.STAND_STILL;
-                } else {
-                    targetState = navigation.pursuingAttackTarget ? Creature.AnimationType.RUN : getWalkAnimation(entityId);
-                }
             } else if (entityData.getComponent(entityId, Death.class) != null) {
                 targetState = Creature.AnimationType.DEATH_POSE;
             } else if (entityData.getComponent(entityId, Unconscious.class) != null) {
                 targetState = Creature.AnimationType.DIE;
+            } else if (entityData.getComponent(entityId, Navigation.class) != null) {
+
+                // A stale route never makes the dead or the knocked out walk
+                Navigation navigation = entityData.getComponent(entityId, Navigation.class);
+                targetState = navigation.pursuingAttackTarget ? Creature.AnimationType.RUN : getWalkAnimation(entityId);
             } else if (entityData.getComponent(entityId, Teleport.class) != null) {
                 targetState = Creature.AnimationType.SPECIAL_1; // The Imp's jump
             } else if (entityData.getComponent(entityId, Possessed.class) != null) {

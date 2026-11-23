@@ -41,7 +41,7 @@ class RetainedCreatureVisualTest {
             creature.getAnimations().put(Creature.AnimationType.WALK,new ArtResource("retained-visual-a-"+suffix,ArtResource.ArtResourceType.MESH));
             creature.getAnimations().put(Creature.AnimationType.IDLE_1,new ArtResource("retained-visual-b-"+suffix,ArtResource.ArtResourceType.MESH));
             Node root = new Node(); var cache = new PreparedAnimationCache(3,1024); root.addControl(cache);
-            var control = new CreatureViewControl(id,data,creature,Creature.AnimationType.WALK,assets,null); root.addControl(control);
+            var control = new CreatureViewControl(id,data,creature,Creature.AnimationType.WALK,null,assets,null); root.addControl(control);
             try {
                 var a = (Node)root.getChild(0); var geometry = (Geometry)a.getChild("vertex");
                 Texture original = geometry.getMaterial().getTextureParam("DiffuseMap").getTextureValue();

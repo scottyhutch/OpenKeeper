@@ -61,17 +61,17 @@ class GameClientLoadingLifetimeTest {
         var level = (IKwdFile) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (proxy, method, args) -> fail("Exited client accessed level data: " + method.getName()));
         var info = new ClientInfo(0, null, 0); info.setKeeper(new Keeper(false, (short) 3));
-        var client = new GameClientState(level, (short) 3, List.of(info), service, app, null);
+        var client = new GameClientState(level, (short) 3, List.of(info), service, app, null, null);
         app.getStateManager().attach(client);
         try {
-            listener.get().onGameEnded(false);
+            listener.get().onGameEnded(null);
             listener.get().onDoTransition((short) 1, new Vector3f());
             assertTrue(app.getStateManager().detach(client));
             client.whenLoadingStopped().toCompletableFuture().get(2, TimeUnit.SECONDS);
             listener.get().onGameDataLoaded(List.of());
             listener.get().onGameStarted();
             listener.get().onGamePaused();
-            listener.get().onGoldChange((short) 3, 100);
+            listener.get().onManaChange((short) 3, 100, 0, 0);
             listener.get().onTilesChange(List.of());
             listener.get().onEffect(1, new Vector3f(), 0);
             listener.get().setPossession(null);
@@ -92,7 +92,7 @@ class GameClientLoadingLifetimeTest {
         var level = (IKwdFile) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (proxy, method, args) -> null);
         var info = new ClientInfo(0, null, 0); info.setKeeper(new Keeper(false, (short) 3));
-        var client = new GameClientState(level, (short) 3, List.of(info), service, app, null);
+        var client = new GameClientState(level, (short) 3, List.of(info), service, app, null, null);
         try {
             var start = new Vector3f(1, 2, 3);
             listener.get().onDoTransition((short) 1, start); start.zero();
@@ -117,7 +117,7 @@ class GameClientLoadingLifetimeTest {
         var level = (IKwdFile) Proxy.newProxyInstance(getClass().getClassLoader(), new Class<?>[]{IKwdFile.class},
                 (p, m, a) -> null);
         var info = new ClientInfo(0, null, 0); info.setKeeper(new Keeper(false, (short) 3));
-        var client = new GameClientState(level, (short) 3, List.of(info), service, app, null);
+        var client = new GameClientState(level, (short) 3, List.of(info), service, app, null, null);
         var data = new DefaultEntityData();
         try {
             var updates = new AtomicInteger();

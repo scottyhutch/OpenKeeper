@@ -16,7 +16,7 @@ class CreatureMotionPublicationTest {
             data.setComponents(carrier, new Position(0, 5, 3, 6), new TaskComponent());
             data.setComponents(victim, initial, new HauledBy(carrier),
                     new CreatureViewState((short) 1, 0, AnimationType.WALK));
-            var hauling = new HaulingSystem(data);
+            var hauling = new HaulingSystem(data, null);
             var view = new CreatureViewSystem(data, null, null, true);
             try {
                 hauling.processTick(.05f); view.processTick(.05f);

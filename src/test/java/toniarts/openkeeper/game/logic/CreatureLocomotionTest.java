@@ -22,7 +22,7 @@ class CreatureLocomotionTest {
                         (proxy,method,args)->method.getName().equals("getCreature") ? creature : null);
                 var data = new DefaultEntityData(); var id = data.createEntity();
                 data.setComponents(id,new Position(0,new Vector3f()),new Possessed(),
-                        new PossessedMovement(new Vector2f(1,0),0,1,mode),
+                        new PossessedMovement(new Vector2f(1,0),0,0,1,mode),
                         new CreatureViewState((short)1,0,Creature.AnimationType.STAND_STILL));
                 var system = new CreatureViewSystem(data,catalog);
                 system.processTick(.25f);
@@ -37,11 +37,12 @@ class CreatureLocomotionTest {
             }
         }
     }
-    @Test void stationaryNavigationAndStaleNavigationOnDeathCannotForceWalking() {
+    @Test void staleNavigationOnDeathCannotForceWalking() {
+        // my-build keeps a creature with a route walking, also while it turns or waits on it
         var data = new DefaultEntityData(); var id = data.createEntity();
         data.setComponents(id,new Position(0,new Vector3f()),new Navigation(),new CreatureViewState((short)1,0,Creature.AnimationType.WALK));
         var system = new CreatureViewSystem(data,null); system.processTick(.25f);
-        assertEquals(Creature.AnimationType.STAND_STILL,data.getComponent(id,CreatureViewState.class).state);
+        assertEquals(Creature.AnimationType.WALK,data.getComponent(id,CreatureViewState.class).state);
         data.setComponent(id,new Death()); system.processTick(.25f);
         assertEquals(Creature.AnimationType.DEATH_POSE,data.getComponent(id,CreatureViewState.class).state);
         system.stop();

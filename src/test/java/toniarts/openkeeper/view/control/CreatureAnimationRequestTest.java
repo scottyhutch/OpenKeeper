@@ -31,7 +31,7 @@ class CreatureAnimationRequestTest {
         var data=new DefaultEntityData(); var creature=new Creature(); var id=data.createEntity();
         creature.getAnimations().put(Creature.AnimationType.WALK,toniarts.openkeeper.tools.convert.map.AnimationFixtures.resource("phase-walk",30,30));
         Node root=new Node(); root.setCullHint(Spatial.CullHint.Always);
-        var control=new CreatureViewControl(id,data,creature,null,assets,null); root.addControl(control);
+        var control=new CreatureViewControl(id,data,creature,null,null,assets,null); root.addControl(control);
         double[] time={10}; control.setGameTime(()->time[0]);
         try {
             assertTrue(control.setViewState(creature,new CreatureViewState((short)1,10,Creature.AnimationType.WALK,5)));
@@ -57,7 +57,7 @@ class CreatureAnimationRequestTest {
                 toniarts.openkeeper.tools.convert.map.AnimationFixtures.resource("late-work-policy",3,30));
         data.setComponent(id,new toniarts.openkeeper.game.component.CreatureAi(0,toniarts.openkeeper.game.controller.creature.CreatureState.IDLE,(short)1));
         Node root = new Node(); root.setCullHint(Spatial.CullHint.Always);
-        var control = new CreatureViewControl(id,data,creature,null,assets,null); root.addControl(control);
+        var control = new CreatureViewControl(id,data,creature,null,null,assets,null); root.addControl(control);
         double[] time = {2.5}; control.setGameTime(()->time[0]);
         data.setComponent(id,new toniarts.openkeeper.game.component.CreatureAi(0,toniarts.openkeeper.game.controller.creature.CreatureState.WORK,(short)1));
         try {
@@ -86,7 +86,7 @@ class CreatureAnimationRequestTest {
         creature.getAnimations().put(Creature.AnimationType.WALK,
                 new ArtResource("request-identity-fixture", ArtResource.ArtResourceType.MESH));
         Node root = new Node(); root.setCullHint(Spatial.CullHint.Always);
-        var control = new CreatureViewControl(id, data, creature, null, assets, null); root.addControl(control);
+        var control = new CreatureViewControl(id, data, creature, null, null, assets, null); root.addControl(control);
         var state = new CreatureViewState((short)1, 2, Creature.AnimationType.WALK);
         assertTrue(control.setViewState(creature, state)); assertEquals(1, AnimationLoader.getModelRevision(root));
         assertFalse(control.isStopAnimation());

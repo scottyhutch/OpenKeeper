@@ -106,7 +106,7 @@ public final class CharacterAnimationCapture extends SimpleApplication {
             entities.setComponent(id,interaction);
             var owner = new Node(creature.getName()); owner.addControl(new PreparedAnimationCache(3,256*1024));
             owner.setCullHint(Spatial.CullHint.Always);
-            var control = new CreatureViewControl(id,entities,creature,null,assetManager,null);
+            var control = new CreatureViewControl(id,entities,creature,null,null,assetManager,null);
             control.setGameTime(()->gameTime); owner.addControl(control); controls.add(control);
             control.setViewState(creature,new CreatureViewState(creature.getCreatureId(),0,Creature.AnimationType.WALK,0));
             owner.setCullHint(Spatial.CullHint.Inherit); rootNode.attachChild(owner); owner.updateGeometricState();

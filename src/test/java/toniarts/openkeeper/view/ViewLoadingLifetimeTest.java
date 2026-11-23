@@ -58,7 +58,7 @@ class ViewLoadingLifetimeTest {
                         : m.getName().equals("getGameLevel") ? toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures.level(4) : null);
     }
     private static PlayerMapViewState map(Main app, EntityData data) {
-        return new PlayerMapViewState(app, level(), null, List.of(), data, (short) 3, false,
+        return new PlayerMapViewState(app, level(), null, List.of(), data, (short) 3, false, null,
                 () -> fail("Incomplete synthetic map reported ready"), id -> { }) {
             @Override protected void updateProgress(float progress) { }
         };
