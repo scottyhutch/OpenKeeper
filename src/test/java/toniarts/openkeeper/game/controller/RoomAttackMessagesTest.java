@@ -305,6 +305,18 @@ class RoomAttackMessagesTest {
     }
 
     @Test
+    void eachSpecialTellsWhatItDidEvenWhileTheLastIsHeld() {
+        roomAttackMessages.specialUsed(KEEPER, (short) 117);
+        roomAttackMessages.specialUsed(KEEPER, (short) 117);
+        roomAttackMessages.specialUsed(KEEPER, (short) 123);
+        roomAttackMessages.specialUsed(KEEPER, (short) 129);
+
+        // Message 0x31, flag 0x4000: "...blessed with experience" twice, "Enemy Imps have been stunned", "A hidden realm..."
+        assertEquals(List.of("490@null>p" + KEEPER, "490@null>p" + KEEPER, "497@null>p" + KEEPER, "502@null>p" + KEEPER), messages);
+        assertEquals(List.of(20f, 20f, 20f, 20f), seconds);
+    }
+
+    @Test
     void lowManaWarningsAreHeldEachOnItsOwn() {
         roomAttackMessages.lowManaWarning(KEEPER, 3);
         gameTime += 10;
@@ -386,6 +398,17 @@ class RoomAttackMessagesTest {
         gameTime += 1;
         roomAttackMessages.creatureMoodWorsened(new EntityId(2), KEEPER, imp, content, unhappy, RoomAttackMessages.MOOD_REASON_NO_LAIR);
         assertEquals(List.of("590@null>p" + KEEPER, "586@null>p" + KEEPER), messages);
+    }
+
+    @Test
+    void theKeeperHearsItsOwnWinOrLossBeforeTheMessagesStop() {
+        entityData.setComponent(entityData.createEntity(), new KeeperComponent(KEEPER));
+        entityData.setComponent(entityData.createEntity(), new KeeperComponent(Player.KEEPER2_ID));
+
+        roomAttackMessages.gameEnded(KEEPER, true);
+        roomAttackMessages.gameEnded(Player.KEEPER2_ID, false);
+
+        assertEquals(List.of("1160@null>p" + KEEPER, "1161@null>p" + Player.KEEPER2_ID), messages);
     }
 
     @Test

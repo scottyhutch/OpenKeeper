@@ -148,10 +148,11 @@ public final class RoomAttackMessages {
          */
         LOW_MANA(20, 447, Map.of(1, 447, 2, 1329, 3, 1330, 4, 1331)),
         /**
-         * "You do not have enough Mana to maintain your Imps", message 0x35
-         * variant 3 (0x4C1BC0)
+         * Message 0x35: "You do not have enough Mana to maintain your Imps",
+         * variant 3 (0x4C1BC0), and "You do not have enough Mana to continue
+         * possession", variant 5 (0x4C10E0)
          */
-        NOT_ENOUGH_MANA_FOR_IMPS(20, 1333, Map.of()),
+        NOT_ENOUGH_MANA(20, 0, Map.of(3, 1333, 5, 1335)),
         /**
          * "The battle in the Combat Pit is over", message 9, told when a
          * fight is down to one fighter standing (0x4D7A60). It has no tile
@@ -203,7 +204,43 @@ public final class RoomAttackMessages {
          * The hints for a keeper whose creatures are not fighting, message
          * 0x58 variants 1 to 8 (0x4B9740)
          */
-        QUIET_HINT(20, 0, Map.of(1, 509, 2, 510, 3, 511, 4, 512, 5, 513, 6, 514, 7, 515, 8, 516), true, INFO_TAB);
+        QUIET_HINT(20, 0, Map.of(1, 509, 2, 510, 3, 511, 4, 512, 5, 513, 6, 514, 7, 515, 8, 516), true, INFO_TAB),
+        /**
+         * "You cannot afford to train creatures", message 0x37 variant 5,
+         * held for 240 seconds (0x47B2D0). Variants 1 to 4 of the message
+         * are for rooms, traps, doors and the rest
+         */
+        CANNOT_AFFORD(20, 0, Map.of(5, 1343), Map.of(5, 240), 20),
+        /**
+         * "Your creatures are unable to get to a Lair", message 0x2B. The
+         * Prison's and the Torture Chamber's are held for 360 seconds
+         * (variant table at 0x6A0528)
+         */
+        UNREACHABLE(300, 0, Map.ofEntries(Map.entry(1, 1313), Map.entry(2, 1314), Map.entry(3, 1322), Map.entry(4, 1315),
+                Map.entry(6, 1327), Map.entry(7, 1316), Map.entry(9, 1328), Map.entry(10, 1319), Map.entry(11, 1326),
+                Map.entry(12, 1325), Map.entry(13, 1318), Map.entry(14, 1321), Map.entry(15, 1320), Map.entry(16, 1317)),
+                Map.of(11, 360, 12, 360), 300),
+        /**
+         * "A creature has been unable to pick up its jackpot winnings",
+         * message 0x4D, when the keeper has less gold than the big winner is
+         * owed (0x457560)
+         */
+        JACKPOT_UNPAID(50, 373, Map.of()),
+        /**
+         * The keeper's own win and loss, messages 0x32 and 0x33 (0x4BE630)
+         */
+        GAME_WON(50, 1160, Map.of()),
+        GAME_LOST(50, 1161, Map.of()),
+        /**
+         * "Your creatures have been blessed with experience" and the rest,
+         * message 0x31, told by each special when it is used (0x4A3FC0 and
+         * its handlers). DK II gives each special a variant of its own, here
+         * the speech goes by the special's object. Posted even while another
+         * one is held
+         */
+        SPECIAL(20, 0, Map.ofEntries(Map.entry(117, 490), Map.entry(118, 492), Map.entry(119, 493), Map.entry(120, 494),
+                Map.entry(121, 495), Map.entry(122, 496), Map.entry(123, 497), Map.entry(124, 498), Map.entry(125, 499),
+                Map.entry(126, 500), Map.entry(127, 501), Map.entry(128, 503), Map.entry(129, 502)), true, INFO_TAB);
 
         private final double duration;
         private final int defaultSpeechId;
@@ -361,7 +398,16 @@ public final class RoomAttackMessages {
      * @param ownerId the keeper
      */
     public void notEnoughManaForImps(short ownerId) {
-        show(Message.NOT_ENOUGH_MANA_FOR_IMPS, ownerId, (short) 0, null);
+        show(Message.NOT_ENOUGH_MANA, ownerId, (short) 3, null);
+    }
+
+    /**
+     * The keeper's possession ends for want of mana
+     *
+     * @param ownerId the keeper
+     */
+    public void notEnoughManaForPossession(short ownerId) {
+        show(Message.NOT_ENOUGH_MANA, ownerId, (short) 5, null);
     }
 
     /**
@@ -400,6 +446,57 @@ public final class RoomAttackMessages {
      */
     public void quietHint(short ownerId, int variant) {
         show(Message.QUIET_HINT, ownerId, (short) variant, null);
+    }
+
+    /**
+     * A creature that would train found that the keeper can't pay for it
+     *
+     * @param ownerId the keeper
+     */
+    public void cannotAffordTraining(short ownerId) {
+        show(Message.CANNOT_AFFORD, ownerId, (short) 5, null);
+    }
+
+    /**
+     * The keeper used a special
+     *
+     * @param ownerId the keeper
+     * @param objectId the special's object
+     */
+    public void specialUsed(short ownerId, short objectId) {
+        show(Message.SPECIAL, ownerId, objectId, null);
+    }
+
+    /**
+     * The big winner of the keeper's Casino came for its winnings and the
+     * keeper has less gold than it is owed
+     *
+     * @param ownerId the keeper
+     */
+    public void jackpotUnpaid(short ownerId) {
+        show(Message.JACKPOT_UNPAID, ownerId, (short) 0, null);
+    }
+
+    /**
+     * The keeper's game has ended. DK II posts the win or loss message only
+     * after it marks the game ended, so its queue turns them away and they are
+     * never heard (0x4BE630, 0x4C4600). Here they come first, as meant
+     *
+     * @param ownerId the keeper
+     * @param won whether the keeper won
+     */
+    public void gameEnded(short ownerId, boolean won) {
+        show(won ? Message.GAME_WON : Message.GAME_LOST, ownerId, (short) 0, null);
+    }
+
+    /**
+     * A creature can't get to the keeper's rooms of the type
+     *
+     * @param ownerId the keeper
+     * @param room the room type
+     */
+    public void roomUnreachable(short ownerId, Room room) {
+        show(Message.UNREACHABLE, ownerId, room.getRoomId(), null);
     }
 
     /**
