@@ -106,6 +106,22 @@ MaterialDef DK Flat Lighting {
             ColorWrite Off
         }
     }
+    // SSAO's normal pass: without it SSAOFilter leaves these geometries out
+    // of its normal buffer, and the occlusion uses the buffer's clear colour
+    Technique PreNormalPass {
+        VertexShader GLSL330 GLSL300: Shaders/AnimationNormal.vert
+        FragmentShader GLSL330 GLSL300: Shaders/AnimationNormal.frag
+        WorldParameters {
+            WorldViewProjectionMatrix
+            NormalMatrix
+            Time
+        }
+        Defines {
+            VERTEX_ANIMATION : VertexAnimationMap
+            ALPHA_COVERAGE : UseAlphaCoverage
+            DISCARD_ALPHA : AlphaDiscardThreshold
+        }
+    }
     Technique PostShadow {
         VertexShader GLSL330 GLSL300: Shaders/PostShadowSprite.vert
         FragmentShader GLSL330 GLSL300: Shaders/PostShadowSprite.frag

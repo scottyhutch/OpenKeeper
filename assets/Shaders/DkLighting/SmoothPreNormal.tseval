@@ -1,0 +1,26 @@
+// Mesh smoothing, tessellation evaluation of the SSAO normal pass: the
+// smoothed surface (Smooth.glsllib) and its normal, for AnimationNormal.frag.
+// Explicit locations (GLSL 330, #540)
+#extension GL_ARB_separate_shader_objects : enable
+layout(triangles, fractional_odd_spacing, ccw) in;
+
+#import "Common/ShaderLib/GLSLCompat.glsllib"
+#import "Common/ShaderLib/Instancing.glsllib"
+#import "Shaders/DkLighting/Smooth.glsllib"
+
+in vec3 tcPosition[];
+in vec3 tcNormal[];
+in vec2 tcTexCoord[];
+
+layout(location = 0) out vec2 texCoord;
+layout(location = 1) out vec3 viewNormal;
+
+void main() {
+    vec3 coord = gl_TessCoord;
+    vec3 p[3] = vec3[](tcPosition[0], tcPosition[1], tcPosition[2]);
+    vec3 n[3] = vec3[](tcNormal[0], tcNormal[1], tcNormal[2]);
+    vec3 normal;
+    gl_Position = TransformWorldViewProjection(vec4(smoothSurface(p, n, coord, normal), 1.0));
+    viewNormal = TransformNormal(normal);
+    texCoord = coord.x * tcTexCoord[0] + coord.y * tcTexCoord[1] + coord.z * tcTexCoord[2];
+}

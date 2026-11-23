@@ -187,6 +187,32 @@ MaterialDef DK Smooth Lighting {
         }
     }
 
+    // SSAO's normal pass, of the smoothed surface (see Vertex.j3md)
+    Technique PreNormalPass {
+        VertexShader GLSL400: Shaders/DkLighting/Smooth.vert
+        TessellationControlShader GLSL400: Shaders/DkLighting/Smooth.tsctrl
+        TessellationEvaluationShader GLSL400: Shaders/DkLighting/SmoothPreNormal.tseval
+        FragmentShader GLSL400: Shaders/AnimationNormal.frag
+
+        WorldParameters {
+            WorldViewProjectionMatrix
+            WorldViewMatrix
+            ProjectionMatrix
+            NormalMatrix
+            Resolution
+            Time
+        }
+        Defines {
+            VERTEX_ANIMATION : VertexAnimationMap
+            VERTEX_NORMALS : VertexAnimationNormalMap
+            PHONG_TESSELLATION : PhongTessellation
+            CONTROLLED_ANIMATION : UseAnimationFrame
+            ANIMATED_TILES : NumberOfTiles
+            ALPHA_COVERAGE : UseAlphaCoverage
+            DISCARD_ALPHA : AlphaDiscardThreshold
+        }
+    }
+
     Technique PostShadow {
         VertexShader GLSL400: Shaders/DkLighting/Smooth.vert
         TessellationControlShader GLSL400: Shaders/DkLighting/Smooth.tsctrl
