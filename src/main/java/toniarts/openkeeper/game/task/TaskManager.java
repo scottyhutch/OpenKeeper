@@ -834,11 +834,11 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      * @return true if the creature was given a new task
      */
     public boolean assignFreeRoomTask(ICreatureController creature, IRoomController room, ObjectType objectType) {
-        Map<Point, AbstractCapacityCriticalRoomTask> taskPoints = roomTasks.computeIfAbsent(room, r -> new HashMap<>());
+        Map<Long, Point> taskPoints = roomTasks.computeIfAbsent(room, r -> new HashMap<>());
         Point currentPosition = creature.getCreatureCoordinates();
         IRoomObjectControl<?> control = room.getObjectControl(objectType);
         Point target = control.getAvailableCoordinates().stream()
-                .filter(p -> !taskPoints.containsKey(p) && room.isTileAccessible(null, p))
+                .filter(p -> !taskPoints.containsValue(p) && room.isTileAccessible(null, p))
                 .min(Comparator.comparingInt(p -> WorldUtils.calculateDistance(currentPosition, p)))
                 .orElse(null);
         if (target == null || navigationService.findPath(currentPosition, target, creature) == null) {
@@ -846,7 +846,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         }
 
         AbstractCapacityCriticalRoomTask task = (AbstractCapacityCriticalRoomTask) getRoomTask(objectType, target, null, creature, room);
-        taskPoints.put(target, task);
+        taskPoints.put(task.getId(), target);
         task.assign(creature, true);
         tasksByIds.put(task.getId(), task);
         return true;
