@@ -154,6 +154,7 @@ class KillCreaturesTest {
         RoomInstance heartRoom = new RoomInstance(new Room());
         heartRoom.addCoordinate(HEART_CENTRE);
         IRoomController roomController = stub(IRoomController.class, (name, args) -> "getRoomInstance".equals(name) ? heartRoom : null);
+        // A map without tiles, the hero has nowhere to walk from
         IMapDataInformation<?> mapData = stub(IMapDataInformation.class, (name, args) -> null);
         return stub(IMapController.class, (name, args) -> switch (name) {
             case "getRoomControllerByCoordinates" -> roomController;
