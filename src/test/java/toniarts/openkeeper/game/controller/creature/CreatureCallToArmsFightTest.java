@@ -118,8 +118,11 @@ class CreatureCallToArmsFightTest {
         ICreaturesController creaturesController = proxy(ICreaturesController.class, "createController",
                 proxy(ICreatureController.class, null, null));
         IEntityPositionLookup lookup = proxy(IEntityPositionLookup.class, "getSensedEntities", Set.of());
-        ILevelInfo levelInfo = proxy(ILevelInfo.class, "getPlayer", new Keeper(false, KEEPER));
-        return new CreatureController(creature, entityData, CreatureSleepFixtures.sleeper(9), null, null, () -> 0,
+        // Every other keeper is an enemy
+        ILevelInfo levelInfo = (ILevelInfo) Proxy.newProxyInstance(ILevelInfo.class.getClassLoader(), new Class<?>[]{ILevelInfo.class},
+                (object, method, args) -> method.getName().equals("getPlayer") ? new Keeper(false, (Short) args[0]) : null);
+        return new CreatureController(creature, entityData, CreatureSleepFixtures.sleeper(9),
+                proxy(INavigationService.class, "findPath", new DefaultGraphPath<>()), null, () -> 0,
                 settings, creaturesController, lookup, null, levelInfo, null, null, null);
     }
 
