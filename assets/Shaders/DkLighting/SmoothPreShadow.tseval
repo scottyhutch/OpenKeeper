@@ -1,0 +1,22 @@
+// Mesh smoothing, tessellation evaluation of the shadow map pass: the smoothed
+// surface (Smooth.glsllib) for LightingSprite.frag, like AnimationShadow.vert.
+layout(triangles, fractional_odd_spacing, ccw) in;
+
+#import "Common/ShaderLib/GLSLCompat.glsllib"
+#import "Common/ShaderLib/Instancing.glsllib"
+#import "Shaders/DkLighting/Smooth.glsllib"
+
+in vec3 tcPosition[];
+in vec3 tcNormal[];
+in vec2 tcTexCoord[];
+
+out vec2 texCoord;
+
+void main() {
+    vec3 coord = gl_TessCoord;
+    vec3 p[3] = vec3[](tcPosition[0], tcPosition[1], tcPosition[2]);
+    vec3 n[3] = vec3[](tcNormal[0], tcNormal[1], tcNormal[2]);
+    vec3 normal;
+    gl_Position = TransformWorldViewProjection(vec4(smoothSurface(p, n, coord, normal), 1.0));
+    texCoord = coord.x * tcTexCoord[0] + coord.y * tcTexCoord[1] + coord.z * tcTexCoord[2];
+}

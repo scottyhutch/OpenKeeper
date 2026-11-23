@@ -391,7 +391,9 @@ public final class AssetUtils {
     }
 
     public static boolean isVertexMaterial(Material material) {
-        return VERTEX_MATDEF.equals(material.getMaterialDef().getAssetName());
+        String def = material.getMaterialDef().getAssetName();
+        // Mesh smoothing's stand-in is lit the same way
+        return VERTEX_MATDEF.equals(def) || toniarts.openkeeper.animation.VertexTextureBackend.SMOOTH_MATDEF.equals(def);
     }
 
     /**

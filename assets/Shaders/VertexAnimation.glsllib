@@ -6,7 +6,9 @@
 //
 // The two key frames and the weight come from PoseTrack per geometry, and the
 // blend is the same one its CPU path writes into the position buffer:
-// a + (b - a) * weight. Normals are not animated, as on the CPU path.
+// a + (b - a) * weight. Normals are not animated, as on the CPU path, except
+// with mesh smoothing: then VERTEX_NORMALS has every key frame's normals in a
+// second texture of the same layout (see VertexNormals), blended the same way.
 #ifdef VERTEX_ANIMATION
 uniform sampler2D m_VertexAnimationMap;
 uniform int m_VertexAnimationWidth;
@@ -14,6 +16,9 @@ uniform int m_VertexAnimationVertices;
 uniform int m_VertexAnimationFrameA;
 uniform int m_VertexAnimationFrameB;
 uniform float m_VertexAnimationWeight;
+#ifdef VERTEX_NORMALS
+uniform sampler2D m_VertexAnimationNormalMap;
+#endif
 
 vec3 vertexAnimationFetch(int frame) {
     int texel = frame * m_VertexAnimationVertices + gl_VertexID;
@@ -28,5 +33,17 @@ vec3 vertexAnimationPosition(vec3 position) {
     return a + (b - a) * m_VertexAnimationWeight;
 #else
     return position;
+#endif
+}
+
+vec3 vertexAnimationNormal(vec3 normal) {
+#if defined(VERTEX_ANIMATION) && defined(VERTEX_NORMALS)
+    int texelA = m_VertexAnimationFrameA * m_VertexAnimationVertices + gl_VertexID;
+    int texelB = m_VertexAnimationFrameB * m_VertexAnimationVertices + gl_VertexID;
+    vec3 a = texelFetch(m_VertexAnimationNormalMap, ivec2(texelA % m_VertexAnimationWidth, texelA / m_VertexAnimationWidth), 0).xyz;
+    vec3 b = texelFetch(m_VertexAnimationNormalMap, ivec2(texelB % m_VertexAnimationWidth, texelB / m_VertexAnimationWidth), 0).xyz;
+    return normalize(a + (b - a) * m_VertexAnimationWeight);
+#else
+    return normal;
 #endif
 }

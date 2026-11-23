@@ -1,0 +1,60 @@
+// Mesh smoothing, tessellation control: passes the corners on and splits each
+// edge by how long it looks on screen, one segment per m_TessellationPixels
+// pixels, at most m_TessellationSegments. The level of an edge only depends on
+// its two corners, so the triangles on both sides of it agree and no crack
+// opens between them.
+layout(vertices = 3) out;
+
+uniform mat4 g_WorldViewMatrix;
+uniform mat4 g_ProjectionMatrix;
+uniform vec2 g_Resolution;
+uniform float m_TessellationSegments;
+uniform float m_TessellationPixels;
+
+in vec3 vsPosition[];
+in vec3 vsNormal[];
+in vec2 vsTexCoord[];
+
+out vec3 tcPosition[];
+out vec3 tcNormal[];
+out vec2 tcTexCoord[];
+
+bool straight(vec3 a, vec3 b, vec3 na, vec3 nb) {
+    // An edge whose corner normals both stand square on it stays a straight
+    // line on the smoothed surface, splitting it adds nothing
+    vec3 edge = b - a;
+    float limit = 1e-3 * length(edge);
+    return abs(dot(edge, na)) <= limit && abs(dot(edge, nb)) <= limit;
+}
+
+float edgeSegments(vec3 a, vec3 b, vec3 na, vec3 nb) {
+    if (straight(a, b, na, nb)) {
+        return 1.0;
+    }
+    vec4 viewA = g_WorldViewMatrix * vec4(a, 1.0);
+    vec4 viewB = g_WorldViewMatrix * vec4(b, 1.0);
+    // Clip w of the middle: the depth for a perspective camera, 1 for an
+    // orthographic one (the shadow cameras)
+    float w = (g_ProjectionMatrix * (0.5 * (viewA + viewB))).w;
+    float pixels = distance(viewA.xyz, viewB.xyz) * g_ProjectionMatrix[1][1] * 0.5 * g_Resolution.y / max(w, 0.01);
+    return clamp(pixels / max(m_TessellationPixels, 0.5), 1.0, max(m_TessellationSegments, 1.0));
+}
+
+void main() {
+    tcPosition[gl_InvocationID] = vsPosition[gl_InvocationID];
+    tcNormal[gl_InvocationID] = vsNormal[gl_InvocationID];
+    tcTexCoord[gl_InvocationID] = vsTexCoord[gl_InvocationID];
+    if (gl_InvocationID == 0) {
+        // Outer level i is the edge facing corner i
+        float e0 = edgeSegments(vsPosition[1], vsPosition[2], vsNormal[1], vsNormal[2]);
+        float e1 = edgeSegments(vsPosition[2], vsPosition[0], vsNormal[2], vsNormal[0]);
+        float e2 = edgeSegments(vsPosition[0], vsPosition[1], vsNormal[0], vsNormal[1]);
+        gl_TessLevelOuter[0] = e0;
+        gl_TessLevelOuter[1] = e1;
+        gl_TessLevelOuter[2] = e2;
+        // A flat triangle (every edge straight) is drawn as it is, exactly where
+        // the unsmoothed one is: no depth fighting between the two sides of a
+        // double-sided sheet
+        gl_TessLevelInner[0] = max(e0, max(e1, e2));
+    }
+}

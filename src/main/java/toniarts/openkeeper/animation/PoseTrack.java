@@ -179,6 +179,12 @@ public final class PoseTrack extends MorphTrack {
      */
     private static final Map<PoseFrame[], WeakReference<Mesh>> SHARED_MESHES
             = Collections.synchronizedMap(new WeakHashMap<>());
+    /**
+     * The same for mesh smoothing, drawn as patches of three for the
+     * tessellation shaders
+     */
+    private static final Map<PoseFrame[], WeakReference<Mesh>> SMOOTH_MESHES
+            = Collections.synchronizedMap(new WeakHashMap<>());
 
     private void validateFrames() {
         Mesh mesh = getTarget().getMesh();
@@ -326,7 +332,12 @@ public final class PoseTrack extends MorphTrack {
                 int lower = result >= 0 ? result : Math.max(0, -result - 2);
                 int upper = result >= 0 ? result : Math.min(times.length - 1, lower + 1);
                 float weight = upper == lower ? 0 : (sampleTime - times[lower]) / (times[upper] - times[lower]);
-                useSharedMesh();
+                boolean smooth = VertexTextureBackend.isSmoothing() && VertexTextureBackend.canSmooth(getTarget());
+                if (smooth) {
+                    packNormals(texture);
+                }
+                useSharedMesh(smooth);
+                VertexTextureBackend.useSmoothMaterial(getTarget(), smooth);
                 VertexTextureBackend.apply(getTarget(), texture, lower, upper, weight);
                 vertexTextureBound = true;
                 positionsStale = true;
@@ -337,6 +348,7 @@ public final class PoseTrack extends MorphTrack {
         }
         if (vertexTextureBound) {
             VertexTextureBackend.clear(getTarget());
+            VertexTextureBackend.useSmoothMaterial(getTarget(), false);
             vertexTextureBound = false;
         }
         long uploaded = writePositions(time, sampleTime);
@@ -350,12 +362,14 @@ public final class PoseTrack extends MorphTrack {
      * @return the bytes written
      */
     private long writePositions(double time, float sampleTime) {
-        WeakReference<Mesh> shared = frames == null ? null : SHARED_MESHES.get(frames);
-        if (shared != null && shared.get() == getTarget().getMesh()) {
+        if (isShared(SHARED_MESHES) || isShared(SMOOTH_MESHES)) {
             pickingMesh = getTarget().getMesh().cloneForAnim();
             getTarget().setMesh(pickingMesh);
         }
         Mesh mesh = getTarget().getMesh();
+        if (!vertexTextureBound && mesh.getMode() == Mesh.Mode.Patch) {
+            mesh.setMode(Mesh.Mode.Triangles); // Back on the CPU, no tessellation
+        }
         FloatBuffer bindPose = (FloatBuffer) mesh.getBuffer(Type.BindPosePosition).getData();
         VertexBuffer position = mesh.getBuffer(Type.Position);
         FloatBuffer vertices = (FloatBuffer) position.getData();
@@ -388,7 +402,14 @@ public final class PoseTrack extends MorphTrack {
             }
         }
         position.updateData(vertices);
-        mesh.clearCollisionData(); // Rebuild lazily if an animated surface is picked.
+        if (mesh.getMode() == Mesh.Mode.Patch) {
+            // Picking reads triangle lists only, and a patch of three is a triangle
+            mesh.setMode(Mesh.Mode.Triangles);
+            mesh.createCollisionData();
+            mesh.setMode(Mesh.Mode.Patch);
+        } else {
+            mesh.clearCollisionData(); // Rebuild lazily if an animated surface is picked.
+        }
         sampledMesh = mesh;
         sampledBuffer = vertices;
         lastSampleTime = sampleTime;
@@ -446,20 +467,97 @@ public final class PoseTrack extends MorphTrack {
         return texture.orElse(null);
     }
 
+    private boolean isShared(Map<PoseFrame[], WeakReference<Mesh>> meshes) {
+        WeakReference<Mesh> shared = frames == null ? null : meshes.get(frames);
+        return shared != null && shared.get() == getTarget().getMesh();
+    }
+
+    /**
+     * Computes the per key frame normals for mesh smoothing, once per clip.
+     * The model's other meshes in the clip (one per material) are done with
+     * this one, so the seams between them are welded too.
+     */
+    private void packNormals(VertexAnimationTexture texture) {
+        if (texture.hasNormals()) {
+            return;
+        }
+        java.util.List<PoseTrack> tracks = new java.util.ArrayList<>();
+        for (com.jme3.scene.Spatial node = getTarget(); node != null && tracks.isEmpty(); node = node.getParent()) {
+            com.jme3.anim.AnimComposer composer = node.getControl(com.jme3.anim.AnimComposer.class);
+            if (composer != null) {
+                for (com.jme3.anim.AnimClip clip : composer.getAnimClips()) {
+                    if (java.util.Arrays.asList(clip.getTracks()).contains(this)) {
+                        for (var track : clip.getTracks()) {
+                            if (track instanceof PoseTrack pose && pose.getTarget() != null
+                                    && pose.getTarget().getLocalTransform().equals(getTarget().getLocalTransform())
+                                    && pose.getVertexAnimationTexture() != null) {
+                                tracks.add(pose);
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (!tracks.contains(this)) {
+            tracks = java.util.List.of(this);
+        }
+        java.util.List<VertexAnimationTexture> textures = new java.util.ArrayList<>();
+        java.util.List<int[]> triangles = new java.util.ArrayList<>();
+        java.util.List<float[]> normals = new java.util.ArrayList<>();
+        for (PoseTrack track : tracks) {
+            textures.add(track.getVertexAnimationTexture());
+            triangles.add(track.triangles());
+            normals.add(track.baseNormals());
+        }
+        VertexAnimationTexture.packNormals(textures, triangles, normals);
+    }
+
+    private int[] triangles() {
+        Mesh mesh = getTarget().getMesh();
+        // The raw indices: a patch list of three is the same triangle list
+        var indexBuffer = mesh.getIndexBuffer();
+        int[] triangles = new int[indexBuffer == null ? mesh.getVertexCount() : indexBuffer.size()];
+        for (int i = 0; i < triangles.length; i++) {
+            triangles[i] = indexBuffer == null ? i : indexBuffer.get(i);
+        }
+        return triangles;
+    }
+
+    private float[] baseNormals() {
+        Mesh mesh = getTarget().getMesh();
+        VertexBuffer normalBuffer = mesh.getBuffer(Type.Normal);
+        if (normalBuffer != null && normalBuffer.getNumComponents() == 3
+                && normalBuffer.getData() instanceof FloatBuffer data && data.limit() == mesh.getVertexCount() * 3) {
+            float[] normals = new float[data.limit()];
+            data.get(0, normals);
+            return normals;
+        }
+        return null;
+    }
+
     /**
      * Draws every instance from one mesh, the vertex shader doesn't read the
      * positions
+     *
+     * @param smooth whether the mesh is tessellated, then it is drawn as
+     * patches
      */
-    private void useSharedMesh() {
+    private void useSharedMesh(boolean smooth) {
         Mesh mesh = getTarget().getMesh();
+        Map<PoseFrame[], WeakReference<Mesh>> meshes = smooth ? SMOOTH_MESHES : SHARED_MESHES;
         Mesh shared;
-        synchronized (SHARED_MESHES) {
-            WeakReference<Mesh> reference = SHARED_MESHES.get(frames);
+        synchronized (meshes) {
+            WeakReference<Mesh> reference = meshes.get(frames);
             shared = reference == null ? null : reference.get();
             if (shared == null) {
                 shared = mesh.cloneForAnim();
-                SHARED_MESHES.put(frames, new WeakReference<>(shared));
+                shared.setPatchVertexCount(3);
+                shared.setMode(smooth ? Mesh.Mode.Patch : Mesh.Mode.Triangles);
+                meshes.put(frames, new WeakReference<>(shared));
             }
+        }
+        if (pickingMesh != null && pickingMesh.getMode() != shared.getMode()) {
+            pickingMesh = null; // Made before smoothing was switched
         }
         // A geometry that got positions of its own for picking keeps them, so picking it again doesn't copy again
         if (mesh != shared && mesh != pickingMesh) {

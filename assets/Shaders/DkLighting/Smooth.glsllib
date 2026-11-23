@@ -1,0 +1,90 @@
+// Mesh smoothing: the curved surface over one triangle of a low-poly model,
+// from its three corners and their normals, at a tessellation coordinate
+// (gl_TessCoord: the weights of corners 0, 1 and 2). Two published schemes,
+// written from the papers' formulas:
+//  - PN triangles (the default): A. Vlachos, J. Peters, C. Boyd, J. L.
+//    Mitchell, "Curved PN Triangles", ACM Symposium on Interactive 3D
+//    Graphics 2001. A cubic Bezier triangle for the position and a
+//    quadratic one for the normal.
+//  - Phong tessellation (PHONG_TESSELLATION): T. Boubekeur, M. Alexa, "Phong
+//    Tessellation", ACM Transactions on Graphics 27(5), 2008. The flat point
+//    projected onto the corners' tangent planes, shape factor 3/4, with
+//    linearly blended normals.
+// A point on an edge only depends on that edge's corners, so neighbouring
+// triangles meet as long as they share the corners' positions and normals
+// (VertexNormals welds them).
+
+// The PN triangle's control points are named after the paper: b300, b030 and
+// b003 are the corners P1 = p[0], P2 = p[1] and P3 = p[2], weighted by
+// w = coord.x, u = coord.y and v = coord.z.
+
+vec3 smoothEdgePoint(vec3 near, vec3 far, vec3 nearNormal) {
+    // (2 Pi + Pj - wij Ni) / 3, wij = (Pj - Pi) . Ni
+    return (2.0 * near + far - dot(far - near, nearNormal) * nearNormal) / 3.0;
+}
+
+vec3 smoothEdgeNormal(vec3 p1, vec3 p2, vec3 n1, vec3 n2) {
+    // The middle normal of an edge, mirrored at the plane perpendicular to it
+    vec3 edge = p2 - p1;
+    float length2 = dot(edge, edge);
+    float v = length2 > 1e-12 ? 2.0 * dot(edge, n1 + n2) / length2 : 0.0;
+    vec3 n = n1 + n2 - v * edge;
+    float nLength = length(n);
+    return nLength > 1e-6 ? n / nLength : normalize(n1 + n2 + vec3(1e-6));
+}
+
+vec3 smoothProject(vec3 q, vec3 p, vec3 n) {
+    return q - dot(q - p, n) * n;
+}
+
+vec3 smoothPosition(vec3 p[3], vec3 n[3], vec3 coord) {
+    float w = coord.x;
+    float u = coord.y;
+    float v = coord.z;
+#ifdef PHONG_TESSELLATION
+    vec3 linearPoint = w * p[0] + u * p[1] + v * p[2];
+    vec3 phong = w * smoothProject(linearPoint, p[0], n[0]) + u * smoothProject(linearPoint, p[1], n[1])
+            + v * smoothProject(linearPoint, p[2], n[2]);
+    return mix(linearPoint, phong, 0.75);
+#else
+    vec3 b210 = smoothEdgePoint(p[0], p[1], n[0]);
+    vec3 b120 = smoothEdgePoint(p[1], p[0], n[1]);
+    vec3 b021 = smoothEdgePoint(p[1], p[2], n[1]);
+    vec3 b012 = smoothEdgePoint(p[2], p[1], n[2]);
+    vec3 b102 = smoothEdgePoint(p[2], p[0], n[2]);
+    vec3 b201 = smoothEdgePoint(p[0], p[2], n[0]);
+    vec3 e = (b210 + b120 + b021 + b012 + b102 + b201) / 6.0;
+    vec3 centre = (p[0] + p[1] + p[2]) / 3.0;
+    vec3 b111 = e + (e - centre) * 0.5;
+    return p[0] * w * w * w + p[1] * u * u * u + p[2] * v * v * v
+            + b210 * 3.0 * w * w * u + b120 * 3.0 * w * u * u + b201 * 3.0 * w * w * v
+            + b021 * 3.0 * u * u * v + b102 * 3.0 * w * v * v + b012 * 3.0 * u * v * v
+            + b111 * 6.0 * w * u * v;
+#endif
+}
+
+vec3 smoothNormal(vec3 p[3], vec3 n[3], vec3 coord) {
+    float w = coord.x;
+    float u = coord.y;
+    float v = coord.z;
+#ifdef PHONG_TESSELLATION
+    return normalize(w * n[0] + u * n[1] + v * n[2]);
+#else
+    vec3 n110 = smoothEdgeNormal(p[0], p[1], n[0], n[1]);
+    vec3 n011 = smoothEdgeNormal(p[1], p[2], n[1], n[2]);
+    vec3 n101 = smoothEdgeNormal(p[2], p[0], n[2], n[0]);
+    return normalize(n[0] * w * w + n[1] * u * u + n[2] * v * v
+            + n110 * w * u + n011 * u * v + n101 * w * v);
+#endif
+}
+
+// The two sides of a double-sided sheet share their corners but face away
+// from each other. Tessellated, the two sides are cut into triangles in
+// mirrored patterns and would fight over the depth; each is pushed a hair
+// towards its own side, so the side facing the camera is drawn.
+const float SMOOTH_SHELL = 0.002;
+
+vec3 smoothSurface(vec3 p[3], vec3 n[3], vec3 coord, out vec3 normal) {
+    normal = smoothNormal(p, n, coord);
+    return smoothPosition(p, n, coord) + normal * SMOOTH_SHELL;
+}
