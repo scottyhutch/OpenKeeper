@@ -3,6 +3,7 @@
 #import "Common/ShaderLib/Skinning.glsllib"
 #import "Common/ShaderLib/MorphAnim.glsllib"
 #import "Shaders/AnimationFrame.glsllib"
+#import "Shaders/VertexAnimation.glsllib"
 
 uniform mat4 m_LightViewProjectionMatrix0;
 uniform mat4 m_LightViewProjectionMatrix1;
@@ -58,7 +59,7 @@ const mat4 biasMat = mat4(0.5, 0.0, 0.0, 0.0,
 
 
 void main(){
-   vec4 modelSpacePos = vec4(inPosition, 1.0);
+   vec4 modelSpacePos = vec4(vertexAnimationPosition(inPosition), 1.0);
 
    #ifdef NUM_MORPH_TARGETS
        Morph_Compute(modelSpacePos);

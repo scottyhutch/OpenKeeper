@@ -1,0 +1,32 @@
+// The VERTEX_TEXTURE animation backend: a creature's key frames, decoded once
+// into a float texture shared by every instance of the model. Texel
+// (frame * vertices + vertex) holds that vertex's position in that key frame,
+// row by row, m_VertexAnimationWidth texels a row. The vertex is found by
+// gl_VertexID, the index the draw call read from the mesh's index buffer.
+//
+// The two key frames and the weight come from PoseTrack per geometry, and the
+// blend is the same one its CPU path writes into the position buffer:
+// a + (b - a) * weight. Normals are not animated, as on the CPU path.
+#ifdef VERTEX_ANIMATION
+uniform sampler2D m_VertexAnimationMap;
+uniform int m_VertexAnimationWidth;
+uniform int m_VertexAnimationVertices;
+uniform int m_VertexAnimationFrameA;
+uniform int m_VertexAnimationFrameB;
+uniform float m_VertexAnimationWeight;
+
+vec3 vertexAnimationFetch(int frame) {
+    int texel = frame * m_VertexAnimationVertices + gl_VertexID;
+    return texelFetch(m_VertexAnimationMap, ivec2(texel % m_VertexAnimationWidth, texel / m_VertexAnimationWidth), 0).xyz;
+}
+#endif
+
+vec3 vertexAnimationPosition(vec3 position) {
+#ifdef VERTEX_ANIMATION
+    vec3 a = vertexAnimationFetch(m_VertexAnimationFrameA);
+    vec3 b = vertexAnimationFetch(m_VertexAnimationFrameB);
+    return a + (b - a) * m_VertexAnimationWeight;
+#else
+    return position;
+#endif
+}

@@ -81,6 +81,7 @@ import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.utils.WorldUtils;
 import toniarts.openkeeper.view.PlayerInteractionState.InteractionState;
 import toniarts.openkeeper.view.PlayerInteractionState.InteractionState.Type;
+import toniarts.openkeeper.view.animation.AnimationLoader;
 import toniarts.openkeeper.view.control.CreatureViewControl;
 import toniarts.openkeeper.view.control.IEntityViewControl;
 import toniarts.openkeeper.view.effect.EffectManagerState;
@@ -495,6 +496,7 @@ public abstract class PlayerInteractionState extends AbstractPauseAwareState {
         if (playerEntityViewState == null) {
             playerEntityViewState = stateManager.getState(Short.toString(player.getPlayerId()), PlayerEntityViewState.class);
         }
+        AnimationLoader.materializePoses(playerEntityViewState.getRoot(), ray);
         playerEntityViewState.getRoot().collideWith(ray, results);
 
         // See the results so we see what is going on

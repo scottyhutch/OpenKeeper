@@ -2,6 +2,7 @@
 #import "Shaders/AnimationFrame.glsllib"
 #import "Common/ShaderLib/Instancing.glsllib"
 #import "Shaders/DkLighting/DkFalloff.glsllib"
+#import "Shaders/VertexAnimation.glsllib"
 
 // Must match SceneLights.MAX_LIGHTS.
 #define DK_MAX_LIGHTS 3084
@@ -52,7 +53,7 @@ varying vec3 vOverlay;
 varying vec3 vGlow;
 
 void main() {
-    vec4 modelSpacePos = vec4(inPosition, 1.0);
+    vec4 modelSpacePos = vec4(vertexAnimationPosition(inPosition), 1.0);
     gl_Position = TransformWorldViewProjection(modelSpacePos);
     texCoord = inTexCoord;
 #ifdef ANIMATED_TILES

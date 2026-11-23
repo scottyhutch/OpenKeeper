@@ -3,6 +3,7 @@ package toniarts.openkeeper.view.animation;
 
 import com.jme3.anim.AnimComposer;
 import com.jme3.asset.AssetManager;
+import com.jme3.math.Ray;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
@@ -15,6 +16,8 @@ import java.util.function.DoubleSupplier;
 import com.jme3.scene.VertexBuffer;
 import java.lang.System.Logger;
 import java.nio.FloatBuffer;
+import toniarts.openkeeper.animation.PoseTrack;
+import toniarts.openkeeper.animation.VertexTextureBackend;
 import toniarts.openkeeper.tools.convert.KmfModelLoader;
 import toniarts.openkeeper.tools.convert.kmf.Anim;
 import toniarts.openkeeper.tools.convert.map.ArtResource;
@@ -182,7 +185,9 @@ public final class AnimationLoader {
                 continue;
             }
 
-            // "geometry index, vertex index", the animation keeps the position buffer up to date
+            // "geometry index, vertex index", the animation keeps the position buffer up to date (on the
+            // VERTEX_TEXTURE backend only when asked)
+            materializePoses(animNode, null);
             int separator = point.indexOf(' ');
             Geometry geometry = (Geometry) animNode.getChild(Integer.parseInt(point, 0, separator, 10));
             FloatBuffer positions = geometry.getMesh().getFloatBuffer(VertexBuffer.Type.Position);
@@ -231,6 +236,47 @@ public final class AnimationLoader {
             var composer = node.getControl(AnimComposer.class);
             if (composer != null) for (var clip : composer.getAnimClips()) for (var track : clip.getTracks())
                 if (track instanceof toniarts.openkeeper.animation.PoseTrack pose) pose.refreshPendingPose();
+        });
+    }
+    /**
+     * On the VERTEX_TEXTURE backend the vertex shader draws the animation and
+     * the position buffers aren't kept up to date. Writes the shown pose into
+     * the position buffers of the animated geometries whose bounds the ray
+     * crosses, so that ray picking hits what is drawn.
+     *
+     * @param root the models
+     * @param ray the pick ray, {@code null} for every animated geometry
+     */
+    public static void materializePoses(Spatial root, Ray ray) {
+        if (!VertexTextureBackend.isActive()) {
+            return;
+        }
+        root.depthFirstTraversal(node -> {
+            var composer = node.getControl(AnimComposer.class);
+            if (composer != null) for (var clip : composer.getAnimClips()) for (var track : clip.getTracks()) {
+                if (track instanceof PoseTrack pose && pose.getTarget() != null
+                        && (ray == null || pose.getTarget().getWorldBound() == null
+                        || pose.getTarget().getWorldBound().intersects(ray))) {
+                    pose.materializePose();
+                }
+            }
+        });
+    }
+    /**
+     * Shows the current poses with the current backend, for animations that
+     * don't update, e.g. while the game is paused, after the backend was
+     * switched
+     *
+     * @param root the models
+     */
+    public static void resamplePoses(Spatial root) {
+        root.depthFirstTraversal(node -> {
+            var composer = node.getControl(AnimComposer.class);
+            if (composer != null) for (var clip : composer.getAnimClips()) for (var track : clip.getTracks()) {
+                if (track instanceof PoseTrack pose) {
+                    pose.resample();
+                }
+            }
         });
     }
     public static void pauseAnimations(Spatial spatial) {

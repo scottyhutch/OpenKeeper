@@ -32,6 +32,15 @@ MaterialDef DK Flat Lighting {
         Float ShadowMapSize
         Boolean BackfaceShadows
 
+        // The VERTEX_TEXTURE animation backend (see VertexAnimation.glsllib).
+        // Set per geometry by PoseTrack, as material parameter overrides.
+        Texture2D VertexAnimationMap -LINEAR
+        Int VertexAnimationWidth
+        Int VertexAnimationVertices
+        Int VertexAnimationFrameA
+        Int VertexAnimationFrameB
+        Float VertexAnimationWeight
+
 
         // Global ambient: the video "ambient light" setting.
         // Defaulted to black -- materials that nobody pushes a live value
@@ -71,6 +80,7 @@ MaterialDef DK Flat Lighting {
         }
 
         Defines {
+            VERTEX_ANIMATION : VertexAnimationMap
             ALPHA_COVERAGE : UseAlphaCoverage
             DISCARD_ALPHA : AlphaDiscardThreshold
         }
@@ -84,6 +94,7 @@ MaterialDef DK Flat Lighting {
             Time
         }
         Defines {
+            VERTEX_ANIMATION : VertexAnimationMap
             ALPHA_COVERAGE : UseAlphaCoverage
             DISCARD_ALPHA : AlphaDiscardThreshold
         }
@@ -107,6 +118,7 @@ MaterialDef DK Flat Lighting {
             Time
         }
         Defines {
+            VERTEX_ANIMATION : VertexAnimationMap
             ALPHA_COVERAGE : UseAlphaCoverage
             DISCARD_ALPHA : AlphaDiscardThreshold
             HARDWARE_SHADOWS : HardwareShadows

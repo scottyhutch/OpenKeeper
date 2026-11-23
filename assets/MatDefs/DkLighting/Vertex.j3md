@@ -33,6 +33,15 @@ MaterialDef DK Terrain Lighting {
         Float ShadowMapSize
         Boolean BackfaceShadows
 
+        // The VERTEX_TEXTURE animation backend (see VertexAnimation.glsllib).
+        // Set per geometry by PoseTrack, as material parameter overrides.
+        Texture2D VertexAnimationMap -LINEAR
+        Int VertexAnimationWidth
+        Int VertexAnimationVertices
+        Int VertexAnimationFrameA
+        Int VertexAnimationFrameB
+        Float VertexAnimationWeight
+
 
         // Vertex ambient: a per-terrain-type constant, 0..1,
         // already converted from the file's 0..511 channel + over-bright
@@ -112,6 +121,7 @@ MaterialDef DK Terrain Lighting {
         }
 
         Defines {
+            VERTEX_ANIMATION : VertexAnimationMap
             CONTROLLED_ANIMATION : UseAnimationFrame
             ANIMATED_TILES : NumberOfTiles
             ALPHA_COVERAGE : UseAlphaCoverage
@@ -131,6 +141,7 @@ MaterialDef DK Terrain Lighting {
             Time
         }
         Defines {
+            VERTEX_ANIMATION : VertexAnimationMap
             ALPHA_COVERAGE : UseAlphaCoverage
             DISCARD_ALPHA : AlphaDiscardThreshold
             CONTROLLED_ANIMATION : UseAnimationFrame
@@ -156,6 +167,7 @@ MaterialDef DK Terrain Lighting {
             Time
         }
         Defines {
+            VERTEX_ANIMATION : VertexAnimationMap
             ALPHA_COVERAGE : UseAlphaCoverage
             DISCARD_ALPHA : AlphaDiscardThreshold
             CONTROLLED_ANIMATION : UseAnimationFrame

@@ -44,7 +44,12 @@ import com.jme3.scene.Mesh;
 import com.jme3.scene.VertexBuffer;
 import com.jme3.scene.VertexBuffer.Type;
 import java.io.IOException;
+import java.lang.ref.WeakReference;
 import java.nio.FloatBuffer;
+import java.util.Collections;
+import java.util.Map;
+import java.util.Optional;
+import java.util.WeakHashMap;
 
 /**
  * A single track of pose animation associated with a certain mesh.
@@ -151,6 +156,28 @@ public final class PoseTrack extends MorphTrack {
     private transient FloatBuffer sampledBuffer;
     private transient float lastSampleTime = Float.NaN;
     private transient double pendingSampleTime = Double.NaN;
+    // VERTEX_TEXTURE backend: the shown pose is drawn by the vertex shader, the
+    // position buffer only gets it on demand (picking, control points)
+    private transient int sampledGeneration = -1;
+    private transient boolean vertexTextureBound;
+    private transient boolean positionsStale;
+    private transient double lastTime = Double.NaN;
+    private transient Mesh pickingMesh;
+
+    /**
+     * Key frame textures, shared by every clone of a track (clones share the
+     * frames). Empty when the clip doesn't fit in a texture.
+     */
+    private static final Map<PoseFrame[], Optional<VertexAnimationTexture>> VERTEX_TEXTURES
+            = Collections.synchronizedMap(new WeakHashMap<>());
+    /**
+     * One mesh per animated geometry for every instance on the VERTEX_TEXTURE
+     * backend, keyed by the bind pose buffer the instances share. The shader
+     * doesn't read its positions, so the instances don't need their own copy.
+     * The geometries hold the mesh, it goes when the last one does.
+     */
+    private static final Map<VertexBuffer, WeakReference<Mesh>> SHARED_MESHES
+            = Collections.synchronizedMap(new WeakHashMap<>());
 
     private void validateFrames() {
         Mesh mesh = getTarget().getMesh();
@@ -278,16 +305,62 @@ public final class PoseTrack extends MorphTrack {
             }
         }
         pendingSampleTime = Double.NaN;
+        lastTime = time;
+        long start = System.nanoTime();
+        float[] times = getTimes();
+        // MorphTrack.getLength() is lastTime - firstTime. Old converted KMF
+        // caches start at 1/30; new/zero-origin tracks work without reconversion.
+        float sampleTime = (float) Math.clamp(time + times[0], times[0], times[times.length - 1]);
+        int generation = VertexTextureBackend.getGeneration();
+        if (generation != sampledGeneration) {
+            sampledGeneration = generation;
+            lastSampleTime = Float.NaN;
+        }
+        if (VertexTextureBackend.isActive() && VertexTextureBackend.supports(getTarget())) {
+            VertexAnimationTexture texture = getVertexAnimationTexture();
+            if (texture != null) {
+                if (sampleTime == lastSampleTime) return;
+                // Same keys and weight as the CPU blend below
+                int result = java.util.Arrays.binarySearch(times, sampleTime);
+                int lower = result >= 0 ? result : Math.max(0, -result - 2);
+                int upper = result >= 0 ? result : Math.min(times.length - 1, lower + 1);
+                float weight = upper == lower ? 0 : (sampleTime - times[lower]) / (times[upper] - times[lower]);
+                useSharedMesh();
+                VertexTextureBackend.apply(getTarget(), texture, lower, upper, weight);
+                vertexTextureBound = true;
+                positionsStale = true;
+                lastSampleTime = sampleTime;
+                VertexTextureBackend.recordSample(System.nanoTime() - start, 3 * 4 + 4);
+                return;
+            }
+        }
+        if (vertexTextureBound) {
+            VertexTextureBackend.clear(getTarget());
+            vertexTextureBound = false;
+        }
+        long uploaded = writePositions(time, sampleTime);
+        VertexTextureBackend.recordSample(System.nanoTime() - start, uploaded);
+    }
+
+    /**
+     * Blends the pose at the given time into the target's position buffer, the
+     * CPU backend
+     *
+     * @return the bytes written
+     */
+    private long writePositions(double time, float sampleTime) {
+        WeakReference<Mesh> shared = SHARED_MESHES.get(getTarget().getMesh().getBuffer(Type.BindPosePosition));
+        if (shared != null && shared.get() == getTarget().getMesh()) {
+            pickingMesh = getTarget().getMesh().cloneForAnim();
+            getTarget().setMesh(pickingMesh);
+        }
         Mesh mesh = getTarget().getMesh();
         FloatBuffer bindPose = (FloatBuffer) mesh.getBuffer(Type.BindPosePosition).getData();
         VertexBuffer position = mesh.getBuffer(Type.Position);
         FloatBuffer vertices = (FloatBuffer) position.getData();
         if (mesh != sampledMesh || vertices != sampledBuffer) clearSampleCache();
         float[] times = getTimes();
-        // MorphTrack.getLength() is lastTime - firstTime. Old converted KMF
-        // caches start at 1/30; new/zero-origin tracks work without reconversion.
-        float sampleTime = (float) Math.clamp(time + times[0], times[0], times[times.length - 1]);
-        if (sampleTime == lastSampleTime) return;
+        if (sampleTime == lastSampleTime) return 0;
         if (lowerVertices == null || lowerVertices.length != bindPose.limit()) {
             lowerVertices = new float[bindPose.limit()];
             upperVertices = packedData == null ? new float[bindPose.limit()] : null;
@@ -318,6 +391,7 @@ public final class PoseTrack extends MorphTrack {
         sampledMesh = mesh;
         sampledBuffer = vertices;
         lastSampleTime = sampleTime;
+        return 4L * vertices.limit();
     }
 
     private void clearSampleCache() {
@@ -327,6 +401,71 @@ public final class PoseTrack extends MorphTrack {
         sampledBuffer = null;
         lastSampleTime = Float.NaN;
         pendingSampleTime = Double.NaN;
+    }
+
+    /**
+     * On the VERTEX_TEXTURE backend the position buffer isn't kept up to date.
+     * Writes the shown pose into it, for ray picking and control points.
+     */
+    public void materializePose() {
+        if (positionsStale && !Double.isNaN(lastTime)) {
+            positionsStale = false;
+            float sampleTime = lastSampleTime;
+            lastSampleTime = Float.NaN;
+            writePositions(lastTime, sampleTime);
+        }
+    }
+
+    /**
+     * Samples the last sampled time again, for a paused animation after the
+     * backend was switched
+     */
+    public void resample() {
+        if (!Double.isNaN(lastTime)) {
+            getDataAtTime(lastTime, null);
+        }
+    }
+
+    /**
+     * Get the key frames as a texture for the VERTEX_TEXTURE backend, decoded
+     * on first use and shared with every clone of this track
+     *
+     * @return the key frame texture, {@code null} if they don't fit in one
+     */
+    public VertexAnimationTexture getVertexAnimationTexture() {
+        if (frames == null) {
+            return null;
+        }
+        Optional<VertexAnimationTexture> texture = VERTEX_TEXTURES.get(frames);
+        if (texture == null) {
+            texture = Optional.ofNullable(VertexAnimationTexture.of(this, VertexTextureBackend.getMaxTextureSize()));
+            VERTEX_TEXTURES.put(frames, texture);
+            texture.ifPresent(t -> VertexTextureBackend.recordTexture(t.getBytes()));
+        }
+        return texture.orElse(null);
+    }
+
+    /**
+     * Draws every instance from one mesh, the vertex shader doesn't read the
+     * positions
+     */
+    private void useSharedMesh() {
+        Mesh mesh = getTarget().getMesh();
+        VertexBuffer bindPose = mesh.getBuffer(Type.BindPosePosition);
+        Mesh shared;
+        synchronized (SHARED_MESHES) {
+            WeakReference<Mesh> reference = SHARED_MESHES.get(bindPose);
+            shared = reference == null ? null : reference.get();
+            if (shared == null) {
+                shared = mesh.cloneForAnim();
+                SHARED_MESHES.put(bindPose, new WeakReference<>(shared));
+            }
+        }
+        // A geometry that got positions of its own for picking keeps them, so picking it again doesn't copy again
+        if (mesh != shared && mesh != pickingMesh) {
+            getTarget().setMesh(shared);
+            clearSampleCache();
+        }
     }
 
     /** A hidden one-shot may have disabled its composer before becoming visible again. */
