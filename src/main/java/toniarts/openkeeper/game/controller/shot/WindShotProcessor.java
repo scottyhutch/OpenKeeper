@@ -98,7 +98,8 @@ public final class WindShotProcessor implements IShotProcessor {
         }
 
         // The closer to the wind, the faster the spin
-        entityData.setComponent(entity, new Position(position.rotation - SPIN * radius / (distance + radius), position.position));
+        entityData.setComponent(entity, Position.integrated(position, position.rotation - SPIN * radius / (distance + radius),
+                position.position.x, position.position.y, position.position.z));
 
         // The damage grows with the distance, from half in the middle to all of it at the edge
         Owner owner = entityData.getComponent(entity, Owner.class);

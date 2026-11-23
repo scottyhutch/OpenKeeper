@@ -18,6 +18,7 @@ package toniarts.openkeeper.game.logic;
 
 import com.badlogic.gdx.math.Vector2;
 import com.jme3.math.Transform;
+import com.jme3.math.Vector2f;
 import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityComponent;
 import com.simsilica.es.EntityData;
@@ -36,6 +37,7 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.SeparationPush;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.map.IMapInformation;
 import toniarts.openkeeper.tools.convert.map.Creature;
@@ -342,5 +344,29 @@ class MovementSystemTest {
         assertTrue(history.sample((before.time + after.time) / 2, shown));
         float x = shown.getTranslation().x;
         assertTrue(x > before.x && x < after.x, "shown at " + x + ", not between the ticks at " + before.x + " and " + after.x);
+    }
+
+    /**
+     * A push moves a standing creature on like walking does: the view keeps
+     * interpolating it, and the position it had before is left alone.
+     */
+    @Test
+    void aPushedCreatureMovesOnInTheSameMotion() {
+        EntityData entityData = new DefaultEntityData();
+        EntityId creature = entityData.createEntity();
+        entityData.setComponents(creature, new CreatureComponent(), new Position(0, new Vector3f(15, 1, 23)),
+                new Mobile(false, false, false, 1), new SeparationPush(new Vector2f(0.1f, 0)));
+        MovementSystem movementSystem = new MovementSystem(entityData, map(false, false));
+        Position previous = entityData.getComponent(creature, Position.class);
+        try {
+            movementSystem.processTick(1 / 4f);
+        } finally {
+            movementSystem.stop();
+        }
+
+        Position pushed = entityData.getComponent(creature, Position.class);
+        assertTrue(pushed.position.x > 15, "not pushed");
+        assertEquals(new Vector3f(15, 1, 23), previous.position);
+        assertEquals(previous.motionEpoch, pushed.motionEpoch);
     }
 }

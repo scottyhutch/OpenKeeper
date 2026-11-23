@@ -141,7 +141,8 @@ public final class Sulk extends AbstractTileTask {
             Position position = entityData.getComponent(creature.getEntityId(), Position.class);
             if (position != null) {
                 float rotation = (position.rotation + FastMath.rand.nextFloat() * FastMath.HALF_PI) % FastMath.TWO_PI;
-                entityData.setComponent(creature.getEntityId(), new Position(rotation, position.position));
+                entityData.setComponent(creature.getEntityId(), Position.integrated(position, rotation,
+                        position.position.x, position.position.y, position.position.z));
             }
         }
     }

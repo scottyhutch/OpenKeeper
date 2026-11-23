@@ -296,9 +296,8 @@ public final class MovementSystem implements IGameLogicUpdatable {
         Vector2 from = new Vector2(position.position.x, position.position.z);
         Vector2 location = new Vector2(from);
         movementCollision.move(location, velocity, tpf, candidate -> canMoveTo(entityId, from, candidate));
-        position.position.x = location.x;
-        position.position.z = location.y;
-        entityData.setComponent(entityId, new Position(position.rotation, position.position));
+        // A push moves the creature on, like walking. The view may still read the old position
+        entityData.setComponent(entityId, Position.integrated(position, position.rotation, location.x, position.position.y, location.y));
         entityData.setComponent(entityId, new StandingVelocity(new Vector2f(velocity.x, velocity.y)));
         return true;
     }

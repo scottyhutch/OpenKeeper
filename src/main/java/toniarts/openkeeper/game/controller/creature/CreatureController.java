@@ -2473,8 +2473,8 @@ public final class CreatureController extends EntityController implements ICreat
                 new Vector2(targetPosition.x - position.position.x, targetPosition.z - position.position.z)), FastMath.TWO_PI);
         float maxTurn = creature.getTurnSpeed() / levelInfo.getLevelData().getGameLevel().getTicksPerSec();
         if (turn != 0) {
-            entityData.setComponent(entityId, new Position(position.rotation + FastMath.clamp(turn, -maxTurn, maxTurn),
-                    position.position.clone()));
+            entityData.setComponent(entityId, Position.integrated(position, position.rotation + FastMath.clamp(turn, -maxTurn, maxTurn),
+                    position.position.x, position.position.y, position.position.z));
         }
         return Math.abs(turn) <= maxTurn;
     }
