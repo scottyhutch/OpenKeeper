@@ -172,11 +172,12 @@ public final class PoseTrack extends MorphTrack {
             = Collections.synchronizedMap(new WeakHashMap<>());
     /**
      * One mesh per animated geometry for every instance on the VERTEX_TEXTURE
-     * backend, keyed by the bind pose buffer the instances share. The shader
+     * backend, keyed by the key frames the instances share (model clones may
+     * have buffers of their own, the frames stay shared). The shader
      * doesn't read its positions, so the instances don't need their own copy.
      * The geometries hold the mesh, it goes when the last one does.
      */
-    private static final Map<VertexBuffer, WeakReference<Mesh>> SHARED_MESHES
+    private static final Map<PoseFrame[], WeakReference<Mesh>> SHARED_MESHES
             = Collections.synchronizedMap(new WeakHashMap<>());
 
     private void validateFrames() {
@@ -349,7 +350,7 @@ public final class PoseTrack extends MorphTrack {
      * @return the bytes written
      */
     private long writePositions(double time, float sampleTime) {
-        WeakReference<Mesh> shared = SHARED_MESHES.get(getTarget().getMesh().getBuffer(Type.BindPosePosition));
+        WeakReference<Mesh> shared = frames == null ? null : SHARED_MESHES.get(frames);
         if (shared != null && shared.get() == getTarget().getMesh()) {
             pickingMesh = getTarget().getMesh().cloneForAnim();
             getTarget().setMesh(pickingMesh);
@@ -451,14 +452,13 @@ public final class PoseTrack extends MorphTrack {
      */
     private void useSharedMesh() {
         Mesh mesh = getTarget().getMesh();
-        VertexBuffer bindPose = mesh.getBuffer(Type.BindPosePosition);
         Mesh shared;
         synchronized (SHARED_MESHES) {
-            WeakReference<Mesh> reference = SHARED_MESHES.get(bindPose);
+            WeakReference<Mesh> reference = SHARED_MESHES.get(frames);
             shared = reference == null ? null : reference.get();
             if (shared == null) {
                 shared = mesh.cloneForAnim();
-                SHARED_MESHES.put(bindPose, new WeakReference<>(shared));
+                SHARED_MESHES.put(frames, new WeakReference<>(shared));
             }
         }
         // A geometry that got positions of its own for picking keeps them, so picking it again doesn't copy again
