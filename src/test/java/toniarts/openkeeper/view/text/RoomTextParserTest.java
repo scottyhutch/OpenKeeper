@@ -18,6 +18,7 @@ package toniarts.openkeeper.view.text;
 
 import com.simsilica.es.EntityId;
 import java.lang.reflect.Proxy;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;

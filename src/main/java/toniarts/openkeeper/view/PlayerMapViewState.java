@@ -24,16 +24,17 @@ import com.jme3.app.state.AppStateManager;
 import com.jme3.asset.AssetManager;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
-import com.simsilica.es.EntityData;
-import com.simsilica.es.EntityId;
 import com.simsilica.event.EventBus;
 import com.simsilica.event.EventListener;
 import com.simsilica.event.EventType;
+import toniarts.openkeeper.game.event.ClientEvents;
+import toniarts.openkeeper.game.event.GameEvent;
+import toniarts.openkeeper.view.effect.RoomActionEffects;
+import com.simsilica.es.EntityData;
+import com.simsilica.es.EntityId;
 import toniarts.openkeeper.Main;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.Settings;
-import toniarts.openkeeper.game.event.ClientEvents;
-import toniarts.openkeeper.game.event.GameEvent;
 import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.listener.MapListener;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
@@ -247,6 +248,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
         // Sounds
         this.gameEventSoundPlayer.register();
+        EventBus.addListener(ClientEvents.GAME_EVENT, this);
         EventBus.addListener(ClientEvents.GAME_EVENT, casinoEffectsListener);
         EventBus.addListener(ClientEvents.GAME_EVENT, this);
         this.stateManager.attach(discoViewState);

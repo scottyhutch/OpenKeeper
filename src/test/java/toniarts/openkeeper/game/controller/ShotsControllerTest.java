@@ -1053,6 +1053,40 @@ class ShotsControllerTest {
         return creature;
     }
 
+    @Test
+    void drainGivesTheShooterAQuarterOfItsFullHealthFromTheTarget() {
+        EntityId vampire = createCreature();
+        entityData.setComponent(vampire, new Health(500, 2000));
+        EntityId target = createCreature();
+        entityData.setComponent(target, new Health(900, 1000));
+
+        // Drain: 25 % of the Vampire's 2000
+        shotsController.hit(createDrainShot(vampire), target);
+
+        assertEquals(500, entityData.getComponent(target, Damage.class).damage);
+        assertEquals(-500, entityData.getComponent(vampire, Damage.class).damage);
+    }
+
+    @Test
+    void drainTakesNoMoreThanTheTargetHasLeft() {
+        EntityId vampire = createCreature();
+        entityData.setComponent(vampire, new Health(500, 2000));
+        EntityId target = createCreature();
+        entityData.setComponent(target, new Health(120, 1000));
+
+        shotsController.hit(createDrainShot(vampire), target);
+
+        assertEquals(120, entityData.getComponent(target, Damage.class).damage);
+        assertEquals(-120, entityData.getComponent(vampire, Damage.class).damage);
+    }
+
+    private EntityId createDrainShot(EntityId shooter) {
+        EntityId shot = entityData.createEntity();
+        entityData.setComponents(shot, new Position(0, new Vector3f(1.5f, 1f, 1.5f)),
+                new ShotFlight(DRAIN_ID, PLAYER_ID, shooter, 25, 0, new Vector3f(), new Vector3f(), 3, 128));
+        return shot;
+    }
+
     private EntityId createCreature(short ownerId, float x, float y) {
         EntityId creature = entityData.createEntity();
         entityData.setComponents(creature, new Position(0, new Vector3f(x, 1f, y)), new CreatureComponent(),
