@@ -726,11 +726,11 @@ public class PlayerEntityViewState extends AbstractAppState {
     }
 
     private void updateCreatureModelAnimation(Spatial object, Entity e) {
-        updateCreatureModelAnimation(object, e.getId(), e.get(CreatureViewState.class));
+        updateCreatureModelAnimation(object, e.getId(), e.get(CreatureViewState.class), e.get(Position.class));
         applyFogCullHint(object, WorldUtils.vectorToPoint(e.get(Position.class).position), true);
     }
 
-    private void updateCreatureModelAnimation(Spatial object, EntityId entityId, CreatureViewState viewState) {
+    private void updateCreatureModelAnimation(Spatial object, EntityId entityId, CreatureViewState viewState, Position position) {
 
         Creature creature = kwdFile.getCreature(viewState.creatureId);
         applyThingLight(entityId, object, creature.getLight(), LightConstants.CREATURE_LIGHT_INTENSITY);
@@ -739,7 +739,7 @@ public class PlayerEntityViewState extends AbstractAppState {
         ((CreatureViewControl) control).setViewState(creature, viewState);
         setTortureWheelSpin(object, viewState.state == Creature.AnimationType.TORTURED_WHEEL);
 
-        updateDazedEffect(object, viewState, entityData.getComponent(entityId, Position.class));
+        updateDazedEffect(object, viewState, position);
 
         // Trigger the death effect once, when the creature actually dies
         if (!wasAlreadyDead && viewState.state == Creature.AnimationType.DEATH_POSE) {
@@ -1079,7 +1079,7 @@ public class PlayerEntityViewState extends AbstractAppState {
             if (request.state == Creature.AnimationType.TORTURED_WHEEL) object.move(0, TORTURE_WHEEL_VICTIM_LIFT, 0);
             if (appliedState == null || appliedState.creatureId != request.creatureId || appliedState.state != request.state
                     || appliedState.sequence != request.sequence || appliedState.stateStartTime != request.stateStartTime) {
-                updateCreatureModelAnimation(object, id, request);
+                updateCreatureModelAnimation(object, id, request, latestPosition);
                 appliedState = request;
             }
             if (sampling != wasSampling) {
