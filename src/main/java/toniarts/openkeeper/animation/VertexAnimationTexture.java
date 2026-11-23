@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.animation;
 
+import com.jme3.math.FastMath;
 import com.jme3.texture.Image;
 import com.jme3.texture.Texture;
 import com.jme3.texture.Texture2D;
@@ -23,6 +24,8 @@ import com.jme3.texture.image.ColorSpace;
 import com.jme3.util.BufferUtils;
 import java.nio.ByteBuffer;
 import java.nio.FloatBuffer;
+import java.util.Collections;
+import java.util.List;
 
 /**
  * The key frames of one animated geometry, decoded once to full positions and
@@ -46,6 +49,8 @@ public final class VertexAnimationTexture {
     private final ByteBuffer data;
     private final FloatBuffer texels;
     private Texture2D texture;
+    private ByteBuffer normalData;
+    private Texture2D normalTexture;
 
     private VertexAnimationTexture(int vertices, int frames, int width, int height, ByteBuffer data) {
         this.vertices = vertices;
@@ -168,6 +173,141 @@ public final class VertexAnimationTexture {
             texture.setName("VertexAnimation");
         }
         return texture;
+    }
+
+    /**
+     * Computes the normals of every key frame for mesh smoothing (see
+     * {@link VertexNormals}) and packs them like the positions, texel for
+     * texel, as half floats. Done once, later calls do nothing.
+     *
+     * @param triangles the mesh's triangle list
+     * @param baseNormals the mesh's own normals, XYZ of every vertex, may be
+     * {@code null}
+     */
+    public void packNormals(int[] triangles, float[] baseNormals) {
+        packNormals(List.of(this), List.of(triangles), Collections.singletonList(baseNormals));
+    }
+
+    /**
+     * Computes the normals of the key frames of several meshes as one, e.g.
+     * the meshes of one model that each have a material of their own, so the
+     * vertices on the seams between them are welded too. They must have the
+     * same key frames in the same space; if the frame counts differ, each
+     * mesh is done on its own. Meshes that already have normals keep them.
+     *
+     * @param textures the meshes' key frames
+     * @param triangles per mesh, its triangle list
+     * @param baseNormals per mesh, its own normals, may be or hold
+     * {@code null}
+     */
+    public static void packNormals(List<VertexAnimationTexture> textures, List<int[]> triangles,
+            List<float[]> baseNormals) {
+        int frames = textures.get(0).frames;
+        for (VertexAnimationTexture texture : textures) {
+            if (texture.frames != frames) {
+                for (int i = 0; i < textures.size(); i++) {
+                    packNormals(List.of(textures.get(i)), List.of(triangles.get(i)),
+                            Collections.singletonList(baseNormals.get(i)));
+                }
+                return;
+            }
+        }
+        int total = 0;
+        int indices = 0;
+        boolean anyBase = false;
+        for (int i = 0; i < textures.size(); i++) {
+            total += textures.get(i).vertices;
+            indices += triangles.get(i).length - triangles.get(i).length % 3;
+            anyBase |= baseNormals.get(i) != null;
+        }
+        float[][] framePositions = new float[frames][total * 3];
+        int[] allTriangles = new int[indices];
+        float[] allBase = anyBase ? new float[total * 3] : null;
+        int offset = 0;
+        int index = 0;
+        for (int i = 0; i < textures.size(); i++) {
+            VertexAnimationTexture texture = textures.get(i);
+            for (int frame = 0; frame < frames; frame++) {
+                for (int vertex = 0; vertex < texture.vertices; vertex++) {
+                    texture.fetch(frame, vertex, framePositions[frame], (offset + vertex) * 3);
+                }
+            }
+            int[] own = triangles.get(i);
+            for (int j = 0; j < own.length - own.length % 3; j++) {
+                allTriangles[index++] = own[j] + offset;
+            }
+            if (allBase != null && baseNormals.get(i) != null) {
+                System.arraycopy(baseNormals.get(i), 0, allBase, offset * 3,
+                        Math.min(baseNormals.get(i).length, texture.vertices * 3));
+            }
+            offset += texture.vertices;
+        }
+        float[][] normals = VertexNormals.compute(framePositions, allTriangles, allBase);
+        offset = 0;
+        for (VertexAnimationTexture texture : textures) {
+            texture.setNormals(normals, offset);
+            offset += texture.vertices;
+        }
+    }
+
+    private synchronized void setNormals(float[][] normals, int offset) {
+        if (normalData != null) {
+            return;
+        }
+        ByteBuffer packed = BufferUtils.createByteBuffer(width * height * 8);
+        for (int frame = 0; frame < frames; frame++) {
+            for (int vertex = 0; vertex < vertices; vertex++) {
+                int texel = (frame * vertices + vertex) * 8;
+                int source = (offset + vertex) * 3;
+                packed.putShort(texel, FastMath.convertFloatToHalf(normals[frame][source]));
+                packed.putShort(texel + 2, FastMath.convertFloatToHalf(normals[frame][source + 1]));
+                packed.putShort(texel + 4, FastMath.convertFloatToHalf(normals[frame][source + 2]));
+                packed.putShort(texel + 6, FastMath.convertFloatToHalf(0f));
+            }
+        }
+        normalData = packed;
+    }
+
+    /**
+     * @return whether {@link #packNormals(int[], float[])} has run
+     */
+    public synchronized boolean hasNormals() {
+        return normalData != null;
+    }
+
+    /**
+     * Reads the normal of one vertex in one key frame the way the vertex
+     * shader does
+     *
+     * @param frame the key frame
+     * @param vertex the vertex (gl_VertexID)
+     * @param store where to put XYZ, at {@code offset}
+     * @param offset the index of X in {@code store}
+     */
+    public synchronized void fetchNormal(int frame, int vertex, float[] store, int offset) {
+        int texel = (frame * vertices + vertex) * 8;
+        for (int axis = 0; axis < 3; axis++) {
+            store[offset + axis] = FastMath.convertHalfToFloat(normalData.getShort(texel + axis * 2));
+        }
+    }
+
+    /**
+     * Get the normal texture, created on first use, after
+     * {@link #packNormals(int[], float[])}. Same layout and sampling as
+     * {@link #getTexture()}.
+     *
+     * @return the texture, {@code null} without normals
+     */
+    public synchronized Texture2D getNormalTexture() {
+        if (normalTexture == null && normalData != null) {
+            Image image = new Image(Image.Format.RGBA16F, width, height, normalData, ColorSpace.Linear);
+            normalTexture = new Texture2D(image);
+            normalTexture.setMinFilter(Texture.MinFilter.NearestNoMipMaps);
+            normalTexture.setMagFilter(Texture.MagFilter.Nearest);
+            normalTexture.setWrap(Texture.WrapMode.EdgeClamp);
+            normalTexture.setName("VertexAnimationNormals");
+        }
+        return normalTexture;
     }
 
     /**

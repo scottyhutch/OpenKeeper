@@ -16,15 +16,24 @@
  */
 package toniarts.openkeeper.animation;
 
+import com.jme3.asset.AssetManager;
+import com.jme3.material.MatParam;
 import com.jme3.material.MatParamOverride;
+import com.jme3.material.Material;
+import com.jme3.material.MaterialDef;
 import com.jme3.renderer.Caps;
 import com.jme3.renderer.Limits;
 import com.jme3.scene.Geometry;
+import com.jme3.scene.Mesh;
 import com.jme3.shader.VarType;
 import java.lang.System.Logger;
+import java.lang.ref.WeakReference;
 import java.lang.System.Logger.Level;
 import java.util.Collection;
+import java.util.Collections;
+import java.util.Locale;
 import java.util.Map;
+import java.util.WeakHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
@@ -49,12 +58,38 @@ public final class VertexTextureBackend {
     public static final String FRAME_A = "VertexAnimationFrameA";
     public static final String FRAME_B = "VertexAnimationFrameB";
     public static final String WEIGHT = "VertexAnimationWeight";
-    private static final String[] NAMES = {MAP, WIDTH, VERTICES, FRAME_A, FRAME_B, WEIGHT};
+    public static final String NORMAL_MAP = "VertexAnimationNormalMap";
+    private static final String[] NAMES = {MAP, WIDTH, VERTICES, FRAME_A, FRAME_B, WEIGHT, NORMAL_MAP};
+
+    /**
+     * The material of the drawn geometries that mesh smoothing tessellates,
+     * {@code DkLighting/Vertex} with tessellation stages
+     */
+    public static final String SMOOTH_MATDEF = "MatDefs/DkLighting/Smooth.j3md";
+    private static final String VERTEX_MATDEF = "MatDefs/DkLighting/Vertex.j3md";
+    /**
+     * Most tessellation segments per edge, by smoothing level 1 to 4
+     */
+    private static final int[] SEGMENTS = {2, 4, 8, 16};
 
     private static volatile boolean supported;
     private static volatile boolean active;
     private static volatile int generation;
     private static volatile int maxTextureSize = VertexAnimationTexture.MAX_WIDTH;
+    private static volatile MaterialDef smoothDef;
+    private static volatile MaterialDef vertexDef;
+    private static volatile boolean smoothing;
+    private static volatile int smoothingLevel = 3;
+    private static volatile boolean phongTessellation;
+    /**
+     * Smoothing materials by the material they stand in for, and back, so
+     * shared materials stay shared. Weak both ways: a material goes with the
+     * last geometry that uses it.
+     */
+    private static final Map<Material, WeakReference<Material>> SMOOTH_MATERIALS
+            = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Material, WeakReference<Material>> ORIGINAL_MATERIALS
+            = Collections.synchronizedMap(new WeakHashMap<>());
 
     private static final LongAdder SAMPLE_NANOS = new LongAdder();
     private static final LongAdder UPLOADED_BYTES = new LongAdder();
@@ -95,6 +130,157 @@ public final class VertexTextureBackend {
         setActive(on);
         LOGGER.log(Level.INFO, "Animation backend: " + (on ? "VERTEX_TEXTURE" : "CPU") + " (requested " + requested + ")");
         return on;
+    }
+
+    /**
+     * Chooses whether to smooth the animated models by tessellation. Call
+     * once on the render thread after {@link #configure}, before models are
+     * shown. Needs the vertex texture backend, for the per key frame normals,
+     * and tessellation shaders; without them it stays off and says so in the
+     * log.
+     *
+     * @param requested whether smoothing was asked for
+     * @param level 1 to 4, the most segments per edge are 2, 4, 8 or 16
+     * @param method "PN" for curved PN triangles (the default) or "PHONG" for
+     * Phong tessellation
+     * @param caps the renderer's capabilities
+     * @param assetManager the asset manager, to load the material
+     * @return whether mesh smoothing is on
+     */
+    public static boolean configureSmoothing(boolean requested, int level, String method, Collection<Caps> caps,
+            AssetManager assetManager) {
+        smoothingLevel = Math.clamp(level, 1, SEGMENTS.length);
+        phongTessellation = method != null && method.trim().toUpperCase(Locale.ROOT).startsWith("PHONG");
+        String missing = null;
+        if (!caps.contains(Caps.TesselationShader) || !caps.contains(Caps.GLSL400)) {
+            missing = "tessellation shaders (GLSL 4.00)";
+        } else if (!active) {
+            missing = "the VERTEX_TEXTURE animation backend";
+        }
+        if (missing == null && smoothDef == null) {
+            vertexDef = (MaterialDef) assetManager.loadAsset(VERTEX_MATDEF);
+            smoothDef = (MaterialDef) assetManager.loadAsset(SMOOTH_MATDEF);
+        }
+        if (requested && missing != null) {
+            LOGGER.log(Level.WARNING, "Mesh smoothing needs " + missing + ", it stays off");
+        }
+        boolean on = requested && missing == null;
+        setSmoothing(on);
+        LOGGER.log(Level.INFO, "Mesh smoothing: " + (on ? "ON, level " + smoothingLevel + ", "
+                + (phongTessellation ? "Phong tessellation" : "PN triangles") : "OFF"));
+        return on;
+    }
+
+    /**
+     * Reads the mesh smoothing setting, case-insensitively: ON, TRUE, YES or 1
+     * switch it on
+     *
+     * @param value the setting value, may be {@code null}
+     * @return whether it asks for smoothing
+     */
+    public static boolean parseSmoothing(String value) {
+        if (value == null) {
+            return false;
+        }
+        String trimmed = value.trim().toUpperCase(Locale.ROOT);
+        return trimmed.equals("ON") || trimmed.equals("TRUE") || trimmed.equals("YES") || trimmed.equals("1");
+    }
+
+    /**
+     * @return whether the animated models are smoothed by tessellation
+     */
+    public static boolean isSmoothing() {
+        return smoothing && active;
+    }
+
+    /**
+     * Switches mesh smoothing at run time, e.g. to compare. Tracks resample on
+     * their next update. Ignored unless {@link #configureSmoothing} found the
+     * GPU able to.
+     *
+     * @param on whether to smooth
+     */
+    public static void setSmoothing(boolean on) {
+        boolean value = on && smoothDef != null;
+        if (value != smoothing) {
+            smoothing = value;
+            generation++;
+        }
+    }
+
+    /**
+     * Whether smoothing can draw this geometry: a {@code DkLighting/Vertex}
+     * material (or its smoothing stand-in) and a triangle list
+     *
+     * @param geometry the geometry
+     * @return whether it can be tessellated
+     */
+    static boolean canSmooth(Geometry geometry) {
+        Material material = geometry.getMaterial();
+        if (material == null || geometry.getMesh() == null) {
+            return false;
+        }
+        String def = material.getMaterialDef().getAssetName();
+        Mesh.Mode mode = geometry.getMesh().getMode();
+        return (VERTEX_MATDEF.equals(def) || SMOOTH_MATDEF.equals(def))
+                && (mode == Mesh.Mode.Triangles || mode == Mesh.Mode.Patch);
+    }
+
+    /**
+     * Gives the geometry its smoothing material, or its own back. Every
+     * parameter is copied over, the smoothing one is shared by every geometry
+     * that shared the original. The mesh must be a patch list when on, a
+     * triangle list when off.
+     *
+     * @param geometry the geometry
+     * @param on whether to smooth it
+     */
+    static void useSmoothMaterial(Geometry geometry, boolean on) {
+        Material current = geometry.getMaterial();
+        boolean smooth = SMOOTH_MATDEF.equals(current.getMaterialDef().getAssetName());
+        if (on && !smooth) {
+            Material material;
+            synchronized (SMOOTH_MATERIALS) {
+                WeakReference<Material> reference = SMOOTH_MATERIALS.get(current);
+                material = reference == null ? null : reference.get();
+                if (material == null) {
+                    material = copy(current, smoothDef);
+                    material.setFloat("TessellationSegments", SEGMENTS[smoothingLevel - 1]);
+                    material.setBoolean("PhongTessellation", phongTessellation);
+                    SMOOTH_MATERIALS.put(current, new WeakReference<>(material));
+                    ORIGINAL_MATERIALS.put(material, new WeakReference<>(current));
+                }
+            }
+            geometry.setMaterial(material);
+        } else if (!on && smooth) {
+            WeakReference<Material> reference = ORIGINAL_MATERIALS.get(current);
+            Material original = reference == null ? null : reference.get();
+            if (original != null) {
+                copyParameters(current, original);
+            } else {
+                // Nothing else used it any more, a new one does
+                original = copy(current, vertexDef);
+            }
+            geometry.setMaterial(original);
+        }
+    }
+
+    private static Material copy(Material from, MaterialDef def) {
+        Material material = new Material(def);
+        copyParameters(from, material);
+        material.setName(from.getName());
+        material.getAdditionalRenderState().set(from.getAdditionalRenderState());
+        material.setTransparent(from.isTransparent());
+        material.setReceivesShadows(from.isReceivesShadows());
+        return material;
+    }
+
+    private static void copyParameters(Material from, Material to) {
+        for (MatParam parameter : from.getParams()) {
+            if (to.getMaterialDef().getMaterialParam(parameter.getName()) != null) {
+                to.setParam(parameter.getName(), parameter.getVarType(), parameter.getValue());
+            }
+        }
     }
 
     /**
@@ -162,6 +348,20 @@ public final class VertexTextureBackend {
         set(geometry, FRAME_A, VarType.Int, frameA);
         set(geometry, FRAME_B, VarType.Int, frameB);
         set(geometry, WEIGHT, VarType.Float, weight);
+        Object normals = isSmoothing() ? texture.getNormalTexture() : null;
+        if (normals != null) {
+            set(geometry, NORMAL_MAP, VarType.Texture2D, normals);
+        } else {
+            remove(geometry, NORMAL_MAP);
+        }
+    }
+
+    private static void remove(Geometry geometry, String name) {
+        for (MatParamOverride override : geometry.getLocalMatParamOverrides().getArray()) {
+            if (name.equals(override.getName())) {
+                geometry.removeMatParamOverride(override);
+            }
+        }
     }
 
     /**

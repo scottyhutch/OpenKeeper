@@ -299,6 +299,36 @@ public final class Main extends SimpleApplication {
     }
 
     /**
+     * Switches mesh smoothing (tessellated creature models) on or off from the
+     * settings. The system properties openkeeper.meshSmoothing,
+     * openkeeper.meshSmoothingLevel and openkeeper.meshSmoothingMethod win, for
+     * trying it without touching the settings file. Call after the animation
+     * backend is chosen, it needs the VERTEX_TEXTURE one.
+     *
+     * @param settings the user settings
+     * @param caps the renderer's capabilities
+     * @param assetManager the asset manager
+     */
+    public static void configureMeshSmoothing(Settings settings, java.util.Collection<com.jme3.renderer.Caps> caps,
+            AssetManager assetManager) {
+        String level = System.getProperty("openkeeper.meshSmoothingLevel",
+                String.valueOf(settings.getSetting(Settings.Setting.MESH_SMOOTHING_LEVEL)));
+        int parsedLevel;
+        try {
+            parsedLevel = Integer.parseInt(level.trim());
+        } catch (NumberFormatException e) {
+            parsedLevel = (Integer) Settings.Setting.MESH_SMOOTHING_LEVEL.getDefaultValue();
+        }
+        toniarts.openkeeper.animation.VertexTextureBackend.configureSmoothing(
+                toniarts.openkeeper.animation.VertexTextureBackend.parseSmoothing(System.getProperty(
+                        "openkeeper.meshSmoothing", String.valueOf(settings.getSetting(Settings.Setting.MESH_SMOOTHING)))),
+                parsedLevel,
+                System.getProperty("openkeeper.meshSmoothingMethod",
+                        String.valueOf(settings.getSetting(Settings.Setting.MESH_SMOOTHING_METHOD))),
+                caps, assetManager);
+    }
+
+    /**
      * Get the application settings, global OpenKeeper settings, nothing much
      * here
      *
@@ -453,6 +483,7 @@ public final class Main extends SimpleApplication {
                 toniarts.openkeeper.animation.AnimationBackend.parse(System.getProperty("openkeeper.animationBackend",
                         String.valueOf(getUserSettings().getSetting(Settings.Setting.ANIMATION_BACKEND)))),
                 renderer.getCaps(), renderer.getLimits());
+        configureMeshSmoothing(getUserSettings(), renderer.getCaps(), getAssetManager());
 
         // Borderless fullscreen, a monitor sized window without decorations
         setBorderless();

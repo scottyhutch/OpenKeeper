@@ -282,6 +282,7 @@ public final class ModelViewer extends SimpleApplication {
                         String.valueOf(Main.getUserSettings().getSetting(
                                 toniarts.openkeeper.game.data.Settings.Setting.ANIMATION_BACKEND)))),
                 renderer.getCaps(), renderer.getLimits());
+        Main.configureMeshSmoothing(Main.getUserSettings(), renderer.getCaps(), getAssetManager());
 
         // Distribution locator
         assetManager.registerLocator(AssetsConverter.getAssetsFolder(), FileLocator.class);

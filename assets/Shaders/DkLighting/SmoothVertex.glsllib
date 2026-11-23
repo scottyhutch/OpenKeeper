@@ -1,0 +1,49 @@
+// Mesh smoothing, vertex stage of every technique of DkLighting/Smooth (see
+// Smooth.vert and SmoothLit.vert): animates the vertex (VertexAnimation.glsllib,
+// with the key frames' normals); the tessellation stages make the smoothed
+// surface. With SMOOTH_LIT it also lights the vertex, so a triangle that isn't
+// split only blends its corners' colours, like DkLighting/Vertex does, instead
+// of lighting each corner again for every triangle around it.
+#import "Common/ShaderLib/GLSLCompat.glsllib"
+#import "Shaders/AnimationFrame.glsllib"
+#import "Shaders/VertexAnimation.glsllib"
+#ifdef SMOOTH_LIT
+#import "Common/ShaderLib/Instancing.glsllib"
+#import "Shaders/DkLighting/DkFalloff.glsllib"
+#import "Shaders/DkLighting/VertexLighting.glsllib"
+#import "Shaders/DkLighting/Smooth.glsllib"
+#endif
+
+#ifdef ANIMATED_TILES
+uniform float g_Time;
+uniform int m_NumberOfTiles;
+uniform int m_Speed;
+#endif
+
+in vec3 inPosition;
+in vec3 inNormal;
+in vec2 inTexCoord;
+
+out vec3 vsPosition;
+out vec3 vsNormal;
+out vec2 vsTexCoord;
+out vec3 vsColor;
+
+void main() {
+    vsPosition = vertexAnimationPosition(inPosition);
+    vsNormal = normalize(vertexAnimationNormal(inNormal));
+    vsTexCoord = inTexCoord;
+#ifdef ANIMATED_TILES
+    float tiles = float(m_NumberOfTiles);
+    float selectedTile = float(animationFrame(g_Time, m_Speed));
+    vsTexCoord.x = (vsTexCoord.x + mod(selectedTile, tiles)) / tiles;
+#endif
+#ifdef SMOOTH_LIT
+    // Where the evaluation stage puts the corner (see smoothSurface)
+    vec4 modelSpacePos = vec4(vsPosition + vsNormal * SMOOTH_SHELL, 1.0);
+    vsColor = dkVertexLight(TransformWorld(modelSpacePos).xyz, normalize(TransformWorldNormal(vsNormal)));
+#else
+    vsColor = vec3(0.0);
+#endif
+    gl_Position = vec4(vsPosition, 1.0);
+}
