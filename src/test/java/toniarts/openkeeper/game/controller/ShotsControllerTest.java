@@ -713,19 +713,23 @@ class ShotsControllerTest {
     }
 
     @Test
-    void constantDamageShotHurtsEveryoneOnItsTileButTheOwnersCreatures() {
+    void constantDamageShotHurtsEveryoneInItsSquareButTheOwnersCreatures() {
         EntityId target = createCreature(ENEMY_ID, 10, 10);
         EntityId other = createCreature(ENEMY_ID, 10.3f, 9.8f);
         EntityId own = createCreature(PLAYER_ID, 10, 10);
+        EntityId lowerCorner = createCreature(ENEMY_ID, 9, 9);
         EntityId nextTile = createCreature(ENEMY_ID, 11, 10);
+        EntityId below = createCreature(ENEMY_ID, 10, 11);
 
-        // The Spike Trap
+        // The Spike Trap, radius 1: its own tile and the three on the lower side, all with the full damage
         shotsController.createShot(SPIKE_ID, 750, 1, PLAYER_ID, new Vector3f(10, 1, 10), target, null);
 
         assertEquals(750, entityData.getComponent(target, Damage.class).damage);
         assertEquals(750, entityData.getComponent(other, Damage.class).damage);
+        assertEquals(750, entityData.getComponent(lowerCorner, Damage.class).damage);
         assertNull(entityData.getComponent(own, Damage.class));
         assertNull(entityData.getComponent(nextTile, Damage.class));
+        assertNull(entityData.getComponent(below, Damage.class));
     }
 
     @Test
@@ -1083,7 +1087,7 @@ class ShotsControllerTest {
     private EntityId createDrainShot(EntityId shooter) {
         EntityId shot = entityData.createEntity();
         entityData.setComponents(shot, new Position(0, new Vector3f(1.5f, 1f, 1.5f)),
-                new ShotFlight(DRAIN_ID, PLAYER_ID, shooter, 25, 0, new Vector3f(), new Vector3f(), 3, 128));
+                new ShotFlight(DRAIN_ID, PLAYER_ID, shooter, null, 25, 0, new Vector3f(), new Vector3f(), 3, 128));
         return shot;
     }
 
