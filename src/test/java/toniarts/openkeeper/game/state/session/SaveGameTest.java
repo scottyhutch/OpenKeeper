@@ -172,7 +172,9 @@ class SaveGameTest {
                 Class<?> type = Class.forName(componentPackage + "." + fileName.substring(0, fileName.length() - 6));
                 if (EntityComponent.class.isAssignableFrom(type) && !type.isInterface() && !Modifier.isAbstract(type.getModifiers())) {
                     entityData.setComponent(entityData.createEntity(), (EntityComponent) sample(type, type, 0));
-                    componentTypes++;
+                    if (SaveGame.isSaved(type)) {
+                        componentTypes++;
+                    }
                 }
             }
         }

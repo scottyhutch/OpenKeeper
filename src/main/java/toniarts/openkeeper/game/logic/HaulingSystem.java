@@ -133,7 +133,8 @@ public final class HaulingSystem implements IGameLogicUpdatable {
         float eyeHeight = creaturesController.createController(entity.getId()).getCreature().getAttributes().getEyeHeight();
         Vector3f carryPosition = position.position.add(FastMath.sin(position.rotation) * CARRY_DISTANCE, eyeHeight,
                 FastMath.cos(position.rotation) * CARRY_DISTANCE);
-        entityData.setComponent(possessedAbility.entity, new Position(position.rotation, carryPosition));
+        entityData.setComponent(possessedAbility.entity, Position.integrated(entityData.getComponent(possessedAbility.entity, Position.class),
+                position.rotation, carryPosition.x, carryPosition.y, carryPosition.z));
     }
 
     @Override

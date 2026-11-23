@@ -52,6 +52,7 @@ import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.function.BiFunction;
 import java.util.stream.Stream;
@@ -60,7 +61,9 @@ import java.util.zip.GZIPOutputStream;
 import javax.annotation.Nullable;
 import toniarts.openkeeper.game.component.ChickenAi;
 import toniarts.openkeeper.game.component.CreatureAi;
+import toniarts.openkeeper.game.component.CreatureMotion;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.SimulationTime;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.chicken.ChickenState;
@@ -97,6 +100,12 @@ public final class SaveGame {
 
     private static final String COMPONENT_PACKAGE = Position.class.getPackageName();
     private static final Map<String, Class<? extends EntityComponent>> COMPONENT_TYPES = findComponentTypes();
+    /**
+     * Components that only drive the presentation. The game publishes them
+     * again on its first tick, a loaded copy would be stale (a second clock,
+     * motion snapshots with sequence numbers from before)
+     */
+    private static final Set<Class<? extends EntityComponent>> PRESENTATION_ONLY = Set.of(SimulationTime.class, CreatureMotion.class);
     private static final Type PLAYERS_TYPE = new TypeToken<List<Keeper>>() {
     }.getType();
     private static final Type ENTITY_IDS_TYPE = new TypeToken<List<EntityId>>() {
@@ -203,6 +212,9 @@ public final class SaveGame {
 
         JsonObject components = new JsonObject();
         for (Map.Entry<String, Class<? extends EntityComponent>> type : COMPONENT_TYPES.entrySet()) {
+            if (!isSaved(type.getValue())) {
+                continue;
+            }
             JsonObject entities = new JsonObject();
             entityData.findEntities(null, type.getValue()).stream().sorted(Comparator.comparingLong(EntityId::getId)).forEach(entityId
                     -> entities.add(Long.toString(entityId.getId()), GSON.toJsonTree(entityData.getComponent(entityId, type.getValue()), type.getValue())));
@@ -299,6 +311,9 @@ public final class SaveGame {
         EntityData entityData = new DefaultEntityData(new DefaultEntityIdGenerator(json.get("nextEntityId").getAsLong()));
         for (Map.Entry<String, JsonElement> type : json.getAsJsonObject("components").entrySet()) {
             Class<? extends EntityComponent> componentType = COMPONENT_TYPES.get(type.getKey());
+            if (!isSaved(componentType)) {
+                continue;
+            }
             for (Map.Entry<String, JsonElement> entity : type.getValue().getAsJsonObject().entrySet()) {
                 entityData.setComponent(new EntityId(Long.parseLong(entity.getKey())), GSON.fromJson(entity.getValue(), componentType));
             }
@@ -502,6 +517,16 @@ public final class SaveGame {
      *
      * @return the component types by their simple names
      */
+    /**
+     * Whether a component is kept in the save games
+     *
+     * @param type the component type
+     * @return false for the components that only drive the presentation
+     */
+    static boolean isSaved(Class<?> type) {
+        return !PRESENTATION_ONLY.contains(type);
+    }
+
     private static Map<String, Class<? extends EntityComponent>> findComponentTypes() {
         try {
             Path classes = Paths.get(Position.class.getProtectionDomain().getCodeSource().getLocation().toURI());
