@@ -14,10 +14,14 @@ uniform float m_TessellationPixels;
 in vec3 vsPosition[];
 in vec3 vsNormal[];
 in vec2 vsTexCoord[];
+in vec3 vsColor[];
 
 out vec3 tcPosition[];
 out vec3 tcNormal[];
 out vec2 tcTexCoord[];
+out vec3 tcColor[];
+// Whether the triangle is split at all; if not, the corners' colours are blended
+patch out float tcSplit;
 
 bool straight(vec3 a, vec3 b, vec3 na, vec3 nb) {
     // An edge whose corner normals both stand square on it stays a straight
@@ -44,6 +48,7 @@ void main() {
     tcPosition[gl_InvocationID] = vsPosition[gl_InvocationID];
     tcNormal[gl_InvocationID] = vsNormal[gl_InvocationID];
     tcTexCoord[gl_InvocationID] = vsTexCoord[gl_InvocationID];
+    tcColor[gl_InvocationID] = vsColor[gl_InvocationID];
     if (gl_InvocationID == 0) {
         // Outer level i is the edge facing corner i
         float e0 = edgeSegments(vsPosition[1], vsPosition[2], vsNormal[1], vsNormal[2]);
@@ -56,5 +61,6 @@ void main() {
         // the unsmoothed one is: no depth fighting between the two sides of a
         // double-sided sheet
         gl_TessLevelInner[0] = max(e0, max(e1, e2));
+        tcSplit = gl_TessLevelInner[0] > 1.0 ? 1.0 : 0.0;
     }
 }

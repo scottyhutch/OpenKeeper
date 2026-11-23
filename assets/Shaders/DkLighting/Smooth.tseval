@@ -1,6 +1,7 @@
 // Mesh smoothing, tessellation evaluation of the lit pass: places each new
 // vertex on the smoothed surface (Smooth.glsllib) and lights it exactly like
-// DkLighting/Vertex lights a vertex (VertexLighting.glsllib). Vertex.frag
+// DkLighting/Vertex lights a vertex (VertexLighting.glsllib); a triangle that
+// isn't split blends its corners' colours from the vertex stage. Vertex.frag
 // draws it.
 layout(triangles, fractional_odd_spacing, ccw) in;
 
@@ -13,6 +14,8 @@ layout(triangles, fractional_odd_spacing, ccw) in;
 in vec3 tcPosition[];
 in vec3 tcNormal[];
 in vec2 tcTexCoord[];
+in vec3 tcColor[];
+patch in float tcSplit;
 
 out vec2 texCoord;
 out vec3 vVertexColor;
@@ -28,9 +31,14 @@ void main() {
     texCoord = coord.x * tcTexCoord[0] + coord.y * tcTexCoord[1] + coord.z * tcTexCoord[2];
     gl_Position = TransformWorldViewProjection(modelSpacePos);
 
-    vec3 worldPos = TransformWorld(modelSpacePos).xyz;
-    vec3 worldNormal = normalize(TransformWorldNormal(normal));
-    vVertexColor = dkVertexLight(worldPos, worldNormal);
+    if (tcSplit > 0.5) {
+        vec3 worldPos = TransformWorld(modelSpacePos).xyz;
+        vec3 worldNormal = normalize(TransformWorldNormal(normal));
+        vVertexColor = dkVertexLight(worldPos, worldNormal);
+    } else {
+        // Not split: only the corners, already lit by the vertex stage
+        vVertexColor = coord.x * tcColor[0] + coord.y * tcColor[1] + coord.z * tcColor[2];
+    }
     vOverlay = m_TintOverlay.rgb;
     vGlow = vec3(0.0);
 }

@@ -126,7 +126,7 @@ MaterialDef DK Smooth Lighting {
     }
 
     Technique {
-        VertexShader GLSL400: Shaders/DkLighting/Smooth.vert
+        VertexShader GLSL400: Shaders/DkLighting/SmoothLit.vert
         TessellationControlShader GLSL400: Shaders/DkLighting/Smooth.tsctrl
         TessellationEvaluationShader GLSL400: Shaders/DkLighting/Smooth.tseval
         FragmentShader GLSL400: Shaders/DkLighting/Vertex.frag

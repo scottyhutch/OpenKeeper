@@ -27,6 +27,7 @@ import com.jme3.scene.Geometry;
 import com.jme3.scene.Mesh;
 import com.jme3.shader.VarType;
 import java.lang.System.Logger;
+import java.lang.ref.WeakReference;
 import java.lang.System.Logger.Level;
 import java.util.Collection;
 import java.util.Collections;
@@ -76,15 +77,19 @@ public final class VertexTextureBackend {
     private static volatile int generation;
     private static volatile int maxTextureSize = VertexAnimationTexture.MAX_WIDTH;
     private static volatile MaterialDef smoothDef;
+    private static volatile MaterialDef vertexDef;
     private static volatile boolean smoothing;
     private static volatile int smoothingLevel = 3;
     private static volatile boolean phongTessellation;
     /**
-     * Smoothing materials by the material they stand in for, and back. Shared
-     * materials stay shared.
+     * Smoothing materials by the material they stand in for, and back, so
+     * shared materials stay shared. Weak both ways: a material goes with the
+     * last geometry that uses it.
      */
-    private static final Map<Material, Material> SMOOTH_MATERIALS = Collections.synchronizedMap(new WeakHashMap<>());
-    private static final Map<Material, Material> ORIGINAL_MATERIALS = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Material, WeakReference<Material>> SMOOTH_MATERIALS
+            = Collections.synchronizedMap(new WeakHashMap<>());
+    private static final Map<Material, WeakReference<Material>> ORIGINAL_MATERIALS
+            = Collections.synchronizedMap(new WeakHashMap<>());
 
     private static final LongAdder SAMPLE_NANOS = new LongAdder();
     private static final LongAdder UPLOADED_BYTES = new LongAdder();
@@ -153,6 +158,7 @@ public final class VertexTextureBackend {
             missing = "the VERTEX_TEXTURE animation backend";
         }
         if (missing == null && smoothDef == null) {
+            vertexDef = (MaterialDef) assetManager.loadAsset(VERTEX_MATDEF);
             smoothDef = (MaterialDef) assetManager.loadAsset(SMOOTH_MATDEF);
         }
         if (requested && missing != null) {
@@ -233,27 +239,39 @@ public final class VertexTextureBackend {
         Material current = geometry.getMaterial();
         boolean smooth = SMOOTH_MATDEF.equals(current.getMaterialDef().getAssetName());
         if (on && !smooth) {
-            Material material = SMOOTH_MATERIALS.computeIfAbsent(current, VertexTextureBackend::createSmoothMaterial);
-            ORIGINAL_MATERIALS.put(material, current);
+            Material material;
+            synchronized (SMOOTH_MATERIALS) {
+                WeakReference<Material> reference = SMOOTH_MATERIALS.get(current);
+                material = reference == null ? null : reference.get();
+                if (material == null) {
+                    material = copy(current, smoothDef);
+                    material.setFloat("TessellationSegments", SEGMENTS[smoothingLevel - 1]);
+                    material.setBoolean("PhongTessellation", phongTessellation);
+                    SMOOTH_MATERIALS.put(current, new WeakReference<>(material));
+                    ORIGINAL_MATERIALS.put(material, new WeakReference<>(current));
+                }
+            }
             geometry.setMaterial(material);
         } else if (!on && smooth) {
-            Material original = ORIGINAL_MATERIALS.get(current);
+            WeakReference<Material> reference = ORIGINAL_MATERIALS.get(current);
+            Material original = reference == null ? null : reference.get();
             if (original != null) {
                 copyParameters(current, original);
-                geometry.setMaterial(original);
+            } else {
+                // Nothing else used it any more, a new one does
+                original = copy(current, vertexDef);
             }
+            geometry.setMaterial(original);
         }
     }
 
-    private static Material createSmoothMaterial(Material original) {
-        Material material = new Material(smoothDef);
-        copyParameters(original, material);
-        material.setName(original.getName());
-        material.getAdditionalRenderState().set(original.getAdditionalRenderState());
-        material.setTransparent(original.isTransparent());
-        material.setReceivesShadows(original.isReceivesShadows());
-        material.setFloat("TessellationSegments", SEGMENTS[smoothingLevel - 1]);
-        material.setBoolean("PhongTessellation", phongTessellation);
+    private static Material copy(Material from, MaterialDef def) {
+        Material material = new Material(def);
+        copyParameters(from, material);
+        material.setName(from.getName());
+        material.getAdditionalRenderState().set(from.getAdditionalRenderState());
+        material.setTransparent(from.isTransparent());
+        material.setReceivesShadows(from.isReceivesShadows());
         return material;
     }
 
