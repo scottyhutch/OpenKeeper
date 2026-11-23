@@ -483,6 +483,22 @@
                         <text style="menuTextSmall" text="Texture filtering: " />
                         <control width="220px" name="dropDown" id="textureFiltering" />
                     </panel>
+                    <panel childLayout="vertical" padding="10px">
+                        <text style="menuTextSmall" text="Animation: " />
+                        <control width="220px" name="dropDown" id="animationBackend" />
+                    </panel>
+                    <panel childLayout="horizontal" padding="10px">
+                        <control name="checkbox" id="meshSmoothing" />
+                        <text style="menuTextSmall" text=" Mesh smoothing (GPU animation only)" />
+                    </panel>
+                    <panel childLayout="vertical" padding="10px">
+                        <text style="menuTextSmall" text="Smoothing level: " />
+                        <control width="100px" name="dropDown" id="meshSmoothingLevel" />
+                    </panel>
+                    <panel childLayout="vertical" padding="10px">
+                        <text style="menuTextSmall" text="Smoothing method: " />
+                        <control width="220px" name="dropDown" id="meshSmoothingMethod" />
+                    </panel>
                 </panel>
             </panel>
 

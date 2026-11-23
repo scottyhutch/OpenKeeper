@@ -19,10 +19,13 @@ package toniarts.openkeeper.game.data;
 import com.jme3.input.KeyInput;
 import java.util.Objects;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.animation.AnimationBackend;
+import toniarts.openkeeper.animation.VertexTextureBackend;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The default keys
@@ -42,6 +45,22 @@ class SettingsTest {
                         && Objects.equals(setting.getSpecialKey(), quickKey.getSpecialKey()), setting + " has the keys of " + quickKey);
             }
         }
+    }
+
+    @Test
+    void testAnimationTakesTheGpuWhenItCanAndSmoothingIsOff() {
+        assertEquals(AnimationBackend.AUTO, AnimationBackend.parse(String.valueOf(Settings.Setting.ANIMATION_BACKEND.getDefaultValue())));
+        assertFalse(VertexTextureBackend.parseSmoothing(String.valueOf(Settings.Setting.MESH_SMOOTHING.getDefaultValue())));
+        assertEquals(3, Settings.Setting.MESH_SMOOTHING_LEVEL.getDefaultValue());
+        assertEquals("PN", Settings.Setting.MESH_SMOOTHING_METHOD.getDefaultValue());
+
+        // What the graphics options save
+        for (AnimationBackend backend : AnimationBackend.values()) {
+            assertEquals(backend, AnimationBackend.parse(backend.name()));
+        }
+        assertTrue(VertexTextureBackend.parseSmoothing("ON"));
+        assertFalse(VertexTextureBackend.parseSmoothing("OFF"));
+        assertEquals(AnimationBackend.CPU, AnimationBackend.parse("unknown"));
     }
 
 }

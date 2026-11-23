@@ -83,7 +83,7 @@ public final class Settings {
         // The creatures move on the logic tick, a few times a second, the view interpolates between the ticks
         ANIMATION_INTERPOLATION(Boolean.class, true, SettingCategory.GRAPHICS),
         ANIMATION_PHASE_VARIATION(Boolean.class, false, SettingCategory.GRAPHICS),
-        ANIMATION_BACKEND(String.class, "CPU", SettingCategory.GRAPHICS),
+        ANIMATION_BACKEND(String.class, "AUTO", SettingCategory.GRAPHICS),
         MESH_SMOOTHING(String.class, "OFF", SettingCategory.GRAPHICS),
         MESH_SMOOTHING_LEVEL(Integer.class, 3, SettingCategory.GRAPHICS),
         MESH_SMOOTHING_METHOD(String.class, "PN", SettingCategory.GRAPHICS),

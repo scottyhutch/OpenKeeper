@@ -100,8 +100,9 @@ public final class VertexTextureBackend {
     }
 
     /**
-     * Chooses the backend. Call once on the render thread, before models are
-     * shown.
+     * Chooses the backend. Call on the render thread before models are shown,
+     * or again when the settings change: the tracks resample on their next
+     * update.
      *
      * @param requested the requested backend
      * @param caps the renderer's capabilities
@@ -128,16 +129,16 @@ public final class VertexTextureBackend {
             LOGGER.log(Level.WARNING, "Animation backend VERTEX_TEXTURE needs " + missing + ", falling back to CPU");
         }
         setActive(on);
-        LOGGER.log(Level.INFO, "Animation backend: " + (on ? "VERTEX_TEXTURE" : "CPU") + " (requested " + requested + ")");
+        LOGGER.log(Level.INFO, "Animation backend: " + (on ? "VERTEX_TEXTURE" : "CPU") + " (requested " + requested.name() + ")");
         return on;
     }
 
     /**
-     * Chooses whether to smooth the animated models by tessellation. Call
-     * once on the render thread after {@link #configure}, before models are
-     * shown. Needs the vertex texture backend, for the per key frame normals,
-     * and tessellation shaders; without them it stays off and says so in the
-     * log.
+     * Chooses whether to smooth the animated models by tessellation. Call on
+     * the render thread after {@link #configure}, at start-up or again when the
+     * settings change. Needs the vertex texture backend, for the per key
+     * frame normals, and tessellation shaders; without them it stays off and
+     * says so in the log.
      *
      * @param requested whether smoothing was asked for
      * @param level 1 to 4, the most segments per edge are 2, 4, 8 or 16
@@ -149,8 +150,14 @@ public final class VertexTextureBackend {
      */
     public static boolean configureSmoothing(boolean requested, int level, String method, Collection<Caps> caps,
             AssetManager assetManager) {
-        smoothingLevel = Math.clamp(level, 1, SEGMENTS.length);
-        phongTessellation = method != null && method.trim().toUpperCase(Locale.ROOT).startsWith("PHONG");
+        int newLevel = Math.clamp(level, 1, SEGMENTS.length);
+        boolean newPhong = method != null && method.trim().toUpperCase(Locale.ROOT).startsWith("PHONG");
+        if (newLevel != smoothingLevel || newPhong != phongTessellation) {
+            // Changed in the options, the smoothed geometries take it on their next sample
+            smoothingLevel = newLevel;
+            phongTessellation = newPhong;
+            generation++;
+        }
         String missing = null;
         if (!caps.contains(Caps.TesselationShader) || !caps.contains(Caps.GLSL400)) {
             missing = "tessellation shaders (GLSL 4.00)";
@@ -252,7 +259,15 @@ public final class VertexTextureBackend {
                 }
             }
             geometry.setMaterial(material);
-        } else if (!on && smooth) {
+        } else if (on) {
+            // The level or the method may have changed since it was made
+            float segments = SEGMENTS[smoothingLevel - 1];
+            if (!Float.valueOf(segments).equals(current.getParamValue("TessellationSegments"))
+                    || !Boolean.valueOf(phongTessellation).equals(current.getParamValue("PhongTessellation"))) {
+                current.setFloat("TessellationSegments", segments);
+                current.setBoolean("PhongTessellation", phongTessellation);
+            }
+        } else if (smooth) {
             WeakReference<Material> reference = ORIGINAL_MATERIALS.get(current);
             Material original = reference == null ? null : reference.get();
             if (original != null) {
@@ -302,6 +317,14 @@ public final class VertexTextureBackend {
             active = value;
             generation++;
         }
+    }
+
+    /**
+     * @return whether the GPU can run the vertex texture backend, known once
+     * {@link #configure} ran
+     */
+    public static boolean isSupported() {
+        return supported;
     }
 
     /**

@@ -41,6 +41,8 @@ import de.lessvoid.nifty.screen.Screen;
 import de.lessvoid.nifty.tools.Color;
 import de.lessvoid.nifty.tools.SizeValue;
 import toniarts.openkeeper.Main;
+import toniarts.openkeeper.animation.AnimationBackend;
+import toniarts.openkeeper.animation.VertexTextureBackend;
 import toniarts.openkeeper.game.data.TextureFiltering;
 import toniarts.openkeeper.game.data.CustomMPDLevel;
 import toniarts.openkeeper.game.data.GameResult;
@@ -320,6 +322,10 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         DropDown shadows = screen.findNiftyControl("shadowQuality", DropDown.class);
         CheckBox embm = screen.findNiftyControl("embm", CheckBox.class);
         CheckBox hdTextures = screen.findNiftyControl("hdTextures", CheckBox.class);
+        DropDown animationBackend = screen.findNiftyControl("animationBackend", DropDown.class);
+        CheckBox meshSmoothing = screen.findNiftyControl("meshSmoothing", CheckBox.class);
+        DropDown smoothingLevel = screen.findNiftyControl("meshSmoothingLevel", DropDown.class);
+        DropDown smoothingMethod = screen.findNiftyControl("meshSmoothingMethod", DropDown.class);
         DisplayMode mdm = (DisplayMode) res.getSelection();
 
         // TODO: See if we need a restart, but keep in mind that the settings are saved in the restart
@@ -338,10 +344,15 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         settings.setSetting(Settings.Setting.EMBM_ENABLED, embm.isChecked());
         settings.getAppSettings().setGammaCorrection(gamma.isChecked());
         settings.setSetting(Settings.Setting.SHADOW_LEVEL, shadows.getSelection());
+        settings.setSetting(Settings.Setting.ANIMATION_BACKEND, ((AnimationBackend) animationBackend.getSelection()).name());
+        settings.setSetting(Settings.Setting.MESH_SMOOTHING, meshSmoothing.isChecked() ? "ON" : "OFF");
+        settings.setSetting(Settings.Setting.MESH_SMOOTHING_LEVEL, smoothingLevel.getSelection());
+        settings.setSetting(Settings.Setting.MESH_SMOOTHING_METHOD, smoothingMethod.getSelectedIndex() == 1 ? "PHONG" : "PN");
 
         // The asset conversion makes or deletes them at the next start
         Main.getSettings().putBoolean(AssetsConverter.HD_TEXTURES_SETTING, hdTextures.isChecked());
         SettingUtils.getInstance().saveSettings();
+        state.app.configureAnimationBackend();
 
         // This fails and crashes on invalid settings
         if (needToRestart) {
@@ -727,6 +738,21 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         }
     }
 
+    @NiftyEventSubscriber(id = "animationBackend")
+    public void onAnimationBackendChanged(final String id, final DropDownSelectionChangedEvent<AnimationBackend> event) {
+        enableMeshSmoothingControls(event.getSelection());
+    }
+
+    /**
+     * Mesh smoothing needs the vertex texture (GPU) animation
+     */
+    private void enableMeshSmoothingControls(AnimationBackend backend) {
+        boolean enabled = backend != AnimationBackend.CPU && VertexTextureBackend.isSupported();
+        screen.findNiftyControl("meshSmoothing", CheckBox.class).setEnabled(enabled);
+        screen.findNiftyControl("meshSmoothingLevel", DropDown.class).setEnabled(enabled);
+        screen.findNiftyControl("meshSmoothingMethod", DropDown.class).setEnabled(enabled);
+    }
+
     @NiftyEventSubscriber(id = "borderless")
     public void onBorderlessChanged(final String id, final CheckBoxStateChangedEvent event) {
 
@@ -974,6 +1000,26 @@ public final class MainMenuScreenController implements IMainMenuScreenController
         // HD textures
         CheckBox hdTextures = screen.findNiftyControl("hdTextures", CheckBox.class);
         hdTextures.setChecked(Main.getSettings().getBoolean(AssetsConverter.HD_TEXTURES_SETTING));
+
+        // Animation backend and mesh smoothing
+        AnimationBackend backend = AnimationBackend.parse(String.valueOf(
+                Main.getUserSettings().getSetting(Settings.Setting.ANIMATION_BACKEND)));
+        DropDown<AnimationBackend> animationBackend = screen.findNiftyControl("animationBackend", DropDown.class);
+        animationBackend.clear();
+        animationBackend.addAllItems(Arrays.asList(AnimationBackend.values()));
+        animationBackend.selectItem(backend);
+        screen.findNiftyControl("meshSmoothing", CheckBox.class).setChecked(VertexTextureBackend.parseSmoothing(
+                String.valueOf(Main.getUserSettings().getSetting(Settings.Setting.MESH_SMOOTHING))));
+        DropDown<Integer> smoothingLevel = screen.findNiftyControl("meshSmoothingLevel", DropDown.class);
+        smoothingLevel.clear();
+        smoothingLevel.addAllItems(List.of(1, 2, 3, 4));
+        smoothingLevel.selectItem(Math.clamp(Main.getUserSettings().getInteger(Settings.Setting.MESH_SMOOTHING_LEVEL), 1, 4));
+        DropDown<String> smoothingMethod = screen.findNiftyControl("meshSmoothingMethod", DropDown.class);
+        smoothingMethod.clear();
+        smoothingMethod.addAllItems(List.of("PN triangles", "Phong"));
+        smoothingMethod.selectItemByIndex(String.valueOf(Main.getUserSettings().getSetting(Settings.Setting.MESH_SMOOTHING_METHOD))
+                .trim().toUpperCase(java.util.Locale.ROOT).startsWith("PHONG") ? 1 : 0);
+        enableMeshSmoothingControls(backend);
     }
 
     private void setControlSettingsToGUI() {

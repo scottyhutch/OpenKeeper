@@ -19,15 +19,20 @@ package toniarts.openkeeper.animation;
 import java.util.Locale;
 
 /**
- * Where creature vertex animation is evaluated. {@link #CPU} is the reference
- * and the default: {@link PoseTrack} blends the key frames into the mesh's
- * position buffer. {@link #VERTEX_TEXTURE} keeps the decoded key frames in a
+ * Where creature vertex animation is evaluated. {@link #CPU} is the reference:
+ * {@link PoseTrack} blends the key frames into the mesh's position buffer. {@link #VERTEX_TEXTURE} keeps the decoded key frames in a
  * float texture and blends them in the vertex shader. {@link #AUTO} takes the
- * vertex texture when the GPU supports it.
+ * vertex texture when the GPU supports it, and is the default.
  */
 public enum AnimationBackend {
 
-    AUTO, CPU, VERTEX_TEXTURE;
+    AUTO("Auto"), CPU("CPU"), VERTEX_TEXTURE("GPU");
+
+    private final String label;
+
+    AnimationBackend(String label) {
+        this.label = label;
+    }
 
     /**
      * Reads a setting value, case-insensitively
@@ -44,5 +49,13 @@ public enum AnimationBackend {
         } catch (IllegalArgumentException e) {
             return CPU;
         }
+    }
+
+    /**
+     * @return the name shown in the graphics options
+     */
+    @Override
+    public String toString() {
+        return label;
     }
 }
