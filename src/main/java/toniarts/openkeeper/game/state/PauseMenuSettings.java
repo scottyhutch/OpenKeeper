@@ -36,6 +36,8 @@ import de.lessvoid.nifty.elements.Element;
 import de.lessvoid.nifty.screen.Screen;
 import org.bushe.swing.event.EventTopicSubscriber;
 import toniarts.openkeeper.Main;
+import toniarts.openkeeper.animation.AnimationBackend;
+import toniarts.openkeeper.animation.VertexTextureBackend;
 import toniarts.openkeeper.game.data.TextureFiltering;
 import toniarts.openkeeper.game.data.Settings;
 import toniarts.openkeeper.game.state.session.AutoSave;
@@ -47,8 +49,10 @@ import toniarts.openkeeper.view.PlayerMapViewState;
 import java.io.IOException;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * The graphics, sound and control option pages of the in-game pause menu. They
@@ -69,6 +73,7 @@ final class PauseMenuSettings {
     private final EventTopicSubscriber<DropDownSelectionChangedEvent> resolutionSubscriber = this::onResolutionChanged;
     private final EventTopicSubscriber<CheckBoxStateChangedEvent> fullscreenSubscriber = this::onFullscreenChanged;
     private final EventTopicSubscriber<DropDownSelectionChangedEvent> autoSaveSubscriber = this::onAutoSaveChanged;
+    private final EventTopicSubscriber<DropDownSelectionChangedEvent> animationBackendSubscriber = this::onAnimationBackendChanged;
 
     PauseMenuSettings(Nifty nifty, Main app, Screen screen) {
         this.nifty = nifty;
@@ -92,6 +97,10 @@ final class PauseMenuSettings {
         addDropDown(right, "Refresh rate", "refreshRate", "100px");
         addCheckBox(right, " Vertical sync", "verticalSync");
         addDropDown(right, "Texture filtering", "textureFiltering", "220px");
+        addDropDown(right, "Animation", "animationBackend", "100px");
+        addCheckBox(right, " Mesh smoothing (GPU animation only)", "meshSmoothing");
+        addDropDown(right, "Smoothing level", "meshSmoothingLevel", "100px");
+        addDropDown(right, "Smoothing method", "meshSmoothingMethod", "220px");
 
         addLabel(right, "Display mode changes take effect after restarting the game");
 
@@ -99,8 +108,10 @@ final class PauseMenuSettings {
 
         nifty.unsubscribe("resolution", resolutionSubscriber);
         nifty.unsubscribe("fullscreen", fullscreenSubscriber);
+        nifty.unsubscribe("animationBackend", animationBackendSubscriber);
         nifty.subscribe(screen, "resolution", DropDownSelectionChangedEvent.class, resolutionSubscriber);
         nifty.subscribe(screen, "fullscreen", CheckBoxStateChangedEvent.class, fullscreenSubscriber);
+        nifty.subscribe(screen, "animationBackend", DropDownSelectionChangedEvent.class, animationBackendSubscriber);
     }
 
     private void loadGraphics() {
@@ -159,6 +170,23 @@ final class PauseMenuSettings {
         shadows.addAllItems(Settings.SHADOW_LEVELS);
         shadows.selectItem(Math.clamp(Main.getUserSettings().getInteger(Settings.Setting.SHADOW_LEVEL), 0, 3));
         find("embm", CheckBox.class).setChecked(Main.getUserSettings().getBoolean(Settings.Setting.EMBM_ENABLED));
+
+        // Animation backend and mesh smoothing, as in the main menu
+        AnimationBackend backend = AnimationBackend.parse(String.valueOf(
+                Main.getUserSettings().getSetting(Settings.Setting.ANIMATION_BACKEND)));
+        DropDown<AnimationBackend> animationBackend = find("animationBackend", DropDown.class);
+        animationBackend.addAllItems(Arrays.asList(AnimationBackend.values()));
+        animationBackend.selectItem(backend);
+        find("meshSmoothing", CheckBox.class).setChecked(VertexTextureBackend.parseSmoothing(
+                String.valueOf(Main.getUserSettings().getSetting(Settings.Setting.MESH_SMOOTHING))));
+        DropDown<Integer> smoothingLevel = find("meshSmoothingLevel", DropDown.class);
+        smoothingLevel.addAllItems(List.of(1, 2, 3, 4));
+        smoothingLevel.selectItem(Math.clamp(Main.getUserSettings().getInteger(Settings.Setting.MESH_SMOOTHING_LEVEL), 1, 4));
+        DropDown<String> smoothingMethod = find("meshSmoothingMethod", DropDown.class);
+        smoothingMethod.addAllItems(List.of("PN triangles", "Phong"));
+        smoothingMethod.selectItemByIndex(String.valueOf(Main.getUserSettings().getSetting(Settings.Setting.MESH_SMOOTHING_METHOD))
+                .trim().toUpperCase(Locale.ROOT).startsWith("PHONG") ? 1 : 0);
+        enableMeshSmoothingControls(backend);
     }
 
     /**
@@ -185,8 +213,15 @@ final class PauseMenuSettings {
         settings.setSetting(Settings.Setting.EMBM_ENABLED, find("embm", CheckBox.class).isChecked());
         settings.getAppSettings().setGammaCorrection(find("gammaCorrection", CheckBox.class).isChecked());
         settings.setSetting(Settings.Setting.SHADOW_LEVEL, find("shadowQuality", DropDown.class).getSelection());
+        settings.setSetting(Settings.Setting.ANIMATION_BACKEND,
+                ((AnimationBackend) find("animationBackend", DropDown.class).getSelection()).name());
+        settings.setSetting(Settings.Setting.MESH_SMOOTHING, find("meshSmoothing", CheckBox.class).isChecked() ? "ON" : "OFF");
+        settings.setSetting(Settings.Setting.MESH_SMOOTHING_LEVEL, find("meshSmoothingLevel", DropDown.class).getSelection());
+        settings.setSetting(Settings.Setting.MESH_SMOOTHING_METHOD,
+                find("meshSmoothingMethod", DropDown.class).getSelectedIndex() == 1 ? "PHONG" : "PN");
 
         save();
+        app.configureAnimationBackend();
         app.setViewProcessors();
         PlayerMapViewState mapViewState = app.getStateManager().getState(PlayerMapViewState.class);
         if (mapViewState != null) {
@@ -211,6 +246,20 @@ final class PauseMenuSettings {
 
     private void onFullscreenChanged(String id, CheckBoxStateChangedEvent event) {
         find("refreshRate", DropDown.class).setEnabled(event.isChecked());
+    }
+
+    private void onAnimationBackendChanged(String id, DropDownSelectionChangedEvent event) {
+        enableMeshSmoothingControls((AnimationBackend) event.getSelection());
+    }
+
+    /**
+     * Mesh smoothing needs the vertex texture (GPU) animation
+     */
+    private void enableMeshSmoothingControls(AnimationBackend backend) {
+        boolean enabled = backend != AnimationBackend.CPU && VertexTextureBackend.isSupported();
+        find("meshSmoothing", CheckBox.class).setEnabled(enabled);
+        find("meshSmoothingLevel", DropDown.class).setEnabled(enabled);
+        find("meshSmoothingMethod", DropDown.class).setEnabled(enabled);
     }
 
     // --------------------------------------------------------------- sound
@@ -313,6 +362,7 @@ final class PauseMenuSettings {
     void cleanup() {
         nifty.unsubscribe("resolution", resolutionSubscriber);
         nifty.unsubscribe("fullscreen", fullscreenSubscriber);
+        nifty.unsubscribe("animationBackend", animationBackendSubscriber);
         nifty.unsubscribe("autoSave", autoSaveSubscriber);
     }
 
