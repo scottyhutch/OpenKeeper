@@ -164,8 +164,8 @@ MaterialDef DK Terrain Lighting {
     }
 
     Technique PreShadow {
-        VertexShader GLSL150: Shaders/AnimationShadow.vert
-        FragmentShader GLSL150: Shaders/LightingSprite.frag
+        VertexShader GLSL330 GLSL300: Shaders/AnimationShadow.vert
+        FragmentShader GLSL330 GLSL300: Shaders/LightingSprite.frag
         WorldParameters {
             WorldViewProjectionMatrix
             Time
@@ -186,8 +186,8 @@ MaterialDef DK Terrain Lighting {
         }
     }
     Technique PostShadow {
-        VertexShader GLSL150: Shaders/PostShadowSprite.vert
-        FragmentShader GLSL150: Shaders/PostShadowSprite.frag
+        VertexShader GLSL330 GLSL300: Shaders/PostShadowSprite.vert
+        FragmentShader GLSL330 GLSL300: Shaders/PostShadowSprite.frag
         WorldParameters {
             WorldViewProjectionMatrix
             WorldMatrix
