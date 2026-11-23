@@ -20,6 +20,7 @@ import com.badlogic.gdx.ai.fsm.DefaultStateMachine;
 import com.badlogic.gdx.ai.fsm.StateMachine;
 import com.badlogic.gdx.ai.pfa.GraphPath;
 import com.badlogic.gdx.math.Vector2;
+import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
@@ -28,16 +29,19 @@ import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.List;
 import toniarts.openkeeper.game.component.ChickenAi;
+import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.Mobile;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Stored;
+import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.entity.EntityController;
+import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
@@ -62,6 +66,11 @@ public final class ChickenController extends EntityController implements IChicke
      * own (DKII.EXE table 0x6BC3B0)
      */
     private static final int[][] DODGE_TILES = {{0, -1}, {1, -1}, {1, 0}, {1, 1}, {0, 1}, {-1, 1}, {-1, 0}, {-1, -1}, {0, 0}};
+
+    /**
+     * The four tiles beside a chicken, which it steps to one at a time
+     */
+    private static final int[][] SIDE_TILES = {{0, -1}, {1, 0}, {0, 1}, {-1, 0}};
 
     private final INavigationService navigationService;
     private final IEntityPositionLookup entityPositionLookup;
@@ -93,20 +102,62 @@ public final class ChickenController extends EntityController implements IChicke
         final Stored roomStorage = entityData.getComponent(entityId, Stored.class);
         if (position != null && mobile != null && owner != null) {
             Point start = WorldUtils.vectorToPoint(position.position);
-            Point destination = null;
-            if (roomStorage != null) {
-
-                // Koppi-kana, not a happy chicken
-                destination = navigationService.findRandomTileInRoom(start, 3, this);
-            } else {
-
-                // Free-range chicken
-                destination = navigationService.findRandomAccessibleTile(start, 3, this);
-            }
+            Point destination = roomStorage != null ? getHatcheryStep(start, roomStorage) : getFreeRangeStep(start, owner.ownerId);
             if (destination != null) {
                 createNavigation(start, destination, null);
             }
         }
+    }
+
+    /**
+     * A chicken of the Hatchery steps to one of the four tiles beside it that
+     * belong to its Hatchery, trying them in turn from a random one
+     * (DKII.EXE 0x4A1F30)
+     *
+     * @param start where the chicken is
+     * @param roomStorage the chicken's Hatchery
+     * @return the tile to step to, {@code null} if there is none
+     */
+    private Point getHatcheryStep(Point start, Stored roomStorage) {
+        int first = FastMath.nextRandomInt(0, SIDE_TILES.length - 1);
+        for (int i = 0; i < SIDE_TILES.length; i++) {
+            int[] offset = SIDE_TILES[(first + i) % SIDE_TILES.length];
+            Point p = new Point(start.x + offset[0], start.y + offset[1]);
+            IRoomController room = mapController.getRoomControllerByCoordinates(p);
+            if (room != null && room.getEntityId().equals(roomStorage.room)) {
+                return p;
+            }
+        }
+
+        return null;
+    }
+
+    /**
+     * A free-range chicken steps to one of the four tiles beside it on its
+     * keeper's own land, trying them in turn from a random one. It keeps off
+     * rock and the tiles with a door or a trap, and refuses a room tile unless
+     * it is the last one it tries (DKII.EXE 0x4A26D0)
+     *
+     * @param start where the chicken is
+     * @param ownerId the chicken's keeper
+     * @return the tile to step to, {@code null} if there is none
+     */
+    private Point getFreeRangeStep(Point start, short ownerId) {
+        int first = FastMath.nextRandomInt(0, SIDE_TILES.length - 1);
+        for (int i = 0; i < SIDE_TILES.length; i++) {
+            int[] offset = SIDE_TILES[(first + i) % SIDE_TILES.length];
+            Point p = new Point(start.x + offset[0], start.y + offset[1]);
+            IMapTileInformation tile = mapController.getMapData().getTile(p);
+            if (tile == null || tile.getOwnerId() != ownerId || mapController.isSolid(p)
+                    || (i < SIDE_TILES.length - 1 && mapController.getRoomControllerByCoordinates(p) != null)
+                    || entityPositionLookup.getEntitiesInLocation(p).stream().anyMatch(entity
+                            -> entityData.getComponent(entity, DoorComponent.class) != null || entityData.getComponent(entity, TrapComponent.class) != null)) {
+                continue;
+            }
+            return p;
+        }
+
+        return null;
     }
 
     @Override
@@ -122,14 +173,16 @@ public final class ChickenController extends EntityController implements IChicke
                 continue;
             }
 
-            // DK II looks at the first creature of a tile only
-            List<ICreatureController> creatures = entityPositionLookup.getEntityTypesInLocation(p, ICreatureController.class);
-            if (creatures.isEmpty() || creatures.get(0).canFly() || creatures.get(0).isWorker()) {
+            // DK II looks at the first creature of a tile only. One picked up or removed earlier in this tick has no
+            // position but stays in the lookup until it updates, so it is not on the tile any more
+            ICreatureController creature = entityPositionLookup.getEntityTypesInLocation(p, ICreatureController.class).stream()
+                    .filter(c -> c.getPosition() != null).findFirst().orElse(null);
+            if (creature == null || creature.canFly() || creature.isWorker()) {
                 continue;
             }
 
             // Half a tile straight away from the creature, north when it stands right on the chicken
-            Vector3f away = position.position.subtract(creatures.get(0).getPosition()).setY(0);
+            Vector3f away = position.position.subtract(creature.getPosition()).setY(0);
             away = away.lengthSquared() == 0 ? new Vector3f(0, 0, -1) : away.normalizeLocal();
             Vector3f target = position.position.add(away.multLocal(WorldUtils.TILE_WIDTH / 2));
             Point targetTile = WorldUtils.vectorToPoint(target);
