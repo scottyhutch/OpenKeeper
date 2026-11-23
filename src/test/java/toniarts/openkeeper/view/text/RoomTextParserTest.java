@@ -73,6 +73,7 @@ class RoomTextParserTest {
         IRoomInformation room = (IRoomInformation) Proxy.newProxyInstance(IRoomInformation.class.getClassLoader(),
                 new Class<?>[]{IRoomInformation.class}, (proxy, method, args) -> switch (method.getName()) {
                     case "getHealthPercent" -> 100;
+                    case "isDungeonHeart" -> false;
                     case "getUsedCapacity" -> 2;
                     case "getMaxCapacity" -> 9;
                     case "isDungeonHeart" -> false;
