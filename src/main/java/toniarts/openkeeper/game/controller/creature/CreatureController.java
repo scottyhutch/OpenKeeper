@@ -140,6 +140,7 @@ import toniarts.openkeeper.tools.convert.map.ArtResource;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.CreatureSpell.CreatureSpellFlag;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
+import toniarts.openkeeper.tools.convert.map.Door;
 import toniarts.openkeeper.tools.convert.map.Material;
 import toniarts.openkeeper.tools.convert.map.Player;
 import toniarts.openkeeper.tools.convert.map.Shot;
@@ -523,20 +524,30 @@ public final class CreatureController extends EntityController implements ICreat
     @Override
     public void checkSurroundings() {
 
-        // Scan for neutral creatures to claim
-        short ownerId = getOwnerId();
-        if (ownerId == Player.NEUTRAL_PLAYER_ID || ownerId == Player.GOOD_PLAYER_ID) {
+        // A neutral creature looks for a creature of a keeper, not the heroes, within its sight
+        // range on both axes and with nothing in between: walls and every door but a Barricade
+        // block the sight. It joins the first one's keeper. An imprisoned one joins nobody
+        // (DKII.EXE 0x4790A0, line of sight 0x4512F0 and 0x4511A0)
+        Senses senses = entityData.getComponent(entityId, Senses.class);
+        if (getOwnerId() != Player.NEUTRAL_PLAYER_ID || senses == null || isImprisoned()) {
             return;
         }
 
-        for (EntityId entity : entityPositionLookup.getSensedEntities(entityId)) {
-            Owner owner = entityData.getComponent(entity, Owner.class);
-
-            // We see over barricades, but the creature behind an enemy or a locked door
-            // is not ours before we get there
-            if (owner != null && owner.ownerId == Player.NEUTRAL_PLAYER_ID
-                    && !entityPositionLookup.isBehindBlockingDoor(entityId, entity)) {
-                convertCreature(entity, ownerId);
+        Point tile = getCreatureCoordinates();
+        int range = (int) senses.distanceCanSee;
+        for (int x = tile.x - range + 1; x < tile.x + range; x++) {
+            for (int y = tile.y - range + 1; y < tile.y + range; y++) {
+                for (EntityId entity : entityPositionLookup.getEntitiesInLocation(x, y)) {
+                    Owner owner = entityData.getComponent(entity, Owner.class);
+                    Position position = entityData.getComponent(entity, Position.class);
+                    if (owner != null && owner.ownerId != Player.NEUTRAL_PLAYER_ID && owner.ownerId != Player.GOOD_PLAYER_ID
+                            && position != null && entityData.getComponent(entity, CreatureComponent.class) != null
+                            && entityPositionLookup.hasLineOfSight(getPosition(), position.position,
+                                    door -> !levelInfo.getLevelData().getDoorById(door.doorId).getFlags().contains(Door.DoorFlag.IS_BARRICADE))) {
+                        convertCreature(owner.ownerId);
+                        return;
+                    }
+                }
             }
         }
     }
@@ -1144,22 +1155,22 @@ public final class CreatureController extends EntityController implements ICreat
         JobPicked jobPicked = entityData.getComponent(entityId, JobPicked.class);
         boolean pickedLately = jobPicked != null && gameTimer.getGameTime() - jobPicked.time < JOB_PICK_INTERVAL_SECONDS;
 
-        // See that is there a prefered job for us
+        // A job of its own: like DK II, roll 0 to 99 against the chances of all of its jobs, and when the job rolled
+        // can't be started, take the first one of the list that can (0x4780E0)
         // FIXME: moods
-        List<Creature.JobPreference> jobs = new ArrayList<>();
-        if (!pickedLately && creature.getHappyJobs() != null) {
-            for (Creature.JobPreference jobPreference : creature.getHappyJobs()) {
-                if (taskManager.isTaskAvailable(this, jobPreference.getJobType())) {
-                    jobs.add(jobPreference);
-                }
-            }
-        }
-
-        // Choose
-        if (!jobs.isEmpty() && taskManager.assignTask(this, chooseOnWeight(jobs).getJobType())) {
+        Creature.JobPreference[] jobs = !pickedLately && creature.getHappyJobs() != null ? creature.getHappyJobs() : new Creature.JobPreference[0];
+        Creature.JobPreference rolled = rollJob(jobs);
+        if (rolled != null && taskManager.isTaskAvailable(this, rolled.getJobType()) && taskManager.assignTask(this, rolled.getJobType())) {
             entityData.setComponent(entityId, new JobPicked(gameTimer.getGameTime()));
             workResult.accept(true);
             return;
+        }
+        for (Creature.JobPreference job : jobs) {
+            if (job != rolled && taskManager.isTaskAvailable(this, job.getJobType()) && taskManager.assignTask(this, job.getJobType())) {
+                entityData.setComponent(entityId, new JobPicked(gameTimer.getGameTime()));
+                workResult.accept(true);
+                return;
+            }
         }
 
         // DKII angers a creature each time it looks for a job and finds none, before it goes on to its other
@@ -1256,17 +1267,21 @@ public final class CreatureController extends EntityController implements ICreat
         return false;
     }
 
-    private static Creature.JobPreference chooseOnWeight(List<Creature.JobPreference> items) {
-        double completeWeight = 0.0;
-        for (Creature.JobPreference item : items) {
-            completeWeight += item.getChance();
-        }
-        double r = FastMath.rand.nextDouble() * completeWeight;
-        double countWeight = 0.0;
-        for (Creature.JobPreference item : items) {
-            countWeight += item.getChance();
-            if (countWeight >= r) {
-                return item;
+    /**
+     * Rolls 0 to 99 against the jobs' chances laid end to end. A range takes
+     * both of its ends, so a roll on the border goes to the earlier job. With
+     * chances adding up to less than 100 the roll can miss them all
+     *
+     * @param jobs the creature's jobs
+     * @return the job rolled, {@code null} for none
+     */
+    private static Creature.JobPreference rollJob(Creature.JobPreference[] jobs) {
+        int roll = FastMath.rand.nextInt(100);
+        int end = 0;
+        for (Creature.JobPreference job : jobs) {
+            end += job.getChance();
+            if (roll <= end) {
+                return job;
             }
         }
         return null;
@@ -5659,7 +5674,19 @@ public final class CreatureController extends EntityController implements ICreat
 
     @Override
     public void convertCreature(short playerId) {
-        convertCreature(entityId, playerId);
+        removeFromRoomStrorage();
+
+        // Remove our lair from the last player
+        removeLair();
+
+        // Set new owner
+        entityData.setComponent(entityId, new Owner(playerId, playerId));
+
+        // Remove good player stuff
+        entityData.removeComponent(entityId, Objective.class);
+
+        // Reset AI
+        getStateMachine().changeState(CreatureState.IDLE);
     }
 
     @Override
@@ -5683,22 +5710,6 @@ public final class CreatureController extends EntityController implements ICreat
         gameEventService.emitToPlayer(GameEventType.CREATURE_REBELLED, keeperId);
 
         // Start on the objective
-        getStateMachine().changeState(CreatureState.IDLE);
-    }
-
-    private void convertCreature(EntityId entity, short playerId) {
-        removeFromRoomStrorage();
-
-        // Remove our lair from the last player
-        removeLair();
-
-        // Set new owner
-        entityData.setComponent(entity, new Owner(playerId, playerId));
-
-        // Remove good player stuff
-        entityData.removeComponent(entity, Objective.class);
-
-        // Reset AI
         getStateMachine().changeState(CreatureState.IDLE);
     }
 

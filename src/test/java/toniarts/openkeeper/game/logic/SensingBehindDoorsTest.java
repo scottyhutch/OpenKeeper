@@ -46,7 +46,7 @@ import static toniarts.openkeeper.tools.convert.map.Terrain.TerrainFlag.SOLID;
 
 /**
  * Creatures see over barricades, but what stands behind a door that blocks
- * them is out of their reach
+ * them is out of their reach, and a door can stop their line of sight
  */
 class SensingBehindDoorsTest {
 
@@ -130,8 +130,19 @@ class SensingBehindDoorsTest {
     }
 
     @Test
-    void creatureWithoutADoorInBetweenIsNotBehindABlockingDoor() {
-        assertFalse(positionSystem().isBehindBlockingDoor(creature, neutralCreature));
+    void aDoorThatBlocksTheSightStopsTheLineOfSight() {
+        door(PLAYER, WOODEN_DOOR, false);
+
+        assertFalse(positionSystem().hasLineOfSight(WorldUtils.pointToVector3f(CREATURE.x, CREATURE.y),
+                WorldUtils.pointToVector3f(NEUTRAL_CREATURE.x, NEUTRAL_CREATURE.y), door -> true));
+    }
+
+    @Test
+    void aDoorThatLetsTheSightThroughLeavesTheLineOfSightClear() {
+        door(PLAYER, WOODEN_DOOR, false);
+
+        assertTrue(positionSystem().hasLineOfSight(WorldUtils.pointToVector3f(CREATURE.x, CREATURE.y),
+                WorldUtils.pointToVector3f(NEUTRAL_CREATURE.x, NEUTRAL_CREATURE.y), door -> false));
     }
 
     private EntityId entity(Point p, short ownerId) {

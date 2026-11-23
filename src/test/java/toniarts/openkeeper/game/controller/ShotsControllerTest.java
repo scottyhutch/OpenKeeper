@@ -51,6 +51,8 @@ import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.component.SpeedBlur;
 import toniarts.openkeeper.game.component.SpeedChange;
 import toniarts.openkeeper.game.component.TrapComponent;
+import toniarts.openkeeper.game.component.Threat;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
@@ -109,6 +111,7 @@ class ShotsControllerTest {
     private static final short DOOR_ID = 2;
     private static final short TRAP_ID = 1;
     private static final short DOOR_FIREBALL_ID = 57;
+    private static final short SCARY_FREEZE_ID = 45;
     private static final short ALARM_ID = 13;
     private static final short POISON_SPIT_ID = 62;
     private static final short FEAR_ID = 25;
@@ -127,6 +130,7 @@ class ShotsControllerTest {
     private final List<Object[]> effects = new ArrayList<>();
     private final List<List<Object>> playerEvents = new ArrayList<>();
     private final Set<Point> waterTiles = new HashSet<>();
+    private final Set<Vector3f> blindSpots = new HashSet<>();
     private final List<EntityId> pickedUpThings = new ArrayList<>();
     private final ShotsController shotsController;
     private double gameTime = 0;
@@ -155,9 +159,10 @@ class ShotsControllerTest {
         addShot(CREATE_SINGLE_CREATURE_ID, Shot.ProcessType.CREATE_SINGLE_CREATURE);
         shotsById.put(SKELETON_ARMY_ID, ShotFixtures.skeletonArmyShot(SKELETON_ARMY_ID, CREATE_CREATURE_ID));
         shotsById.put(SPIKE_ID, TrapFiringFixtures.shot(SPIKE_ID, Shot.ProcessType.NONE, Shot.DamageType.CONSTANT));
-        shotsById.put(GAS_CLOUD_ID, TrapFiringFixtures.shot(GAS_CLOUD_ID, Shot.ProcessType.GAS, Shot.DamageType.RANGE_FROM_ORIGIN));
+        shotsById.put(GAS_CLOUD_ID, TrapFiringFixtures.shot(GAS_CLOUD_ID, Shot.ProcessType.GAS, Shot.DamageType.RANGE_FROM_ORIGIN, 300));
         shotsById.put(FIREBURST_ID, TrapFiringFixtures.shot(FIREBURST_ID, Shot.ProcessType.NONE, Shot.DamageType.RANGE_FROM_ORIGIN));
         shotsById.put(DOOR_FIREBALL_ID, TrapFiringFixtures.shot(DOOR_FIREBALL_ID, Shot.ProcessType.NONE, Shot.DamageType.HIT_THING));
+        shotsById.put(SCARY_FREEZE_ID, TrapFiringFixtures.shot(SCARY_FREEZE_ID, Shot.ProcessType.FREEZE, Shot.DamageType.NONE, 200));
         shotsById.put(ALARM_ID, TrapFiringFixtures.shot(ALARM_ID, Shot.ProcessType.ALARM, Shot.DamageType.NONE));
         shotsById.put(POISON_SPIT_ID, ShotFixtures.shot(POISON_SPIT_ID, Shot.ProcessType.POISON_SPIT, 0, EnumSet.of(Shot.ShotProcessFlag.HIT_COLLIDE_THING)));
         shotsById.put(ShotFixtures.WEB_ID, ShotFixtures.web());
@@ -220,7 +225,8 @@ class ShotsControllerTest {
 
         // The things picked up this tick are still on their tiles until the lookup catches up
         IEntityPositionLookup entityPositionLookup = (IEntityPositionLookup) Proxy.newProxyInstance(IEntityPositionLookup.class.getClassLoader(), new Class<?>[]{IEntityPositionLookup.class},
-                (proxy, method, args) -> args.length == 2
+                (proxy, method, args) -> method.getName().equals("hasLineOfSight") ? !blindSpots.contains(args[1])
+                        : args.length == 2
                         ? Stream.concat(pickedUpThings.stream(), entityData.findEntities(null, Position.class).stream()
                                 .filter(entity -> new Point((int) args[0], (int) args[1]).equals(WorldUtils.vectorToPoint(entityData.getComponent(entity, Position.class).position))))
                                 .toList()
@@ -228,7 +234,9 @@ class ShotsControllerTest {
         IGameController gameController = (IGameController) Proxy.newProxyInstance(IGameController.class.getClassLoader(), new Class<?>[]{IGameController.class},
                 (proxy, method, args) -> method.getName().equals("getEntityLookupService") ? entityPositionLookup : null);
 
-        shotsController = new ShotsController(kwdFile, entityData, null, () -> gameTime, gameController, mapController, null, objectsController, creaturesController, gameEventService);
+        ILevelInfo levelInfo = (ILevelInfo) Proxy.newProxyInstance(ILevelInfo.class.getClassLoader(), new Class<?>[]{ILevelInfo.class},
+                (proxy, method, args) -> method.getName().equals("getPlayer") ? new Keeper(false, (short) args[0]) : null);
+        shotsController = new ShotsController(kwdFile, entityData, null, () -> gameTime, gameController, mapController, levelInfo, objectsController, creaturesController, gameEventService);
     }
 
     @Test
@@ -568,6 +576,56 @@ class ShotsControllerTest {
     }
 
     @Test
+    @Test
+    void gasCloudSplitsItsThreatBetweenTheEnemiesItSees() {
+        EntityId target = createCreature(ENEMY_ID, 11, 10);
+        createCreature(ENEMY_ID, 10, 11.5f);
+        createCreature(PLAYER_ID, 10, 9);
+        createCreature(ENEMY_ID, 12, 10);
+        blindSpots.add(new Vector3f(9, 1, 9));
+        createCreature(ENEMY_ID, 9, 9);
+
+        shotsController.createShot(GAS_CLOUD_ID, 750, 1, PLAYER_ID, new Vector3f(10, 1, 10), target, null);
+
+        // Two enemies within 2 tiles in sight share the 300, those within a tile of the cloud are scared
+        Threat threat = entityData.getComponent(entityData.findEntity(null, Threat.class, Decay.class), Threat.class);
+        assertEquals(150, threat.threat);
+        assertEquals(1, threat.range, DELTA);
+    }
+
+    @Test
+    void gasCloudThatNoEnemySeesScaresNobody() {
+        EntityId own = createCreature(PLAYER_ID, 11, 10);
+
+        shotsController.createShot(GAS_CLOUD_ID, 750, 1, PLAYER_ID, new Vector3f(10, 1, 10), own, null);
+
+        assertNull(entityData.findEntity(null, Threat.class));
+    }
+
+    @Test
+    void freezeShotScaresTheEnemiesAroundToo() {
+        EntityId target = createCreature(ENEMY_ID, 10, 10);
+        createCreature(ENEMY_ID, 11, 10);
+
+        shotsController.createShot(SCARY_FREEZE_ID, 20, 1, PLAYER_ID, new Vector3f(10, 1, 10), target, null);
+
+        // The two enemies share the freeze shot's threat of 200
+        Threat threat = entityData.getComponent(entityData.findEntity(null, Threat.class, Decay.class), Threat.class);
+        assertEquals(100, threat.threat);
+    }
+
+    @Test
+    void hornedReaperDoesNotFreeze() {
+        EntityId reaper = createCreature(ENEMY_ID, 10, 10);
+        CreatureComponent creatureComponent = new CreatureComponent();
+        creatureComponent.creatureId = REAPER_ID;
+        entityData.setComponent(reaper, creatureComponent);
+
+        shotsController.createShot(FREEZE_ID, 20, 1, PLAYER_ID, new Vector3f(10, 1, 10), reaper, null);
+
+        assertNull(entityData.getComponent(reaper, Frozen.class));
+    }
+
     void drainGivesTheShooterAQuarterOfItsFullHealthFromTheTarget() {
         EntityId vampire = createCreature();
         entityData.setComponent(vampire, new Health(500, 2000));

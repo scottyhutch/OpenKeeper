@@ -44,6 +44,7 @@ import toniarts.openkeeper.game.component.OnFire;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Poisoned;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.component.Threat;
 import toniarts.openkeeper.game.component.ShotFlight;
 import toniarts.openkeeper.game.component.ShotTarget;
 import toniarts.openkeeper.game.component.ShotViewState;
@@ -80,6 +81,8 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_SING
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.DRAIN;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.FEAR;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.FREEZE;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.GAS;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.GUIDED;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INFERNO;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INSTANTANEOUS_HIT;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.INVISIBLE;
@@ -95,6 +98,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.RAISE_DEAD;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.SIGHT_OF_EVIL;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.SUMMON_REAPER;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.TREMOR;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.TRIGGER;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.TURNCOAT;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.WEB_AREA_EFFECT;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.WIND;
@@ -139,6 +143,19 @@ public final class ShotsController implements IShotsController {
      */
     private static final short CREATURE_JACK_ID = 46;
 
+    /**
+     * How far, in tiles, the gas cloud, the Trigger Trap and the Jack in the
+     * Box look for enemies to scare (0x4AF8E0, 0x4AFAD0, 0x4B02E0)
+     */
+    private static final int SCARE_RANGE = 2;
+
+    /**
+     * The other shot processes that scare like the gas cloud as they work:
+     * lightning (0x4AF1E0), freeze (0x4AE1D0), chicken (0x4AE2A0), tremor
+     * (0x4AF330) and the guided bolt (0x4AF3A0)
+     */
+    private static final Set<Shot.ProcessType> SCARING_PROCESSES = EnumSet.of(LIGHTNING, FREEZE, CHICKEN, TREMOR, GUIDED);
+
     private final IKwdFile kwdFile;
     private final EntityData entityData;
     private final Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings;
@@ -182,7 +199,7 @@ public final class ShotsController implements IShotsController {
         result.put(CREATE_SINGLE_CREATURE, request -> creaturesController.spawnCreature((short) request.shotData1(), request.playerId(),
                 request.shotData2(), WorldUtils.vector3fToVector2f(request.position()), ICreaturesController.SpawnType.CONJURE));
         result.put(CREATE_OBJECT, this::createObject);
-        result.put(POSSESS_CREATURE, request -> creaturesController.createController(request.target()).setPossession(true));
+        result.put(POSSESS_CREATURE, this::possess);
         result.put(MODIFY_HEALTH, request -> {
 
             // Healing does nothing to a Horned Reaper (0x4ADB30)
@@ -280,6 +297,8 @@ public final class ShotsController implements IShotsController {
         });
         result.put(BOULDER, this::rollBoulder);
         result.put(JACK_IN_THE_BOX, this::releaseJack);
+        result.put(GAS, this::scare);
+        result.put(TRIGGER, this::scare);
 
         return result;
     }
@@ -330,6 +349,9 @@ public final class ShotsController implements IShotsController {
         IShotProcessor processor = processors.get(processType);
         if (processor != null) {
             processor.process(request);
+            if (SCARING_PROCESSES.contains(processType)) {
+                scare(request);
+            }
         } else if (processType != Shot.ProcessType.NONE && unprocessedTypes.add(processType)) {
             logger.log(Logger.Level.WARNING, "Shot type {0} not implemented", processType);
         }
@@ -590,6 +612,20 @@ public final class ShotsController implements IShotsController {
     }
 
     /**
+     * Possesses the target, unless its keeper already possesses a creature or
+     * the target is Jack, the creature of the Jack in the Box (0x4AEEA0)
+     *
+     * @param request the shot
+     */
+    private void possess(ShotRequest request) {
+        CreatureComponent creature = entityData.getComponent(request.target(), CreatureComponent.class);
+        if (creaturesController.getPossessedCreature(request.playerId()) == null
+                && (creature == null || creature.creatureId != CREATURE_JACK_ID)) {
+            creaturesController.createController(request.target()).setPossession(true);
+        }
+    }
+
+    /**
      * The Jack in the Box goes off under an enemy: the enemy takes the shot's
      * data 1 as damage, the trap is gone and Jack jumps out of it, a creature
      * of the trap's owner that walks to its keeper's Dungeon Heart and dies
@@ -604,6 +640,7 @@ public final class ShotsController implements IShotsController {
             return;
         }
         EntityController.setDamage(entityData, request.target(), request.shotData1());
+        scare(request);
 
         IEntityPositionLookup entityPositionLookup = gameController.getEntityLookupService();
         for (EntityId entityId : entityPositionLookup.getEntitiesInLocation(WorldUtils.vectorToPoint(request.position()))) {
@@ -617,6 +654,48 @@ public final class ShotsController implements IShotsController {
         if (jack != null) {
             creaturesController.createController(jack).getStateMachine().changeState(CreatureState.JACK_IN_THE_BOX);
             entityData.setComponent(jack, new CreatureAi(gameTimer.getGameTime(), CreatureState.JACK_IN_THE_BOX, CREATURE_JACK_ID));
+        }
+    }
+
+    /**
+     * The shot scares its keeper's enemies that see it: its threat is split
+     * between the enemy creatures within 2 tiles and in its line of sight, and
+     * those within a tile get their share for a tick (0x4B32A0). DK II means
+     * this, but compares the distance in 4096ths of a tile with the range in
+     * whole tiles, so there it never finds anyone
+     *
+     * @param request the shot
+     */
+    private void scare(ShotRequest request) {
+
+        // A shot without threat scares nobody (0x4AD730 doesn't even look)
+        if (request.shot().getThreat() == 0) {
+            return;
+        }
+        Keeper keeper = levelInfo.getPlayer(request.playerId());
+        IEntityPositionLookup entityPositionLookup = gameController.getEntityLookupService();
+        Point tile = WorldUtils.vectorToPoint(request.position());
+        int enemies = 0;
+        for (int x = tile.x - SCARE_RANGE; keeper != null && x <= tile.x + SCARE_RANGE; x++) {
+            for (int y = tile.y - SCARE_RANGE; y <= tile.y + SCARE_RANGE; y++) {
+                for (EntityId entity : entityPositionLookup.getEntitiesInLocation(x, y)) {
+                    Owner owner = entityData.getComponent(entity, Owner.class);
+                    Position position = entityData.getComponent(entity, Position.class);
+                    if (owner != null && position != null && keeper.isEnemy(owner.ownerId)
+                            && entityData.getComponent(entity, CreatureComponent.class) != null
+                            && FastMath.sqr(position.position.x - request.position().x) + FastMath.sqr(position.position.z - request.position().z) < SCARE_RANGE * SCARE_RANGE
+                            && entityPositionLookup.hasLineOfSight(request.position(), position.position)) {
+                        enemies++;
+                    }
+                }
+            }
+        }
+
+        int threat = enemies > 0 ? request.shot().getThreat() / enemies : 0;
+        if (threat > 0) {
+            entityData.setComponents(entityData.createEntity(), new Owner(request.playerId(), request.playerId()),
+                    new Position(0, new Vector3f(request.position())), new Threat(threat, SCARE_RANGE - 1),
+                    new Decay(gameTimer.getGameTime(), 1.0 / kwdFile.getGameLevel().getTicksPerSec()));
         }
     }
 
