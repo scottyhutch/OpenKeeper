@@ -23,7 +23,8 @@ class FailedCreatureDeathTest {
         var creature = new Creature();
         creature.getAnimations().put(Creature.AnimationType.IDLE_1,new ArtResource("failed-death-idle",ArtResource.ArtResourceType.MESH));
         var level = (IKwdFile)Proxy.newProxyInstance(IKwdFile.class.getClassLoader(),new Class<?>[]{IKwdFile.class},
-                (p,m,a)->m.getName().equals("getCreature") ? creature : null);
+                (p,m,a)->m.getName().equals("getCreature") ? creature
+                        : m.getName().equals("getGameLevel") ? toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures.level(4) : null);
         var data = new DefaultEntityData(); var id = data.createEntity();
         data.setComponents(id,new Position(0,0,0,0),new Owner((short)1,(short)1));
         Node owner = new Node(); owner.setCullHint(Spatial.CullHint.Always);

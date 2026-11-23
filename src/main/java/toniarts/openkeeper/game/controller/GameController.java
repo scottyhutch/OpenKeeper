@@ -274,6 +274,8 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
     @Override
     public void processTick(float tpf) {
 
+        gameWorldController.processRoomActions();
+
         // Update time for AI
         GdxAI.getTimepiece().update(tpf);
 
@@ -436,6 +438,7 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
 
     @Override
     public void stop() {
+        gameWorldController.clearRoomActions();
         try {
             toniarts.openkeeper.game.logic.GameLogicManager.stopAll(controllers.toArray(IGameLogicUpdatable[]::new));
         } finally { controllers.clear(); }

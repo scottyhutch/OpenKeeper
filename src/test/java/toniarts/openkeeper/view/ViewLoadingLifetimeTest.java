@@ -54,7 +54,8 @@ class ViewLoadingLifetimeTest {
     private static IKwdFile level() {
         var map = new GameMap(1, 1);
         return (IKwdFile) Proxy.newProxyInstance(IKwdFile.class.getClassLoader(), new Class<?>[]{IKwdFile.class},
-                (p, m, a) -> m.getName().equals("getMap") ? map : null);
+                (p, m, a) -> m.getName().equals("getMap") ? map
+                        : m.getName().equals("getGameLevel") ? toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures.level(4) : null);
     }
     private static PlayerMapViewState map(Main app, EntityData data) {
         return new PlayerMapViewState(app, level(), null, List.of(), data, (short) 3, false,

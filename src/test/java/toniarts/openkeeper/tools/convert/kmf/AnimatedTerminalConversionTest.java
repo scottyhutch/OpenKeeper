@@ -37,6 +37,7 @@ class AnimatedTerminalConversionTest {
         var sprite = new AnimSprite(); sprite.setVertices(vertices); sprite.setMaterialIndex(0);
         sprite.setTriangles(new ArrayList<>(List.of(List.of(new Triangle((short)0, (short)1, (short)2)))));
         source.setSprites(List.of(sprite));
+        source.setControls(new ArrayList<>());
         var assets = new DesktopAssetManager(true);
         var material = new com.jme3.material.Material(assets, "Common/MatDefs/Misc/Unshaded.j3md");
         var convert = KmfModelLoader.class.getDeclaredMethod("handleAnim", Anim.class, Map.class);

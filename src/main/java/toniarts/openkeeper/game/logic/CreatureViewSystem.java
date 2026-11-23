@@ -129,8 +129,11 @@ public final class CreatureViewSystem extends GameTimeCounter {
             float dz = previous == null || position == null ? 0 : position.position.z - previous.position.z;
             boolean moving = dx * dx + dz * dz > 1e-8f;
             boolean restart = false;
-            if (entityData.getComponent(entityId, CreatureFall.class) != null) {
-                targetState = Creature.AnimationType.FALLBACK;
+            CreatureFall creatureFall = entityData.getComponent(entityId, CreatureFall.class);
+            if (creatureFall != null) {
+
+                // A conjured creature comes down standing, only a dropped one tumbles and lands dazed
+                targetState = creatureFall.conjured ? Creature.AnimationType.IDLE_1 : Creature.AnimationType.FALLBACK;
             } else if (entityData.getComponent(entityId, Death.class) != null) {
                 targetState = Creature.AnimationType.DEATH_POSE;
             } else if (entityData.getComponent(entityId, Unconscious.class) != null) {

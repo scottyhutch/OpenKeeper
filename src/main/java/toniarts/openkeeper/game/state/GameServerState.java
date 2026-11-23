@@ -191,7 +191,8 @@ public final class GameServerState extends AbstractAppState {
         mapController = gameWorldController.getMapController();
         gameWorldController.addListener(playerActionListener);
         gameWorldController.addSpecialListener(specialListener);
-        cheatController = multiplayer ? new NoopCheatController() : new CheatController(kwdFile, game.getGameController(), gameService.getServerEntityData());
+        cheatController = multiplayer ? new NoopCheatController() : new CheatController(kwdFile, game.getGameController(), gameService.getServerEntityData(),
+                game instanceof GameLoopManager manager ? manager.getPayDaySystem() : null);
         mapController.addListener(mapListener);
         for (IPlayerController playerController : game.getGameController().getPlayerControllers().values()) {
             listeningPlayers.add(playerController);
@@ -423,6 +424,11 @@ public final class GameServerState extends AbstractAppState {
         @Override
         public void onTilesReveal(List<Point> points, boolean explore, short keeperId) {
             gameService.revealTiles(points, explore, keeperId);
+        }
+
+        @Override
+        public void onSightOfEvil(Point centre, int radius, int durationTicks, short keeperId) {
+            gameService.revealSightOfEvil(centre, radius, durationTicks, keeperId);
         }
 
         @Override
