@@ -98,6 +98,8 @@ public final class SaveGame {
      */
     public static final int VERSION = 1;
 
+    private static final System.Logger LOGGER = System.getLogger(SaveGame.class.getName());
+
     private static final String COMPONENT_PACKAGE = Position.class.getPackageName();
     private static final Map<String, Class<? extends EntityComponent>> COMPONENT_TYPES = findComponentTypes();
     /**
@@ -249,9 +251,12 @@ public final class SaveGame {
                     throw new IOException("Save game has no " + section + ", it was saved before games could be loaded!");
                 }
             }
-            for (String type : json.getAsJsonObject("components").keySet()) {
+            // A component this build doesn't have (from a branch that is no longer in it) is left out, so the
+            // rest of the game still loads
+            for (String type : List.copyOf(json.getAsJsonObject("components").keySet())) {
                 if (!COMPONENT_TYPES.containsKey(type)) {
-                    throw new IOException("Unknown component " + type + "!");
+                    LOGGER.log(System.Logger.Level.WARNING, "Save game {0} has the unknown component {1}, it is left out", file, type);
+                    json.getAsJsonObject("components").remove(type);
                 }
             }
 
