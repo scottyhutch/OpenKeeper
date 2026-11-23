@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.event.GameEventService;
@@ -174,7 +175,7 @@ class CreatureFallSystemTest {
 
     @Test
     void droppedCreatureLandsStunned() {
-        EntityId creature = fall(new CreatureFall(), 3f);
+        EntityId creature = land(new CreatureFall(), 3f);
 
         assertEquals(CreatureState.FALLEN, entityData.getComponent(creature, CreatureAi.class).getCreatureState());
         assertNull(entityData.getComponent(creature, CreatureFall.class));
@@ -182,19 +183,19 @@ class CreatureFallSystemTest {
 
     @Test
     void conjuredCreatureIsNotStunned() {
-        EntityId creature = fall(new CreatureFall(true), 3f);
+        EntityId creature = land(new CreatureFall(true), 3f);
 
         assertEquals(CreatureState.IDLE, entityData.getComponent(creature, CreatureAi.class).getCreatureState());
     }
 
     @Test
     void droppedCreatureWithoutStunDurationIsNotStunned() {
-        EntityId creature = fall(new CreatureFall(), 0f);
+        EntityId creature = land(new CreatureFall(), 0f);
 
         assertEquals(CreatureState.IDLE, entityData.getComponent(creature, CreatureAi.class).getCreatureState());
     }
 
-    private EntityId fall(CreatureFall creatureFall, float stunDuration) {
+    private EntityId land(CreatureFall creatureFall, float stunDuration) {
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.stunDuration = stunDuration;
 
