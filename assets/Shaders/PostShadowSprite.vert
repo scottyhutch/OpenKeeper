@@ -1,6 +1,8 @@
 #extension GL_ARB_separate_shader_objects   : enable
 
 #import "Common/ShaderLib/Instancing.glsllib"
+#import "Shaders/AnimationFrame.glsllib"
+#import "Shaders/VertexAnimation.glsllib"
 
 uniform mat4 m_LightViewProjectionMatrix0;
 uniform mat4 m_LightViewProjectionMatrix1;
@@ -55,7 +57,7 @@ const mat4 biasMat = mat4(0.5, 0.0, 0.0, 0.0,
 
 
 void main(){
-   vec4 modelSpacePos = vec4(inPosition, 1.0);
+   vec4 modelSpacePos = vec4(vertexAnimationPosition(inPosition), 1.0);
 
    #ifdef NUM_MORPH_TARGETS
        Morph_Compute(modelSpacePos);
@@ -81,13 +83,15 @@ void main(){
        texCoord = inTexCoord;
 
         // Animation
+        #ifdef ANIMATED_TILES
         int iNumberOfTiles = int(m_NumberOfTiles);
 
         int selectedTile = 0;
 
-        selectedTile += int(g_Time*float(m_Speed));
+        selectedTile += animationFrame(g_Time,m_Speed);
 
         texCoord.x = (float((texCoord.x + mod(float(selectedTile),  float(iNumberOfTiles))) / float(iNumberOfTiles))); ///selectedTile;
+        #endif
         // Animation end
     #endif
     // populate the light view matrices array and convert vertex to light viewProj space

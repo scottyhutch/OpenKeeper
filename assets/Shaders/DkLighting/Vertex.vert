@@ -1,6 +1,8 @@
 #import "Common/ShaderLib/GLSLCompat.glsllib"
+#import "Shaders/AnimationFrame.glsllib"
 #import "Common/ShaderLib/Instancing.glsllib"
 #import "Shaders/DkLighting/DkFalloff.glsllib"
+#import "Shaders/VertexAnimation.glsllib"
 
 // Must match SceneLights.MAX_LIGHTS.
 #define DK_MAX_LIGHTS 3084
@@ -59,7 +61,7 @@ varying vec2 embmEnvironmentTexCoord;
 varying float vSurfaceVisibility;
 
 void main() {
-    vec4 modelSpacePos = vec4(inPosition, 1.0);
+    vec4 modelSpacePos = vec4(vertexAnimationPosition(inPosition), 1.0);
     vec3 localNormal = inNormal;
 #ifdef LAVA_WAVES
     float waveNumber = 6.28318530718 / max(m_LavaWaveParameters.z, 0.001);
@@ -77,7 +79,7 @@ void main() {
     liquidTexCoord = inTexCoord;
 #ifdef ANIMATED_TILES
     float tiles = float(m_NumberOfTiles);
-    float selectedTile = floor(g_Time * float(m_Speed));
+    float selectedTile = float(animationFrame(g_Time,m_Speed));
     texCoord.x = (texCoord.x + mod(selectedTile, tiles)) / tiles;
 #endif
 

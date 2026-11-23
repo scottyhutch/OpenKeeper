@@ -276,6 +276,13 @@ public final class ModelViewer extends SimpleApplication {
 
         ((GLRenderer) renderer).setDebugEnabled(true); // get debug names for GL objects
 
+        // Same animation backend as the game, it has shadows to check the shadow passes with
+        toniarts.openkeeper.animation.VertexTextureBackend.configure(
+                toniarts.openkeeper.animation.AnimationBackend.parse(System.getProperty("openkeeper.animationBackend",
+                        String.valueOf(Main.getUserSettings().getSetting(
+                                toniarts.openkeeper.game.data.Settings.Setting.ANIMATION_BACKEND)))),
+                renderer.getCaps(), renderer.getLimits());
+
         // Distribution locator
         assetManager.registerLocator(AssetsConverter.getAssetsFolder(), FileLocator.class);
         assetManager.registerLoader(MP2Loader.class, "mp2");

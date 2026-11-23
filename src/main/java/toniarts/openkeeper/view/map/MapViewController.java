@@ -190,6 +190,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
 
     @Override
     public Spatial load(AssetManager assetManager, IKwdFile object) {
+        checkLoadingInterrupted();
 
         long startTime = System.nanoTime();
         
@@ -218,6 +219,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         // Go through the fixed rooms and construct them
         // We might not need the room list on the client ever, we can draw them without
         for (Thing.Room room : kwdFile.getThings(Thing.Room.class)) {
+            checkLoadingInterrupted();
             Point p = new Point(room.getPosX(), room.getPosY());
             handleRoom(p, kwdFile.getRoomByTerrain(getMapData().getTile(p).getTerrainId()), room);
         }
@@ -229,6 +231,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         drawnOwnerIds = new short[tilesCount];
 
         for (IMapTileInformation tile : getMapData()) {
+            checkLoadingInterrupted();
 
             try {
                 isDrawnTileChanged(tile);
@@ -243,6 +246,7 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
 
         // Batch the terrain pages
         for (Node page : pages) {
+            checkLoadingInterrupted();
             ((BatchNode) page.getChild(FLOOR_INDEX)).batch();
             ((BatchNode) page.getChild(WALL_INDEX)).batch();
             ((BatchNode) page.getChild(TOP_INDEX)).batch();
@@ -261,6 +265,11 @@ public abstract class MapViewController implements ILoader<IKwdFile> {
         logger.log(Level.INFO, "Map {0} loaded in {1} ms", new Object[]{object.getGameLevel().getName(), loadTimeMs});
 
         return map;
+    }
+
+    private static void checkLoadingInterrupted() {
+        if (Thread.currentThread().isInterrupted())
+            throw new java.util.concurrent.CancellationException("Map loading cancelled");
     }
 
     /**

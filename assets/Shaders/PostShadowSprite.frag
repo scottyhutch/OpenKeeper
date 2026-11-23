@@ -1,6 +1,7 @@
 #extension GL_ARB_separate_shader_objects   : enable
 
 #import "Common/ShaderLib/Shadows.glsllib"
+#import "Shaders/AnimationCoverage.glsllib"
 
 layout(location = 0) out vec4 fragColor;
 layout(location = 0) in vec4 projCoord0;
@@ -43,11 +44,11 @@ void main(){
  
     #ifdef DISCARD_ALPHA
         #ifdef COLOR_MAP
-            float alpha = texture(m_ColorMap,texCoord).a;
+            vec4 texel = texture(m_ColorMap,texCoord);
         #else
-            float alpha = texture(m_DiffuseMap,texCoord).a;
+            vec4 texel = texture(m_DiffuseMap,texCoord);
         #endif
-        if(alpha<=m_AlphaDiscardThreshold){
+        if(!animationTexelCovered(texel,m_AlphaDiscardThreshold)){
             discard;
         }
     #endif

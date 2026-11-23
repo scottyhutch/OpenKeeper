@@ -444,6 +444,16 @@ public final class Main extends SimpleApplication {
     @Override
     public void simpleInitApp() {
 
+        toniarts.openkeeper.utils.AssetUtils.configureAnimationDataCache(getAssetManager(),
+                Math.clamp(getUserSettings().getInteger(Settings.Setting.ANIMATION_PACKED_KIB),0,256*1024)*1024);
+
+        // Creature vertex animation on the CPU (default) or in the vertex shader. The system property wins, for
+        // trying it without touching the settings file
+        toniarts.openkeeper.animation.VertexTextureBackend.configure(
+                toniarts.openkeeper.animation.AnimationBackend.parse(System.getProperty("openkeeper.animationBackend",
+                        String.valueOf(getUserSettings().getSetting(Settings.Setting.ANIMATION_BACKEND)))),
+                renderer.getCaps(), renderer.getLimits());
+
         // Borderless fullscreen, a monitor sized window without decorations
         setBorderless();
 

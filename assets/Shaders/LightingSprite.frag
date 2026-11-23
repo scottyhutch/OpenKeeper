@@ -1,5 +1,6 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_explicit_uniform_location : enable
+#import "Shaders/AnimationCoverage.glsllib"
 
 precision highp float;
 precision highp sampler2D;
@@ -16,7 +17,7 @@ void main()
   newTexCoord = texCoord;
   vec4 diffuseColor = texture(m_DiffuseMap, newTexCoord);
   #ifdef DISCARD_ALPHA
-      if (all(lessThan(diffuseColor.rgb, vec3(m_AlphaDiscardThreshold))))
+      if (!animationTexelCovered(diffuseColor, m_AlphaDiscardThreshold))
           discard;
   #endif
 

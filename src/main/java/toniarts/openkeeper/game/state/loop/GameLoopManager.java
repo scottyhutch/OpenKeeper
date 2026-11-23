@@ -58,7 +58,7 @@ import javax.annotation.Nullable;
  *
  * @author ArchDemon
  */
-public final class GameLoopManager {
+public final class GameLoopManager implements IGameLoopManager {
 
     private static final Logger logger = System.getLogger(GameLoopManager.class.getName());
 
@@ -218,7 +218,8 @@ public final class GameLoopManager {
                 new SeparationSystem(entityData, level, gameWorldController.getMapController(), positionSystem),
                 new TrainingDummySystem(entityData, levelInfo.getLevelData(), gameWorldController.getMapController(),
                         gameController.getGameTimer()),
-                new CreatureViewSystem(entityData, levelInfo.getLevelData()),
+                new CreatureViewSystem(entityData, levelInfo.getLevelData(), gameController.getGameTimer(),
+                        toniarts.openkeeper.Main.getUserSettings().getBoolean(toniarts.openkeeper.game.data.Settings.Setting.ANIMATION_INTERPOLATION)),
                 new DoorSystem(entityData, level, gameWorldController.getMapController(), levelInfo),
                 new DoorViewSystem(entityData, positionSystem, levelInfo),
                 // Authoritative movement/contact belongs to the logic tick.
@@ -262,16 +263,19 @@ public final class GameLoopManager {
         }
     }
 
+    @Override
     public void pause() {
         loops.stream().forEach(GameLoop::pause);
         gameService.setGamePaused(true);
     }
 
+    @Override
     public void resume() {
         loops.stream().forEach(GameLoop::resume);
         gameService.setGamePaused(false);
     }
 
+    @Override
     public void start() {
         ThreadCheck.setRunning(true);
         loops.stream().forEach(GameLoop::start);
@@ -282,14 +286,43 @@ public final class GameLoopManager {
      * is collected first, and the saves that are being written are waited for,
      * so a game saved just before quitting is not lost.
      */
+    @Override
     public void stop() {
         ThreadCheck.setRunning(false);
         finishSaves();
 
         // The game logic last: stopping it tears down what the animation and steering loops still use
-        loops.reversed().forEach(GameLoop::stop);
+        try {
+            stopLoops(loops.reversed());
+        } finally {
+            loops.clear();
+            saveWriter.shutdown();
+        }
+    }
+
+    /**
+     * Stops every loop, even when one of them fails to clean up, so that no
+     * simulation thread is left running. The first failure is thrown after
+     *
+     * @param loops the loops to stop, cleared after
+     */
+    static void stopLoops(List<GameLoop> loops) {
+        RuntimeException failure = null;
+        for (GameLoop loop : loops) {
+            try {
+                loop.stop();
+            } catch (RuntimeException error) {
+                if (failure == null) {
+                    failure = error;
+                } else if (failure != error) {
+                    failure.addSuppressed(error);
+                }
+            }
+        }
         loops.clear();
-        saveWriter.shutdown();
+        if (failure != null) {
+            throw failure;
+        }
     }
 
     private void finishSaves() {
@@ -380,6 +413,7 @@ public final class GameLoopManager {
         return loops.get(loop).hold(() -> hold(loop + 1, action));
     }
 
+    @Override
     public IGameController getGameController() {
         return gameController;
     }

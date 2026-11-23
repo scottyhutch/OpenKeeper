@@ -178,18 +178,22 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     }
 
     @Override
+    public void stateDetached(AppStateManager stateManager) {
+        if (!isInitialized()) cleanup();
+    }
+
+    @Override
     public void cleanup() {
+        if (screen == null) return;
         unregisterPauseKey();
         keeperEntity.release();
         hearts.release();
-        workshopCameraCycler.close();
+        if (workshopCameraCycler != null) {
+            workshopCameraCycler.close();
+        }
         workshopCameraCycler = null;
 
-        // Detach states
-        for (AbstractAppState state : appStates) {
-            stateManager.detach(state);
-        }
-        appStates.clear();
+        detachPlayerStates();
         interactionState = null;
         possessionState = null;
         cameraState = null;
@@ -308,12 +312,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         } else {
             unregisterPauseKey();
 
-            // Detach states
-            for (AbstractAppState state : appStates) {
-                stateManager.detach(state);
-            }
-
-            appStates.clear();
+            detachPlayerStates();
             screen.cleanup();
             screen.goToScreen(IPlayerScreenController.SCREEN_EMPTY_ID);
         }
@@ -365,6 +364,17 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
                         logger.log(System.Logger.Level.ERROR, "Failed to auto-save to " + file + "!", ex);
                     }
                 }));
+    }
+
+    private void detachPlayerStates() {
+        detachPlayerStates(stateManager == null ? app.getStateManager() : stateManager, appStates);
+    }
+
+    static void detachPlayerStates(AppStateManager owner, List<? extends AbstractAppState> states) {
+        // Disable dependants while their camera/interaction peers are still discoverable.
+        for (AbstractAppState state : states) if (state.isEnabled()) state.setEnabled(false);
+        for (AbstractAppState state : states) owner.detach(state);
+        states.clear();
     }
 
     /**

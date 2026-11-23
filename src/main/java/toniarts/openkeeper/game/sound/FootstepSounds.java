@@ -38,9 +38,6 @@ public final class FootstepSounds {
     public static final int POSSESSED_RIGHT = 0x333;
     public static final int NO_STEP = -1;
 
-    // The animation frames are 1/30 s apart
-    private static final float FRAME_DURATION = 1f / 30f;
-
     // A crowd of creatures must not flood the sound engine, so only a few steps may start per window
     public static final long WINDOW_MS = 200;
     public static final int MAX_STEPS_PER_WINDOW = 3;
@@ -109,6 +106,12 @@ public final class FootstepSounds {
      * wrap, {@link #NO_STEP} for none
      */
     public static int getStep(int[] marks, float previousTime, float currentTime, float length) {
+        return getStep(marks, previousTime, currentTime, length, 30);
+    }
+
+    public static int getStep(int[] marks, float previousTime, float currentTime, float length, double framesPerSecond) {
+        if (!Double.isFinite(framesPerSecond) || framesPerSecond <= 0) framesPerSecond = 30;
+        float frameDuration = (float)(1 / framesPerSecond);
         if (length <= 0 || currentTime == previousTime) {
             return NO_STEP;
         }
@@ -116,22 +119,22 @@ public final class FootstepSounds {
         if (Math.abs(delta) < length / 2) {
 
             // Plain move, also backwards when the animation cycles back and forth
-            return isCrossed(marks, Math.min(previousTime, currentTime), Math.max(previousTime, currentTime)) ? STEP_A : NO_STEP;
+            return isCrossed(marks, Math.min(previousTime, currentTime), Math.max(previousTime, currentTime), frameDuration) ? STEP_A : NO_STEP;
         }
         if (delta < 0) {
 
             // Wrapped forwards
-            if (isCrossed(marks, previousTime, length)) {
+            if (isCrossed(marks, previousTime, length, frameDuration)) {
                 return STEP_A;
             }
-            return isCrossed(marks, -FRAME_DURATION, currentTime) ? STEP_B : NO_STEP;
+            return isCrossed(marks, -frameDuration, currentTime, frameDuration) ? STEP_B : NO_STEP;
         }
 
         // Wrapped backwards
-        if (isCrossed(marks, -FRAME_DURATION, previousTime)) {
+        if (isCrossed(marks, -frameDuration, previousTime, frameDuration)) {
             return STEP_A;
         }
-        return isCrossed(marks, currentTime, length) ? STEP_B : NO_STEP;
+        return isCrossed(marks, currentTime, length, frameDuration) ? STEP_B : NO_STEP;
     }
 
     /**
@@ -162,9 +165,9 @@ public final class FootstepSounds {
         return step == STEP_B || step == POSSESSED_RIGHT ? WADING_B : WADING_A;
     }
 
-    private static boolean isCrossed(int[] marks, float from, float to) {
+    private static boolean isCrossed(int[] marks, float from, float to, float frameDuration) {
         for (int mark : marks) {
-            float time = mark * FRAME_DURATION;
+            float time = mark * frameDuration;
             if (time > from && time <= to) {
                 return true;
             }

@@ -84,8 +84,8 @@ public final class CreatureFallSystem implements IGameLogicUpdatable {
             }
 
             // A vector of its own: the game logic lands the creature when it sees it on the floor
-            Position newPosition = new Position(position.rotation, position.position.clone());
-            newPosition.position.y = Math.max(newPosition.position.y - tpf * GRAVITY, floorHeight);
+            Position newPosition = Position.integrated(position, position.rotation, position.position.x,
+                    Math.max(position.position.y - tpf * GRAVITY, floorHeight), position.position.z);
             entityData.setComponent(entity.getId(), newPosition);
         }
     }

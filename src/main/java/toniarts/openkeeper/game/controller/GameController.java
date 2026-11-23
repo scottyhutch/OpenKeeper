@@ -675,8 +675,9 @@ public final class GameController implements IGameLogicUpdatable, IGameControlle
     @Override
     public void stop() {
         gameWorldController.clearRoomActions();
-        controllers.stream().forEach(IGameLogicUpdatable::stop);
-        controllers.clear();
+        try {
+            toniarts.openkeeper.game.logic.GameLogicManager.stopAll(controllers.toArray(IGameLogicUpdatable[]::new));
+        } finally { controllers.clear(); }
     }
 
     @Override

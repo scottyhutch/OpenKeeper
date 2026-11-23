@@ -1583,7 +1583,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         // falling into the portal doesn't fall over, it struggles and cries for help like in the hand
         if (!tortureOrImprisonment) {
             CreatureViewState viewState = entityData.getComponent(entity, CreatureViewState.class);
-            entityData.setComponent(entity, new CreatureViewState(viewState.creatureId, gameTimer.getGameTime(),
+            entityData.setComponent(entity, viewState.next(gameTimer.getGameTime(),
                     leavingDungeon ? Creature.AnimationType.IN_HAND : Creature.AnimationType.FALLBACK));
         }
 

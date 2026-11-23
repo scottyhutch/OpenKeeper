@@ -68,6 +68,9 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Consumer;
 import javax.annotation.Nullable;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionStage;
+import toniarts.openkeeper.game.state.loading.LoadingScope;
 
 /**
  * Handles the handling of game world for a player, visually
@@ -95,6 +98,10 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     private final GameEventSoundPlayer gameEventSoundPlayer;
     private final DiscoViewState discoViewState;
     private final EventListener<GameEvent> casinoEffectsListener = this::onCasinoEvent;
+    private final LoadingScope loading;
+    private final CompletableFuture<Void> dataReleased = new CompletableFuture<>();
+    private boolean disposed;
+    private boolean mapPublished;
 
     // Scripted reveals/conceals (action point triggers) that arrive before the fog has been seeded
     // would be wiped by the seeding, so they wait for it and are applied right after
@@ -124,6 +131,8 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         this.app = app;
         this.kwdFile = kwdFile;
         this.assetManager = assetManager;
+        loading = new LoadingScope(task -> app.enqueue(task),
+                failure -> app.handleError("Failed to load the map", failure));
 
         // We don't update anything until the map has loaded, we enable ourselves then
         setEnabled(false);
@@ -162,14 +171,16 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
                 // Build the map on its own thread, we might be on the render
                 // thread, and the client carries on setting up its other states
-                Thread mapLoaderThread = new Thread(() -> {
+                loading.start("GameClientMapLoader", () -> {
 
                     Spatial map = mapLoader.load(assetManager, kwdFile);
 
                     // The loader is done with the map (and its light rules), from
                     // here on they are only touched on the render thread
-                    app.enqueue(() -> {
+                    loading.publish(() -> {
                         worldNode.attachChild(map);
+                        mapPublished = true;
+                        mapLoader.getLightRules().createCursorLight();
 
                         // Start updating, and refresh the tiles that changed while
                         // we were loading
@@ -181,8 +192,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
                         loadCompleteNotifier.onLoadComplete();
                     });
-                }, "GameClientMapLoader");
-                mapLoaderThread.start();
+                });
             }
 
         };
@@ -233,6 +243,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
 
     @Override
     public void initialize(final AppStateManager stateManager, final Application app) {
+        if (loading.isClosed()) return;
         super.initialize(stateManager, app);
         this.app = (Main) app;
         this.stateManager = stateManager;
@@ -259,16 +270,27 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         // Attach the world
         this.app.getRootNode().attachChild(worldNode);
 
-        // Lighting: the cursor light lives as long as the world does
-        mapLoader.getLightRules().createCursorLight();
     }
 
     @Override
+    public void stateDetached(AppStateManager stateManager) {
+        loading.close();
+        // Constructor-owned subscriptions exist even if jME never initializes this state.
+        if (!isInitialized()) cleanup();
+    }
+
+    /** Completes after cancellation and actual decoder return, with source subscriptions released. */
+    public CompletionStage<Void> whenLoadingStopped() { return dataReleased.minimalCompletionStage(); }
+
+    @Override
     public void cleanup() {
+        if (disposed) return;
+        disposed = true;
+        loading.close();
         EventBus.removeListener(ClientEvents.GAME_EVENT, this);
 
-        // Lighting
-        mapLoader.getLightRules().destroyCursorLight();
+        // Only the published map has render-owned lights. Never mutate an in-flight map's light lists.
+        if (mapPublished) mapLoader.getLightRules().destroyCursorLight();
 
         // Detach our map
         if (worldNode != null) {
@@ -277,29 +299,46 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
         }
 
         // Tile flash state
-        stateManager.detach(flashTileControl);
+        if (stateManager != null) stateManager.detach(flashTileControl);
 
         // In case we are still loading
-        stateManager.detach(mapEntityLoader);
+        if (stateManager != null) stateManager.detach(mapEntityLoader);
 
         // Effects
-        stateManager.detach(effectManager);
+        if (stateManager != null) stateManager.detach(effectManager);
 
         // Sounds
-        this.gameEventSoundPlayer.unregister();
-        EventBus.removeListener(ClientEvents.GAME_EVENT, casinoEffectsListener);
-        stateManager.detach(discoViewState);
+        if (isInitialized()) {
+            this.gameEventSoundPlayer.unregister();
+            EventBus.removeListener(ClientEvents.GAME_EVENT, casinoEffectsListener);
+        }
+        if (stateManager != null) stateManager.detach(discoViewState);
+        pendingTileUpdates.clear();
 
-        // The actual map data
-        mapRoomContainer.stop();
-        mapTileContainer.stop();
-        fogOfWarController.stop();
+        // The decoder may ignore interruption. Its source data stays valid until it actually returns.
+        // After detachment only this completion owns those query/container objects; no scene/GL work here.
+        loading.whenStopped().thenRun(this::releaseMapData);
 
         super.cleanup();
     }
 
+    private void releaseMapData() {
+        Throwable failure = null;
+        Runnable[] releases = {mapRoomContainer::stop, mapTileContainer::stop, fogOfWarController::stop};
+        for (Runnable release : releases) {
+            try { release.run(); }
+            catch (Throwable error) {
+                if (failure == null) failure = error;
+                else failure.addSuppressed(error);
+            }
+        }
+        if (failure == null) dataReleased.complete(null);
+        else dataReleased.completeExceptionally(failure);
+    }
+
     @Override
     public void update(float tpf) {
+        if (loading.isClosed()) return;
 
         // Always process rooms before the map tiles, and the fog of war after
         // the map is up to date
@@ -326,10 +365,10 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
      */
     private void onCasinoEvent(EventType<GameEvent> type, GameEvent event) {
         if (event.type == GameEventType.CASINO_JACKPOT) {
-            app.enqueue(() -> effectManager.load(worldNode, WorldUtils.pointToVector3f(event.position).addLocal(0, WorldUtils.FLOOR_HEIGHT, 0),
+            loading.publish(() -> effectManager.load(worldNode, WorldUtils.pointToVector3f(event.position).addLocal(0, WorldUtils.FLOOR_HEIGHT, 0),
                     CASINO_JACKPOT_EFFECT, false));
         } else if (event.type == GameEventType.CASINO_FIREWORKS) {
-            app.enqueue(() -> effectManager.load(worldNode, WorldUtils.pointToVector3f(event.position).addLocal(0, WorldUtils.TILE_HEIGHT, 0),
+            loading.publish(() -> effectManager.load(worldNode, WorldUtils.pointToVector3f(event.position).addLocal(0, WorldUtils.TILE_HEIGHT, 0),
                     CASINO_FIREWORKS_EFFECT, false));
         }
     }
@@ -459,7 +498,7 @@ public abstract class PlayerMapViewState extends AbstractAppState implements Map
     }
 
     private void updateTiles(Point[] points) {
-        app.enqueue(() -> {
+        loading.publish(() -> {
             if (!isEnabled()) {
 
                 // Still loading, there is no map to update yet

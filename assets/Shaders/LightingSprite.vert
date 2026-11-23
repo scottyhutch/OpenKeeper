@@ -1,5 +1,6 @@
 #extension GL_ARB_separate_shader_objects : enable
 #extension GL_ARB_explicit_uniform_location : enable
+#import "Shaders/AnimationFrame.glsllib"
 
 layout(location = 0) uniform mat4 g_WorldViewProjectionMatrix;
 layout(location = 4) uniform float g_Time;
@@ -17,6 +18,6 @@ void main() {
    texCoord = inTexCoord;
 
    int iNumberOfTiles = int(m_NumberOfTiles);
-   int selectedTile = int(g_Time * float(m_Speed));
+   int selectedTile = animationFrame(g_Time, m_Speed);
    texCoord.x = float((texCoord.x + mod(float(selectedTile),  float(iNumberOfTiles))) / float(iNumberOfTiles));
 }

@@ -84,6 +84,9 @@ public final class PossessedMovementSystem implements IGameLogicUpdatable {
                 continue;
             }
 
+            if (entityData.getComponent(entity.getId(), toniarts.openkeeper.game.component.CreatureFall.class) != null
+                    || entityData.getComponent(entity.getId(), toniarts.openkeeper.game.component.Death.class) != null
+                    || entityData.getComponent(entity.getId(), toniarts.openkeeper.game.component.Unconscious.class) != null) continue;
             PossessedMovement movement = entity.get(PossessedMovement.class);
             Position position = entityData.getComponent(entity.getId(), Position.class);
             if (position == null) {
@@ -103,7 +106,7 @@ public final class PossessedMovementSystem implements IGameLogicUpdatable {
             }
 
             if (!newPosition.equals(position.position) || movement.rotation != position.rotation) {
-                entityData.setComponent(entity.getId(), new Position(movement.rotation, newPosition));
+                entityData.setComponent(entity.getId(), Position.integrated(position, movement.rotation, newPosition.x, newPosition.y, newPosition.z));
             }
         }
     }

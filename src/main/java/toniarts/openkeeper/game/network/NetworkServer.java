@@ -317,6 +317,8 @@ public final class NetworkServer {
             Serializer.registerClass(CreatureTypeAttraction.class, new FieldSerializer());
             Serializer.registerClass(CreatureTypePenalty.class, new FieldSerializer());
             Serializer.registerClass(CreatureViewState.class, new FieldSerializer());
+            Serializer.registerClass(toniarts.openkeeper.game.component.SimulationTime.class, new FieldSerializer());
+            Serializer.registerClass(toniarts.openkeeper.game.component.CreatureMotion.class, new FieldSerializer());
             Serializer.registerClass(Damage.class, new FieldSerializer());
             Serializer.registerClass(Death.class, new FieldSerializer());
             Serializer.registerClass(Decay.class, new FieldSerializer());
@@ -411,6 +413,7 @@ public final class NetworkServer {
             Serializer.registerClass(StolenLoot.class, new FieldSerializer());
             Serializer.registerClass(Storage.class, new FieldSerializer());
             Serializer.registerClass(Stored.class, new FieldSerializer());
+            Serializer.registerClass(SummonedReaper.class, new FieldSerializer());
             Serializer.registerClass(Senses.class, new FieldSerializer());
             Serializer.registerClass(ShotFlight.class, new FieldSerializer());
             Serializer.registerClass(ShotTarget.class, new FieldSerializer());

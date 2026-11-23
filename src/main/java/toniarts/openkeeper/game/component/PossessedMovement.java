@@ -40,16 +40,22 @@ public final class PossessedMovement implements EntityComponent {
      */
     public float pitch;
     public float speed;
+    public byte speedMode;
 
     public PossessedMovement() {
         // For serialization
     }
 
     public PossessedMovement(Vector2f direction, float rotation, float pitch, float speed) {
-        this.direction = direction;
+        this(direction, rotation, pitch, speed, SPEED_WALK);
+    }
+
+    public PossessedMovement(Vector2f direction, float rotation, float pitch, float speed, byte speedMode) {
+        this.direction = direction.clone();
         this.rotation = rotation;
         this.pitch = pitch;
         this.speed = speed;
+        this.speedMode = speedMode == SPEED_RUN || speedMode == SPEED_CREEP ? speedMode : SPEED_WALK;
     }
 
 }

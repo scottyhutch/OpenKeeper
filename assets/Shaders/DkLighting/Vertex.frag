@@ -1,4 +1,5 @@
 #import "Common/ShaderLib/GLSLCompat.glsllib"
+#import "Shaders/AnimationCoverage.glsllib"
 
 uniform sampler2D m_DiffuseMap;
 
@@ -101,7 +102,7 @@ void main() {
 #endif
 
     #ifdef DISCARD_ALPHA
-        if (diffuse.a < m_AlphaDiscardThreshold) {
+        if (!animationTexelCovered(diffuse, m_AlphaDiscardThreshold)) {
             discard;
         }
     #endif
