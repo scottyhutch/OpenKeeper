@@ -974,14 +974,18 @@ public final class CreaturesController implements ICreaturesController {
 
     @Override
     public void stunImps(short playerId) {
-        short impId = kwdFile.getImp().getId();
         for (EntityId entityId : getPlayerEntities(playerId, CreatureComponent.class, Health.class)) {
-            if (entityData.getComponent(entityId, CreatureComponent.class).creatureId != impId) {
+
+            // Every worker, not only the Imp (DKII.EXE 0x4A4870). One that is already down, in the hand, in a cell
+            // or on a torture device is left as it is
+            ICreatureController creature = createController(entityId);
+            if (!entityData.getComponent(entityId, CreatureComponent.class).worker || creature.isIncapacitated()
+                    || creature.isImprisoned() || creature.isTortured()) {
                 continue;
             }
-
-            // Stunned creatures are unconscious, same as being knocked out in a fight
-            createController(entityId).getStateMachine().changeState(CreatureState.STUNNED);
+            creature.unassingCurrentTask();
+            creature.stopCreature();
+            creature.getStateMachine().changeState(CreatureState.STUNNED);
         }
     }
 

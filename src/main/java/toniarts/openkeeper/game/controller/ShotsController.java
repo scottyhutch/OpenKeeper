@@ -183,7 +183,13 @@ public final class ShotsController implements IShotsController {
                 request.shotData2(), WorldUtils.vector3fToVector2f(request.position()), ICreaturesController.SpawnType.CONJURE));
         result.put(CREATE_OBJECT, this::createObject);
         result.put(POSSESS_CREATURE, request -> creaturesController.createController(request.target()).setPossession(true));
-        result.put(MODIFY_HEALTH, request -> EntityController.setDamage(entityData, request.target(), -request.shotData1()));
+        result.put(MODIFY_HEALTH, request -> {
+
+            // Healing does nothing to a Horned Reaper (0x4ADB30)
+            if (!isHornedReaper(request.target())) {
+                EntityController.setDamage(entityData, request.target(), -request.shotData1());
+            }
+        });
         result.put(TURNCOAT, request -> {
             if (request.target() != null && creaturesController.isValidEntity(request.target())) {
                 creaturesController.createController(request.target()).turncoat(request.playerId(), request.shotData1());
@@ -461,12 +467,7 @@ public final class ShotsController implements IShotsController {
         }
 
         // Like with setting off traps, the data flag OpenKeeper calls IS_HORNY makes the Horned Reaper immune
-        CreatureComponent creatureComponent = entityData.getComponent(target, CreatureComponent.class);
-        if (creatureComponent == null) {
-            return;
-        }
-        Creature creature = kwdFile.getCreature(creatureComponent.creatureId);
-        if (creature != null && creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)) {
+        if (entityData.getComponent(target, CreatureComponent.class) == null || isHornedReaper(target)) {
             return;
         }
 
@@ -483,11 +484,21 @@ public final class ShotsController implements IShotsController {
     private void poison(ShotRequest request) {
         EntityId target = request.target();
         if (target == null || entityData.getComponent(target, CreatureComponent.class) == null
-                || entityData.getComponent(target, Unconscious.class) != null) {
+                || entityData.getComponent(target, Unconscious.class) != null || isHornedReaper(target)) {
             return;
         }
 
         entityData.setComponent(target, new Poisoned(request.shotData1(), request.shotData2()));
+    }
+
+    /**
+     * Is the thing a creature with the data flag OpenKeeper calls IS_HORNY,
+     * the Horned Reaper
+     */
+    private boolean isHornedReaper(EntityId thing) {
+        CreatureComponent creatureComponent = thing != null ? entityData.getComponent(thing, CreatureComponent.class) : null;
+        Creature creature = creatureComponent != null ? kwdFile.getCreature(creatureComponent.creatureId) : null;
+        return creature != null && creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY);
     }
 
     /**

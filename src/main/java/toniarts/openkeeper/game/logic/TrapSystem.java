@@ -45,7 +45,9 @@ import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.IShotsController;
+import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
 import toniarts.openkeeper.game.event.GameEventService;
+import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.Player;
@@ -249,6 +251,7 @@ public final class TrapSystem implements IGameLogicUpdatable {
         Vector3f shotStart = doorEntity.get(Position.class).position.add(0, WorldUtils.TILE_HEIGHT / 2, 0);
         shotsController.fireShot(trap.getShotTypeId(), trap.getShotData1(), trap.getShotData2(), ownerId, shotStart, target,
                 doorEntity.getId(), 0);
+        gameEventService.emit(GameEventType.TRAP_FIRED, ThingFlag.TRAP, trap.getTrapId(), doorEntity.get(Position.class).position);
         entityData.setComponent(doorEntity.getId(), new TrapFiring(gameTime + trap.getRechargeTime(), TrapFiring.NOT_CHARGING, 0));
     }
 
@@ -283,6 +286,8 @@ public final class TrapSystem implements IGameLogicUpdatable {
                     trapPosition.clone(), target, null);
         }
 
+        // The trap makes its trigger sound (0x4A80E0)
+        gameEventService.emit(GameEventType.TRAP_FIRED, ThingFlag.TRAP, trap.getTrapId(), trapPosition);
         // A trap that turns into its shot, like the Boulder Trap, is gone
         if (entityData.getComponent(trapEntity.getId(), TrapComponent.class) == null) {
             return true;
