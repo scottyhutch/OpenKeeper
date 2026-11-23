@@ -215,6 +215,7 @@ class PossessedSystemTest {
         EntityId creature = entityData.createEntity();
         entityData.setComponents(creature, new Possessed(10, 0), new Owner((short) 2, (short) 2));
 
+        gameTime = 1;
         system(() -> { }, List.of(keeper(9)), messages()).processTick(1f);
 
         // "You do not have enough Mana to continue possession", message 0x35 variant 5
@@ -227,6 +228,7 @@ class PossessedSystemTest {
         EntityId creature = entityData.createEntity();
         entityData.setComponents(creature, new Possessed(10, 0), new Owner((short) 2, (short) 2));
 
+        gameTime = 1;
         system(() -> { }, List.of(keeper(10)), messages()).processTick(1f);
 
         assertEquals(0, releases);

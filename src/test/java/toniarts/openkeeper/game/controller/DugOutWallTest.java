@@ -158,6 +158,10 @@ class DugOutWallTest {
                 map;
             case "getTerrain" ->
                 wall;
+            case "getThings" ->
+                List.of();
+            case "getGameLevel" ->
+                CreatureSleepFixtures.level(4);
             default ->
                 throw new UnsupportedOperationException(name);
         });
@@ -204,10 +208,15 @@ class DugOutWallTest {
                 map;
             case "getTerrain" ->
                 (short) args[0] == floorId ? floor : path;
+            case "getThings" ->
+                List.of();
+            case "getGameLevel" ->
+                CreatureSleepFixtures.level(4);
             default ->
                 throw new UnsupportedOperationException(name);
         });
-        ILevelInfo levelInfo = proxy(ILevelInfo.class, (name, args) -> Map.of(KEEPER_ID, new Keeper(false, KEEPER_ID)));
+        ILevelInfo levelInfo = proxy(ILevelInfo.class, (name, args) -> name.equals("getPlayer") ? new Keeper(false, (short) args[0])
+                : Map.of(KEEPER_ID, new Keeper(false, KEEPER_ID)));
         EntityData entityData = new DefaultEntityData();
         EntityId trapOnTheFloor = trap(entityData, 0);
         EntityId trapNextToIt = trap(entityData, 1);

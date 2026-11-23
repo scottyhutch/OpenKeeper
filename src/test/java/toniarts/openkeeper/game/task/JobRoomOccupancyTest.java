@@ -30,7 +30,12 @@ import toniarts.openkeeper.common.RoomInstance;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.component.Gold;
+import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.controller.IObjectsController;
+import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.component.Casino;
@@ -156,6 +161,7 @@ class JobRoomOccupancyTest {
         // Unlike the other rooms, a guard on its way counts
         task.assign(guard, true);
         assertEquals(1, guardRoom.getUsedCapacity(ObjectType.GUARD));
+        task.getTarget(guard);
 
         // Once it is there, it is not counted again
         task.executeTask(guard, 0);
@@ -191,7 +197,11 @@ class JobRoomOccupancyTest {
     }
 
     private Train train(TrainingRoomController room) {
-        return new Train(null, null, new Point(1, 1), KEEPER, room, taskManager(room), null, gameSettings, null, null, null);
+        entityData.setComponents(entityData.createEntity(), new KeeperComponent(KEEPER), new Gold(100, 1000));
+        PlayerGoldControl goldControl = new PlayerGoldControl(new Keeper(false, KEEPER), entityData);
+        IPlayerController playerController = proxy(IPlayerController.class,
+                (proxy, method, args) -> method.getName().equals("getGoldControl") ? goldControl : null);
+        return new Train(null, null, new Point(1, 1), KEEPER, room, taskManager(room), null, gameSettings, playerController, null, null);
     }
 
     private GuardRoomController guardRoom() {
@@ -255,6 +265,10 @@ class JobRoomOccupancyTest {
                 KEEPER;
             case "getGold" ->
                 100;
+            case "getLevel" ->
+                1;
+            case "getCreatureCoordinates" ->
+                new Point(1, 1);
             case "hashCode" ->
                 System.identityHashCode(proxy);
             case "equals" ->

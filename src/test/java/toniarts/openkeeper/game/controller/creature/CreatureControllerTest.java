@@ -1294,6 +1294,7 @@ class CreatureControllerTest {
             });
             IMapDataInformation<?> mapData = proxy(IMapDataInformation.class, (method, args) -> switch (method) {
                 case "getWidth", "getHeight" -> 32;
+                case "getTile" -> null;
                 default -> throw new UnsupportedOperationException(method);
             });
             IMapController map = proxy(IMapController.class, (method, args) -> switch (method) {
@@ -1364,7 +1365,7 @@ class CreatureControllerTest {
                 case "getBlockingDoor" -> null;
                 case "getEntityLocation" -> tile((EntityId) args[0]);
                 case "getEntitiesInLocation" -> sensed.stream()
-                        .filter(entity -> tile(entity) != null && tile(entity).getLocation().equals(args[0])).toList();
+                        .filter(entity -> tile(entity) != null && tile(entity).getLocation().equals(args.length == 2 ? new Point((int) args[0], (int) args[1]) : args[0])).toList();
                 default -> throw new UnsupportedOperationException(method);
             });
             IKwdFile kwd = proxy(IKwdFile.class, (method, args) -> switch (method) {
@@ -1387,8 +1388,14 @@ class CreatureControllerTest {
             });
             ICreaturesController[] creaturesController = new ICreaturesController[1];
             creaturesController[0] = proxy(ICreaturesController.class, (method, args) -> switch (method) {
-                case "createController" -> new CreatureController((EntityId) args[0], data, definition, navigation, taskManager, () -> time,
-                        settings, creaturesController[0], lookup, map, levelInfo, null, null, eventService);
+                case "createController" -> data.getComponent((EntityId) args[0], CreatureComponent.class) != null
+                        ? new CreatureController((EntityId) args[0], data, definition, navigation, taskManager, () -> time,
+                                settings, creaturesController[0], lookup, map, levelInfo, null, null, eventService)
+                        : proxy(ICreatureController.class, (method2, args2) -> switch (method2) {
+                            case "getEntityId" -> args[0];
+                            case "isWorker" -> false;
+                            default -> throw new UnsupportedOperationException(method2);
+                        });
                 case "isValidEntity" -> data.getComponent((EntityId) args[0], Position.class) != null;
                 default -> throw new UnsupportedOperationException(method);
             });
@@ -1457,6 +1464,8 @@ class CreatureControllerTest {
         IMapTileInformation tile(Point location) {
             return proxy(IMapTileInformation.class, (method, args) -> switch (method) {
                 case "getLocation" -> location;
+                case "getX" -> location.x;
+                case "getY" -> location.y;
                 case "getTerrainId" -> (short) 0; // Not the Hero Lair
                 default -> throw new UnsupportedOperationException(method);
             });

@@ -424,7 +424,7 @@ class ShotsControllerTest {
     void healingDoesNothingToAHornedReaper() {
         EntityId reaper = createCreature(PLAYER_ID, 10, 10);
         CreatureComponent creatureComponent = new CreatureComponent();
-        creatureComponent.creatureId = REAPER_ID;
+        creatureComponent.creatureId = HORNY_ID;
         entityData.setComponent(reaper, creatureComponent);
 
         shotsController.createShot(HEAL_ID, 50, 0, PLAYER_ID, new Vector3f(10, 1, 10), reaper, null);
@@ -617,7 +617,7 @@ class ShotsControllerTest {
     void hornedReaperDoesNotFreeze() {
         EntityId reaper = createCreature(ENEMY_ID, 10, 10);
         CreatureComponent creatureComponent = new CreatureComponent();
-        creatureComponent.creatureId = REAPER_ID;
+        creatureComponent.creatureId = HORNY_ID;
         entityData.setComponent(reaper, creatureComponent);
 
         shotsController.createShot(FREEZE_ID, 20, 1, PLAYER_ID, new Vector3f(10, 1, 10), reaper, null);

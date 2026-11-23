@@ -78,6 +78,7 @@ class LooseObjectSystemTest {
 
         // DK II (0x49F730) stores a gold pile on any owner's Treasury, neutral too
         roomOwner = Player.NEUTRAL_PLAYER_ID;
+        entityData.setComponents(entityData.createEntity(), new KeeperComponent(Player.GOOD_PLAYER_ID), new Gold(0, 0));
         heroGold.setGoldMax(9000);
         EntityId gold = addObject(ObjectType.GOLD);
         entityData.setComponent(gold, new Gold(500, 2000));
