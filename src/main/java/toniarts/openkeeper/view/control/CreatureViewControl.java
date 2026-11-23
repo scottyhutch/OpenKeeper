@@ -125,6 +125,12 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     private boolean visualRequestActive;
     private static final java.util.function.DoubleSupplier LOCAL_TIME = () -> Double.NaN;
     private java.util.function.DoubleSupplier gameTime = LOCAL_TIME;
+    private int ticksPerSecond = 4;
+    /** The walk and run play by the distance walked, the authored seconds walked since the animation started */
+    private boolean walked;
+    private double walkedTime;
+    private double walkedAt;
+    private final com.jme3.math.Vector3f walkedFrom = new com.jme3.math.Vector3f();
     private ArtResource activeAnimation;
     private int[] stepMarks;
     private toniarts.openkeeper.view.animation.FootstepMarkers normalizedStepMarks;
@@ -139,9 +145,19 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         this.gameTime = Objects.requireNonNull(gameTime);
     }
 
+    /**
+     * The logic ticks a second of the level, a walk plays less than a cycle a
+     * tick
+     *
+     * @param ticksPerSecond the ticks a second
+     */
+    public void setTicksPerSecond(int ticksPerSecond) {
+        this.ticksPerSecond = Math.max(1, ticksPerSecond);
+    }
+
     /** Silently re-seek after a presentation timeline policy change, retaining failed/paused holds. */
     public void synchronizePresentationClock() {
-        if (spatial != null && visualRequestActive && activeRequest != null && !AnimationLoader.isPaused(spatial)) {
+        if (spatial != null && visualRequestActive && activeRequest != null && !AnimationLoader.isPaused(spatial) && !walked) {
             AnimationLoader.bindPlaybackClock(spatial, () -> gameTime.getAsDouble(), presentationOrigin);
             previousMarkerAge = Double.NaN;
         }
@@ -174,9 +190,35 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
                 getEntityId().getId(), request.sequence(), state.creatureId, state.state, activeAnimation,
                 getPlaybackPolicy(), AnimationLoader.getWrapPeriod(spatial));
         presentationOrigin = request.startTime() - offset;
-        AnimationLoader.bindPlaybackClock(spatial, () -> gameTime.getAsDouble(), presentationOrigin);
+        walked = gameTime != LOCAL_TIME && toniarts.openkeeper.animation.AnimationTiming.isWalked(activeAnimation, state.state);
+        if (walked) {
+            walkedTime = 0;
+            walkedAt = gameTime.getAsDouble();
+            walkedFrom.set(spatial.getWorldTranslation());
+            AnimationLoader.bindPlaybackClock(spatial, this::getWalkedTime, -offset);
+        } else {
+            AnimationLoader.bindPlaybackClock(spatial, () -> gameTime.getAsDouble(), presentationOrigin);
+        }
         previousStepTime = -1;
         return true;
+    }
+
+    /**
+     * The clock of a walk or run: the authored seconds of it the creature has
+     * walked since it started, up to where it is shown now
+     */
+    private double getWalkedTime() {
+        double now = gameTime.getAsDouble();
+        if (Double.isFinite(now) && Double.isFinite(walkedAt) && now > walkedAt) {
+            com.jme3.math.Vector3f position = spatial.getWorldTranslation();
+            walkedTime += toniarts.openkeeper.animation.AnimationTiming.walkedTime(activeAnimation,
+                    position.x - walkedFrom.x, position.z - walkedFrom.z, now - walkedAt, ticksPerSecond);
+            walkedFrom.set(position);
+        }
+        if (Double.isFinite(now)) {
+            walkedAt = Double.isFinite(walkedAt) ? Math.max(walkedAt, now) : now;
+        }
+        return walkedTime;
     }
 
     /**

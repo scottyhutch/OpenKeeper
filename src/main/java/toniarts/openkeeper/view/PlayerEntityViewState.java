@@ -708,6 +708,7 @@ public class PlayerEntityViewState extends AbstractAppState {
                 control.setWaterCheck(this::isWater);
                 control.setEffectManager(stateManager.getState(EffectManagerState.class));
                 control.setGameTime(presentationClock::getTime);
+                control.setTicksPerSecond(kwdFile.getGameLevel().getTicksPerSec());
                 result.addControl(control);
 
                 if (motionSnapshots != null) {

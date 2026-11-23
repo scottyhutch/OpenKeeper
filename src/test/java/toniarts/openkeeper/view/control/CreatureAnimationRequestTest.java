@@ -29,14 +29,15 @@ class CreatureAnimationRequestTest {
             }
         };
         var data=new DefaultEntityData(); var creature=new Creature(); var id=data.createEntity();
-        creature.getAnimations().put(Creature.AnimationType.WALK,toniarts.openkeeper.tools.convert.map.AnimationFixtures.resource("phase-walk",30,30));
+        // Walked at a tile a second, the walk plays at its authored rate (DK II 0x4B41E0)
+        creature.getAnimations().put(Creature.AnimationType.WALK,toniarts.openkeeper.tools.convert.map.AnimationFixtures.walk("phase-walk",30,30,4096));
         Node root=new Node(); root.setCullHint(Spatial.CullHint.Always);
         var control=new CreatureViewControl(id,data,creature,null,null,assets,null); root.addControl(control);
         double[] time={10}; control.setGameTime(()->time[0]);
         try {
             assertTrue(control.setViewState(creature,new CreatureViewState((short)1,10,Creature.AnimationType.WALK,5)));
             double offset=AnimationLoader.getPlaybackAge(root); assertTrue(offset>0 && offset<1);
-            time[0]+=.05; root.updateLogicalState(.05f);
+            time[0]+=.05; root.move(.05f,0,0); root.updateLogicalState(.05f);
             assertEquals(offset+.05,AnimationLoader.getPlaybackAge(root),1e-9);
             control.synchronizePresentationClock(); assertEquals(offset+.05,AnimationLoader.getPlaybackAge(root),1e-9);
         } finally { control.cleanup(); data.close(); settings.setSetting(key,original); }

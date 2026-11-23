@@ -8,4 +8,9 @@ public final class AnimationFixtures {
         resource.setData(ArtResource.KEY_FRAMES, frames); resource.setData(ArtResource.KEY_FPS, fps);
         return resource;
     }
+    public static ArtResource walk(String name, int frames, int fps, int startDistance) {
+        var resource = resource(name, frames, fps);
+        resource.setData(ArtResource.KEY_START_DIST, startDistance);
+        return resource;
+    }
 }
