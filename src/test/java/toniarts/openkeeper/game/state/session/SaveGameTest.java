@@ -154,6 +154,28 @@ class SaveGameTest {
         assertTrue(loaded.createEntity().getId() > removed.getId(), "New entities must not reuse saved ids");
     }
 
+    /**
+     * The motion epochs only tell the view where a thing was placed anew. The
+     * game that saved handed out its own, a later placement in the loaded game
+     * must not get the epoch a loaded thing has.
+     */
+    @Test
+    void loadedPositionsGetMotionEpochsOfThisGame() throws Exception {
+        EntityData entityData = new DefaultEntityData();
+        EntityId creature = entityData.createEntity();
+        Position saved = new Position(0.5f, new Vector3f(1.5f, 0.25f, 3f));
+        saved.motionEpoch = Long.MAX_VALUE / 2;
+        entityData.setComponent(creature, saved);
+
+        Path file = folder.resolve("saves").resolve("Epochs.json.gz");
+        new SaveGame("Test", null, 1, levelInfo(), List.of(), List.of(), List.of(), List.of(), entityData).write(file);
+        Position loaded = SaveGame.read(file).createEntityData().getComponent(creature, Position.class);
+
+        assertEquals(new Vector3f(1.5f, 0.25f, 3f), loaded.position);
+        assertEquals(0.5f, loaded.rotation);
+        assertTrue(loaded.motionEpoch < new Position(0, Vector3f.ZERO).motionEpoch, "a later placement could get the loaded epoch");
+    }
+
     @Test
     void testEveryComponentRoundTrips() throws Exception {
         String componentPackage = Position.class.getPackageName();

@@ -16,6 +16,8 @@
  */
 package toniarts.openkeeper.game.state.session;
 
+import com.google.gson.ExclusionStrategy;
+import com.google.gson.FieldAttributes;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.google.gson.InstanceCreator;
@@ -118,6 +120,18 @@ public final class SaveGame {
             .serializeSpecialFloatingPointValues()
             .registerTypeAdapterFactory(new EnumNames<>(CreatureAi.class, CreatureState.class, "creatureState", "targetState"))
             .registerTypeAdapterFactory(new EnumNames<>(ChickenAi.class, ChickenState.class, "chickenState"))
+            // The motion epochs only tell the view where a thing was placed anew, the next game hands out its own
+            .setExclusionStrategies(new ExclusionStrategy() {
+                @Override
+                public boolean shouldSkipField(FieldAttributes field) {
+                    return field.getDeclaringClass() == Position.class && field.getName().equals("motionEpoch");
+                }
+
+                @Override
+                public boolean shouldSkipClass(Class<?> type) {
+                    return false;
+                }
+            })
             .create();
 
     private final JsonObject json;
