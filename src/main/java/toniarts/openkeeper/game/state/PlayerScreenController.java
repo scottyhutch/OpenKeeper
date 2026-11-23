@@ -172,6 +172,7 @@ public final class PlayerScreenController implements IPlayerScreenController {
     private String cinematicText;
     private EntityData entityData;
     private EntitySet battles;
+    private EntitySet keeperGolds;
     private int battleIndex = -1;
     private RoomCycling roomCycling;
     private CreatureCardManager creatureCardManager;
@@ -428,6 +429,10 @@ public final class PlayerScreenController implements IPlayerScreenController {
         if (battles != null) {
             battles.release();
             battles = null;
+        }
+        if (keeperGolds != null) {
+            keeperGolds.release();
+            keeperGolds = null;
         }
         if (nextRoomHints != null) {
             nextRoomHints.release();
@@ -2087,9 +2092,14 @@ public final class PlayerScreenController implements IPlayerScreenController {
      * The gold of a keeper, on its keeper entity
      */
     private int getKeeperGold(short keeperId) {
-        for (EntityId keeperEntity : entityData.findEntities(new FieldFilter<>(KeeperComponent.class, "playerId", keeperId),
-                KeeperComponent.class, Gold.class)) {
-            return entityData.getComponent(keeperEntity, Gold.class).gold;
+        if (keeperGolds == null) {
+            keeperGolds = entityData.getEntities(KeeperComponent.class, Gold.class);
+        }
+        keeperGolds.applyChanges();
+        for (Entity keeper : keeperGolds) {
+            if (keeper.get(KeeperComponent.class).playerId == keeperId) {
+                return keeper.get(Gold.class).gold;
+            }
         }
         return 0;
     }
