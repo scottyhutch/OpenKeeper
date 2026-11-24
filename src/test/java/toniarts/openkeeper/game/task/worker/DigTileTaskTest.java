@@ -294,8 +294,6 @@ class DigTileTaskTest {
                     ROCK;
                 case "isSolid" ->
                     false;
-                case "getTerrain" ->
-                    TerrainFixtures.terrain((short) 1, TerrainFixtures.flags(Terrain.TerrainFlag.SOLID), 0, DIRT_HEALTH, DIRT_HEALTH, (short) 1);
                 case "damageTile" -> {
                     hits.add(tick);
                     health = Math.max(0, health - damage);
