@@ -216,7 +216,9 @@ class ShotsControllerTest {
                     default -> null;
                 });
         GameEventService gameEventService = (GameEventService) Proxy.newProxyInstance(GameEventService.class.getClassLoader(), new Class<?>[]{GameEventService.class}, (proxy, method, args) -> {
-            if (method.getName().equals("emitToPlayer")) {
+            if (method.getName().equals("emitEffect")) {
+                effects.add(args);
+            } else if (method.getName().equals("emitToPlayer")) {
                 playerEvents.add(List.of(args));
             } else if (method.getName().equals("emitEffect")) {
                 effects.add(args);
