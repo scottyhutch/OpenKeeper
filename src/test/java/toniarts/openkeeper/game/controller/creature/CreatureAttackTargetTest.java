@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.AttackTarget;
+import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureMeleeAttack;
 import toniarts.openkeeper.game.component.Health;
@@ -46,7 +47,8 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 /**
  * A fighting creature drops a target it can neither reach nor walk to, like
  * DK II's fight state picks its target again whenever it is out of reach,
- * only from those it can walk to (0x45F030, 0x45CB00)
+ * only from those it can walk to (0x45F030, 0x45CB00). A target that runs
+ * away is kept and picked like any other (0x45F030, 0x45BDF0)
  */
 class CreatureAttackTargetTest {
 
@@ -74,6 +76,29 @@ class CreatureAttackTargetTest {
         assertEquals(target, entityData.getComponent(attacker, AttackTarget.class).entityId);
     }
 
+    @Test
+    void aTargetThatRunsAwayIsKept() {
+        EntityId target = createCreature((short) 3, 14, 23);
+        EntityId attacker = createCreature((short) 1, 13, 22);
+        entityData.setComponent(target, new CreatureAi(0, CreatureState.FLEE, (short) 14));
+        entityData.setComponent(attacker, new AttackTarget(target));
+
+        createController(attacker, true).getAttackTarget();
+
+        assertEquals(target, entityData.getComponent(attacker, AttackTarget.class).entityId);
+    }
+
+    @Test
+    void anEnemyThatRunsAwayIsPicked() {
+        EntityId target = createCreature((short) 3, 14, 23);
+        EntityId attacker = createCreature((short) 1, 13, 22);
+        entityData.setComponent(target, new CreatureAi(0, CreatureState.FLEE, (short) 14));
+
+        createController(attacker, true, target).getAttackTarget();
+
+        assertEquals(target, entityData.getComponent(attacker, AttackTarget.class).entityId);
+    }
+
     private EntityId createCreature(short owner, float x, float y) {
         EntityId entity = entityData.createEntity();
         CreatureComponent creatureComponent = new CreatureComponent();
@@ -83,7 +108,7 @@ class CreatureAttackTargetTest {
         return entity;
     }
 
-    private CreatureController createController(EntityId entity, boolean pathExists) {
+    private CreatureController createController(EntityId entity, boolean pathExists, EntityId... sensed) {
         Creature creature = ShotFixtures.creature((short) 14, EnumSet.noneOf(Creature.CreatureFlag.class), EnumSet.noneOf(Creature.CreatureFlag3.class));
         INavigationService navigationService = stub(INavigationService.class,
                 (name, args) -> "findPath".equals(name) && pathExists ? new DefaultGraphPath<>() : null);
@@ -96,7 +121,7 @@ class CreatureAttackTargetTest {
                 (name, args) -> "getPlayer".equals(name) ? new Keeper(false, (Short) args[0]) : null);
         return new CreatureController(entity, entityData, creature, navigationService, null, () -> 0, Map.of(),
                 creaturesController, stub(IEntityPositionLookup.class,
-                        (name, args) -> "getSensedEntities".equals(name) ? Set.of() : null),
+                        (name, args) -> "getSensedEntities".equals(name) ? Set.of(sensed) : null),
                 null, levelInfo, null, null, null);
     }
 

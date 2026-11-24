@@ -912,9 +912,8 @@ public final class CreatureController extends EntityController implements ICreat
         }
         IEntityController attackTargetController = null;
 
-        // A Horned Reaper picks his prey over the whole map and hunts it down even when it runs (DKII.EXE 0x45E1B0)
+        // DK II keeps and picks a target that runs away like any other (DKII.EXE 0x45F030, 0x45BDF0)
         if (attackTarget == null || isIncapacitated(attackTarget.entityId)
-                || isFleeing(attackTarget.entityId) && !creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)
                 || isCaptive(attackTarget.entityId)
                 || !isEnemy(attackTarget.entityId)
                 || isUnreachable(attackTarget.entityId)) {
@@ -1045,7 +1044,7 @@ public final class CreatureController extends EntityController implements ICreat
         for (EntityId entity : getEntitiesInNoticeRange()) {
             if (creaturesController.isValidEntity(entity)
                     && isEnemy(entity)
-                    && !(isIncapacitated(entity) || isFleeing(entity) || isCaptive(entity))
+                    && !(isIncapacitated(entity) || isCaptive(entity))
                     && !(fightersOnly && creaturesController.createController(entity).isWorker())
                     && isNoticed(entity)
                     && hasRoomForAttacker(entity)
@@ -2525,15 +2524,6 @@ public final class CreatureController extends EntityController implements ICreat
                 return;
             }
         }
-    }
-
-    private boolean isFleeing(EntityId entity) {
-        CreatureAi creatureAi = entityData.getComponent(entity, CreatureAi.class);
-        if (creatureAi != null) {
-            return creatureAi.getCreatureState() == CreatureState.FLEE;
-        }
-
-        return false;
     }
 
     @Override
