@@ -351,11 +351,11 @@ public final class NetworkServer {
             Serializer.registerClass(ImpPopCountdown.class, new FieldSerializer());
             Serializer.registerClass(InHand.class, new FieldSerializer());
             Serializer.registerClass(Interaction.class, new FieldSerializer());
+            Serializer.registerClass(InfernoArea.class, new FieldSerializer());
             Serializer.registerClass(Invisible.class, new FieldSerializer());
             Serializer.registerClass(Invulnerable.class, new FieldSerializer());
             Serializer.registerClass(JailBreaker.class, new FieldSerializer());
             Serializer.registerClass(JobPicked.class, new FieldSerializer());
-            Serializer.registerClass(InfernoArea.class, new FieldSerializer());
             Serializer.registerClass(KeeperAi.class, new FieldSerializer());
             Serializer.registerClass(KeeperAiDropped.class, new FieldSerializer());
             Serializer.registerClass(KeeperAiEnemy.class, new FieldSerializer());
