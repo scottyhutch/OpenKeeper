@@ -554,6 +554,7 @@ public final class PoseTrack extends MorphTrack {
                 shared.setPatchVertexCount(3);
                 if (smooth) {
                     // Picking reads triangle lists only, and a patch of three is a triangle
+                    shared.setMode(Mesh.Mode.Triangles); // The copy may already be patches
                     shared.createCollisionData();
                 }
                 shared.setMode(smooth ? Mesh.Mode.Patch : Mesh.Mode.Triangles);
