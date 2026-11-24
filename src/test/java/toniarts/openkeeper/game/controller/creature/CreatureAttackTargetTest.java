@@ -27,6 +27,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.AttackTarget;
+import toniarts.openkeeper.game.component.ChaseBackOff;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureMeleeAttack;
@@ -39,20 +40,26 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
+import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.ShotFixtures;
+import toniarts.openkeeper.tools.convert.map.Variable;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 
 /**
  * A fighting creature drops a target it can neither reach nor walk to, like
  * DK II's fight state picks its target again whenever it is out of reach,
  * only from those it can walk to (0x45F030, 0x45CB00). A target that runs
- * away is kept and picked like any other (0x45F030, 0x45BDF0)
+ * away is kept and picked like any other (0x45F030, 0x45BDF0), until the
+ * chase time of our side is up (0x470E30, 0x488930)
  */
 class CreatureAttackTargetTest {
 
     private final EntityData entityData = new DefaultEntityData();
+    private double time;
 
     @Test
     void aTargetWithNoWayToItIsDropped() {
@@ -99,6 +106,28 @@ class CreatureAttackTargetTest {
         assertEquals(target, entityData.getComponent(attacker, AttackTarget.class).entityId);
     }
 
+    @Test
+    void aHeroGivesUpTheChaseAfterThreeSecondsAndLeavesThoseThatRunAwayAlone() {
+        EntityId target = createCreature((short) 3, 14, 23);
+        EntityId hero = createCreature((short) 1, 13, 22);
+        entityData.setComponent(target, new CreatureAi(0, CreatureState.FLEE, (short) 14));
+        entityData.setComponent(hero, new AttackTarget(target));
+        CreatureController controller = createController(hero, true, target);
+
+        controller.getAttackTarget();
+        time = 2.9;
+        assertNotNull(controller.getAttackTarget());
+
+        time = 3;
+        assertNull(controller.getAttackTarget());
+        assertNull(controller.getAttackTarget());
+        assertNotNull(entityData.getComponent(hero, ChaseBackOff.class));
+
+        // 60 turns later at 4 turns a second
+        time = 18;
+        assertNotNull(controller.getAttackTarget());
+    }
+
     private EntityId createCreature(short owner, float x, float y) {
         EntityId entity = entityData.createEntity();
         CreatureComponent creatureComponent = new CreatureComponent();
@@ -117,9 +146,18 @@ class CreatureAttackTargetTest {
             case "createController" -> stub(ICreatureController.class, (method, params) -> null);
             default -> null;
         });
-        ILevelInfo levelInfo = stub(ILevelInfo.class,
-                (name, args) -> "getPlayer".equals(name) ? new Keeper(false, (Short) args[0]) : null);
-        return new CreatureController(entity, entityData, creature, navigationService, null, () -> 0, Map.of(),
+        IKwdFile kwd = stub(IKwdFile.class, (name, args) -> "getGameLevel".equals(name) ? CreatureSleepFixtures.level(4) : null);
+        ILevelInfo levelInfo = stub(ILevelInfo.class, (name, args) -> switch (name) {
+            case "getPlayer" -> new Keeper(false, (Short) args[0]);
+            case "getLevelData" -> kwd;
+            default -> null;
+        });
+        Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> settings = Map.of(
+                Variable.MiscVariable.MiscType.GOOD_CREATURES_CHASE_ENEMY_DURATION_SECONDS,
+                CreatureSleepFixtures.variable(Variable.MiscVariable.MiscType.GOOD_CREATURES_CHASE_ENEMY_DURATION_SECONDS, 3),
+                Variable.MiscVariable.MiscType.EVIL_CREATURES_CHASE_ENEMY_DURATION_SECONDS,
+                CreatureSleepFixtures.variable(Variable.MiscVariable.MiscType.EVIL_CREATURES_CHASE_ENEMY_DURATION_SECONDS, 7));
+        return new CreatureController(entity, entityData, creature, navigationService, null, () -> time, settings,
                 creaturesController, stub(IEntityPositionLookup.class,
                         (name, args) -> "getSensedEntities".equals(name) ? Set.of(sensed) : null),
                 null, levelInfo, null, null, null);

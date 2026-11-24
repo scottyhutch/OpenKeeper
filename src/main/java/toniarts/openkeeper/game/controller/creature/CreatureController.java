@@ -33,6 +33,7 @@ import toniarts.openkeeper.game.component.CallToArms;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.CasinoDisco;
 import toniarts.openkeeper.game.component.CastShot;
+import toniarts.openkeeper.game.component.ChaseBackOff;
 import toniarts.openkeeper.game.component.CombatPitFighter;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
@@ -194,6 +195,11 @@ public final class CreatureController extends EntityController implements ICreat
      * How long an idle hero does nothing before it tries its objective again, as in DK II (DKII.EXE 0x477850)
      */
     private static final int HERO_IDLE_TICKS = 12;
+    /**
+     * How long a creature that gave up a chase leaves the enemies that run
+     * away alone, as in DK II (DKII.EXE 0x488930)
+     */
+    private static final int CHASE_BACK_OFF_TICKS = 60;
 
     /**
      * The possessed melee attack hits what is at most 341/2048 of a full
@@ -939,7 +945,44 @@ public final class CreatureController extends EntityController implements ICreat
         } else {
             attackTargetController = creaturesController.createController(attackTarget.entityId);
         }
+        if (attackTargetController != null && isChaseOver()) {
+            return null;
+        }
         return attackTargetController;
+    }
+
+    /**
+     * Counts how long we chase a target that runs away out of our reach. DK II
+     * gives up after the chase time of our side, then leaves the enemies that
+     * run away out of reach alone for a while (DKII.EXE 0x470E30, 0x488930).
+     * A Horned Reaper picks its prey over the whole map again at once
+     * (0x45E1B0), so it hunts on
+     *
+     * @return true if we gave our target up
+     */
+    private boolean isChaseOver() {
+        AttackTarget attackTarget = entityData.getComponent(entityId, AttackTarget.class);
+        if (attackTarget == null) {
+            return false;
+        }
+        EntityId target = attackTarget.entityId;
+        double chaseStartTime = Double.NaN;
+        if (isFleeing(target) && !creature.getFlags().contains(Creature.CreatureFlag.IS_HORNY)) {
+            boolean inReach = isWithinAttackDistance(target);
+            chaseStartTime = !Double.isNaN(attackTarget.chaseStartTime) || inReach ? attackTarget.chaseStartTime : gameTimer.getGameTime();
+            if (!inReach && gameTimer.getGameTime() - chaseStartTime >= gameSettings.get(getOwnerId() == Player.GOOD_PLAYER_ID
+                    ? Variable.MiscVariable.MiscType.GOOD_CREATURES_CHASE_ENEMY_DURATION_SECONDS
+                    : Variable.MiscVariable.MiscType.EVIL_CREATURES_CHASE_ENEMY_DURATION_SECONDS).getValue()) {
+                entityData.setComponent(entityId, new ChaseBackOff(gameTimer.getGameTime()
+                        + CHASE_BACK_OFF_TICKS / (double) levelInfo.getLevelData().getGameLevel().getTicksPerSec()));
+                setAttackTarget(null);
+                return true;
+            }
+        }
+        if (Double.compare(chaseStartTime, attackTarget.chaseStartTime) != 0) {
+            entityData.setComponent(entityId, new AttackTarget(target, chaseStartTime));
+        }
+        return false;
     }
 
     /**
@@ -1045,6 +1088,7 @@ public final class CreatureController extends EntityController implements ICreat
             if (creaturesController.isValidEntity(entity)
                     && isEnemy(entity)
                     && !(isIncapacitated(entity) || isCaptive(entity))
+                    && !(isFleeing(entity) && isChaseBackOff() && !isWithinAttackDistance(entity))
                     && !(fightersOnly && creaturesController.createController(entity).isWorker())
                     && isNoticed(entity)
                     && hasRoomForAttacker(entity)
@@ -2524,6 +2568,16 @@ public final class CreatureController extends EntityController implements ICreat
                 return;
             }
         }
+    }
+
+    private boolean isFleeing(EntityId entity) {
+        CreatureAi creatureAi = entityData.getComponent(entity, CreatureAi.class);
+        return creatureAi != null && creatureAi.getCreatureState() == CreatureState.FLEE;
+    }
+
+    private boolean isChaseBackOff() {
+        ChaseBackOff chaseBackOff = entityData.getComponent(entityId, ChaseBackOff.class);
+        return chaseBackOff != null && gameTimer.getGameTime() < chaseBackOff.endTime;
     }
 
     @Override

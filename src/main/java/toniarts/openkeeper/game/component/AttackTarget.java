@@ -28,12 +28,23 @@ public final class AttackTarget implements EntityComponent {
 
     public EntityId entityId;
 
+    /**
+     * The game time we started to chase the target while it runs away, NaN
+     * when it doesn't
+     */
+    public double chaseStartTime = Double.NaN;
+
     public AttackTarget() {
         // For serialization
     }
 
     public AttackTarget(EntityId entityId) {
         this.entityId = entityId;
+    }
+
+    public AttackTarget(EntityId entityId, double chaseStartTime) {
+        this.entityId = entityId;
+        this.chaseStartTime = chaseStartTime;
     }
 
 }
