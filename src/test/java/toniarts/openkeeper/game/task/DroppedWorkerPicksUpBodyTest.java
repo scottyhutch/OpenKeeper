@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.component.CreatureComponent;
-import toniarts.openkeeper.game.component.DropArea;
+import toniarts.openkeeper.game.component.JobPicked;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.TaskComponent;
@@ -144,7 +144,7 @@ class DroppedWorkerPicksUpBodyTest {
 
     private ICreatureController droppedImp(Point location) {
         ICreatureController imp = imp(location);
-        entityData.setComponent(imp.getEntityId(), new DropArea(location));
+        entityData.setComponent(imp.getEntityId(), new JobPicked(null, location));
         return imp;
     }
 

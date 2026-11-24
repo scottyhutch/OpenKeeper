@@ -31,14 +31,13 @@ import toniarts.openkeeper.game.component.Casino;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.Crate;
 import toniarts.openkeeper.game.component.CreatureComponent;
-import toniarts.openkeeper.game.component.ClaimingFloor;
+
 import toniarts.openkeeper.game.component.Death;
-import toniarts.openkeeper.game.component.DiggingTiles;
 import toniarts.openkeeper.game.component.DoorComponent;
-import toniarts.openkeeper.game.component.DropArea;
 import toniarts.openkeeper.game.component.Food;
 import toniarts.openkeeper.game.component.GuardedRoom;
 import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.component.JobPicked;
 import toniarts.openkeeper.game.component.KeeperAiNoPrisoner;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
@@ -1983,7 +1982,8 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         int searching = 0;
         Map<ICreatureController, Consumer<Boolean>> unemployedWorkers = new HashMap<>();
         for (Entry<ICreatureController, Consumer<Boolean>> worker : workers) {
-            boolean dropped = entityData.getComponent(worker.getKey().getEntityId(), DropArea.class) != null;
+            JobPicked picked = entityData.getComponent(worker.getKey().getEntityId(), JobPicked.class);
+            boolean dropped = picked != null && picked.dropArea != null;
             if (dropped || searching++ < MAX_WORKERS_LOOKING_FOR_WORK) {
                 unemployedWorkers.put(worker.getKey(), worker.getValue());
             } else {
@@ -1999,11 +1999,13 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             ICreatureController creature = workerEntry.getKey();
             Consumer<Boolean> workResult = workerEntry.getValue();
             final Point currentLocation = creature.getCreatureCoordinates();
-            DropArea dropArea = entityData.getComponent(creature.getEntityId(), DropArea.class);
-            boolean claiming = entityData.getComponent(creature.getEntityId(), ClaimingFloor.class) != null;
-            boolean digging = entityData.getComponent(creature.getEntityId(), DiggingTiles.class) != null;
-            List<TaskWorkerPriority> workerTasks = new ArrayList<>();
             Set<Point> reachableArea = getReachableArea(creature, currentLocation);
+            JobPicked lastWork = entityData.getComponent(creature.getEntityId(), JobPicked.class);
+            Point dropArea = lastWork != null ? lastWork.dropArea : null;
+            TaskType work = lastWork != null ? lastWork.work : null;
+            boolean claiming = work == TaskType.CLAIM_TILE || work == TaskType.CLAIM_ROOM;
+            boolean digging = work == TaskType.DIG_TILE;
+            List<TaskWorkerPriority> workerTasks = new ArrayList<>();
 
             // Give points by distance and priority. The distance is to the task's own tile: finding the spot to work from, and
             // whether it can be reached, takes path finding, which canAssign() does only for the tasks being handed out (#671)
@@ -2018,13 +2020,8 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
 
                 boolean sameWork = (digging && isDigging(task)) || (claiming && isClaiming(task));
                 int points = WorldUtils.calculateDistance(currentLocation, task.getTaskLocation()) + task.getPriority();
-                int dropRing = dropArea != null ? getDropRing(task, dropArea.center) : Integer.MAX_VALUE;
+                int dropRing = dropArea != null ? getDropRing(task, dropArea) : Integer.MAX_VALUE;
                 workerTasks.add(new TaskWorkerPriority(task, creature, points, dropRing, sameWork, workResult));
-            }
-
-            // Only the first search after the drop looks around it, then the worker is back to its usual work
-            if (dropArea != null) {
-                entityData.removeComponent(creature.getEntityId(), DropArea.class);
             }
 
             // A worker whose digging is done brings home the gold it carries before it takes other work
@@ -2097,23 +2094,15 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     }
 
     /**
-     * Remembers whether the worker is claiming or digging, so that it carries
-     * on with it
+     * Remembers the work the worker got, so that it carries on with claiming or
+     * digging. Only the first search after a drop looks around the drop, then
+     * the worker is back to its usual work
      *
      * @param creature the worker
      * @param taskType the task it got, {@code null} for none
      */
     private void setCurrentWork(ICreatureController creature, TaskType taskType) {
-        if (taskType == TaskType.CLAIM_TILE || taskType == TaskType.CLAIM_ROOM) {
-            entityData.setComponent(creature.getEntityId(), new ClaimingFloor());
-        } else {
-            entityData.removeComponent(creature.getEntityId(), ClaimingFloor.class);
-        }
-        if (taskType == TaskType.DIG_TILE) {
-            entityData.setComponent(creature.getEntityId(), new DiggingTiles());
-        } else {
-            entityData.removeComponent(creature.getEntityId(), DiggingTiles.class);
-        }
+        entityData.setComponent(creature.getEntityId(), new JobPicked(taskType, null));
     }
 
     /**

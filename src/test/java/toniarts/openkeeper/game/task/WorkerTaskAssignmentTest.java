@@ -36,10 +36,10 @@ import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
-import toniarts.openkeeper.game.component.ClaimingFloor;
 import toniarts.openkeeper.game.component.CreatureComponent;
-import toniarts.openkeeper.game.component.DropArea;
+
 import toniarts.openkeeper.game.component.Health;
+import toniarts.openkeeper.game.component.JobPicked;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
 import toniarts.openkeeper.game.component.Unconscious;
@@ -61,7 +61,6 @@ import toniarts.openkeeper.game.task.worker.ClaimTileTask;
 import toniarts.openkeeper.utils.Point;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -182,7 +181,7 @@ class WorkerTaskAssignmentTest {
             int worker = i;
             ICreatureController imp = imp(new Point(i, 10));
             if (i == 4) {
-                entityData.setComponent(imp.getEntityId(), new DropArea(new Point(i, 10)));
+                entityData.setComponent(imp.getEntityId(), new JobPicked(null, new Point(i, 10)));
             }
             taskManager.addToUnemployedWorkerQueue(imp, gotWork -> results[worker] = gotWork);
         }
@@ -344,7 +343,7 @@ class WorkerTaskAssignmentTest {
         assertTrue(taskManager.assignDugFloorOnTheWay(imp));
         assertEquals(dugFloor, work.get());
         assertEquals(1, dugFloor.getAssigneeCount());
-        assertNotNull(entityData.getComponent(imp.getEntityId(), ClaimingFloor.class), "It carries on claiming");
+        assertEquals(TaskType.CLAIM_TILE, entityData.getComponent(imp.getEntityId(), JobPicked.class).work, "It carries on claiming");
     }
 
     @Test
