@@ -326,7 +326,7 @@ public final class PoseTrack extends MorphTrack {
         if (VertexTextureBackend.isActive() && VertexTextureBackend.supports(getTarget())) {
             VertexAnimationTexture texture = getVertexAnimationTexture();
             if (texture != null) {
-                if (sampleTime == lastSampleTime) return;
+                if (vertexTextureBound && sampleTime == lastSampleTime) return;
                 // Same keys and weight as the CPU blend below
                 int result = java.util.Arrays.binarySearch(times, sampleTime);
                 int lower = result >= 0 ? result : Math.max(0, -result - 2);

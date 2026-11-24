@@ -1119,6 +1119,8 @@ public final class AssetUtils {
                 }
             }
         });
+        // Draw the held pose again for the new material, a GPU animated pose can't be drawn with it
+        toniarts.openkeeper.view.animation.AnimationLoader.resamplePoses(spatial);
     }
 
     /**
@@ -1138,6 +1140,7 @@ public final class AssetUtils {
                 }
             }
         });
+        toniarts.openkeeper.view.animation.AnimationLoader.resamplePoses(spatial);
     }
 
     /**
