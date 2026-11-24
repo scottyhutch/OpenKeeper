@@ -25,8 +25,10 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.ManufactureOrders;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.controller.object.IObjectController;
 import toniarts.openkeeper.game.controller.player.PlayerManufactureControl;
 import toniarts.openkeeper.game.controller.player.PlayerStatsControl;
+import toniarts.openkeeper.game.controller.room.AbstractRoomController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.ResearchableType;
@@ -51,7 +53,7 @@ public final class Manufacture extends AbstractCapacityCriticalRoomTask {
     private final IObjectsController objectsController;
     private final PlayerStatsControl statsControl;
     private final GameEventService gameEventService;
-    private Vector2f workPlace;
+    private Vector2f workPosition;
 
     public Manufacture(final INavigationService navigationService, final IMapController mapController, Point p, short playerId, IRoomController room,
             TaskManager taskManager, PlayerManufactureControl manufactureControl, IObjectsController objectsController,
@@ -77,11 +79,8 @@ public final class Manufacture extends AbstractCapacityCriticalRoomTask {
     @Override
     public Vector2f getTarget(ICreatureController creature) {
 
-        // Next to the workbench, it takes up the middle of its tile. Looked up once, the target is asked every tick
-        if (workPlace == null) {
-            workPlace = getAccessibleTargetNextToLocation(creature);
-        }
-        return workPlace;
+        // The tile the creature stands on
+        return WorldUtils.pointToVector2f(WorldUtils.vectorToPoint(getWorkPosition(creature)));
     }
 
     @Override
@@ -92,16 +91,21 @@ public final class Manufacture extends AbstractCapacityCriticalRoomTask {
     @Override
     public Vector2f getWorkPosition(ICreatureController creature) {
 
-        // Halfway from the middle of the tile next to the workbench to the workbench
-        Vector2f target = getTarget(creature);
-        if (target == null) {
-            return null;
+        // DK II puts the creature half the furniture's width plus half its own from the furniture. On the floor the
+        // direction is a random number seeded by the tile, so a piece is always worked from the same side. At a piece
+        // on the wall the creature stands into the room, a sixteenth of a turn off square (0x470110). Picked once,
+        // the position is asked every tick
+        if (workPosition == null) {
+            IObjectController furniture = getFurniture(objectsController);
+            if (furniture == null) {
+                workPosition = WorldUtils.pointToVector2f(getTaskLocation());
+            } else {
+                float angle = isOnWall(furniture) ? getAngleIntoRoom(furniture) - FastMath.PI / 8
+                        : AbstractRoomController.getTileRandom(getTaskLocation(), 2048) * FastMath.TWO_PI / 2048;
+                workPosition = getPositionAt(furniture.getPosition(), angle, getDistanceToFurniture(furniture, creature));
+            }
         }
-        return getWorkPosition(target, getTaskLocation());
-    }
-
-    static Vector2f getWorkPosition(Vector2f nextToWorkbench, Point workbench) {
-        return WorldUtils.pointToVector2f(workbench).addLocal(nextToWorkbench).multLocal(0.5f);
+        return workPosition;
     }
 
     @Override

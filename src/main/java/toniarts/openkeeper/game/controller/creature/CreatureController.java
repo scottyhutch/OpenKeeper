@@ -1382,7 +1382,7 @@ public final class CreatureController extends EntityController implements ICreat
 
                 Point destination = WorldUtils.vectorToPoint(loc);
                 if (!teleport(assignedTask.getTaskType(), destination, workPosition != null ? workPosition : loc)) {
-                    createNavigation(getCreatureCoordinates(), destination, assignedTask.isFaceTarget() ? assignedTask.getTaskLocation() : null, workPosition, false, true);
+                    createNavigation(getCreatureCoordinates(), destination, assignedTask.isFaceTarget() ? assignedTask.getFaceLocation() : null, workPosition, false, true);
                 }
             }
         }
