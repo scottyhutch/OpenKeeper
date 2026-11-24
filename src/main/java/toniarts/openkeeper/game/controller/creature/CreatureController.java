@@ -442,11 +442,9 @@ public final class CreatureController extends EntityController implements ICreat
                 || isFrightened(entityData.getComponent(entityId, CreatureComponent.class).fear))) {
 
             // Fighters no longer flee from DHeart, our own one that still stands
-            // A non-fighter stands its ground near it, where DK II's take on an enemy in reach instead of
-            // withdrawing (0x45BDF0)
             IRoomController roomController = fighter ? mapController.getRoomControllerByCoordinates(getCreatureCoordinates()) : null;
-            if (fighter ? roomController == null || !roomController.isDungeonHeart()
-                    || roomController.getOwnerId() != getOwnerId() || roomController.isDestroyed() : !isNearOwnHeart()) {
+            if (roomController == null || !roomController.isDungeonHeart()
+                    || roomController.getOwnerId() != getOwnerId() || roomController.isDestroyed()) {
                 // With nowhere to withdraw to, it carries on as if nothing was after it (0x45BDF0, 0x45CB00)
                 if (stateMachine.isInState(CreatureState.FLEE) || flee()) {
                     return true;

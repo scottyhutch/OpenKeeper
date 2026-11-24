@@ -113,6 +113,7 @@ class JobRoomOccupancyTest {
         // Unlike the other rooms, a guard on its way counts
         task.assign(guard, true);
         assertEquals(1, guardRoom.getUsedCapacity(ObjectType.GUARD));
+        task.getTarget(guard);
 
         // Once it is there, it is not counted again
         task.executeTask(guard, 0);
@@ -257,6 +258,8 @@ class JobRoomOccupancyTest {
                 1;
             case "getGold" ->
                 100;
+            case "getCreatureCoordinates" ->
+                new Point(1, 1);
             case "hashCode" ->
                 System.identityHashCode(proxy);
             case "equals" ->
