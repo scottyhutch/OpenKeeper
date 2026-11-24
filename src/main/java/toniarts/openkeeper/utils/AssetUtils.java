@@ -1042,8 +1042,11 @@ public final class AssetUtils {
                     }
                     if (material.getMaterialDef().getMaterialParam("Ambient") != null) {
                         material.setColor("Ambient", highlightColor);
-                    } else {
+                    } else if (material.getMaterialDef().getMaterialParam("Color") != null) {
                         material.setColor("Color", highlightColor);
+                    } else {
+                        logger.log(Level.DEBUG, "No highlight parameter in material definition {0}", material.getMaterialDef().getAssetName());
+                        return;
                     }
                     if (material.getMaterialDef().getMaterialParam("UseMaterialColors") != null) {
                         material.setBoolean("UseMaterialColors", enabled);

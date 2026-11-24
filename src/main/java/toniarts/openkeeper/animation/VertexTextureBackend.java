@@ -258,6 +258,15 @@ public final class VertexTextureBackend {
                     ORIGINAL_MATERIALS.put(material, new WeakReference<>(current));
                 }
             }
+            // A material kept from earlier may predate the geometry's current highlight
+            for (String name : new String[]{"Tint", "TintOverlay"}) {
+                MatParam highlight = current.getParam(name);
+                if (highlight != null) {
+                    material.setParam(name, highlight.getVarType(), highlight.getValue());
+                } else {
+                    material.clearParam(name);
+                }
+            }
             geometry.setMaterial(material);
         } else if (on) {
             // The level or the method may have changed since it was made
