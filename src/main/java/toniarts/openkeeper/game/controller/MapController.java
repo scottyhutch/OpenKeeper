@@ -113,10 +113,21 @@ public final class MapController extends Container implements IMapController {
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
             IGameTimer gameTimer, EntityData entityData, ILevelInfo levelInfo,
             GameEventService gameEventService, @Nullable SaveGame saveGame) {
-        this(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo, gameEventService, saveGame,
-                playerId -> { }, playerId -> { });
+        this(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo,
+                gameEventService, playerId -> { }, playerId -> { }, saveGame);
     }
 
+    /**
+     * Load map data from a KWD file straight (new game)
+     *
+     * @param kwdFile the KWD file
+     * @param objectsController objects controller
+     * @param gameSettings the game settings
+     * @param gameTimer
+     * @param entityData
+     * @param levelInfo
+     * @param gameEventService
+     */
     public MapController(IKwdFile kwdFile, IObjectsController objectsController,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
             IGameTimer gameTimer, EntityData entityData, ILevelInfo levelInfo,
@@ -124,20 +135,48 @@ public final class MapController extends Container implements IMapController {
         this(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo, gameEventService, (SaveGame) null);
     }
 
+    /**
+     * Load map data from a KWD file straight (new game), with the breach listeners
+     *
+     * @param kwdFile the KWD file
+     * @param objectsController objects controller
+     * @param gameSettings the game settings
+     * @param gameTimer
+     * @param entityData
+     * @param levelInfo
+     * @param gameEventService
+     * @param enemyBreachListener told when an enemy breaks into a dungeon
+     * @param dungeonBreachListener told when a dungeon wall is breached
+     */
     public MapController(IKwdFile kwdFile, IObjectsController objectsController,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
             IGameTimer gameTimer, EntityData entityData, ILevelInfo levelInfo,
             GameEventService gameEventService, Consumer<Short> enemyBreachListener,
             Consumer<Short> dungeonBreachListener) {
-        this(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo, gameEventService, null,
-                enemyBreachListener, dungeonBreachListener);
+        this(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo,
+                gameEventService, enemyBreachListener, dungeonBreachListener, null);
     }
 
+    /**
+     * Load map data from a KWD file straight (new game), or from the entities
+     * of a loaded game, with the breach listeners
+     *
+     * @param kwdFile the KWD file
+     * @param objectsController objects controller
+     * @param gameSettings the game settings
+     * @param gameTimer
+     * @param entityData
+     * @param levelInfo
+     * @param gameEventService
+     * @param enemyBreachListener told when an enemy breaks into a dungeon
+     * @param dungeonBreachListener told when a dungeon wall is breached
+     * @param saveGame the loaded game, {@code null} for a new game
+     */
     public MapController(IKwdFile kwdFile, IObjectsController objectsController,
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
             IGameTimer gameTimer, EntityData entityData, ILevelInfo levelInfo,
-            GameEventService gameEventService, @Nullable SaveGame saveGame, Consumer<Short> enemyBreachListener,
-            Consumer<Short> dungeonBreachListener) {
+            GameEventService gameEventService, Consumer<Short> enemyBreachListener,
+            Consumer<Short> dungeonBreachListener, @Nullable SaveGame saveGame) {
 
         this.kwdFile = kwdFile;
         this.objectsController = objectsController;
