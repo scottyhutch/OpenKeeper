@@ -110,7 +110,6 @@ import toniarts.openkeeper.game.component.Invisible;
 import toniarts.openkeeper.game.component.Invulnerable;
 import toniarts.openkeeper.game.component.JailBreaker;
 import toniarts.openkeeper.game.component.JobPicked;
-import toniarts.openkeeper.game.component.JailBreaker;
 import toniarts.openkeeper.game.component.KeeperAi;
 import toniarts.openkeeper.game.component.KeeperAiDropped;
 import toniarts.openkeeper.game.component.KeeperAiEnemy;
@@ -357,7 +356,6 @@ public final class NetworkServer {
             Serializer.registerClass(Invulnerable.class, new FieldSerializer());
             Serializer.registerClass(JailBreaker.class, new FieldSerializer());
             Serializer.registerClass(JobPicked.class, new FieldSerializer());
-            Serializer.registerClass(JailBreaker.class, new FieldSerializer());
             Serializer.registerClass(KeeperAi.class, new FieldSerializer());
             Serializer.registerClass(KeeperAiDropped.class, new FieldSerializer());
             Serializer.registerClass(KeeperAiEnemy.class, new FieldSerializer());
