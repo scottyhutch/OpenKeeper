@@ -300,6 +300,11 @@ public final class ShotsController implements IShotsController {
         result.put(GAS, this::scare);
         result.put(TRIGGER, this::scare);
 
+        // The Fear Trap's shot does nothing itself: DK II's handler for it is empty (the FEAR entry of the shot table
+        // filled at 0x4AD1B0). The trap scares with the threat it makes after it fires, see TrapSystem
+        result.put(FEAR, request -> {
+        });
+
         return result;
     }
 

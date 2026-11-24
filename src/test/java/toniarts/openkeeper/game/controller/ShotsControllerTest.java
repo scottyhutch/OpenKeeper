@@ -113,6 +113,7 @@ class ShotsControllerTest {
     private static final short DOOR_FIREBALL_ID = 57;
     private static final short SCARY_FREEZE_ID = 45;
     private static final short ALARM_ID = 13;
+    private static final short FEAR_ID = 25;
     private static final short POISON_SPIT_ID = 62;
     private static final short FEAR_ID = 25;
     private static final short REAPER_ID = 2;
