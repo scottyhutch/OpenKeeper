@@ -16,40 +16,36 @@
  */
 package toniarts.openkeeper.game.task;
 
-import com.badlogic.gdx.ai.pfa.DefaultGraphPath;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
 import java.lang.reflect.Proxy;
-import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.common.RoomInstance;
+import toniarts.openkeeper.game.component.Casino;
+import toniarts.openkeeper.game.component.Gold;
+import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
-import toniarts.openkeeper.game.component.Gold;
-import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.IPlayerController;
-import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
-import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
-import toniarts.openkeeper.game.component.Casino;
 import toniarts.openkeeper.game.controller.room.CasinoController;
 import toniarts.openkeeper.game.controller.room.GuardRoomController;
-import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.TrainingRoomController;
-import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
+import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.map.IMapDataInformation;
-import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.creature.Gamble;
 import toniarts.openkeeper.game.task.creature.Guard;
 import toniarts.openkeeper.game.task.creature.Train;
 import toniarts.openkeeper.tools.convert.map.CasinoVariableFixtures;
+import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.RoomFixtures;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
@@ -59,19 +55,98 @@ import toniarts.openkeeper.utils.Point;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
-import static toniarts.openkeeper.tools.convert.map.RoomFixtures.roomWithObjects;
 
-/**
- * The capacity used of the Casino, the Training Room and the like is the number
- * of creatures doing a job in them, counted once they are in the room, a Guard
- * Room's from when they are sent (DK II 0x4E53B0, 0x4E5A70)
- */
 class JobRoomOccupancyTest {
 
     private static final short KEEPER = 3;
 
     private final EntityData entityData = new DefaultEntityData();
     private final Map<MiscType, MiscVariable> gameSettings = new EnumMap<>(MiscType.class);
+
+    @Test
+    void trainingRoomCountsATraineeOnceItIsInTheRoom() {
+        TrainingRoomController room = trainingRoom();
+        ICreatureController trainee = creature();
+        Train train = train(room);
+
+        // Nothing is kept for it on the way
+        train.assign(trainee, true);
+        assertEquals(0, room.getUsedCapacity(ObjectType.TRAINEE));
+
+        train.executeTask(trainee, 0);
+        train.executeTask(trainee, 0);
+        assertEquals(1, room.getUsedCapacity(ObjectType.TRAINEE));
+
+        // The creature leaves, once is enough
+        train.unassign(trainee);
+        train.unassign(trainee);
+        assertEquals(0, room.getUsedCapacity(ObjectType.TRAINEE));
+    }
+
+    @Test
+    void traineeInAFullTrainingRoomKeepsItsTaskButOneOnItsWayIsTurnedAway() {
+        TrainingRoomController room = trainingRoom();
+        ICreatureController onItsWay = creature();
+        Train late = train(room);
+        late.assign(onItsWay, true);
+        // Trainees go in until the room is full, one more than it has dummies with #909
+        ICreatureController trainee = null;
+        Train train = null;
+        while (room.getUsedCapacity(ObjectType.TRAINEE) < room.getMaxCapacity(ObjectType.TRAINEE)) {
+            trainee = creature();
+            train = train(room);
+            train.assign(trainee, true);
+            train.executeTask(trainee, 0);
+        }
+        assertEquals(room.getMaxCapacity(ObjectType.TRAINEE), room.getUsedCapacity(ObjectType.TRAINEE));
+
+        assertTrue(train.isValid(trainee));
+        assertFalse(late.isValid(onItsWay));
+    }
+
+    @Test
+    void guardRoomCountsAGuardFromTheMomentItIsSent() {
+        GuardRoomController guardRoom = guardRoom();
+        ICreatureController guard = creature();
+        Guard task = guard(guardRoom);
+
+        // Unlike the other rooms, a guard on its way counts
+        task.assign(guard, true);
+        assertEquals(1, guardRoom.getUsedCapacity(ObjectType.GUARD));
+
+        // Once it is there, it is not counted again
+        task.executeTask(guard, 0);
+        task.executeTask(guard, 1);
+        assertEquals(1, guardRoom.getUsedCapacity(ObjectType.GUARD));
+
+        task.unassign(guard);
+        task.unassign(guard);
+        assertEquals(0, guardRoom.getUsedCapacity(ObjectType.GUARD));
+    }
+
+    @Test
+    void guardsOnTheirWayFillTheGuardRoom() {
+        GuardRoomController guardRoom = guardRoom();
+        ICreatureController guard = creature();
+        Guard task = guard(guardRoom);
+        task.assign(guard, true);
+        for (int i = 1; i < guardRoom.getMaxCapacity(ObjectType.GUARD); i++) {
+            guard(guardRoom).assign(creature(), true);
+        }
+
+        assertTrue(task.isValid(guard));
+        assertFalse(guard(guardRoom).isValid(creature()));
+    }
+
+    private GuardRoomController guardRoom() {
+        GuardRoomController guardRoom = new GuardRoomController(entityData.createEntity(), entityData, null, roomInstance(16, 0), objectsController(), null);
+        guardRoom.construct();
+        return guardRoom;
+    }
+
+    private Guard guard(GuardRoomController guardRoom) {
+        return new Guard(null, null, new Point(1, 1), KEEPER, guardRoom, taskManager(), 4, 0, null);
+    }
 
     @Test
     void casinoCountsAGamblerOnceItGambles() {
@@ -112,122 +187,13 @@ class JobRoomOccupancyTest {
         assertFalse(late.isValid(onItsWay));
     }
 
-    @Test
-    void trainingRoomCountsATraineeOnceItIsInTheRoom() {
-        TrainingRoomController room = trainingRoom();
-        ICreatureController trainee = creature();
-        Train train = train(room);
-
-        // Nothing is kept for it on the way
-        train.assign(trainee, true);
-        assertEquals(0, room.getUsedCapacity(ObjectType.TRAINEE));
-
-        train.executeTask(trainee, 0);
-        train.executeTask(trainee, 0);
-        assertEquals(1, room.getUsedCapacity(ObjectType.TRAINEE));
-
-        train.unassign(trainee);
-        train.unassign(trainee);
-        assertEquals(0, room.getUsedCapacity(ObjectType.TRAINEE));
-    }
-
-    @Test
-    void traineeInAFullTrainingRoomKeepsItsTaskButOneOnItsWayIsTurnedAway() {
-        TrainingRoomController room = trainingRoom();
-        ICreatureController onItsWay = creature();
-        Train late = train(room);
-        late.assign(onItsWay, true);
-        // Trainees go in until the room is full, one more than it has dummies with #909
-        ICreatureController trainee = null;
-        Train train = null;
-        while (room.getUsedCapacity(ObjectType.TRAINEE) < room.getMaxCapacity(ObjectType.TRAINEE)) {
-            trainee = creature();
-            train = train(room);
-            train.assign(trainee, true);
-            train.executeTask(trainee, 0);
-        }
-        assertEquals(room.getMaxCapacity(ObjectType.TRAINEE), room.getUsedCapacity(ObjectType.TRAINEE));
-
-        assertTrue(train.isValid(trainee));
-        assertFalse(late.isValid(onItsWay));
-    }
-
-    @Test
-    void guardRoomCountsAGuardFromTheMomentItIsSent() {
-        GuardRoomController guardRoom = guardRoom();
-        ICreatureController guard = creature();
-        Guard task = guard(guardRoom);
-
-        // Unlike the other rooms, a guard on its way counts
-        task.assign(guard, true);
-        assertEquals(1, guardRoom.getUsedCapacity(ObjectType.GUARD));
-        task.getTarget(guard);
-
-        // Once it is there, it is not counted again
-        task.executeTask(guard, 0);
-        task.executeTask(guard, 1);
-        assertEquals(1, guardRoom.getUsedCapacity(ObjectType.GUARD));
-
-        task.unassign(guard);
-        task.unassign(guard);
-        assertEquals(0, guardRoom.getUsedCapacity(ObjectType.GUARD));
-    }
-
-    @Test
-    void guardsOnTheirWayFillTheGuardRoom() {
-        GuardRoomController guardRoom = guardRoom();
-        ICreatureController guard = creature();
-        Guard task = guard(guardRoom);
-        task.assign(guard, true);
-        for (int i = 1; i < guardRoom.getMaxCapacity(ObjectType.GUARD); i++) {
-            guard(guardRoom).assign(creature(), true);
-        }
-
-        assertTrue(task.isValid(guard));
-        assertFalse(guard(guardRoom).isValid(creature()));
-    }
-
-    private TrainingRoomController trainingRoom() {
-        TrainingRoomController room = new TrainingRoomController(entityData.createEntity(), entityData, null,
-                roomInstance(7, 14), objectsController(), null);
-        room.construct();
-        gameSettings.put(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, CasinoVariableFixtures.miscVariable(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, 10));
-        gameSettings.put(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, CasinoVariableFixtures.miscVariable(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, -1));
-        return room;
-    }
-
-    private Train train(TrainingRoomController room) {
-        entityData.setComponents(entityData.createEntity(), new KeeperComponent(KEEPER), new Gold(100, 1000));
-        PlayerGoldControl goldControl = new PlayerGoldControl(new Keeper(false, KEEPER), entityData);
-        IPlayerController playerController = proxy(IPlayerController.class,
-                (proxy, method, args) -> method.getName().equals("getGoldControl") ? goldControl : null);
-        return new Train(null, null, new Point(1, 1), KEEPER, room, taskManager(room), null, gameSettings, playerController, null, null);
-    }
-
-    private GuardRoomController guardRoom() {
-        GuardRoomController guardRoom = new GuardRoomController(entityData.createEntity(), entityData, null, roomInstance(16, 0), objectsController(), null);
-        guardRoom.construct();
-        return guardRoom;
-    }
-
-    private Guard guard(GuardRoomController guardRoom) {
-        return new Guard(null, null, new Point(1, 1), KEEPER, guardRoom, taskManager(guardRoom), entityData, 4, 0, 0, null);
-    }
-
     private CasinoController casino() {
-        CasinoController casino = new CasinoController(entityData.createEntity(), entityData, null,
-                roomInstance(15, 87), objectsController(), null);
+        CasinoController casino = new CasinoController(entityData.createEntity(), entityData, null, roomInstance(15, 87), objectsController(), null);
         casino.construct();
         return casino;
     }
 
     private Gamble gamble(CasinoController casino) {
-        setCasinoSettings();
-        return new Gamble(null, null, null, new Point(1, 1), KEEPER, casino, taskManager(casino), entityData, null, null, gameSettings,
-                () -> Casino.PayOut.SMILES, null, 4);
-    }
-
-    private void setCasinoSettings() {
         for (MiscType type : new MiscType[]{MiscType.GAMBLING_MODIFY_CREATURE_MONEY_SMILES_PER_SECOND,
             MiscType.GAMBLING_MODIFY_CREATURE_MONEY_MONEY_PER_SECOND, MiscType.GAMBLING_MODIFY_CREATURE_ANGER_SMILES_PER_SECOND,
             MiscType.GAMBLING_MODIFY_CREATURE_ANGER_MONEY_PER_SECOND, MiscType.GAMBLING_CREATURE_JACKPOT_CHANCE_SMILES_PER_SECOND,
@@ -235,14 +201,21 @@ class JobRoomOccupancyTest {
             MiscType.GAMBLING_JACKPOT_PAY_TIME_LIMIT, MiscType.MAX_GOLD_PILE_OUTSIDE_TREASURY}) {
             gameSettings.put(type, CasinoVariableFixtures.miscVariable(type, 1));
         }
+        return new Gamble(null, null, null, new Point(1, 1), KEEPER, casino, taskManager(), entityData, null, null, gameSettings,
+                () -> Casino.PayOut.SMILES, null);
+    }
+
+    private TrainingRoomController trainingRoom() {
+        TrainingRoomController room = new TrainingRoomController(entityData.createEntity(), entityData, null, roomInstance(7, 14), objectsController(), null);
+        room.construct();
+        return room;
     }
 
     /**
-     * A 3x3 room with the one piece of furniture it gets, so it takes two
-     * creatures
+     * A 3x3 room with the one piece of furniture it gets
      */
     private static RoomInstance roomInstance(int roomId, int furnitureId) {
-        RoomInstance roomInstance = new RoomInstance(roomWithObjects((short) roomId, (short) furnitureId, (short) 0, (short) 0, (short) 0, (short) 0, (short) 0));
+        RoomInstance roomInstance = new RoomInstance(RoomFixtures.roomWithObjects((short) roomId, (short) furnitureId, (short) 0, (short) 0, (short) 0, (short) 0, (short) 0));
         roomInstance.setOwnerId(KEEPER);
         for (int x = 1; x <= 3; x++) {
             for (int y = 1; y <= 3; y++) {
@@ -256,6 +229,23 @@ class JobRoomOccupancyTest {
         return proxy(IObjectsController.class, (proxy, method, args) -> method.getName().equals("loadObject") ? entityData.createEntity() : null);
     }
 
+    private Train train(TrainingRoomController room) {
+        gameSettings.put(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, CreatureSleepFixtures.variable(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, 10));
+        gameSettings.put(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, CreatureSleepFixtures.variable(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, -1));
+        Keeper keeper = new Keeper(false, KEEPER);
+        entityData.setComponents(entityData.createEntity(), new KeeperComponent(KEEPER), new Gold(100, 0));
+        PlayerGoldControl goldControl = new PlayerGoldControl(keeper, entityData);
+        IPlayerController playerController = proxy(IPlayerController.class, (proxy, method, args) -> switch (method.getName()) {
+            case "getKeeper" ->
+                keeper;
+            case "getGoldControl" ->
+                goldControl;
+            default ->
+                null;
+        });
+        return new Train(null, null, new Point(1, 1), KEEPER, room, taskManager(), null, gameSettings, playerController, null, null);
+    }
+
     private ICreatureController creature() {
         EntityId creatureId = entityData.createEntity();
         return proxy(ICreatureController.class, (proxy, method, args) -> switch (method.getName()) {
@@ -263,12 +253,10 @@ class JobRoomOccupancyTest {
                 creatureId;
             case "getOwnerId" ->
                 KEEPER;
-            case "getGold" ->
-                100;
             case "getLevel" ->
                 1;
-            case "getCreatureCoordinates" ->
-                new Point(1, 1);
+            case "getGold" ->
+                100;
             case "hashCode" ->
                 System.identityHashCode(proxy);
             case "equals" ->
@@ -278,25 +266,17 @@ class JobRoomOccupancyTest {
         });
     }
 
-    private TaskManager taskManager(IRoomController room) {
+    private TaskManager taskManager() {
         IMapDataInformation<?> mapData = proxy(IMapDataInformation.class, (proxy, method, args) -> switch (method.getName()) {
             case "getWidth", "getHeight" ->
                 0;
             default ->
                 null;
         });
-        IMapController mapController = proxy(IMapController.class, (proxy, method, args) -> switch (method.getName()) {
-            case "getMapData" ->
-                mapData;
-            case "getRoomsByFunction" ->
-                List.of(room);
-            default ->
-                null;
-        });
-        INavigationService navigationService = proxy(INavigationService.class, (proxy, method, args) -> new DefaultGraphPath<>());
+        IMapController mapController = proxy(IMapController.class, (proxy, method, args) -> method.getName().equals("getMapData") ? mapData : null);
 
         return new TaskManager(entityData, proxy(IGameWorldController.class, (proxy, method, args) -> null), mapController, null, null,
-                navigationService, List.of(),
+                null, List.of(),
                 proxy(ILevelInfo.class, (proxy, method, args) -> method.getName().equals("getLevelData") ? proxy(IKwdFile.class, (p, m, a) -> null) : null), null,
                 gameSettings);
     }

@@ -18,6 +18,7 @@ package toniarts.openkeeper.game.task;
 
 import com.badlogic.gdx.ai.pfa.DefaultGraphPath;
 import com.jme3.math.Vector2f;
+import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
@@ -41,6 +42,7 @@ import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.tools.convert.map.ChickenSpawnFixtures;
@@ -193,18 +195,24 @@ class TrainingSpotTest {
             default -> null;
         });
         Keeper keeper = new Keeper(false, PLAYER_ID);
-        entityData.setComponents(entityData.createEntity(), new KeeperComponent(PLAYER_ID), new Gold(100, 100));
-        PlayerGoldControl gold = new PlayerGoldControl(keeper, entityData);
+        entityData.setComponents(entityData.createEntity(), new KeeperComponent(PLAYER_ID), new Gold(100, 0));
+        PlayerGoldControl goldControl = new PlayerGoldControl(keeper, entityData);
         IPlayerController player = stub(IPlayerController.class, (name, args) -> switch (name) {
             case "getKeeper" -> keeper;
-            case "getGoldControl" -> gold;
+            case "getGoldControl" -> goldControl;
+            default -> null;
+        });
+
+        // Only the tiles in the wall target's row see it, the line of sight itself is tested with PositionSystem
+        IEntityPositionLookup entityPositionLookup = stub(IEntityPositionLookup.class, (name, args) -> switch (name) {
+            case "hasLineOfSight" -> ((Vector3f) args[0]).z == ((Vector3f) args[1]).z;
             default -> null;
         });
         Map<MiscType, MiscVariable> gameSettings = Map.of(
                 MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, ChickenSpawnFixtures.miscVariable(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, 4),
                 MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, ChickenSpawnFixtures.miscVariable(MiscType.MODIFY_PLAYER_GOLD_WHILE_TRAINING_PER_SECOND, -6));
         return new TaskManager(entityData, stub(IGameWorldController.class, (name, args) -> null), mapController, null, null,
-                navigationService, List.of(player), stub(ILevelInfo.class, (name, args) -> null), null, gameSettings);
+                navigationService, List.of(player), stub(ILevelInfo.class, (name, args) -> null), entityPositionLookup, gameSettings);
     }
 
     private EntityId furniture(Point tile) {

@@ -172,7 +172,6 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
     public void initialize(final AppStateManager stateManager, final Application app) {
         super.initialize(stateManager, app);
 
-        workshopCameraCycler = new WorkshopCameraCycler(entityData, playerId);
         assetManager = this.app.getAssetManager();
         this.stateManager = stateManager;
     }
@@ -188,10 +187,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         unregisterPauseKey();
         keeperEntity.release();
         hearts.release();
-        if (workshopCameraCycler != null) {
-            workshopCameraCycler.close();
-        }
-        workshopCameraCycler = null;
+        releaseWorkshopCameraCycler();
 
         detachPlayerStates();
         interactionState = null;
@@ -228,6 +224,10 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         }
 
         if (enabled) {
+
+            if (workshopCameraCycler == null) {
+                workshopCameraCycler = new WorkshopCameraCycler(entityData, playerId);
+            }
 
             // Get the game state
             final GameClientState gameState = stateManager.getState(GameClientState.class);
@@ -311,6 +311,7 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
             registerPauseKey();
         } else {
             unregisterPauseKey();
+            releaseWorkshopCameraCycler();
 
             detachPlayerStates();
             screen.cleanup();
@@ -324,6 +325,9 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
             screen.setGold(getGold());
         }
         hearts.applyChanges();
+        if (workshopCameraCycler != null) {
+            workshopCameraCycler.update();
+        }
         if (pendingPossession != null && cameraState.isInitialized()) {
             startPossession(pendingPossession);
             pendingPossession = null;
@@ -375,6 +379,13 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
         for (AbstractAppState state : states) if (state.isEnabled()) state.setEnabled(false);
         for (AbstractAppState state : states) owner.detach(state);
         states.clear();
+    }
+
+    private void releaseWorkshopCameraCycler() {
+        if (workshopCameraCycler != null) {
+            workshopCameraCycler.close();
+            workshopCameraCycler = null;
+        }
     }
 
     /**

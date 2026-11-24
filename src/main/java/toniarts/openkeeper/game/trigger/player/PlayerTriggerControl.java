@@ -46,6 +46,7 @@ import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.game.trigger.TriggerActionData;
 import toniarts.openkeeper.game.trigger.TriggerControl;
+import toniarts.openkeeper.game.trigger.TriggerData;
 import toniarts.openkeeper.game.trigger.TriggerGenericData;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.KeeperSpell;
@@ -76,8 +77,7 @@ public class PlayerTriggerControl extends TriggerControl {
     private int seenPayDays;
     private final Map<TriggerAction.ActionType, Predicate<TriggerActionData>> actionHandlers = createActionHandlers();
     private final Map<TriggerGeneric.TargetType, ToIntBiFunction<Short, TriggerGenericData>> measures = createMeasures();
-    private int seenDungeonBreaches;
-    private int seenEnemyBreaches;
+
 
     // The statistics seen on the previous poll, the difference is what has happened since
     private final Map<TriggerGeneric.TargetType, Map<Short, Integer>> seenStats = new EnumMap<>(TriggerGeneric.TargetType.class);
@@ -136,10 +136,44 @@ public class PlayerTriggerControl extends TriggerControl {
         return playerId;
     }
 
+    /** Native breach events select matching root branches; the authored player filter is ignored. */
+    void onEnemyBreached() {
+        onBreach(TriggerGeneric.TargetType.PLAYER_ENEMY_BREACHED);
+    }
+
+    void onDungeonBreached() {
+        onBreach(TriggerGeneric.TargetType.PLAYER_DUNGEON_BREACHED);
+    }
+
+    private void onBreach(TriggerGeneric.TargetType eventType) {
+        for (TriggerData child : root.getChildren().getArray()) {
+            if (child instanceof TriggerGenericData event
+                    && event.getType() == eventType) {
+                runBreachBranch(event);
+            }
+        }
+    }
+
+    private void runBreachBranch(TriggerGenericData branch) {
+        branch.subRepeatTimes();
+        for (TriggerData child : branch.getChildren().getArray()) {
+            if (child instanceof TriggerActionData action) {
+                doAction(action);
+                if (!branch.isRepeateable()) {
+                    branch.detachChild(action);
+                }
+            } else if (child instanceof TriggerGenericData condition && isActive(condition)) {
+                runBreachBranch(condition);
+            }
+        }
+        if (branch.getQuantity() == 0) {
+            branch.detachFromParent();
+        }
+    }
+
     @Override
     protected void pollEvents() {
         super.pollEvents();
-        pollBreachEvents();
 
         // The player events about the creatures are noticed from the statistics. Fire for each
         // creature type that has got more than on the previous poll
@@ -162,25 +196,6 @@ public class PlayerTriggerControl extends TriggerControl {
         }
     }
 
-    /**
-     * The breaches are counted by the map, raise the events for the new ones.
-     * Like in the original the player of the condition data is not looked at.
-     */
-    private void pollBreachEvents() {
-        if (!isPlayerScope() || mapController == null) {
-            return;
-        }
-        int dungeonBreaches = mapController.getDungeonBreaches(playerId);
-        if (dungeonBreaches > seenDungeonBreaches) {
-            seenDungeonBreaches = dungeonBreaches;
-            fire(TriggerGeneric.TargetType.PLAYER_DUNGEON_BREACHED);
-        }
-        int enemyBreaches = mapController.getEnemyBreaches(playerId);
-        if (enemyBreaches > seenEnemyBreaches) {
-            seenEnemyBreaches = enemyBreaches;
-            fire(TriggerGeneric.TargetType.PLAYER_ENEMY_BREACHED);
-        }
-    }
 
     /**
      * Is this the tree of the player itself. The player events belong to the
@@ -275,7 +290,7 @@ public class PlayerTriggerControl extends TriggerControl {
 
             case PLAYER_DUNGEON_BREACHED:
             case PLAYER_ENEMY_BREACHED:
-                return false; // Events, see pollBreachEvents()
+                return false; // Events, see onEnemyBreached() and onDungeonBreached()
 
             case GUI_TRANSITION_ENDS:
                 return !playerService.isInTransition();

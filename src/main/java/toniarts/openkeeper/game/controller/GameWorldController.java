@@ -200,7 +200,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         objectsController = new ObjectsController(kwdFile, entityData, gameSettings, gameTimer, gameController, levelInfo, saveGame);
 
         // Load the map
-        mapController = new MapController(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo, gameEventService, saveGame);
+        mapController = new MapController(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo, gameEventService, saveGame,
+                gameController::onEnemyBreached, gameController::onDungeonBreached);
 
         // Load creatures
         creaturesController = new CreaturesController(kwdFile, entityData, gameSettings, gameTimer, gameController, mapController, levelInfo, saveGame);
@@ -923,6 +924,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
     private void notifyDestroyedTiles(Map<Short, List<Point>> destroyedTilesByOwner) {
         for (Map.Entry<Short, List<Point>> entry : destroyedTilesByOwner.entrySet()) {
             notifyOnSold(entry.getKey(), entry.getValue());
+            notifyOnRoomSelectionComplete(entry.getKey(), entry.getValue());
         }
     }
 
@@ -1134,6 +1136,8 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
         }
 
         playerControllers.get(playerId).getStatsControl().specialFound();
+        gameEventService.emit(GameEventType.SPECIAL_ACTIVATED, entity, position.position);
+
         // Also frees the room storage slot, if the special was stored in a room
         objectsController.createController(entity).remove();
         return true;

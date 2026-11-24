@@ -467,6 +467,42 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
         playFootsteps();
     }
 
+    /**
+     * How fast the shown animation plays for a step of the creature. DK II
+     * (0x48BE50, 0x4B41E0) plays the walk and the run by the speed of the
+     * creature: the start distance of the animation is the speed, in 1/4096
+     * tiles a second, at which its frames play at their own frame rate. A step
+     * is measured as its longer side plus half the shorter one, and the
+     * animation plays less than a cycle a tick. Without a start distance it
+     * doesn't play. Other animations play as they are.
+     *
+     * @param dx the step along x, in tiles
+     * @param dz the step along z, in tiles
+     * @param tpf how long the step took, in seconds
+     * @return the speed for the animation, 1 plays it at
+     * {@link KmfModelLoader#FRAMES_PER_SECOND}
+     */
+    float getWalkSpeed(float dx, float dz, float tpf) {
+        ArtResource animation = getAnimationData(currentState);
+        if ((currentState != Creature.AnimationType.WALK && currentState != Creature.AnimationType.RUN) || animation == null) {
+            return 1;
+        }
+        Number startDistance = animation.getData(ArtResource.KEY_START_DIST);
+        Number fps = animation.getData(ArtResource.KEY_FPS);
+        if (startDistance == null || startDistance.floatValue() <= 0 || fps == null || tpf <= 0) {
+            return 0;
+        }
+
+        float longer = Math.max(Math.abs(dx), Math.abs(dz));
+        float shorter = Math.min(Math.abs(dx), Math.abs(dz));
+        float framesPerSecond = fps.floatValue() * (longer + shorter / 2) * 4096 / startDistance.floatValue() / tpf;
+        Number frames = animation.getData(ArtResource.KEY_FRAMES);
+        if (frames != null && ticksPerSecond > 0) {
+            framesPerSecond = Math.min(framesPerSecond, frames.floatValue() * ticksPerSecond * 4095 / 4096);
+        }
+        return framesPerSecond / KmfModelLoader.FRAMES_PER_SECOND;
+    }
+
     private CreatureTrail updateTrail(CreatureTrail trail, boolean shown, String pointsKey, ColorRGBA color) {
         if (shown && trail == null && assetManager != null) {
             trail = new CreatureTrail(assetManager, pointsKey, color);
@@ -602,6 +638,7 @@ public final class CreatureViewControl extends EntityViewControl<Creature, Creat
     public void setWaterCheck(Predicate<Vector3f> waterCheck) {
         this.waterCheck = waterCheck;
     }
+
 
     private AnimComposer getAnimComposer() {
         ArtResource animation = activeAnimation;

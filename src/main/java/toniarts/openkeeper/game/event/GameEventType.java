@@ -205,5 +205,8 @@ public enum GameEventType {
      * The mentor's verdict on a sacrifice, only the temple's owner gets this. The subject id is the speech id of the
      * recipe, or 1 when no recipe matched.
      */
-    SACRIFICE_SPEECH
+    SACRIFICE_SPEECH,
+
+    /** A special was successfully activated; the subject is its object type. */
+    SPECIAL_ACTIVATED
 }

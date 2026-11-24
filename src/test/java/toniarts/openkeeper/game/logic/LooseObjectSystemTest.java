@@ -57,11 +57,14 @@ class LooseObjectSystemTest {
     private final List<Object> storedInRoom = new ArrayList<>();
     private short roomOwner = Player.GOOD_PLAYER_ID;
 
+    {
+        entityData.setComponents(entityData.createEntity(), new KeeperComponent(Player.GOOD_PLAYER_ID), new Gold(0, 0));
+    }
+
     @Test
     void heroTreasuryTakesInTheGoldLyingOnIt() {
 
         // Level14 places 3000 gold on the hero Treasury, DK II counts it as the heroes' gold
-        entityData.setComponents(entityData.createEntity(), new KeeperComponent(Player.GOOD_PLAYER_ID), new Gold(0, 0));
         heroGold.setGoldMax(9000);
         EntityId gold = addObject(ObjectType.GOLD);
         entityData.setComponent(gold, new Gold(3000, 2000));
@@ -78,7 +81,6 @@ class LooseObjectSystemTest {
 
         // DK II (0x49F730) stores a gold pile on any owner's Treasury, neutral too
         roomOwner = Player.NEUTRAL_PLAYER_ID;
-        entityData.setComponents(entityData.createEntity(), new KeeperComponent(Player.GOOD_PLAYER_ID), new Gold(0, 0));
         heroGold.setGoldMax(9000);
         EntityId gold = addObject(ObjectType.GOLD);
         entityData.setComponent(gold, new Gold(500, 2000));

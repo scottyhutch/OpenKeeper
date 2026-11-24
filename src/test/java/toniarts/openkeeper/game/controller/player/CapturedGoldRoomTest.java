@@ -36,12 +36,15 @@ class CapturedGoldRoomTest {
     private static final short KEEPER_ID = 3;
     private static final short ENEMY_ID = 4;
 
-    private final EntityData entityData = new DefaultEntityData();
     private final Keeper keeper = new Keeper(false, KEEPER_ID);
-    private final PlayerGoldControl keeperGold = goldControl(keeper);
-    private final PlayerGoldControl enemyGold = goldControl(new Keeper(false, ENEMY_ID));
+    private final Keeper enemy = new Keeper(false, ENEMY_ID);
+    private final EntityData entityData = new DefaultEntityData();
+    private final PlayerGoldControl keeperGold = new PlayerGoldControl(keeper, entityData);
+    private final PlayerGoldControl enemyGold = new PlayerGoldControl(enemy, entityData);
 
     CapturedGoldRoomTest() {
+        entityData.setComponents(entityData.createEntity(), new KeeperComponent(KEEPER_ID), new Gold(0, 0));
+        entityData.setComponents(entityData.createEntity(), new KeeperComponent(ENEMY_ID), new Gold(0, 0));
         keeperGold.setGoldMax(16000);
         keeperGold.addGold(4270);
         enemyGold.setGoldMax(43000);
@@ -79,11 +82,6 @@ class CapturedGoldRoomTest {
         assertEquals(43000, enemyGold.getGoldMax());
         assertEquals(4270, keeperGold.getGold());
         assertEquals(16000, keeperGold.getGoldMax());
-    }
-
-    private PlayerGoldControl goldControl(Keeper player) {
-        entityData.setComponents(entityData.createEntity(), new KeeperComponent(player.getId()), new Gold(0, 0));
-        return new PlayerGoldControl(player, entityData);
     }
 
     private static IRoomController room(boolean storesGold, int capacity, int storedGold) {

@@ -30,6 +30,8 @@ import java.util.Set;
 import java.util.function.Function;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.DoorComponent;
 import toniarts.openkeeper.game.component.Owner;
@@ -120,6 +122,7 @@ class TaskManagerRoomChangeTest {
     @Test
     void buildingARoomSendsCreaturesOnTheirWayBackToIdle() {
         playerActions.onBuild(Player.KEEPER1_ID, List.of(new Point(1, 1)));
+        playerActions.onRoomSelectionComplete(Player.KEEPER1_ID, List.of(new Point(1, 1)));
 
         assertEquals(List.of(walking), sentToIdle);
     }
@@ -127,6 +130,7 @@ class TaskManagerRoomChangeTest {
     @Test
     void sellingARoomSendsCreaturesOnTheirWayBackToIdle() {
         playerActions.onSold(Player.KEEPER1_ID, List.of(new Point(1, 1)));
+        playerActions.onRoomSelectionComplete(Player.KEEPER1_ID, List.of(new Point(1, 1)));
 
         assertEquals(List.of(walking), sentToIdle);
     }
@@ -137,6 +141,7 @@ class TaskManagerRoomChangeTest {
         EntityId onIdleWalk = createIdleCreature(false, false);
 
         playerActions.onBuild(Player.KEEPER1_ID, List.of(new Point(1, 1)));
+        playerActions.onRoomSelectionComplete(Player.KEEPER1_ID, List.of(new Point(1, 1)));
 
         assertEquals(Set.of(walking, standing, onIdleWalk), Set.copyOf(sentToIdle));
     }
@@ -147,6 +152,7 @@ class TaskManagerRoomChangeTest {
         EntityId onIdleWalk = createIdleCreature(true, false);
 
         playerActions.onSold(Player.KEEPER1_ID, List.of(new Point(1, 1)));
+        playerActions.onRoomSelectionComplete(Player.KEEPER1_ID, List.of(new Point(1, 1)));
 
         assertEquals(Set.of(walking, onIdleWalk), Set.copyOf(sentToIdle));
         assertFalse(sentToIdle.contains(standing));
@@ -155,6 +161,7 @@ class TaskManagerRoomChangeTest {
     @Test
     void creaturesOnTheirWayToMakeTheirLairKeepGoing() {
         playerActions.onBuild(Player.KEEPER1_ID, List.of(new Point(1, 1)));
+        playerActions.onRoomSelectionComplete(Player.KEEPER1_ID, List.of(new Point(1, 1)));
 
         assertFalse(sentToIdle.contains(goingToMakeLair));
     }
@@ -162,8 +169,36 @@ class TaskManagerRoomChangeTest {
     @Test
     void creaturesAlreadyInTheRoomOfTheirJobCarryOn() {
         playerActions.onBuild(Player.KEEPER1_ID, List.of(new Point(1, 1)));
+        playerActions.onRoomSelectionComplete(Player.KEEPER1_ID, List.of(new Point(1, 1)));
 
         assertFalse(sentToIdle.contains(inTheRoom));
+    }
+
+    @ParameterizedTest
+    @ValueSource(booleans = {false, true})
+    void roomWavesDoNotResetCreaturesUntilTheWholeSelectionFinishes(boolean selling) {
+        List<Point> changed = new ArrayList<>();
+        for (int wave = 0; wave < 9; wave++) {
+            List<Point> tiles = new ArrayList<>();
+            for (int x = 0; x < 5; x++) {
+                int y = wave - x;
+                if (y >= 0 && y < 5) {
+                    tiles.add(new Point(x, y));
+                }
+            }
+            if (selling) {
+                playerActions.onSold(Player.KEEPER1_ID, tiles);
+            } else {
+                playerActions.onBuild(Player.KEEPER1_ID, tiles);
+            }
+            changed.addAll(tiles);
+            assertEquals(List.of(), sentToIdle, "Room waves must leave creatures on their way to work");
+        }
+
+        playerActions.onRoomSelectionComplete(Player.KEEPER1_ID, List.copyOf(changed));
+
+        assertEquals(25, changed.size());
+        assertEquals(List.of(walking), sentToIdle, "A completed selection resets the keeper's creatures once");
     }
 
     @Test

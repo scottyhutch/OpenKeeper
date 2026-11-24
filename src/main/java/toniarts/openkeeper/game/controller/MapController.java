@@ -66,6 +66,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Consumer;
 
 /**
  * This is controller for the map related functions
@@ -85,6 +86,8 @@ public final class MapController extends Container implements IMapController {
     private final TileBreaches tileBreaches = new TileBreaches();
     private BreachMessages breachMessages;
     private final GameEventService gameEventService;
+    private final Consumer<Short> enemyBreachListener;
+    private final Consumer<Short> dungeonBreachListener;
 
     /**
      * Synchronized, the steering loop looks up rooms while the game logic builds and sells them
@@ -110,6 +113,31 @@ public final class MapController extends Container implements IMapController {
             Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
             IGameTimer gameTimer, EntityData entityData, ILevelInfo levelInfo,
             GameEventService gameEventService, @Nullable SaveGame saveGame) {
+        this(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo, gameEventService, saveGame,
+                playerId -> { }, playerId -> { });
+    }
+
+    public MapController(IKwdFile kwdFile, IObjectsController objectsController,
+            Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
+            IGameTimer gameTimer, EntityData entityData, ILevelInfo levelInfo,
+            GameEventService gameEventService) {
+        this(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo, gameEventService, (SaveGame) null);
+    }
+
+    public MapController(IKwdFile kwdFile, IObjectsController objectsController,
+            Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
+            IGameTimer gameTimer, EntityData entityData, ILevelInfo levelInfo,
+            GameEventService gameEventService, Consumer<Short> enemyBreachListener,
+            Consumer<Short> dungeonBreachListener) {
+        this(kwdFile, objectsController, gameSettings, gameTimer, entityData, levelInfo, gameEventService, null,
+                enemyBreachListener, dungeonBreachListener);
+    }
+
+    public MapController(IKwdFile kwdFile, IObjectsController objectsController,
+            Map<Variable.MiscVariable.MiscType, Variable.MiscVariable> gameSettings,
+            IGameTimer gameTimer, EntityData entityData, ILevelInfo levelInfo,
+            GameEventService gameEventService, @Nullable SaveGame saveGame, Consumer<Short> enemyBreachListener,
+            Consumer<Short> dungeonBreachListener) {
 
         this.kwdFile = kwdFile;
         this.objectsController = objectsController;
@@ -120,6 +148,8 @@ public final class MapController extends Container implements IMapController {
         this.mapInformation = new MapInformation(mapData, kwdFile, levelInfo.getPlayers().values());
         this.levelInfo = levelInfo;
         this.gameEventService = gameEventService;
+        this.enemyBreachListener = enemyBreachListener;
+        this.dungeonBreachListener = dungeonBreachListener;
 
         // Load rooms
         loadRooms(saveGame);
@@ -130,6 +160,11 @@ public final class MapController extends Container implements IMapController {
         // The rooms placed in the editor first, they have settings of their own
         for (Thing.Room thing : kwdFile.getThings(Thing.Room.class)) {
             loadRoom(new Point(thing.getPosX(), thing.getPosY()), thing, saveGame);
+        }
+
+        // The rooms placed in the editor first, they have settings of their own
+        for (Thing.Room thing : kwdFile.getThings(Thing.Room.class)) {
+            loadRoom(new Point(thing.getPosX(), thing.getPosY()), thing);
         }
 
         // Go through the tiles and detect any rooms
@@ -613,6 +648,16 @@ public final class MapController extends Container implements IMapController {
 
         // See the results
         if (tileDestroyed) {
+            // Separate creature wall-attack breach events are tracked in issue #974.
+            if (terrain.getFlags().contains(Terrain.TerrainFlag.SOLID)
+                    && !terrain.getFlags().contains(Terrain.TerrainFlag.IMPENETRABLE)
+                    && terrain.getFlags().contains(Terrain.TerrainFlag.OWNABLE)
+                    && tile.getOwnerId() != playerId
+                    && terrain.getDestroyedTypeTerrainId() != terrain.getTerrainId()) {
+                // DKII emits 56 to the owner before 57 to the worker, before replacement.
+                dungeonBreachListener.accept(tile.getOwnerId());
+                enemyBreachListener.accept(playerId);
+            }
 
             // Bringing down the wall of another player is a breach
             if (tileBreaches.record(terrain, tile.getOwnerId(), playerId) && breachMessages != null) {
@@ -892,6 +937,20 @@ public final class MapController extends Container implements IMapController {
 
     private int getHealth(List<Point> points) {
         return getTiles(points).stream().mapToInt(IMapTileController::getHealth).sum();
+    }
+
+    @Override
+    public void changeRoomOwner(Point point, short playerId) {
+        IRoomController room = getRoomControllerByCoordinates(point);
+        if (room == null || getMapData().getTile(point).getOwnerId() == playerId) {
+            return;
+        }
+        captureRoom(room, playerId);
+    }
+
+    private void captureRoom(IRoomController room, short playerId) {
+        List<Point> roomTiles = room.getRoomInstance().getCoordinates();
+        captureRoom(room, roomTiles, playerId, getMapData().getTile(roomTiles.getFirst()).getOwnerId());
     }
 
     /**

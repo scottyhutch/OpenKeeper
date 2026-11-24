@@ -236,6 +236,8 @@ public final class GameLoopManager implements IGameLoopManager {
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),
                 new HaulingSystem(entityData, gameWorldController.getCreaturesController()),
                 creatureViewSystem.getMotionPublication(),
+                new SpecialIdleEffectSystem(entityData, gameController.getGameTimer(),
+                        level.getGameLevel().getTicksPerSec(), gameWorldController.getMapController(), gameEventService),
                 new TrapSystem(entityData, level, gameController.getGameTimer(), positionSystem, playerControllers,
                         gameWorldController.getShotsController(), gameEventService),
                 new BoulderSystem(entityData, level, gameSettings, gameWorldController.getMapController(), positionSystem,

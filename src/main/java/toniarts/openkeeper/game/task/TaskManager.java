@@ -27,32 +27,6 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.filter.FieldFilter;
-import toniarts.openkeeper.utils.Point;
-import java.lang.System.Logger;
-import java.lang.System.Logger.Level;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collection;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.LinkedHashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Map.Entry;
-import java.util.Optional;
-import java.util.SequencedMap;
-import java.util.Set;
-import java.util.TreeMap;
-import java.util.function.Consumer;
-import java.util.function.Function;
-import java.util.function.Predicate;
-import java.util.stream.Collectors;
 import toniarts.openkeeper.game.component.Casino;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.Crate;
@@ -152,8 +126,35 @@ import toniarts.openkeeper.tools.convert.map.Room;
 import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.tools.convert.map.Thing;
 import toniarts.openkeeper.tools.convert.map.Variable;
+import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.utils.WorldUtils;
+
+import java.lang.System.Logger;
+import java.lang.System.Logger.Level;
+import java.util.ArrayDeque;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collection;
+import java.util.Collections;
+import java.util.Comparator;
+import java.util.Deque;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Optional;
+import java.util.SequencedMap;
+import java.util.Set;
+import java.util.TreeMap;
+import java.util.function.Consumer;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 /**
  * Task manager for several players. Can assign creatures to different tasks.
@@ -733,6 +734,11 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                 resetCreatures(keeperId);
             }
 
+            @Override
+            public void onRoomSelectionComplete(short keeperId, List<Point> tiles) {
+                resetCreatures(keeperId);
+            }
+
             private void scanBridgeSurroundings(List<Point> tiles) {
 
                 // Check first to see if we are on land or water
@@ -1106,6 +1112,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         return true;
     }
 
+
     /**
      * Assigns closest room task to a given creature of requested type or check
      * for validity
@@ -1164,12 +1171,11 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             if (taskPoints != null) {
                 List<Point> freeCoordinates = new ArrayList<>(coordinates);
                 freeCoordinates.removeAll(taskPoints.values());
-                // The creatures that have a task are counted in the capacity of a room they occupy
-                int tasks = objectType.isOccupiedByCreatures() ? 0 : taskPoints.size();
-                if (!freeCoordinates.isEmpty() || tasks + control.getCurrentCapacity() >= control.getMaxCapacity()) {
+                if (!freeCoordinates.isEmpty() || taskPoints.size() + control.getCurrentCapacity() >= control.getMaxCapacity()) {
                     coordinates = freeCoordinates;
                 }
             }
+
             if (objectType == ObjectType.TRAINEE) {
                 coordinates = getTrainingSpot(coordinates, room, creature);
             }
@@ -1277,7 +1283,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         Point from = creature.getCreatureCoordinates();
         return room.getRoomInstance().getCoordinates().stream()
                 .filter(p -> !furniture.contains(p) && room.isTileAccessible(null, p)
-                && WorldUtils.hasLineOfSight(mapController, WorldUtils.pointToVector3f(p), target))
+                && entityPositionLookup.hasLineOfSight(WorldUtils.pointToVector3f(p), target))
                 .min(Comparator.comparingInt(p -> WorldUtils.calculateDistance(from, p)))
                 .orElse(null);
     }

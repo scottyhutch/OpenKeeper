@@ -173,7 +173,6 @@ import toniarts.openkeeper.game.component.Spin;
 import toniarts.openkeeper.game.component.StandingVelocity;
 import toniarts.openkeeper.game.component.StolenGold;
 import toniarts.openkeeper.game.component.StolenLoot;
-import toniarts.openkeeper.game.component.SummonedReaper;
 import toniarts.openkeeper.game.component.Storage;
 import toniarts.openkeeper.game.component.Stored;
 import toniarts.openkeeper.game.component.SummonedReaper;
@@ -413,7 +412,6 @@ public final class NetworkServer {
             Serializer.registerClass(StolenLoot.class, new FieldSerializer());
             Serializer.registerClass(Storage.class, new FieldSerializer());
             Serializer.registerClass(Stored.class, new FieldSerializer());
-            Serializer.registerClass(SummonedReaper.class, new FieldSerializer());
             Serializer.registerClass(Senses.class, new FieldSerializer());
             Serializer.registerClass(ShotFlight.class, new FieldSerializer());
             Serializer.registerClass(ShotTarget.class, new FieldSerializer());

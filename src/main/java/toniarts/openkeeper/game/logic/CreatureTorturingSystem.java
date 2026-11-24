@@ -89,6 +89,17 @@ public final class CreatureTorturingSystem extends GameTimeCounter {
     private final double tortureInterval;
     private final Map<EntityId, IRoomController> chambersByVictim = new HashMap<>();
 
+    /**
+     * The torture
+     *
+     * @param entityData the entity data
+     * @param creaturesController the creatures, for converting the victims
+     * @param mapController the map, for the chambers
+     * @param playerControllers the players, for their statistics
+     * @param gameEventService the game events
+     * @param chanceOfDyingWhenConverted the level's chance of dying when converted, in percent
+     * @param ticksPerSecond the level's ticks per second
+     */
     public CreatureTorturingSystem(EntityData entityData, ICreaturesController creaturesController, IMapController mapController,
             Map<Short, IPlayerController> playerControllers, GameEventService gameEventService, int chanceOfDyingWhenConverted,
             int ticksPerSecond) {

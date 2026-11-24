@@ -442,9 +442,11 @@ public final class CreatureController extends EntityController implements ICreat
                 || isFrightened(entityData.getComponent(entityId, CreatureComponent.class).fear))) {
 
             // Fighters no longer flee from DHeart, our own one that still stands
+            // A non-fighter stands its ground near it, where DK II's take on an enemy in reach instead of
+            // withdrawing (0x45BDF0)
             IRoomController roomController = fighter ? mapController.getRoomControllerByCoordinates(getCreatureCoordinates()) : null;
-            if (roomController == null || !roomController.isDungeonHeart()
-                    || roomController.getOwnerId() != getOwnerId() || roomController.isDestroyed()) {
+            if (fighter ? roomController == null || !roomController.isDungeonHeart()
+                    || roomController.getOwnerId() != getOwnerId() || roomController.isDestroyed() : !isNearOwnHeart()) {
                 // With nowhere to withdraw to, it carries on as if nothing was after it (0x45BDF0, 0x45CB00)
                 if (stateMachine.isInState(CreatureState.FLEE) || flee()) {
                     return true;
@@ -2331,6 +2333,10 @@ public final class CreatureController extends EntityController implements ICreat
                 && !hasPathToEntity(entity);
     }
 
+    /**
+     * Whether we can walk to the creature. DK II picks a creature it notices
+     * only when there is a path to it (0x45CB00 through 0x4D0E60).
+     */
     private boolean hasPathToEntity(EntityId entity) {
         Point ourPos = WorldUtils.vectorToPoint(getPosition());
         Point theirPos = WorldUtils.vectorToPoint(getPosition(entityData, entity));

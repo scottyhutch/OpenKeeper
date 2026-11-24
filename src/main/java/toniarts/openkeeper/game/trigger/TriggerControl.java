@@ -666,10 +666,7 @@ public class TriggerControl extends Control {
     private void changeRoomOwner(TriggerActionData trigger) {
         Point p = new Point(trigger.getUserData("posX", int.class) - 1,
                 trigger.getUserData("posY", int.class) - 1);
-        IRoomController room = mapController.getRoomControllerByCoordinates(p);
-        if (room != null) {
-            room.captured(trigger.getUserData("playerId", short.class));
-        }
+        mapController.changeRoomOwner(p, trigger.getUserData("playerId", short.class));
     }
 
     /**
