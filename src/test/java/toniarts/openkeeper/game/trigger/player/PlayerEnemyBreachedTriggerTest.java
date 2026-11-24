@@ -196,7 +196,7 @@ class PlayerEnemyBreachedTriggerTest {
         }
 
         void bind() {
-            scripts = new PlayerTriggerLogicController(null, level, null, null, null, null);
+            scripts = new PlayerTriggerLogicController(null, level, null, null, null, null, null);
         }
 
         void dispatch(short playerId) {

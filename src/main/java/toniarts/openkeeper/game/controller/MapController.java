@@ -162,11 +162,6 @@ public final class MapController extends Container implements IMapController {
             loadRoom(new Point(thing.getPosX(), thing.getPosY()), thing, saveGame);
         }
 
-        // The rooms placed in the editor first, they have settings of their own
-        for (Thing.Room thing : kwdFile.getThings(Thing.Room.class)) {
-            loadRoom(new Point(thing.getPosX(), thing.getPosY()), thing);
-        }
-
         // Go through the tiles and detect any rooms
         for (int y = 0; y < mapData.getHeight(); y++) {
             for (int x = 0; x < mapData.getWidth(); x++) {

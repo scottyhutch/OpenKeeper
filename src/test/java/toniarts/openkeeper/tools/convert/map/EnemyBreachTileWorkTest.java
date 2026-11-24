@@ -198,7 +198,7 @@ class EnemyBreachTileWorkTest {
                 case "setFlag" -> { flags[((Number) args[0]).intValue()] = (int) args[1]; yield null; }
                 default -> throw new UnsupportedOperationException(method);
             });
-            scripts = new PlayerTriggerLogicController(null, level, null, null, null, null);
+            scripts = new PlayerTriggerLogicController(null, level, null, null, null, null, null);
             Map<MiscType, Variable.MiscVariable> settings = new EnumMap<>(MiscType.class);
             for (MiscType type : new MiscType[]{MiscType.DIG_ENEMY_WALL_HEALTH,
                 MiscType.DIG_OWN_WALL_HEALTH, MiscType.DIG_ROCK_HEALTH, MiscType.ATTACK_TILE_HEALTH}) {

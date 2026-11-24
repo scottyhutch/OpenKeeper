@@ -138,37 +138,11 @@ public class PlayerTriggerControl extends TriggerControl {
 
     /** Native breach events select matching root branches; the authored player filter is ignored. */
     void onEnemyBreached() {
-        onBreach(TriggerGeneric.TargetType.PLAYER_ENEMY_BREACHED);
+        fire(TriggerGeneric.TargetType.PLAYER_ENEMY_BREACHED);
     }
 
     void onDungeonBreached() {
-        onBreach(TriggerGeneric.TargetType.PLAYER_DUNGEON_BREACHED);
-    }
-
-    private void onBreach(TriggerGeneric.TargetType eventType) {
-        for (TriggerData child : root.getChildren().getArray()) {
-            if (child instanceof TriggerGenericData event
-                    && event.getType() == eventType) {
-                runBreachBranch(event);
-            }
-        }
-    }
-
-    private void runBreachBranch(TriggerGenericData branch) {
-        branch.subRepeatTimes();
-        for (TriggerData child : branch.getChildren().getArray()) {
-            if (child instanceof TriggerActionData action) {
-                doAction(action);
-                if (!branch.isRepeateable()) {
-                    branch.detachChild(action);
-                }
-            } else if (child instanceof TriggerGenericData condition && isActive(condition)) {
-                runBreachBranch(condition);
-            }
-        }
-        if (branch.getQuantity() == 0) {
-            branch.detachFromParent();
-        }
+        fire(TriggerGeneric.TargetType.PLAYER_DUNGEON_BREACHED);
     }
 
     @Override
