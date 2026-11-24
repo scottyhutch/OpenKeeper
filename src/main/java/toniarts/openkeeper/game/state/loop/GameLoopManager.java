@@ -229,8 +229,6 @@ public final class GameLoopManager implements IGameLoopManager {
                 // The former steering thread required cross-thread entity access.
                 new MovementSystem(entityData, gameWorldController.getMapController(), level,
                         positionSystem, gameWorldController.getCreaturesController()),
-                new PossessedMovementSystem(entityData, gameWorldController.getMapController(),
-                        positionSystem, gameWorldController.getCreaturesController(), gameController.getGameTimer()),
                 new BattleSystem(entityData, gameController.getGameTimer()),
                 new SpinSystem(entityData, gameController.getGameTimer()),
                 new LooseObjectSystem(entityData, gameWorldController.getMapController(), playerControllers, positionSystem),
@@ -261,6 +259,12 @@ public final class GameLoopManager implements IGameLoopManager {
                         levelInfo.getLevelData().getGameLevel().getTicksPerSec(), gameEventService),
                 new CreatureFallSystem(entityData));
         loops.add(new GameLoop(gameAnimationThread, GameLoop.INTERVAL_FPS_60, "Animation"));
+
+        // The possessed creature moves at the frame rate, its keeper looks through its eyes. The view draws
+        // it where it is, the logic tick would move it, and the camera, in steps
+        loops.add(new GameLoop(new GameLogicManager(new PossessedMovementSystem(entityData, gameWorldController.getMapController(),
+                positionSystem, gameWorldController.getCreaturesController(), gameController.getGameTimer())),
+                GameLoop.INTERVAL_FPS_60, "Steering"));
 
         // A loaded game goes on from the time it was saved at, the times in its components are from that clock
         if (saveGame != null) {
