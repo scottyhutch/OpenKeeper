@@ -354,7 +354,8 @@ public enum CreatureState implements State<ICreatureController> {
 
             // Hunger, then fatigue, then pay day interrupt a room job, including travel to it. DK II gives the three
             // one mask of job groups (0x800A3C3B, set in 0x4798F0 and checked in 0x477C20): research, the Workshop,
-            // guard duty, the Temple, training and the Casino, but not the Prison, the Torture Chamber or a fight
+            // guard duty, the Temple, training, the Casino and watching the Combat Pit (group 0x1F), but not the
+            // Prison, the Torture Chamber or a fight
             Task task = entity.getAssignedTask();
             boolean interruptible = task != null && switch (task.getTaskType()) {
                 case RESEARCH, MANUFACTURE, GUARD, PRAY, TRAIN, GAMBLE, WATCH_COMBAT_PIT -> true;

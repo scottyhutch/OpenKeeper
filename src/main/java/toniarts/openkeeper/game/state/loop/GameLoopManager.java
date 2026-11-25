@@ -132,7 +132,8 @@ public final class GameLoopManager implements IGameLoopManager {
 
         // The creatures' motion is published after they have moved
         final CreatureViewSystem creatureViewSystem = new CreatureViewSystem(entityData, levelInfo.getLevelData(), gameController.getGameTimer(),
-                toniarts.openkeeper.Main.getUserSettings().getBoolean(toniarts.openkeeper.game.data.Settings.Setting.ANIMATION_INTERPOLATION));
+                toniarts.openkeeper.Main.getUserSettings().getBoolean(toniarts.openkeeper.game.data.Settings.Setting.ANIMATION_INTERPOLATION),
+                gameWorldController.getMapController());
 
         // Game logic
         gameLogicThread = new GameLogicManager(
