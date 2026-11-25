@@ -70,6 +70,7 @@ class ShotsControllerTest {
     private static final short HEAL_ID = 4;
     private static final short CREATE_OBJECT_ID = 2;
     private static final short CREATE_CREATURE_ID = 10;
+    private static final short CREATE_SINGLE_CREATURE_ID = 60;
     private static final short IMP_ID = 1;
     private static final short GOLD_OBJECT_ID = 1;
     private static final short SIGHT_OF_EVIL_ID = 33;
@@ -103,6 +104,7 @@ class ShotsControllerTest {
         addShot(HEAL_ID, Shot.ProcessType.MODIFY_HEALTH);
         addShot(CREATE_OBJECT_ID, Shot.ProcessType.CREATE_OBJECT);
         addShot(CREATE_CREATURE_ID, Shot.ProcessType.CREATE_CREATURE);
+        addShot(CREATE_SINGLE_CREATURE_ID, Shot.ProcessType.CREATE_SINGLE_CREATURE);
         addShot(SIGHT_OF_EVIL_ID, Shot.ProcessType.SIGHT_OF_EVIL);
         // Drain does its process when it hits, as in the original data
         shotsById.put(DRAIN_ID, ShotFixtures.shot(DRAIN_ID, Shot.ProcessType.DRAIN, 0, EnumSet.of(Shot.ShotProcessFlag.HIT_COLLIDE_THING)));
@@ -237,6 +239,21 @@ class ShotsControllerTest {
             assertEquals(new Vector2f(4.5f, 7.5f), args[3]);
             assertEquals(ICreaturesController.SpawnType.CONJURE, args[4]);
         }
+    }
+
+    @Test
+    void upgradedCreateImpCreatesOneImpAtTheShotsLevel() {
+
+        // The upgraded Create Imp fires shot 60 (Create Single Creature): creature 1 (Imp), the second value is its level
+        shotsController.createShot(CREATE_SINGLE_CREATURE_ID, IMP_ID, 4, PLAYER_ID, new Vector3f(4.5f, 1f, 7.5f), null, null);
+
+        assertEquals(1, spawnedCreatures.size());
+        Object[] args = spawnedCreatures.get(0);
+        assertEquals(IMP_ID, args[0]);
+        assertEquals(PLAYER_ID, args[1]);
+        assertEquals(4, args[2]);
+        assertEquals(new Vector2f(4.5f, 7.5f), args[3]);
+        assertEquals(ICreaturesController.SpawnType.CONJURE, args[4]);
     }
 
     @Test

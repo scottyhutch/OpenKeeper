@@ -62,6 +62,7 @@ import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.ALARM;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CHICKEN;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_CREATURE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_OBJECT;
+import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.CREATE_SINGLE_CREATURE;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.DRAIN;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.FEAR;
 import static toniarts.openkeeper.tools.convert.map.Shot.ProcessType.FREEZE;
@@ -140,6 +141,10 @@ public final class ShotsController implements IShotsController {
                         WorldUtils.vector3fToVector2f(request.position()), ICreaturesController.SpawnType.CONJURE);
             }
         });
+
+        // One creature of type data 1 at level data 2 (0x4AFE50), the upgraded Create Imp's Imp at level 4
+        result.put(CREATE_SINGLE_CREATURE, request -> creaturesController.spawnCreature((short) request.shotData1(), request.playerId(),
+                request.shotData2(), WorldUtils.vector3fToVector2f(request.position()), ICreaturesController.SpawnType.CONJURE));
         result.put(CREATE_OBJECT, request -> {
             GameObject object = kwdFile.getObject(request.shotData1());
             if (object != null && object.getFlags().contains(GameObject.ObjectFlag.OBJECT_TYPE_GOLD)) {
