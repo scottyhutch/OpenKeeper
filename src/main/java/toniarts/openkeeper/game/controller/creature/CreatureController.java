@@ -247,7 +247,6 @@ public final class CreatureController extends EntityController implements ICreat
      * How long the winner of a Combat Pit fight cheers, as in DK II (DKII.EXE 0x457CF0)
      */
     private static final float COMBAT_PIT_VICTORY_SECONDS = 4f;
-    private static final int EAT_ATTEMPT_INTERVAL_TICKS = 4;
     /**
      * How long a creature that got a job from its job list doesn't pick from the list again, as in DK II (DKII.EXE
      * 0x4780E0)
