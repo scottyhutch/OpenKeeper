@@ -557,8 +557,12 @@ public final class MovementSystem implements IGameLogicUpdatable {
         if (pathFollowing != null && pathFollowing.isLanding(steerableEntity.getLinearVelocity())) {
             land(steerableEntity, pathFollowing.getEnd(), tpf);
         } else {
+            // A walk that may end inside an obstacle, like a step into the middle of a portal, goes into the tile it
+            // ends on (DK II 0x4D31D0)
             movementCollision.move(position, steerableEntity.getLinearVelocity(), tpf,
-                    candidate -> canMoveTo(entityId, position, candidate));
+                    candidate -> pathFollowing != null && pathFollowing.isEndingInObstacle()
+                    && WorldUtils.vectorToPoint(candidate).equals(WorldUtils.vectorToPoint(pathFollowing.getEnd()))
+                    || canMoveTo(entityId, position, candidate));
         }
 
         // Update orientation and angular velocity

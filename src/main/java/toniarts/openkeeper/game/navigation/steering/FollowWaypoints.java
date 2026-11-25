@@ -203,6 +203,17 @@ public final class FollowWaypoints extends SteeringBehavior<Vector2> {
     }
 
     /**
+     * Whether the walk may go into the obstacle it ends in. DK II's pilot
+     * doesn't hold such a walk off obstacles on its last leg within a tile and
+     * the creature's radius of the end (0x4D31D0)
+     *
+     * @return true near the end of a walk that may end inside an obstacle
+     */
+    public boolean isEndingInObstacle() {
+        return endInObstacle && isNearTheEnd() && !finished;
+    }
+
+    /**
      * Lets the walk end inside an obstacle. DK II's pilot doesn't hold such a
      * walk off obstacles on its last leg within a tile and the creature's
      * radius of the end (0x4D0F60, 0x4D31D0)
