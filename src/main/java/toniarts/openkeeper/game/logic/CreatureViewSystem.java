@@ -37,6 +37,7 @@ import toniarts.openkeeper.game.component.Death;
 import toniarts.openkeeper.game.component.LeavingDungeon;
 import toniarts.openkeeper.game.component.IdleAnimation;
 import toniarts.openkeeper.game.component.Drunk;
+import toniarts.openkeeper.game.component.FoodHunt;
 import toniarts.openkeeper.game.component.Navigation;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.PortalGem;
@@ -234,9 +235,15 @@ public final class CreatureViewSystem extends GameTimeCounter {
                         targetState = getCelebrationAnimation(state);
                     } else if (aiState != null && aiState.getCreatureState() == CreatureState.IMPRISONED) {
 
-                        // A prisoner is angry only now and then, for as long as its state says (DKII.EXE 0x473350)
-                        targetState = timeElapsed < aiState.stateStartTime + aiState.stateDuration
-                                ? Creature.AnimationType.ANGRY : Creature.AnimationType.STAND_STILL;
+                        // A prisoner eats the chicken it has caught (DKII.EXE 0x473750), and is angry only now and then,
+                        // for as long as its state says (0x473350)
+                        FoodHunt foodHunt = entityData.getComponent(entityId, FoodHunt.class);
+                        if (foodHunt != null && timeElapsed < foodHunt.eatingUntil) {
+                            targetState = Creature.AnimationType.EATING;
+                        } else {
+                            targetState = timeElapsed < aiState.stateStartTime + aiState.stateDuration
+                                    ? Creature.AnimationType.ANGRY : Creature.AnimationType.STAND_STILL;
+                        }
                     } else if (aiState != null) {
                         targetState = getAnimation(aiState.getCreatureState());
                         CreatureMeleeAttack meleeAttack = entityData.getComponent(entityId, CreatureMeleeAttack.class);

@@ -123,7 +123,7 @@ class SensingBehindDoorsTest {
     }
 
     @Test
-    void creatureBehindOurOwnDoorIsNotBehindABlockingDoor() {
+    void aDoorThatBlocksTheSightIsABlockingDoor() {
         door(PLAYER, WOODEN_DOOR, false);
 
         assertFalse(positionSystem().isBehindBlockingDoor(creature, neutralCreature));
@@ -135,6 +135,18 @@ class SensingBehindDoorsTest {
 
         assertFalse(positionSystem().hasLineOfSight(WorldUtils.pointToVector3f(CREATURE.x, CREATURE.y),
                 WorldUtils.pointToVector3f(NEUTRAL_CREATURE.x, NEUTRAL_CREATURE.y), door -> true));
+    }
+
+    @Test
+    void creatureBehindOurOwnDoorIsNotBehindABlockingDoor() {
+        door(PLAYER, WOODEN_DOOR, false);
+
+        assertFalse(positionSystem().isBehindBlockingDoor(creature, neutralCreature));
+    }
+
+    @Test
+    void creatureWithoutADoorInBetweenIsNotBehindABlockingDoor() {
+        assertFalse(positionSystem().isBehindBlockingDoor(creature, neutralCreature));
     }
 
     @Test

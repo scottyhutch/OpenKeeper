@@ -28,6 +28,7 @@ import toniarts.openkeeper.game.component.CreatureTortured;
 import toniarts.openkeeper.game.component.CreatureViewState;
 import toniarts.openkeeper.game.component.IdleAnimation;
 import toniarts.openkeeper.game.component.Navigation;
+import toniarts.openkeeper.game.component.FoodHunt;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.PortalGem;
 import toniarts.openkeeper.game.component.Position;
@@ -152,6 +153,24 @@ class CreatureViewSystemTest {
 
         assertArrayEquals(new Creature.AnimationType[]{Creature.AnimationType.ANGRY, Creature.AnimationType.ANGRY,
             Creature.AnimationType.STAND_STILL, Creature.AnimationType.STAND_STILL}, seconds);
+    }
+
+    @Test
+    void prisonerEatsTheChickenItHasCaught() {
+        EntityId prisoner = entityData.createEntity();
+        entityData.setComponents(prisoner, new CreatureViewState((short) 4, 0, Creature.AnimationType.IDLE_1),
+                new Position(0, new Vector3f()), new CreatureAi(0, CreatureState.IMPRISONED, (short) 4), new FoodHunt(2));
+        CreatureViewSystem system = new CreatureViewSystem(entityData, null);
+
+        // Eating until 2 seconds
+        Creature.AnimationType[] seconds = new Creature.AnimationType[3];
+        for (int second = 0; second < seconds.length; second++) {
+            system.processTick(1);
+            seconds[second] = entityData.getComponent(prisoner, CreatureViewState.class).state;
+        }
+
+        assertArrayEquals(new Creature.AnimationType[]{Creature.AnimationType.EATING, Creature.AnimationType.STAND_STILL,
+            Creature.AnimationType.STAND_STILL}, seconds);
     }
 
     @Test
