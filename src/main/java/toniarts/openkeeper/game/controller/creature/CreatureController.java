@@ -460,8 +460,9 @@ public final class CreatureController extends EntityController implements ICreat
         }
 
         // Should we attack, try to avoid i.e. imps engaging in a fight. Near their own heart they
-        // hit back at an enemy in reach
-        IEntityController attackTarget = fighter ? getAttackTarget() : isNearOwnHeart() ? enemyInReach : null;
+        // hit back at an enemy in reach. An enemy Imp in reach they take on anywhere (0x45BDF0)
+        IEntityController attackTarget = fighter ? getAttackTarget()
+                : isNearOwnHeart() && enemyInReach != null ? enemyInReach : getEnemyImpInReach();
         if (attackTarget != null && (stateMachine.isInState(CreatureState.FIGHT)
                 || stateMachine.isInState(CreatureState.MELEE_ATTACK) || isNearCallToArms())) {
             if (!stateMachine.isInState(CreatureState.FIGHT) && !stateMachine.isInState(CreatureState.MELEE_ATTACK)) {
@@ -557,6 +558,28 @@ public final class CreatureController extends EntityController implements ICreat
                 }
             }
         }
+    }
+
+    /**
+     * Finds an enemy Imp in reach of a non-fighter. DK II's non-fighters take
+     * on an enemy Imp wherever they are, other enemies only near their own
+     * heart. One that runs away counts too, as DK II only asks whether it
+     * can be attacked (0x45BDF0)
+     *
+     * @return the enemy Imp to fight, or {@code null} if there is none
+     */
+    private IEntityController getEnemyImpInReach() {
+        short impId = levelInfo.getLevelData().getImp().getCreatureId();
+        for (EntityId entity : getEntitiesInNoticeRange()) {
+            CreatureComponent other = entityData.getComponent(entity, CreatureComponent.class);
+            if (other != null && other.creatureId == impId && creaturesController.isValidEntity(entity)
+                    && isEnemy(entity) && !(isIncapacitated(entity) || isCaptive(entity))
+                    && isNoticed(entity) && isInRange(WorldUtils.TILE_WIDTH, entity)) {
+                setAttackTarget(entity);
+                return creaturesController.createController(entity);
+            }
+        }
+        return null;
     }
 
     /**
