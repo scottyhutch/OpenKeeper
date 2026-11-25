@@ -57,7 +57,7 @@ class RoomWantedTest {
         IMapDataInformation<?> mapData = stub(IMapDataInformation.class, Map.of("getWidth", 0, "getHeight", 0));
         IMapController mapController = stub(IMapController.class, Map.of("getMapData", mapData, "getRoomsByFunction", List.of()));
         IPlayerController player = stub(IPlayerController.class, Map.of("getKeeper", new Keeper(false, Player.KEEPER1_ID)));
-        TaskManager taskManager = new TaskManager(new DefaultEntityData(), stub(IGameWorldController.class, Map.of()), mapController,
+        TaskManager taskManager = new TaskManager(new DefaultEntityData(), stub(IGameWorldController.class, java.util.Collections.singletonMap("getRoomAttackMessages", null)), mapController,
                 stub(IObjectsController.class, Map.of()), stub(ICreaturesController.class, Map.of()), stub(INavigationService.class, Map.of()),
                 List.of(player), stub(ILevelInfo.class, Map.of("getLevelData", stub(IKwdFile.class, Map.of()))), stub(IEntityPositionLookup.class, Map.of()), Map.of());
         ICreatureController creature = stub(ICreatureController.class, Map.of(
