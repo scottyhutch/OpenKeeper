@@ -84,7 +84,27 @@ vec3 smoothNormal(vec3 p[3], vec3 n[3], vec3 coord) {
 // towards its own side, so the side facing the camera is drawn.
 const float SMOOTH_SHELL = 0.002;
 
+// The welded corner normals of these low-poly models can point behind some of
+// their own triangles: at sharp creases, the rim of the imp's sack and other
+// thin parts the faces around a corner span more than a half space. The
+// surface's shape only depends on the lines of the corner normals, not on
+// which way they point (both formulas are even in each normal), so near such
+// a corner the smoothed surface faces the triangle's way, against the corner
+// normal. Lit, SSAO and shadow passes would all see a surface facing away
+// from its own normal: black patches. The normal returned is therefore made
+// from the corner normals turned to the triangle's side; the position, and
+// so the seams between triangles, stay as they were.
+vec3 smoothFacing(vec3 n, vec3 face) {
+    return dot(n, face) < 0.0 ? -n : n;
+}
+
 vec3 smoothSurface(vec3 p[3], vec3 n[3], vec3 coord, out vec3 normal) {
     normal = smoothNormal(p, n, coord);
-    return smoothPosition(p, n, coord) + normal * SMOOTH_SHELL;
+    vec3 position = smoothPosition(p, n, coord) + normal * SMOOTH_SHELL;
+    vec3 face = cross(p[1] - p[0], p[2] - p[0]);
+    if (dot(n[0], face) < 0.0 || dot(n[1], face) < 0.0 || dot(n[2], face) < 0.0) {
+        vec3 facing[3] = vec3[](smoothFacing(n[0], face), smoothFacing(n[1], face), smoothFacing(n[2], face));
+        normal = smoothNormal(p, facing, coord);
+    }
+    return position;
 }
