@@ -2146,12 +2146,7 @@ public final class CreatureController extends EntityController implements ICreat
      */
     private float getTargetDistance(EntityId target) {
         float distance = getDistanceToCreature(target);
-        CreatureComponent other = entityData.getComponent(target, CreatureComponent.class);
-        Creature.CreatureFlag naturalEnemy = creature.getFlags().contains(Creature.CreatureFlag.IS_GOOD)
-                ? Creature.CreatureFlag.IS_EVIL : Creature.CreatureFlag.IS_GOOD;
-        boolean isNaturalEnemy = other != null
-                && levelInfo.getLevelData().getCreature(other.creatureId).getFlags().contains(naturalEnemy);
-        return distance * distance * (isNaturalEnemy ? 7f / 8 : 1);
+        return distance * distance * (isOfOtherAlignment(target) ? 7f / 8 : 1);
     }
 
     /**
