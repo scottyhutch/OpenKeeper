@@ -574,6 +574,7 @@ class CreatureBackOffTest {
             case "releaseMeleeHit", "releaseCastShot" -> null;
             case "withdrawToHeroLair" -> false;
             case "shouldWithdrawToHeart" -> withdraws.get();
+            case "hasWonCombatPitFight" -> false;
             default -> throw new UnsupportedOperationException(method);
         }));
         return self.get();
