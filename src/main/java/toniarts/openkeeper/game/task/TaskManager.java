@@ -27,6 +27,7 @@ import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.EntitySet;
 import com.simsilica.es.filter.FieldFilter;
+import com.simsilica.event.EventBus;
 import toniarts.openkeeper.game.component.Casino;
 import toniarts.openkeeper.game.component.CasinoBigWinner;
 import toniarts.openkeeper.game.component.Crate;
@@ -69,6 +70,8 @@ import toniarts.openkeeper.game.data.ActionPoint;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableType;
+import toniarts.openkeeper.game.event.RoomWanted;
+import toniarts.openkeeper.game.event.ServerEvents;
 import toniarts.openkeeper.game.listener.MapListener;
 import toniarts.openkeeper.game.listener.PlayerActionListener;
 import toniarts.openkeeper.game.listener.RoomListener;
@@ -938,11 +941,13 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     public boolean assignGoldToTreasuryTask(ICreatureController creature) {
         ThreadCheck.logic("TaskManager.assignGoldToTreasuryTask");
 
-        // See if the creature's player lacks of gold
+        // See if the creature's player lacks of gold. When the gold doesn't fit, DK II asks for a Treasury
+        // if there is none (0x4BA420)
         IPlayerController player = playerControllers.get(creature.getOwnerId());
         if (!player.getGoldControl().isFullCapacity()) {
             return assignClosestRoomTask(creature, ObjectType.GOLD, null);
         }
+        EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(creature.getOwnerId(), ObjectType.GOLD));
         return false;
     }
 
@@ -1132,9 +1137,13 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             Function<IRoomController, Collection<Point>> spots) {
         Point currentPosition = creature.getCreatureCoordinates();
 
-        // Get all the rooms of the given type
+        // Get all the rooms of the given type. Without any, the keeper is told the creature wants one, as DK II's
+        // room searches do (for example 0x4E0470 for the Lair and 0x4F3560 for the Training Room)
         // A room without creatures of the other side in it comes before a nearer room with them (0x4C6AE0)
         List<IRoomController> rooms = mapController.getRoomsByFunction(objectType, creature.getOwnerId());
+        if (rooms.isEmpty()) {
+            EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(creature.getOwnerId(), objectType));
+        }
         Map<Integer, IRoomController> distancesToRooms = new TreeMap<>();
         Map<Integer, IRoomController> distancesToRoomsWithHatedCompany = new TreeMap<>();
         for (IRoomController room : rooms) {
@@ -1870,7 +1879,10 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
             }
         }
         if (foods.isEmpty()) {
-            return false; // No food available
+
+            // DK II's search for food asks for a Hatchery when there is none (0x4DED00)
+            EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(creature.getOwnerId(), ObjectType.FOOD));
+            return false;
         }
 
         // Sort by manhattan distance in relation to the creature

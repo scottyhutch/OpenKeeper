@@ -20,14 +20,18 @@ import com.jme3.math.Vector2f;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntitySet;
+import com.simsilica.event.EventBus;
+import com.simsilica.event.EventListener;
 import java.lang.System.Logger;
 import java.lang.System.Logger.Level;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import toniarts.openkeeper.game.component.InHand;
 import toniarts.openkeeper.game.component.KeeperAi;
 import toniarts.openkeeper.game.component.ObjectComponent;
@@ -37,9 +41,12 @@ import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.TileWork;
+import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.data.ResearchableEntity;
+import toniarts.openkeeper.game.event.RoomWanted;
+import toniarts.openkeeper.game.event.ServerEvents;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.navigation.pathfinding.INavigable;
@@ -80,7 +87,8 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
     private static final int TASK_TIME_OUT_SECONDS = 420;
 
     /**
-     * DK II lets the tagged gold go 240 game ticks after its last dig order
+     * DK II lets its newest gold tag go 240 game ticks after its last dig
+     * order, at 4 ticks a second
      */
     private static final int UNTAG_GOLD_SECONDS = 60;
     private static final int NOTHING_TO_DO_LOG_SECONDS = 60;
@@ -172,6 +180,18 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
         ROOM_TRAINING_ROOM, ROOM_WORKSHOP};
 
     /**
+     * The room a creature asks for, by what it wants to do there, as DK II's
+     * room searches ask (0x4BA420 Treasury, 0x4E0470 Lair, 0x4DED00
+     * Hatchery, 0x4E2500 Library, 0x4F3560 Training Room, 0x4F6200
+     * Workshop, 0x46D810 Prison, 0x4F2B80 Torture Chamber, 0x4F1A20 Temple,
+     * 0x4D75F0 Casino). DK II asks for a Graveyard only once a game
+     */
+    private static final Map<ObjectType, Short> ROOMS_WANTED = Map.of(ObjectType.GOLD, ROOM_TREASURY,
+            ObjectType.LAIR, ROOM_LAIR, ObjectType.FOOD, ROOM_HATCHERY, ObjectType.RESEARCHER, ROOM_LIBRARY,
+            ObjectType.TRAINEE, ROOM_TRAINING_ROOM, ObjectType.MANUFACTURER, ROOM_WORKSHOP, ObjectType.PRISONER, ROOM_PRISON,
+            ObjectType.TORTUREE, ROOM_TORTURE_CHAMBER, ObjectType.WORSHIPPER, ROOM_TEMPLE, ObjectType.GAMBLER, ROOM_CASINO);
+
+    /**
      * The room DK II's computer player likes to have each room next to
      */
     private static final Map<Short, Short> IDEAL_NEIGHBOURS = Map.ofEntries(
@@ -225,6 +245,13 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
     private final EntitySet objects;
 
     /**
+     * The latest room a creature of each computer player asked for since its
+     * last turn
+     */
+    private final Map<Short, ObjectType> roomsWanted = new ConcurrentHashMap<>();
+    private final EventListener<RoomWanted> roomWantedListener = (type, event) -> roomsWanted.put(event.playerId(), event.objectType());
+
+    /**
      * @param entityData the entities, the computer players keep their state
      * there
      * @param kwdFile the level
@@ -244,7 +271,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
         this.playerControllers = playerControllers;
         this.gameWorldController = gameWorldController;
         this.mapController = gameWorldController.getMapController();
-        battles = new KeeperAiBattles(entityData, kwdFile, gameWorldController, gameTimer, this::log);
+        battles = new KeeperAiBattles(entityData, kwdFile, gameWorldController, gameTimer, navigationService, this::log);
         invasions = new KeeperAiInvasions(entityData, kwdFile, gameWorldController, navigationService, battles, this::log);
         creatures = new KeeperAiCreatures(entityData, kwdFile, gameWorldController, battles, invasions, this::log);
         traps = new KeeperAiTraps(entityData, kwdFile, gameWorldController, this::log);
@@ -313,13 +340,12 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
             keeperAi.nextTask = KeeperAi.Task.PLAN;
         }
 
-        // The tagged gold is let go a while after the last dig order
+        // A while after the last dig order its newest gold tag is let go
         if (keeperAi.untagTicks > 0) {
             keeperAi.untagTicks--;
             if (keeperAi.untagTicks == 0) {
                 finishGoldAttempt(keeperAi);
-                log(keeperAi, "untag gold", null, "no dig order for a while");
-                untagGold(keeperAi.playerId);
+                untagGold(keeperAi);
             }
         }
 
@@ -337,6 +363,13 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
                 keeperAi.failedTargetTicks[i]--;
             }
         }
+
+        // The latest room its creatures asked for is held for the next plan
+        ObjectType asked = roomsWanted.remove(keeperAi.playerId);
+        if (asked != null && ROOMS_WANTED.containsKey(asked)) {
+            holdWantedRoom(keeperAi, playerController, ROOMS_WANTED.get(asked));
+        }
+
         // Its creatures that have turned unhappy or angry are seen to as the news comes in
         creatures.answerMoods(keeperAi, playerController, ai);
 
@@ -460,7 +493,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
                 case GO_TO_GOLD -> {
 
                     // From the nearest room
-                    keeperAi.current = getNearestRoom(playerController, keeperAi.target).getRoomInstance().getCenter();
+                    keeperAi.current = getNearestRoom(playerController, keeperAi.target).getRoomInstance().getReferenceTile();
                     setTask(keeperAi, KeeperAi.Task.DIG_PATH, "from the nearest room at " + keeperAi.current.x + "," + keeperAi.current.y);
                     keeperAi.nextTask = KeeperAi.Task.TAG_GOLD;
                     yield actions - 1;
@@ -618,9 +651,25 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
         return tiles;
     }
 
-    private void untagGold(short playerId) {
-        for (Point tile : getTaggedGold(playerId)) {
-            mapController.selectTiles(new Vector2f(tile.x, tile.y), new Vector2f(tile.x, tile.y), false, playerId);
+    /**
+     * Lets go of the newest gold tile it tagged that is still tagged, and of
+     * no other. DK II's pass (0x500C20) walks its gold dig orders from the
+     * newest and posts an untag (0x29, 0x512A20) for each, but the order it
+     * lets go of takes its link to the next one with it (0x507EF0), so the
+     * walk ends there. The older tags stay, and while any of them does it
+     * starts no gold trip
+     */
+    private void untagGold(KeeperAi keeperAi) {
+        Point[] tags = keeperAi.goldTags;
+        for (int i = 0; i < tags.length; i++) {
+            Point tile = tags[i];
+            if (tile != null && hasGold(tile.x, tile.y) && mapController.getMapData().getTile(tile).isSelected(keeperAi.playerId)) {
+                System.arraycopy(tags, i + 1, tags, 0, tags.length - i - 1);
+                Arrays.fill(tags, tags.length - i - 1, tags.length, null);
+                log(keeperAi, "untag gold", tile, "no dig order for a while, the newest gold tag");
+                mapController.selectTiles(new Vector2f(tile.x, tile.y), new Vector2f(tile.x, tile.y), false, keeperAi.playerId);
+                return;
+            }
         }
     }
 
@@ -737,7 +786,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
                 if (middle == null || isWaitingAfterFailedTarget(keeperAi, middle)) {
                     continue;
                 }
-                int distance = getDistance(getNearestRoom(playerController, middle).getRoomInstance().getCenter(), middle);
+                int distance = getDistance(getNearestRoom(playerController, middle).getRoomInstance().getReferenceTile(), middle);
                 for (int i = 0; i < nearest.length; i++) {
                     if (nearest[i] == null || distance < distances[i]) {
                         System.arraycopy(nearest, i, nearest, i + 1, nearest.length - 1 - i);
@@ -827,7 +876,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
         int nearestDistance = Integer.MAX_VALUE;
         for (Set<IRoomController> rooms : playerController.getRoomControl().getRoomControllers().values()) {
             for (IRoomController room : rooms) {
-                int distance = getDistance(room.getRoomInstance().getCenter(), p);
+                int distance = getDistance(room.getRoomInstance().getReferenceTile(), p);
                 if (distance < nearestDistance) {
                     nearest = room;
                     nearestDistance = distance;
@@ -852,7 +901,6 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
             keeperAi.goldTiles++;
             if (keeperAi.goldTiles == GOLD_TILES_TO_TAG) {
                 keeperAi.goldAttemptLooked = keeperAi.target.equals(keeperAi.goldAttemptTarget);
-                keeperAi.untagTicks = UNTAG_GOLD_SECONDS * ticksPerSecond;
                 setTask(keeperAi, KeeperAi.Task.PLAN, "looked at all the tiles around the gold");
             }
         }
@@ -933,7 +981,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
                 }
             }
             if (!neighbours.isEmpty()) {
-                keeperAi.current = Utils.getRandomItem(neighbours).getRoomInstance().getCenter();
+                keeperAi.current = Utils.getRandomItem(neighbours).getRoomInstance().getReferenceTile();
             }
         }
         if (keeperAi.current == null) {
@@ -982,6 +1030,29 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
         }
     }
 
+    /**
+     * Holds a room a creature asked for to be planned next, before the build
+     * order, as DK II does with its message 0x29 (0x4FA400, 0x4F93B0). The
+     * ask drops a Portal plan. It is held when no other room is, the room
+     * may be built, it isn't the room being planned and it has none of the
+     * kind. Otherwise it is let go, and a creature asks again the next time
+     * it looks for the room
+     */
+    private void holdWantedRoom(KeeperAi keeperAi, IPlayerController playerController, short roomId) {
+        if (keeperAi.roomWanted && keeperAi.wantedRoomId == ROOM_PORTAL) {
+            keeperAi.roomWanted = false;
+        }
+        Room room = kwdFile.getRoomById(roomId);
+        ResearchableEntity availability = room != null ? playerController.getRoomControl().getTypes().get(room) : null;
+        if (!keeperAi.roomWanted && availability != null && availability.isDiscovered() && keeperAi.roomId != roomId
+                && playerController.getRoomControl().getTypeCount(room) == 0) {
+            log(keeperAi, "room " + roomId + " is next", null, "a creature asked for it");
+            keeperAi.wantedRoomId = roomId;
+            keeperAi.wantedRoomExpand = false;
+            keeperAi.roomWanted = true;
+        }
+    }
+
     private int countPortals(IPlayerController playerController) {
         int portals = 0;
         for (short roomId : new short[]{ROOM_PORTAL, ROOM_HERO_PORTAL}) {
@@ -1009,7 +1080,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
         Point target = null;
         for (IRoomController room : mapController.getRoomControllers()) {
             short id = room.getRoomInstance().getRoom().getRoomId();
-            Point centre = room.getRoomInstance().getCenter();
+            Point centre = room.getRoomInstance().getReferenceTile();
             if (room.getRoomInstance().getOwnerId() == Player.NEUTRAL_PLAYER_ID && !room.getRoomInstance().isDestroyed()
                     && (portal ? id == ROOM_PORTAL || id == ROOM_HERO_PORTAL : id == roomId) && !isWaitingAfterFailedTarget(keeperAi, centre)
                     && (target == null || getDistance(heart, centre) < getDistance(heart, target))) {
@@ -1021,7 +1092,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
             return false;
         }
 
-        Point start = getNearestRoom(playerController, target).getRoomInstance().getCenter();
+        Point start = getNearestRoom(playerController, target).getRoomInstance().getReferenceTile();
         int range = ai.getDigToNeutralRoomsWithinTilesOfHeart();
         if (portal ? getDistance(start, target) > range * range : getDistance(heart, target) >= range * range) {
             start = getNearestOwnTileAround(keeperAi.playerId, target, ai.getDigToNeutralRoomsWithinTilesOfClaimedArea() + 1);
@@ -1148,7 +1219,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
             return playerController.getKeeper().getDungeonHeartLocation();
         }
 
-        return Utils.getRandomItem(rooms).getRoomInstance().getCenter();
+        return Utils.getRandomItem(rooms).getRoomInstance().getReferenceTile();
     }
 
     private static boolean isCoreRoom(short roomId) {
@@ -1477,7 +1548,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
     /**
      * A creature of the player that walks, to see where there is a way
      */
-    private static INavigable getWalker(short playerId) {
+    static INavigable getWalker(short playerId) {
         return new INavigable() {
             @Override
             public short getOwnerId() {
@@ -1526,8 +1597,22 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
         return null;
     }
 
+    /**
+     * Tags the tiles, and counts the untag time from the start again, as
+     * every tag of DK II does (0x4FD030, 0x4FD2B0, 0x4FD750, 0x4FDC50). A
+     * gold tile that wasn't tagged yet becomes its newest gold tag
+     */
     private void tag(KeeperAi keeperAi, Point from, Point to, int ticksPerSecond, String reason) {
         log(keeperAi, from.equals(to) ? "tag" : "tag to " + to.x + "," + to.y, from, reason);
+        for (int x = Math.min(from.x, to.x); x <= Math.max(from.x, to.x); x++) {
+            for (int y = Math.min(from.y, to.y); y <= Math.max(from.y, to.y); y++) {
+                IMapTileInformation tile = mapController.getMapData().getTile(x, y);
+                if (tile != null && !tile.isSelected(keeperAi.playerId) && hasGold(x, y)) {
+                    System.arraycopy(keeperAi.goldTags, 0, keeperAi.goldTags, 1, keeperAi.goldTags.length - 1);
+                    keeperAi.goldTags[0] = tile.getLocation();
+                }
+            }
+        }
         mapController.selectTiles(new Vector2f(Math.min(from.x, to.x), Math.min(from.y, to.y)),
                 new Vector2f(Math.max(from.x, to.x), Math.max(from.y, to.y)), true, keeperAi.playerId);
         keeperAi.untagTicks = UNTAG_GOLD_SECONDS * ticksPerSecond;
@@ -1590,11 +1675,12 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
 
     @Override
     public void start() {
-
+        EventBus.addListener(ServerEvents.ROOM_WANTED, roomWantedListener);
     }
 
     @Override
     public void stop() {
+        EventBus.removeListener(ServerEvents.ROOM_WANTED, roomWantedListener);
         keeperAis.release();
         objects.release();
         battles.release();

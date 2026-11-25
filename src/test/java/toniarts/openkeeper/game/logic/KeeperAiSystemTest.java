@@ -23,6 +23,8 @@ import com.jme3.math.Vector3f;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
 import com.simsilica.es.base.DefaultEntityData;
+import com.simsilica.event.EventBus;
+import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -47,6 +49,7 @@ import toniarts.openkeeper.game.component.CombatPitFighter;
 import toniarts.openkeeper.game.component.CreatureAi;
 import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureExperience;
+import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.DoorComponent;
@@ -65,6 +68,7 @@ import toniarts.openkeeper.game.component.Slapped;
 import toniarts.openkeeper.game.component.TaskComponent;
 import toniarts.openkeeper.game.component.TrapComponent;
 import toniarts.openkeeper.game.component.Threat;
+import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IObjectsController;
@@ -80,9 +84,14 @@ import toniarts.openkeeper.game.controller.player.PlayerManaControl;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
 import toniarts.openkeeper.game.controller.player.PlayerSpellControl;
 import toniarts.openkeeper.game.controller.player.PlayerTrapControl;
+import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
+import toniarts.openkeeper.game.controller.room.CombatPitController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.controller.room.ThreeByThreeController;
 import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.event.RoomWanted;
+import toniarts.openkeeper.game.event.ServerEvents;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -172,6 +181,11 @@ class KeeperAiSystemTest {
      * on the heart's edge
      */
     private static final Point HEART_DROP = new Point(HEART.x + 2, HEART.y);
+    /**
+     * DK II's reference tile of the 5 x 5 heart round {@link #HEART}, one past
+     * its middle. The computer player starts its walks and tunnels there
+     */
+    private static final Point HEART_REFERENCE = new Point(HEART.x + 1, HEART.y + 1);
     private static final int NORTH = 0;
     private static final int WEST = 1;
     private static final int EAST = 3;
@@ -271,6 +285,8 @@ class KeeperAiSystemTest {
     private final Map<Short, EntityId> battleCasts = new HashMap<>();
     private PlayerRoomControl enemyRoomControl;
     private boolean reachable;
+    private final Set<Point> closedTiles = new HashSet<>();
+    private final List<List<Point>> routesAsked = new ArrayList<>();
     private final Set<Short> fullRooms = new HashSet<>();
 
     @Test
@@ -294,8 +310,8 @@ class KeeperAiSystemTest {
             tagged.clear();
         }
 
-        // From the heart to the portal, and that is all
-        assertEquals(Set.of(new Point(6, 6), new Point(7, 6), new Point(7, 5), new Point(8, 5), new Point(8, 4), new Point(9, 4), new Point(9, 3)), dug);
+        // From the heart's reference tile to the portal, and that is all
+        assertEquals(Set.of(new Point(6, 7), new Point(6, 6), new Point(7, 6), new Point(7, 5), new Point(8, 5), new Point(8, 4), new Point(9, 4), new Point(9, 3)), dug);
         assertEquals(KeeperAi.Task.FINISH, getKeeperAi().task);
     }
 
@@ -400,10 +416,10 @@ class KeeperAiSystemTest {
     @Test
     void digsAPathRoundRockThatCanNotBeDug() {
         KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
-        createNeutralPortal(new Point(10, 6));
-        map[5][8] = 'X';
+        createNeutralPortal(new Point(10, 7));
         map[6][8] = 'X';
         map[7][8] = 'X';
+        map[8][8] = 'X';
 
         Set<Point> dug = new HashSet<>();
         for (int tick = 0; tick < 100 && (tick == 0 || getKeeperAi().task == KeeperAi.Task.DIG_PATH); tick++) {
@@ -416,10 +432,10 @@ class KeeperAiSystemTest {
         }
 
         // Both ways round take as much digging, DK II then goes round with the rock on its right
-        assertEquals(Set.of(new Point(6, 6), new Point(7, 6), new Point(7, 5), new Point(7, 4), new Point(8, 4), new Point(9, 4), new Point(9, 5), new Point(9, 6)), dug);
+        assertEquals(Set.of(new Point(6, 7), new Point(7, 7), new Point(7, 6), new Point(7, 5), new Point(8, 5), new Point(9, 5), new Point(9, 6), new Point(9, 7)), dug);
 
         // The Portal behind the last tile is open land, the path ends there
-        assertEquals(new Point(9, 6), getKeeperAi().current);
+        assertEquals(new Point(9, 7), getKeeperAi().current);
         assertNotEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
     }
 
@@ -479,15 +495,15 @@ class KeeperAiSystemTest {
     void bridgesWaterWithTheWoodenBridgeWhenThatIsTheOnlyBridgeItHas() {
         KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
         roomControl.setTypeAvailable(bridges.get(WOODEN_BRIDGE), true, true);
-        createNeutralPortal(new Point(9, 6));
-        map[6][7] = 'W';
+        createNeutralPortal(new Point(9, 7));
+        map[7][7] = 'W';
 
         digPath(system);
 
         // The rock up to the water is dug, the water bridged and the rock behind it dug
-        assertEquals(List.of(new Point(7, 6)), built);
+        assertEquals(List.of(new Point(7, 7)), built);
         assertEquals(List.of(WOODEN_BRIDGE), builtRoomIds);
-        assertEquals('.', map[6][8]);
+        assertEquals('.', map[7][8]);
         assertEquals(KeeperAi.Task.FINISH, getKeeperAi().task);
     }
 
@@ -495,8 +511,8 @@ class KeeperAiSystemTest {
     void waitsOnTheTileWhileItIsShortOfGoldForTheBridge() {
         KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
         roomControl.setTypeAvailable(bridges.get(WOODEN_BRIDGE), true, true);
-        createNeutralPortal(new Point(9, 6));
-        map[6][7] = 'W';
+        createNeutralPortal(new Point(9, 7));
+        map[7][7] = 'W';
         chargeGoldForBuild = true;
         setGold(ROOM_COST - 1);
 
@@ -511,7 +527,7 @@ class KeeperAiSystemTest {
         // DK II stays on the tile until it can build the bridge
         assertTrue(built.isEmpty());
         assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
-        assertEquals(new Point(7, 6), getKeeperAi().current);
+        assertEquals(new Point(7, 7), getKeeperAi().current);
         assertEquals(0, getKeeperAi().failedTargetTicks[0]);
 
         setGold(ROOM_COST);
@@ -519,7 +535,7 @@ class KeeperAiSystemTest {
             system.processTick(0.25f);
         }
 
-        assertEquals(List.of(new Point(7, 6)), built);
+        assertEquals(List.of(new Point(7, 7)), built);
         assertEquals(List.of(WOODEN_BRIDGE), builtRoomIds);
     }
 
@@ -527,14 +543,14 @@ class KeeperAiSystemTest {
     void buildsABridgeWhenItHasExactlyEnoughGold() {
         KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
         roomControl.setTypeAvailable(bridges.get(WOODEN_BRIDGE), true, true);
-        createNeutralPortal(new Point(9, 6));
-        map[6][7] = 'W';
+        createNeutralPortal(new Point(9, 7));
+        map[7][7] = 'W';
         chargeGoldForBuild = true;
         setGold(ROOM_COST);
 
         digPath(system);
 
-        assertEquals(List.of(new Point(7, 6)), built);
+        assertEquals(List.of(new Point(7, 7)), built);
         assertEquals(List.of(WOODEN_BRIDGE), builtRoomIds);
         assertEquals(0, goldControl.getGold());
         assertEquals(KeeperAi.Task.FINISH, getKeeperAi().task);
@@ -545,8 +561,8 @@ class KeeperAiSystemTest {
         KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
         roomControl.setTypeAvailable(bridges.get(WOODEN_BRIDGE), true, true);
         roomControl.setTypeAvailable(bridges.get(STONE_BRIDGE), true, true);
-        createNeutralPortal(new Point(9, 6));
-        map[6][7] = 'W';
+        createNeutralPortal(new Point(9, 7));
+        map[7][7] = 'W';
         rejectedRoomBuildId = WOODEN_BRIDGE;
 
         for (int tick = 0; tick < 20; tick++) {
@@ -560,16 +576,16 @@ class KeeperAiSystemTest {
         assertTrue(rejectedBuildAttempts > 1);
         assertTrue(built.isEmpty());
         assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
-        assertEquals(new Point(7, 6), getKeeperAi().current);
+        assertEquals(new Point(7, 7), getKeeperAi().current);
         assertEquals(0, getKeeperAi().failedTargetTicks[0]);
     }
 
     @Test
     void stillTagsTheGoldWhenThePathIsGivenUp() {
         KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
-        createNeutralPortal(new Point(9, 6));
-        map[6][7] = 'W';
-        map[7][9] = 'G';
+        createNeutralPortal(new Point(9, 7));
+        map[7][7] = 'W';
+        map[8][9] = 'G';
 
         system.processTick(0.25f);
         assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
@@ -588,20 +604,20 @@ class KeeperAiSystemTest {
 
         // No bridge to cross the water with, DK II still goes on to the task the path was for
         assertTrue(getKeeperAi().failedTargetTicks[0] > 0);
-        assertTrue(taggedHistory.contains(new Point(9, 7)));
+        assertTrue(taggedHistory.contains(new Point(9, 8)));
     }
 
     @Test
     void leavesAPortalBehindLavaAloneForAWhileWhenItHasOnlyTheWoodenBridge() {
         KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
         roomControl.setTypeAvailable(bridges.get(WOODEN_BRIDGE), true, true);
-        createNeutralPortal(new Point(9, 6));
-        map[6][7] = 'L';
+        createNeutralPortal(new Point(9, 7));
+        map[7][7] = 'L';
 
         // DK II's computer player bridges lava only with the Stone Bridge
         digPath(system);
         assertTrue(built.isEmpty());
-        assertEquals(new Point(7, 6), getKeeperAi().current);
+        assertEquals(new Point(7, 7), getKeeperAi().current);
 
         // The plans after that pass the Portal over, 2 minutes at 4 ticks a second
         for (int tick = 0; tick < 470; tick++) {
@@ -614,7 +630,7 @@ class KeeperAiSystemTest {
         for (int tick = 0; tick < 100 && built.isEmpty(); tick++) {
             system.processTick(0.25f);
         }
-        assertEquals(List.of(new Point(7, 6)), built);
+        assertEquals(List.of(new Point(7, 7)), built);
         assertEquals(List.of(STONE_BRIDGE), builtRoomIds);
     }
 
@@ -637,7 +653,6 @@ class KeeperAiSystemTest {
 
     @Test
     void dropsRestedFightersOnAnAttackUntilTheirThreatMakesUpWhatItNeeds() {
-        KeeperAiSystem system = createSystem(withAttackResponse(ai(0, 0, 9, 1, 50, 0, List.of()), 175, true, 0), 1000);
         EntityId fighter = createCreature(PLAYER_ID, new Point(5, 4), 100, 100, CreatureState.FIGHT);
         entityData.setComponent(fighter, new AttackTarget(createCreature(ENEMY_ID, new Point(6, 4), 100, 100, CreatureState.FIGHT)));
         createCreature(ENEMY_ID, new Point(8, 4), 100, 100, CreatureState.IDLE);
@@ -656,6 +671,10 @@ class KeeperAiSystemTest {
         EntityId third = createCreature(PLAYER_ID, new Point(12, 8), 100, 100, CreatureState.IDLE);
         createCreature(PLAYER_ID, new Point(12, 8), 100, 100, CreatureState.IDLE);
 
+        // On the map from before the computer player started, so none of them just came
+        KeeperAiSystem system = createSystem(withAttackResponse(ai(0, 0, 9, 1, 50, 0, List.of()), 175, true, 0), 1000);
+        gameTime = 100;
+
         // 175 % of the enemy's 200 less its own 100 near the fight, and the first one is dropped at once
         system.processTick(0.25f);
         assertEquals(1, getKeeperAi().attacks);
@@ -665,11 +684,35 @@ class KeeperAiSystemTest {
             system.processTick(0.25f);
         }
 
-        // The sleeper counts as rested and goes first, then the next two
-        assertEquals(3, dropped.size());
+        // Not the sleeper, it rests
+        assertEquals(Set.of(first, second, third), dropped.keySet());
         assertEquals(new Point(5, 4), dropped.get(first));
-        assertTrue(dropped.containsKey(second) || dropped.containsKey(third));
-        assertTrue(!dropped.containsKey(horny) && !dropped.containsKey(worker) && !dropped.containsKey(fighter));
+        assertEquals(0, getKeeperAi().attacks);
+    }
+
+    @Test
+    void dropsNoCreatureThatRestsFleesOrHeedsTheCallToArmsOnAnAttackButOneItJustDropped() {
+        EntityId fighter = createCreature(PLAYER_ID, new Point(5, 4), 100, 100, CreatureState.FIGHT);
+        entityData.setComponent(fighter, new AttackTarget(createCreature(ENEMY_ID, new Point(6, 4), 100, 100, CreatureState.FIGHT)));
+        createCreature(ENEMY_ID, new Point(8, 4), 100, 100, CreatureState.IDLE);
+        createCreature(PLAYER_ID, new Point(12, 8), 100, 100, CreatureState.EATING);
+        entityData.setComponent(createCreature(PLAYER_ID, new Point(12, 8), 100, 100, CreatureState.WORK),
+                new TaskComponent(1, null, new Point(1, 4), TaskType.COLLECT_PAY, 0, true));
+        entityData.setComponent(createCreature(PLAYER_ID, new Point(12, 8), 100, 100, CreatureState.WORK),
+                new TaskComponent(2, null, new Point(1, 4), TaskType.CLAIM_LAIR, 0, true));
+        createCreature(PLAYER_ID, new Point(12, 8), 100, 100, CreatureState.FLEE);
+        createCreature(PLAYER_ID, new Point(12, 8), 100, 100, CreatureState.CALL_TO_ARMS);
+        entityData.setComponent(createCreature(PLAYER_ID, new Point(12, 8), 100, 100, CreatureState.IDLE), new CreatureFall());
+        EntityId justDropped = createCreature(PLAYER_ID, new Point(12, 8), 100, 100, CreatureState.IDLE);
+        entityData.setComponent(justDropped, new KeeperAiDropped(90));
+        KeeperAiSystem system = createSystem(withAttackResponse(ai(0, 0, 9, 1, 50, 0, List.of()), 175, true, 0), 1000);
+        gameTime = 100;
+        for (int tick = 0; tick < 10; tick++) {
+            system.processTick(0.25f);
+        }
+
+        // DK II's 0x4FE0B0 has no wait after a drop, unlike its other hand work
+        assertEquals(Map.of(justDropped, new Point(5, 4)), dropped);
         assertEquals(0, getKeeperAi().attacks);
     }
 
@@ -685,7 +728,7 @@ class KeeperAiSystemTest {
         // The turn went to an imp
         assertTrue(dropped.isEmpty());
         assertEquals(1, impSpells.size());
-        assertNull(entityData.getComponent(stunned, KeeperAiDropped.class));
+        assertFalse(pickedUp.contains(stunned));
     }
 
     @Test
@@ -701,6 +744,26 @@ class KeeperAiSystemTest {
         system.processTick(0.25f);
 
         // Not the fighter with more than half its health, nor the one far from the fight
+        assertEquals(Map.of(HEAL, hurt), battleCasts);
+    }
+
+    @Test
+    void healsNoCreatureThatIsKnockedOut() {
+        KeeperAiSystem system = createSystem(withBattleSpells(ai(0, 0, 9, 1, 50, 0, List.of()), 0, 4, 0), 1000);
+        spellControl.setTypeAvailable(heal, true, true);
+        EntityId fighter = createCreature(PLAYER_ID, new Point(5, 4), 60, 100, CreatureState.FIGHT);
+        entityData.setComponent(fighter, new AttackTarget(createCreature(ENEMY_ID, new Point(6, 4), 100, 100, CreatureState.FIGHT)));
+        EntityId knockedOut = createCreature(PLAYER_ID, new Point(4, 4), 0, 100, CreatureState.UNCONSCIOUS);
+        entityData.setComponent(knockedOut, new Unconscious(0));
+
+        system.processTick(0.25f);
+
+        assertTrue(battleCasts.isEmpty());
+
+        // A hurt one still standing gets it
+        EntityId hurt = createCreature(PLAYER_ID, new Point(4, 5), 49, 100, CreatureState.IDLE);
+        system.processTick(0.25f);
+
         assertEquals(Map.of(HEAL, hurt), battleCasts);
     }
 
@@ -915,22 +978,78 @@ class KeeperAiSystemTest {
 
     @Test
     void leavesAHurtCreatureItJustDroppedAloneForAWhile() {
-        KeeperAiSystem system = createSystem(withRetreatHealth(ai(0, 0, 9, 1, 50, 0, List.of()), 20), 1000);
         EntityId hurt = createCreature(PLAYER_ID, new Point(1, 8), 5, 100, CreatureState.IDLE);
+        KeeperAiSystem system = createSystem(withRetreatHealth(ai(0, 0, 9, 1, 50, 0, List.of()), 20), 1000);
+        gameTime = 100;
         system.processTick(0.25f);
         dropped.clear();
 
-        // It walks out of the heart again
+        // It lands a tick later, then walks out of the heart again
+        gameTime = 100.25;
+        system.processTick(0.25f);
+        entityData.removeComponent(hurt, CreatureFall.class);
         entityData.setComponent(hurt, new Position(0, WorldUtils.pointToVector3f(1, 8)));
-        gameTime = 74;
+        gameTime = 100.5;
+        system.processTick(0.25f);
+        gameTime = 175.25;
         system.processTick(0.25f);
 
         assertTrue(dropped.isEmpty());
 
-        gameTime = 75;
+        gameTime = 175.5;
         system.processTick(0.25f);
 
         assertEquals(Map.of(hurt, HEART_DROP), dropped);
+    }
+
+    @Test
+    void leavesACreatureAnyHandDroppedAloneWhileItFallsAndForAWhileAfter() {
+        EntityId hurt = createCreature(PLAYER_ID, new Point(1, 8), 5, 100, CreatureState.IDLE);
+        KeeperAiSystem system = createSystem(withRetreatHealth(ai(0, 0, 9, 1, 50, 0, List.of()), 20), 1000);
+
+        // Another keeper drops it there
+        entityData.setComponent(hurt, new CreatureFall());
+        gameTime = 100;
+        system.processTick(0.25f);
+        entityData.removeComponent(hurt, CreatureFall.class);
+        gameTime = 100.25;
+        system.processTick(0.25f);
+        gameTime = 175;
+        system.processTick(0.25f);
+
+        assertTrue(dropped.isEmpty());
+
+        gameTime = 175.25;
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(hurt, HEART_DROP), dropped);
+    }
+
+    @Test
+    void leavesANewCreatureAloneForAWhileButNotInTheFirst75SecondsOfTheGame() {
+        KeeperAiSystem system = createSystem(withRetreatHealth(ai(0, 0, 9, 1, 50, 0, List.of()), 20), 1000);
+        EntityId early = createCreature(PLAYER_ID, new Point(1, 8), 5, 100, CreatureState.IDLE);
+        gameTime = 75;
+        system.processTick(0.25f);
+
+        // At the start every creature is new, DK II leaves that out
+        assertEquals(Map.of(early, HEART_DROP), dropped);
+
+        // One that arrives later is left alone
+        entityData.removeEntity(early);
+        dropped.clear();
+        gameTime = 100;
+        EntityId late = createCreature(PLAYER_ID, new Point(1, 8), 5, 100, CreatureState.IDLE);
+        system.processTick(0.25f);
+        gameTime = 174.75;
+        system.processTick(0.25f);
+
+        assertTrue(dropped.isEmpty());
+
+        gameTime = 175;
+        system.processTick(0.25f);
+
+        assertEquals(Map.of(late, HEART_DROP), dropped);
     }
 
     @Test
@@ -976,6 +1095,7 @@ class KeeperAiSystemTest {
     @Test
     void castsCallToArmsOnAFighterThatFacesMoreThreatThanItTakesOnWithoutTheFlag() {
         KeeperAiSystem system = createSystem(withCallToArms(ai(0, 0, 9, 1, 50, 0, List.of()), 150, 240, 1, 5, 1, 90), 1000);
+        reachable = true;
         spellControl.setTypeAvailable(callToArms, true, true);
         EntityId fighter = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.FIGHT);
         EntityId enemy = createCreature(ENEMY_ID, new Point(9, 3), 100, 100, CreatureState.FIGHT);
@@ -1010,8 +1130,30 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void castsNoCallToArmsOnAFightItsCreaturesCannotWalkTo() {
+        KeeperAiSystem system = createSystem(withCallToArms(ai(0, 0, 9, 1, 50, 0, List.of()), 150, 240, 1, 5, 1, 90), 1000);
+        spellControl.setTypeAvailable(callToArms, true, true);
+        EntityId fighter = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.FIGHT);
+        entityData.setComponent(fighter, new AttackTarget(createCreature(ENEMY_ID, new Point(9, 3), 100, 100, CreatureState.FIGHT)));
+        createCreature(ENEMY_ID, new Point(8, 8), 100, 100, CreatureState.IDLE);
+        gameTime = 10;
+        system.processTick(0.25f);
+
+        assertTrue(callToArmsCasts.isEmpty());
+
+        // The way is asked from the tile 2 east of the heart's centre to the fighter
+        reachable = true;
+        gameTime = 20;
+        system.processTick(0.25f);
+
+        assertTrue(routesAsked.contains(List.of(HEART_DROP, new Point(8, 3))));
+        assertEquals(List.of(new Point(8, 3)), callToArmsCasts);
+    }
+
+    @Test
     void liftsTheCallToArmsAfterItsTimeAndWaitsBeforeTheNext() {
         KeeperAiSystem system = createSystem(withCallToArms(ai(0, 0, 9, 1, 50, 0, List.of()), 50, 2, 1, 5, 1, 90), 1000);
+        reachable = true;
         spellControl.setTypeAvailable(callToArms, true, true);
         EntityId fighter = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.FIGHT);
         entityData.setComponent(fighter, new AttackTarget(createCreature(ENEMY_ID, new Point(9, 3), 100, 100, CreatureState.FIGHT)));
@@ -1038,6 +1180,7 @@ class KeeperAiSystemTest {
     @Test
     void liftsTheCallToArmsWhenTheEnemiesAroundTheFlagAreGone() {
         KeeperAiSystem system = createSystem(withCallToArms(ai(0, 0, 9, 1, 50, 0, List.of()), 50, 240, 1, 5, 1, 90), 1000);
+        reachable = true;
         spellControl.setTypeAvailable(callToArms, true, true);
         EntityId fighter = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.FIGHT);
         EntityId enemy = createCreature(ENEMY_ID, new Point(9, 3), 100, 100, CreatureState.FIGHT);
@@ -1059,6 +1202,7 @@ class KeeperAiSystemTest {
     @Test
     void liftsTheCallToArmsWhenItHasTooFewFightersLeft() {
         KeeperAiSystem system = createSystem(withCallToArms(ai(0, 0, 9, 1, 50, 0, List.of()), 50, 240, 1, 5, 2, 90), 1000);
+        reachable = true;
         spellControl.setTypeAvailable(callToArms, true, true);
         EntityId fighter = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.FIGHT);
         entityData.setComponent(fighter, new AttackTarget(createCreature(ENEMY_ID, new Point(9, 3), 100, 100, CreatureState.FIGHT)));
@@ -1186,6 +1330,27 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void theCreatureItDropsOnItsPortalToMakeRoomForAResearcherLeavesTheDungeon() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
+        roomControl.onBuild(createRoom(LIBRARY, new Point(1, 4)));
+        ThreeByThreeController portal = createPortal(new Point(11, 2));
+        roomControl.onBuild(portal);
+        spellControl.setTypeAvailable(heal, true, false);
+        EntityId researcher = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.WORK);
+        CreatureComponent creatureComponent = new CreatureComponent();
+        creatureComponent.creatureId = EATER;
+        entityData.setComponent(researcher, creatureComponent);
+        EntityId other = createCreature(PLAYER_ID, new Point(8, 4), 100, 100, CreatureState.IDLE);
+        creatureControl.onCreatureAdded(researcher, creatureWithJobs(EATER, Creature.JobType.RESEARCH));
+        creatureControl.onCreatureAdded(other, CombatExperienceFixtures.creature((short) 0));
+
+        system.processTick(0.25f);
+
+        assertEquals(Set.of(other), dropped.keySet());
+        assertTrue(portal.isLeavingDungeon(dropped.get(other), PLAYER_ID, false));
+    }
+
+    @Test
     void makesNoRoomForAResearcherWithNothingToResearch() {
         KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
         roomControl.onBuild(createRoom(LIBRARY, new Point(1, 4)));
@@ -1202,13 +1367,14 @@ class KeeperAiSystemTest {
 
     @Test
     void picksUpAnIdleCreatureToResearchWhileThereIsResearchToDo() {
-        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
-        roomControl.onBuild(createRoom(LIBRARY, new Point(1, 4)));
-        spellControl.setTypeAvailable(heal, true, true);
         EntityId creature = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.IDLE);
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.creatureId = EATER;
         entityData.setComponent(creature, creatureComponent);
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
+        roomControl.onBuild(createRoom(LIBRARY, new Point(1, 4)));
+        spellControl.setTypeAvailable(heal, true, true);
+        gameTime = 100;
         for (int tick = 0; tick < 200; tick++) {
             system.processTick(0.25f);
         }
@@ -1224,14 +1390,16 @@ class KeeperAiSystemTest {
 
         assertEquals(Map.of(creature, new Point(1, 4)), dropped);
 
-        // Still idle, but just dropped
+        // Still idle, but just dropped: it falls and lands
         dropped.clear();
+        system.processTick(0.25f);
+        entityData.removeComponent(creature, CreatureFall.class);
         for (int tick = 0; tick < 200; tick++) {
             system.processTick(0.25f);
         }
         assertTrue(dropped.isEmpty());
 
-        gameTime = 75;
+        gameTime = 175;
         for (int tick = 0; tick < 200 && dropped.isEmpty(); tick++) {
             system.processTick(0.25f);
         }
@@ -1250,6 +1418,25 @@ class KeeperAiSystemTest {
         }
 
         assertEquals(List.of(idle), slapped);
+    }
+
+    @Test
+    void slapsNoCreatureThatIsUnhappyOrFleesAsIdle() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of()), 1000);
+        EntityId unhappy = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.IDLE);
+        entityData.setComponent(unhappy, new CreatureMood().add(CreatureMood.REASON_NO_PAY, 1000));
+        createCreature(PLAYER_ID, new Point(8, 4), 100, 100, CreatureState.FLEE);
+        for (int tick = 0; tick < 2000; tick++) {
+            system.processTick(0.25f);
+        }
+        assertTrue(slapped.isEmpty());
+
+        // DK II gives an unhappy creature a status of its own, once content it is idle
+        entityData.removeComponent(unhappy, CreatureMood.class);
+        for (int tick = 0; tick < 2000 && slapped.isEmpty(); tick++) {
+            system.processTick(0.25f);
+        }
+        assertEquals(List.of(unhappy), slapped);
     }
 
     @Test
@@ -1273,12 +1460,20 @@ class KeeperAiSystemTest {
     void dropsAnEnemyPrisonerIntoTheCombatPitToFight() {
         KeeperAiSystem system = createSystem(withPrisonerFate(ai(0, 0, 9, 1, 50, 0, List.of()), AI.ImprisonedCreatureFatePolicy.PLACE_IN_PIT), 1000);
         roomControl.onBuild(createRoom(PRISON, new Point(1, 4)));
-        roomControl.onBuild(createRoom(COMBAT_PIT, new Point(5, 4)));
+        RoomInstance pit = new RoomInstance(rooms.get(COMBAT_PIT));
+        pit.setOwnerId(PLAYER_ID);
+        for (int x = 3; x <= 7; x++) {
+            for (int y = 2; y <= 6; y++) {
+                pit.addCoordinate(new Point(x, y));
+            }
+        }
+        roomControl.onBuild(new CombatPitController(entityData.createEntity(), entityData, null, pit, null));
         EntityId prisoner = createPrisoner(new Point(1, 4));
         for (int tick = 0; tick < 400 && dropped.isEmpty(); tick++) {
             system.processTick(0.25f);
         }
 
+        // On the pit's reference tile, as DK II, not any of the 9 tiles the creatures fight on
         assertEquals(Map.of(prisoner, new Point(5, 4)), dropped);
     }
 
@@ -1378,16 +1573,16 @@ class KeeperAiSystemTest {
 
     @Test
     void carriesAnUnhappyCreatureWithoutWorkToTheRoomForAJobItLikesUnlessItJustDroppedIt() {
-        KeeperAiSystem system = createSystem(withMoodCare(ai(0, 0, 9, 1, 50, 0, List.of()), true, false, false), 1000);
-        roomControl.onBuild(createRoom(LIBRARY, new Point(1, 4)));
         EntityId justDropped = createUnhappyCreature(CreatureMood.REASON_NO_WORK, 1000);
         EntityId creature = createUnhappyCreature(CreatureMood.REASON_NO_WORK, 1000);
         CreatureComponent creatureComponent = new CreatureComponent();
         creatureComponent.creatureId = EATER;
         entityData.setComponent(justDropped, creatureComponent);
         entityData.setComponent(creature, creatureComponent);
-        entityData.setComponent(justDropped, new KeeperAiDropped(0));
-        gameTime = 10;
+        KeeperAiSystem system = createSystem(withMoodCare(ai(0, 0, 9, 1, 50, 0, List.of()), true, false, false), 1000);
+        roomControl.onBuild(createRoom(LIBRARY, new Point(1, 4)));
+        entityData.setComponent(justDropped, new KeeperAiDropped(30));
+        gameTime = 100;
 
         system.processTick(0.25f);
 
@@ -1415,6 +1610,19 @@ class KeeperAiSystemTest {
         gameTime = 100;
         system.processTick(0.25f);
         assertEquals(Map.of(creature, new Point(5, 4)), dropped);
+    }
+
+    @Test
+    void theAngryCreatureItDropsOnItsPortalLeavesTheDungeon() {
+        KeeperAiSystem system = createSystem(withMoodCare(ai(0, 0, 9, 1, 50, 0, List.of()), true, true, true), 1000);
+        ThreeByThreeController portal = createPortal(new Point(11, 2));
+        roomControl.onBuild(portal);
+        EntityId creature = createUnhappyCreature(CreatureMood.REASON_NO_PAY, 40000);
+
+        system.processTick(0.25f);
+
+        assertEquals(Set.of(creature), dropped.keySet());
+        assertTrue(portal.isLeavingDungeon(dropped.get(creature), PLAYER_ID, false));
     }
 
     @Test
@@ -1602,7 +1810,7 @@ class KeeperAiSystemTest {
             system.processTick(0.25f);
 
             assertEquals(2, lines.size());
-            assertEquals("AI tick 120 player 3 PLAN: next FIND_ROOM_SITE at 3,6 (room 1 is next, looking west)", lines.getLast());
+            assertEquals("AI tick 120 player 3 PLAN: next FIND_ROOM_SITE at 4,7 (room 1 is next, looking west)", lines.getLast());
         } finally {
             logger.removeHandler(handler);
         }
@@ -1709,10 +1917,10 @@ class KeeperAiSystemTest {
         createCreature(PLAYER_ID, new Point(1, 8), 100, 100, CreatureState.WORK);
         system.processTick(0.25f);
 
-        // From its own heart to the enemy's, by the settings
+        // From its own heart to the enemy's, both their reference tiles, by the settings
         assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
-        assertEquals(HEART, getKeeperAi().current);
-        assertEquals(new Point(13, 6), getKeeperAi().target);
+        assertEquals(HEART_REFERENCE, getKeeperAi().current);
+        assertEquals(new Point(14, 7), getKeeperAi().target);
         assertEquals(ENEMY_ID, getKeeperAi().invasionTargetId);
 
         // DK II keeps 4 bits of the 50 tunnels, so 2, one of them dug now
@@ -1776,10 +1984,10 @@ class KeeperAiSystemTest {
             tagged.clear();
         }
 
-        // The tunnel stops next to the enemy's land, that tile is not dug
-        assertEquals(new Point(11, 6), getEnemy().breachTiles[0]);
-        assertEquals(new Point(13, 6), getEnemy().breachTargets[0]);
-        assertEquals('G', map[6][11]);
+        // The tunnel along the row of the heart's reference tile stops next to the enemy's land, that tile is not dug
+        assertEquals(new Point(11, 7), getEnemy().breachTiles[0]);
+        assertEquals(new Point(14, 7), getEnemy().breachTargets[0]);
+        assertEquals('#', map[7][11]);
         assertEquals(0, getKeeperAi().invasionTargetId);
 
         // That was its only tunnel, so it breaks through and then waits
@@ -1788,8 +1996,8 @@ class KeeperAiSystemTest {
         }
 
         assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
-        assertEquals(new Point(11, 6), getKeeperAi().current);
-        assertEquals(new Point(13, 6), getKeeperAi().target);
+        assertEquals(new Point(11, 7), getKeeperAi().current);
+        assertEquals(new Point(14, 7), getKeeperAi().target);
         assertEquals(0, getKeeperAi().invasionTargetId);
         assertEquals(5 * 4, getKeeperAi().cannotAttackTicks);
     }
@@ -1799,7 +2007,7 @@ class KeeperAiSystemTest {
         KeeperAiSystem system = createSystem(withInvasion(ai(0, 0, 9, 1, 50, 0, List.of()), 5, 1,
                 AI.CallToArmsUsagePolicy.AT_HEART_WITH_CREATURES, 0), 1000);
         spellControl.setTypeAvailable(callToArms, true, true);
-        enemyRoomControl.onBuild(createRoom(DUNGEON_HEART, new Point(8, 6)));
+        enemyRoomControl.onBuild(createRoom(DUNGEON_HEART, new Point(7, 6)));
         KeeperAiEnemy invaded = new KeeperAiEnemy(PLAYER_ID, ENEMY_ID, 0);
         invaded.invaded = true;
         entityData.setComponent(entityData.createEntity(), invaded);
@@ -1813,15 +2021,49 @@ class KeeperAiSystemTest {
         reachable = true;
         system.processTick(0.25f);
 
-        // On a corner of the enemy's heart
+        // 2 tiles from the enemy heart's reference tile (8, 7) on both axes
         assertEquals(1, callToArmsCasts.size());
         assertEquals(2, Math.abs(callToArmsCasts.getFirst().x - 8));
-        assertEquals(2, Math.abs(callToArmsCasts.getFirst().y - 6));
+        assertEquals(2, Math.abs(callToArmsCasts.getFirst().y - 7));
         assertTrue(getKeeperAi().callToArms);
 
         // Its land near the flag gets half of its threat of 200
         assertEquals(1, getKeeperAi().attacks);
         assertEquals(100, getKeeperAi().attackNeeds[0]);
+    }
+
+    @Test
+    void callsItsCreaturesToArmsInTheMiddleOfAWalledInEnemyHeartOnceTheyCanWalkToTheHeart() {
+        KeeperAiSystem system = createSystem(withInvasion(ai(0, 0, 9, 1, 50, 0, List.of()), 5, 1,
+                AI.CallToArmsUsagePolicy.AT_HEART, 0), 1000);
+        spellControl.setTypeAvailable(callToArms, true, true);
+        enemyRoomControl.onBuild(createRoom(DUNGEON_HEART, new Point(7, 6)));
+        KeeperAiEnemy invaded = new KeeperAiEnemy(PLAYER_ID, ENEMY_ID, 0);
+        invaded.invaded = true;
+        entityData.setComponent(entityData.createEntity(), invaded);
+        createCreature(PLAYER_ID, new Point(1, 4), 100, 100, CreatureState.WORK);
+        reachable = true;
+
+        // The heart's middle and the walls round it can't be walked to, so of
+        // DK II's four tiles 2 from the reference tile (8, 7) only (6, 5), in
+        // the heart's middle, is left
+        for (int x = 4; x <= 10; x++) {
+            for (int y = 3; y <= 9; y++) {
+                if (Math.max(Math.abs(x - 7), Math.abs(y - 6)) != 2) {
+                    closedTiles.add(new Point(x, y));
+                }
+            }
+        }
+
+        for (int tick = 0; tick < 100 && callToArmsCasts.isEmpty(); tick++) {
+            system.processTick(0.25f);
+        }
+
+        // The flag goes on DK II's tile, the way is asked to the nearest tile
+        // of the heart a creature can stand on
+        assertEquals(List.of(new Point(6, 5)), callToArmsCasts);
+        assertTrue(routesAsked.stream().anyMatch(route -> route.get(1).equals(new Point(6, 4))));
+        assertTrue(getKeeperAi().callToArms);
     }
 
     @Test
@@ -2107,6 +2349,66 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void letsGoOfItsNewestGoldTagOnlyAndHeadsForNoGoldWhileTheOthersStayTagged() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 1000, List.of()), 0);
+        tagGoldAt(new Point(10, 6));
+
+        // The seam's two tiles are tagged on the first two ticks, the newer one is let go 240 ticks after
+        system.processTick(0.25f);
+        system.processTick(0.25f);
+        for (int tick = 0; tick < 239; tick++) {
+            system.processTick(0.25f);
+        }
+
+        assertEquals(Set.of(new Point(10, 6), new Point(11, 6)), tagged);
+
+        system.processTick(0.25f);
+
+        assertEquals(Set.of(new Point(10, 6)), tagged);
+
+        // With gold still tagged it starts no gold trip, however low it is on gold
+        for (int tick = 0; tick < 2000; tick++) {
+            system.processTick(0.25f);
+            assertNotEquals(KeeperAi.Task.GO_TO_GOLD, getKeeperAi().task);
+        }
+        assertEquals(Set.of(new Point(10, 6)), tagged);
+
+        // Once that tile is mined out it heads for gold again
+        map[6][10] = '.';
+        system.processTick(0.25f);
+        system.processTick(0.25f);
+
+        assertEquals(KeeperAi.Task.GO_TO_GOLD, getKeeperAi().task);
+    }
+
+    @Test
+    void letsGoOfTheNewestGoldTagThatIsStillThere() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 1000, List.of()), 0);
+        tagGoldAt(new Point(10, 6));
+        system.processTick(0.25f);
+        system.processTick(0.25f);
+
+        // The newest tile is mined out before the pass, so the pass lets go of the one tagged before it
+        map[6][11] = '.';
+        tagged.remove(new Point(11, 6));
+        for (int tick = 0; tick < 240; tick++) {
+            system.processTick(0.25f);
+        }
+
+        assertTrue(tagged.isEmpty());
+    }
+
+    /**
+     * Has the computer player tag the gold round a tile from its next tick on
+     */
+    private void tagGoldAt(Point target) {
+        KeeperAi keeperAi = new KeeperAi(getKeeperAi());
+        keeperAi.task = KeeperAi.Task.TAG_GOLD;
+        keeperAi.target = target;
+        entityData.setComponent(entityData.findEntity(null, KeeperAi.class), keeperAi);
+    }
+
+    @Test
     void hasTheRoomSiteDugOutAndBuildsTheRoomOnIt() {
         KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 1000);
         roomControl.setTypeAvailable(rooms.get(TREASURY), true, true);
@@ -2121,9 +2423,10 @@ class KeeperAiSystemTest {
             tagged.clear();
         }
 
-        // West is impenetrable and south too narrow, so it goes north of the heart with a tile in between
+        // West is impenetrable and south too narrow, so it goes north of the heart with a tile in between,
+        // on the line through the heart's reference tile
         Set<Point> site = new HashSet<>();
-        for (int x = 2; x <= 4; x++) {
+        for (int x = 3; x <= 5; x++) {
             for (int y = 1; y <= 3; y++) {
                 site.add(new Point(x, y));
             }
@@ -2351,6 +2654,47 @@ class KeeperAiSystemTest {
         assertEquals(LAIR, getKeeperAi().roomId);
     }
 
+    @Test
+    void plansTheRoomACreatureAskedForBeforeItsBuildOrderAndHoldsOneAskAtATime() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 1000);
+        roomControl.setTypeAvailable(rooms.get(TREASURY), true, true);
+        roomControl.setTypeAvailable(rooms.get(LAIR), true, true);
+        roomControl.setTypeAvailable(rooms.get(TRAINING_ROOM), true, true);
+        system.start();
+        try {
+
+            // Of the asks since its last turn the latest is planned, before the Treasury of its build order
+            EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.LAIR));
+            EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.TRAINEE));
+            system.processTick(0.25f);
+
+            assertEquals(KeeperAi.Task.FIND_ROOM_SITE, getKeeperAi().task);
+            assertEquals(TRAINING_ROOM, getKeeperAi().roomId);
+
+            // An ask takes the place of the Portal plan lined up next, and is held while it is busy
+            EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.LAIR));
+            system.processTick(0.25f);
+
+            assertEquals(LAIR, getKeeperAi().wantedRoomId);
+
+            // One ask is held at a time, and nothing is asked for a room it may not build
+            EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.GOLD));
+            system.processTick(0.25f);
+            EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.WORSHIPPER));
+            system.processTick(0.25f);
+
+            assertEquals(LAIR, getKeeperAi().wantedRoomId);
+
+            planAgain();
+            system.processTick(0.25f);
+
+            assertEquals(KeeperAi.Task.FIND_ROOM_SITE, getKeeperAi().task);
+            assertEquals(LAIR, getKeeperAi().roomId);
+        } finally {
+            system.stop();
+        }
+    }
+
     private KeeperAi getKeeperAi() {
         return entityData.getComponent(entityData.findEntity(null, KeeperAi.class), KeeperAi.class);
     }
@@ -2518,6 +2862,9 @@ class KeeperAiSystemTest {
                                     droppedOn.put((EntityId) args[0], (EntityId) args[3]);
                                 }
                                 entityData.setComponent((EntityId) args[0], new Position(0, new Vector3f(((Vector2f) args[2]).x, 0, ((Vector2f) args[2]).y)));
+                                if (entityData.getComponent((EntityId) args[0], CreatureComponent.class) != null) {
+                                    entityData.setComponent((EntityId) args[0], new CreatureFall());
+                                }
                             }
                         }
                         case "build" -> {
@@ -2546,6 +2893,7 @@ class KeeperAiSystemTest {
                     if (!"findPath".equals(method.getName())) {
                         throw new UnsupportedOperationException(method.getName());
                     }
+                    routesAsked.add(List.of((Point) args[0], (Point) args[1]));
                     return findPath((Point) args[0], (Point) args[1]);
                 });
 
@@ -2553,8 +2901,20 @@ class KeeperAiSystemTest {
                 navigationService, () -> gameTime, logDecisions);
     }
 
+    /**
+     * A room round a tile: a Dungeon Heart of 5 x 5 tiles, a Portal of 3 x 3,
+     * any other room just the tile. Only the tile is marked on the map
+     */
     private IRoomController createRoom(short roomId, Point centre) {
-        return createRoom(roomId, centre, centre);
+        IRoomController room = createRoom(roomId, centre, centre);
+        int size = roomId == DUNGEON_HEART ? 2 : roomId == PORTAL || roomId == HERO_PORTAL ? 1 : 0;
+        for (int x = centre.x - size; x <= centre.x + size; x++) {
+            for (int y = centre.y - size; y <= centre.y + size; y++) {
+                room.getRoomInstance().addCoordinate(new Point(x, y));
+            }
+        }
+
+        return room;
     }
 
     private IRoomController createRoom(short roomId, Point corner, Point oppositeCorner) {
@@ -2573,6 +2933,12 @@ class KeeperAiSystemTest {
             case "getRoom" -> rooms.get(roomId);
             case "isDungeonHeart" -> roomId == DUNGEON_HEART;
             case "getRoomInstance" -> roomInstance;
+
+            // As in OpenKeeper, the middle 3 x 3 of the Dungeon Heart can't be stood on
+            case "isTileAccessible" -> roomId != DUNGEON_HEART
+                    || Math.abs(((Point) args[1]).x - roomInstance.getCenter().x) > 1
+                    || Math.abs(((Point) args[1]).y - roomInstance.getCenter().y) > 1;
+            case "getAccessibleTile" -> InvocationHandler.invokeDefault(proxy, method, args);
             case "isFullCapacity" -> fullRooms.contains(roomId);
             case "hasObjectControl" -> roomId == HATCHERY;
             case "getObjectControl" -> Proxy.newProxyInstance(getClass().getClassLoader(),
@@ -2581,6 +2947,23 @@ class KeeperAiSystemTest {
             case "equals" -> proxy == args[0];
             default -> throw new UnsupportedOperationException(method.getName());
         });
+    }
+
+    /**
+     * A Portal of 3 x 3 tiles that sends a creature dropped on its middle out
+     * of the dungeon
+     */
+    private ThreeByThreeController createPortal(Point corner) {
+        RoomInstance roomInstance = new RoomInstance(rooms.get(PORTAL));
+        roomInstance.setOwnerId(PLAYER_ID);
+        for (int x = corner.x; x < corner.x + 3; x++) {
+            for (int y = corner.y; y < corner.y + 3; y++) {
+                roomInstance.addCoordinate(new Point(x, y));
+                map[y][x] = 'H';
+            }
+        }
+
+        return new ThreeByThreeController(entityData.createEntity(), entityData, null, roomInstance, null, () -> gameTime);
     }
 
     private IMapController createMapController() {
@@ -2646,7 +3029,7 @@ class KeeperAiSystemTest {
      * A way along x and then along y, when the way is open
      */
     private GraphPath<IMapTileInformation> findPath(Point from, Point to) {
-        if (!reachable) {
+        if (!reachable || closedTiles.contains(to)) {
             return null;
         }
         DefaultGraphPath<IMapTileInformation> path = new DefaultGraphPath<>();
