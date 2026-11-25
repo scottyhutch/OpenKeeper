@@ -40,9 +40,11 @@ import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.creature.Pray;
 import toniarts.openkeeper.tools.convert.map.Creature;
+import toniarts.openkeeper.tools.convert.map.CreatureFixtures;
 import toniarts.openkeeper.tools.convert.map.CreatureWorkAnimationFixtures;
 import toniarts.openkeeper.tools.convert.map.IKwdFile;
 import toniarts.openkeeper.tools.convert.map.RoomFixtures;
+import toniarts.openkeeper.tools.convert.map.ShotFixtures;
 import toniarts.openkeeper.tools.convert.map.TempleFixtures;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable;
 import toniarts.openkeeper.tools.convert.map.Variable.MiscVariable.MiscType;
@@ -186,7 +188,7 @@ class RoomWorkSpotTest {
 
         ILevelInfo levelInfo = proxy(ILevelInfo.class, (proxy, method, args) -> switch (method.getName()) {
             case "getLevelData" ->
-                proxy(IKwdFile.class, (p, m, a) -> null);
+                proxy(IKwdFile.class, (p, m, a) -> "getGameLevel".equals(m.getName()) ? ShotFixtures.gameLevel(4) : null);
             default ->
                 null;
         });
