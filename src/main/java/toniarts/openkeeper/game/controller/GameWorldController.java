@@ -1612,7 +1612,7 @@ public final class GameWorldController implements IGameWorldController, IPlayerA
 
         // Add the dropping component to the creature
         if (!tortureOrImprisonment) {
-            entityData.setComponent(entity, new CreatureFall());
+            entityData.setComponent(entity, new CreatureFall(leavingDungeon ? CreatureFall.FallType.PORTAL_DROP : CreatureFall.FallType.DROPPED));
         } else {
 
             // No fall, so no touchdown for the fall system to announce

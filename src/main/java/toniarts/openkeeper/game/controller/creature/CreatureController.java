@@ -278,6 +278,13 @@ public final class CreatureController extends EntityController implements ICreat
     private static final int RETURN_TO_FIGHT_TICKS = 500;
 
     /**
+     * Every creature's work modifier, which the attack recharges are divided
+     * by. DK II starts it at 0.8 (0x4872A0) and the creature data of the
+     * original creatures never raises it.
+     */
+    private static final float ATTACK_WORK_MODIFIER = 0.8f;
+
+    /**
      * The possessed melee attack hits what is at most 341/2048 of a full
      * circle (about 60 degrees) off the creature's facing, as the cosine of
      * that angle
@@ -321,13 +328,6 @@ public final class CreatureController extends EntityController implements ICreat
     private static final int FEAR_ATTACK_SEVERITY = 2000;
 
     private static final int EAT_ATTEMPT_INTERVAL_TICKS = 4;
-
-    /**
-     * Every creature's work modifier, which the attack recharges are divided
-     * by. DK II starts it at 0.8 (0x4872A0) and the creature data of the
-     * original creatures never raises it.
-     */
-    private static final float ATTACK_WORK_MODIFIER = 0.8f;
 
     /**
      * A creature picks its target again this often, in game turns, an Imp
@@ -2517,7 +2517,7 @@ public final class CreatureController extends EntityController implements ICreat
         // Half of the swings play the second melee animation, if the first one is flagged for it (0x4B37D0)
         CreatureMeleeAttack swing = new CreatureMeleeAttack(creatureMeleeAttack, gameTimer.getGameTime());
         ArtResource melee = creature.getAnimation(Creature.AnimationType.MELEE_ATTACK);
-        swing.swipe = melee != null && melee.getFlags().contains(ArtResource.ArtResourceFlag.UNKNOWN_1)
+        swing.swipe = melee != null && melee.getFlags().contains(ArtResource.ArtResourceFlag.RANDOM_SWIPE)
                 && creature.getAnimation(Creature.AnimationType.SWIPE) != null && FastMath.rand.nextBoolean();
         entityData.setComponent(entityId, swing);
         stateMachine.changeState(CreatureState.MELEE_ATTACK);

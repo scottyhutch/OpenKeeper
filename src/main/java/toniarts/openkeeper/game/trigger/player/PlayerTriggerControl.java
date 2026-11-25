@@ -278,6 +278,18 @@ public class PlayerTriggerControl extends TriggerControl {
                 return compare(trigger, creaturesController.getAngryCreatureCount(playerId,
                         trigger.getUserData("creatureId", short.class)), trigger.getUserData("value", int.class));
 
+            case PLAYER_ROOM_FURNITURE: {
+
+                // DK II ignores the flag and the player option, and uses the stored number. Many Prison counters can
+                // exceed float's exact integer range, so the numbers are compared as integers
+                int furniture = getPlayerController(playerId).getRoomControl()
+                        .getRoomFurnitureCount(trigger.getUserData("roomId", short.class));
+                if (trigger.getComparison() == null || trigger.getComparison() == TriggerGeneric.ComparisonType.NONE) {
+                    return false;
+                }
+                return compare(Integer.compare(furniture, trigger.getUserData("value", int.class)), trigger.getComparison(), 0);
+            }
+
             case PLAYER_CREATURES_GROUPED: {
 
                 // Only a possessed creature has a group, and it is always compared to a constant
@@ -309,8 +321,6 @@ public class PlayerTriggerControl extends TriggerControl {
                 (pid, trigger) -> getRoomCount(pid, trigger.getUserData("roomId", short.class)));
         result.put(TriggerGeneric.TargetType.PLAYER_ROOM_SIZE,
                 (pid, trigger) -> getLargestRoomSize(pid, trigger.getUserData("roomId", short.class)));
-        result.put(TriggerGeneric.TargetType.PLAYER_ROOM_FURNITURE,
-                (pid, trigger) -> getFurnitureCount(pid, trigger.getUserData("roomId", short.class)));
         result.put(TriggerGeneric.TargetType.PLAYER_SLAPS, (pid, trigger) -> getSlapCount(pid));
         result.put(TriggerGeneric.TargetType.PLAYER_DOORS, this::getDoorCount);
         result.put(TriggerGeneric.TargetType.PLAYER_TRAPS, this::getTrapCount);
@@ -519,19 +529,6 @@ public class PlayerTriggerControl extends TriggerControl {
             }
         }
         return size;
-    }
-
-    private int getFurnitureCount(short playerId, short roomId) {
-        Room room = roomId == 0 ? null : levelInfo.getLevelData().getRoomById(roomId);
-        int count = 0;
-        for (Map.Entry<Room, Set<IRoomController>> entry : getPlayerController(playerId).getRoomControl().getRoomControllers().entrySet()) {
-            if (room == null || room.equals(entry.getKey())) {
-                for (IRoomController roomController : new ArrayList<>(entry.getValue())) {
-                    count += roomController.getFloorFurnitureCount() + roomController.getWallFurnitureCount();
-                }
-            }
-        }
-        return count;
     }
 
     private int getSlapCount(short playerId) {

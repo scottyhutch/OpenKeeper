@@ -182,8 +182,9 @@ class PossessedAttackTest {
         EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 5.8f));
         CreatureController controller = createController();
 
+        // 1.25 x the recharge, divided by the 0.8 work modifier as for every attack (0x48C9B0)
         controller.executePossessedAttack();
-        gameTime += RECHARGE;
+        gameTime += RECHARGE * 1.5f;
         controller.executePossessedAttack();
         assertEquals(DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
 
@@ -297,8 +298,9 @@ class PossessedAttackTest {
         EntityId enemy = createCreature(HERO, new Vector3f(5, 0, 5.8f));
         CreatureController controller = createController();
 
+        // A possessed creature's recharge is divided by its 0.8 work modifier too (0x514830 asks 0x48C9B0)
         controller.executePossessedAttack();
-        gameTime += RECHARGE / 2;
+        gameTime += RECHARGE;
         controller.executePossessedAttack();
         assertEquals(DAMAGE, entityData.getComponent(enemy, Damage.class).damage);
 

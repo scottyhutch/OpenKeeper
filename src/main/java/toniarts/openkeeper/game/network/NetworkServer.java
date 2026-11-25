@@ -265,6 +265,7 @@ public final class NetworkServer {
             Serializer.registerClass(Creature.SpecialAbility.class, new EnumSerializer());
             Serializer.registerClass(GameResult.class, new FieldSerializer());
             Serializer.registerClass(GameResult.ResultType.class, new EnumSerializer());
+            Serializer.registerClass(CreatureFall.FallType.class, new EnumSerializer());
 
             // Events
             Serializer.registerClass(GameEventType.class, new EnumSerializer());

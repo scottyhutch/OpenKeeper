@@ -129,7 +129,7 @@ public final class CreatureLandingSystem implements IGameLogicUpdatable {
             // Preserve any requested AI target through landing and get-up.
             // The state, depending on the landing
             CreatureComponent creatureComponent = entity.get(CreatureComponent.class);
-            boolean stunned = !creatureFall.conjured && creatureComponent.stunDuration > 0f;
+            boolean stunned = creatureFall.fallType == CreatureFall.FallType.DROPPED && creatureComponent.stunDuration > 0f;
             CreatureAi ai = entityData.getComponent(entity.getId(), CreatureAi.class);
             entityData.setComponent(entity.getId(), new CreatureAi(gameTimer.getGameTime(), stunned ? CreatureState.FALLEN : CreatureState.IDLE, creatureComponent.creatureId,
                     ai == null ? null : ai.getTargetState()));

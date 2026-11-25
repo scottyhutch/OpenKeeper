@@ -32,6 +32,7 @@ import toniarts.openkeeper.game.component.CreatureComponent;
 import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.Damage;
 import toniarts.openkeeper.game.component.Position;
+import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.IGameTimer;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
@@ -179,11 +180,12 @@ class CreatureFallSystemTest {
 
         assertEquals(CreatureState.FALLEN, entityData.getComponent(creature, CreatureAi.class).getCreatureState());
         assertNull(entityData.getComponent(creature, CreatureFall.class));
+        assertEquals(WorldUtils.FLOOR_HEIGHT, entityData.getComponent(creature, Position.class).position.y);
     }
 
     @Test
     void conjuredCreatureIsNotStunned() {
-        EntityId creature = land(new CreatureFall(true), 3f);
+        EntityId creature = land(new CreatureFall(CreatureFall.FallType.CONJURED), 3f);
 
         assertEquals(CreatureState.IDLE, entityData.getComponent(creature, CreatureAi.class).getCreatureState());
     }

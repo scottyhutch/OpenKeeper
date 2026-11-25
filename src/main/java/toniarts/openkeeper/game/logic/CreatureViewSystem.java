@@ -157,7 +157,7 @@ public final class CreatureViewSystem extends GameTimeCounter {
                 if (entityData.getComponent(entityId, LeavingDungeon.class) != null) {
                     targetState = Creature.AnimationType.IN_HAND;
                 } else {
-                    targetState = creatureFall.conjured ? Creature.AnimationType.IDLE_1 : Creature.AnimationType.FALLBACK;
+                    targetState = creatureFall.fallType == CreatureFall.FallType.CONJURED ? Creature.AnimationType.IDLE_1 : Creature.AnimationType.FALLBACK;
                 }
             } else if (entityData.getComponent(entityId, Death.class) != null) {
                 targetState = Creature.AnimationType.DEATH_POSE;
