@@ -49,6 +49,7 @@ import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.MeleeHit;
 import toniarts.openkeeper.game.component.IdleAnimation;
 import toniarts.openkeeper.game.component.Navigation;
+import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.ObjectViewState;
 import toniarts.openkeeper.game.component.Objective;
 import toniarts.openkeeper.game.component.Owner;
@@ -63,8 +64,10 @@ import toniarts.openkeeper.game.component.WithdrawnFrom;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IMapController;
+import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.ObjectsController;
 import toniarts.openkeeper.game.controller.entity.IEntityController;
+import toniarts.openkeeper.game.controller.object.IObjectController;
 import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectType;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
@@ -1329,6 +1332,7 @@ class CreatureControllerTest {
         final Keeper keeper = new Keeper(false, (short) 3);
         IRoomController roomHere;
         Set<EntityId> sensed = new java.util.HashSet<>();
+        List<EntityId> onTile = List.of();
         CreatureController controller;
         final java.util.function.Supplier<CreatureController> controllers;
         final CreatureSleepSystem sleepSystem;
@@ -1397,7 +1401,7 @@ class CreatureControllerTest {
                     objectiveAttempts.add(time);
                     yield false;
                 }
-                case "isTaskAvailable" -> false;
+                case "isTaskAvailable", "assignGoldToTreasuryTask" -> false;
                 case "assignSleepTask" -> {
                     sleepAssignments++;
                     if (!reachable.get()) {
@@ -1448,8 +1452,9 @@ class CreatureControllerTest {
                 case "hasLineOfSight" -> clearSight;
                 case "getBlockingDoor" -> null;
                 case "getEntityLocation" -> tile((EntityId) args[0]);
-                case "getEntitiesInLocation" -> sensed.stream()
-                        .filter(entity -> tile(entity) != null && tile(entity).getLocation().equals(args.length == 2 ? new Point((int) args[0], (int) args[1]) : args[0])).toList();
+                case "getEntitiesInLocation" -> java.util.stream.Stream.concat(sensed.stream()
+                        .filter(entity -> tile(entity) != null && tile(entity).getLocation().equals(args.length == 2 ? new Point((int) args[0], (int) args[1]) : args[0])),
+                        onTile.stream()).toList();
                 default -> throw new UnsupportedOperationException(method);
             });
             IKwdFile kwd = proxy(IKwdFile.class, (method, args) -> switch (method) {
@@ -1484,8 +1489,20 @@ class CreatureControllerTest {
                 default -> throw new UnsupportedOperationException(method);
             });
             creatures = creaturesController[0];
+            IObjectsController objects = proxy(IObjectsController.class, (method, args) -> switch (method) {
+                case "createController" -> proxy(IObjectController.class, (method2, args2) -> switch (method2) {
+                    case "getType" -> ObjectType.GOLD;
+                    case "getEntityId" -> args[0];
+                    case "remove" -> {
+                        data.removeEntity((EntityId) args[0]);
+                        yield null;
+                    }
+                    default -> throw new UnsupportedOperationException(method2);
+                });
+                default -> throw new UnsupportedOperationException(method);
+            });
             controllers = () -> new CreatureController(entity, data, definition, navigation, taskManager, () -> time,
-                    settings, creaturesController[0], lookup, map, levelInfo, null, null, eventService);
+                    settings, creaturesController[0], lookup, map, levelInfo, objects, null, eventService);
             controller = controllers.get();
             sleepSystem = new CreatureSleepSystem(data, kwd, () -> time);
             moodSystem = new CreatureMoodSystem(data, kwd, List.of(), () -> time, settings, null);
@@ -1507,6 +1524,13 @@ class CreatureControllerTest {
                 case "unassign" -> { oldJobUnassignments++; yield null; }
                 default -> throw new UnsupportedOperationException(method);
             });
+        }
+
+        EntityId goldPile(int gold) {
+            EntityId pile = data.createEntity();
+            data.setComponents(pile, new ObjectComponent((short) 1, ObjectType.GOLD), new Gold(gold, 2000));
+            onTile = List.of(pile);
+            return pile;
         }
 
         EntityId meleeTarget() {
@@ -1620,6 +1644,44 @@ class CreatureControllerTest {
             f.data.setComponent(f.entity, new Slapped(.3));
             f.tick();
             assertEquals(CreatureState.IDLE, f.state());
+        }
+    }
+
+    @Test
+    void workerPicksUpTheLooseGoldAtItsFeet() {
+        try (Fixture f = new Fixture(9)) {
+            f.data.setComponent(f.entity, workerComponent());
+            f.startWork(TaskType.TRAIN);
+            EntityId pile = f.goldPile(150);
+
+            // Up to what it carries, the rest stays in the pile
+            f.tick();
+            assertEquals(100, f.data.getComponent(f.entity, Gold.class).gold);
+            assertEquals(50, f.data.getComponent(pile, Gold.class).gold);
+        }
+    }
+
+    @Test
+    void creatureLeavesTheLooseGoldInATreasuryAlone() {
+        try (Fixture f = new Fixture(9)) {
+            f.startWork(TaskType.TRAIN);
+            EntityId pile = f.goldPile(60);
+            IRoomController lair = f.roomHere;
+            f.roomHere = proxy(IRoomController.class, (method, args) -> switch (method) {
+                case "getEntityId" -> f.room;
+                case "getOwnerId" -> (short) 3;
+                case "isDestroyed", "isRemoved", "isDungeonHeart" -> false;
+                case "hasObjectControl" -> args[0] == ObjectType.GOLD;
+                default -> throw new UnsupportedOperationException(method);
+            });
+            f.tick();
+            assertEquals(0, f.data.getComponent(f.entity, Gold.class).gold);
+
+            // Anywhere else it takes it
+            f.roomHere = lair;
+            f.tick();
+            assertEquals(60, f.data.getComponent(f.entity, Gold.class).gold);
+            assertNull(f.data.getComponent(pile, Gold.class));
         }
     }
 

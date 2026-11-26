@@ -3640,6 +3640,7 @@ public final class CreatureController extends EntityController implements ICreat
             unassingCurrentTask();
             stateMachine.changeState(CreatureState.FOLLOW);
         }
+        pickUpLooseGold();
 
         stateMachine.update();
 
@@ -3671,6 +3672,36 @@ public final class CreatureController extends EntityController implements ICreat
             navigateToAssignedTask();
         } else {
             stateMachine.changeState(CreatureState.WORK);
+        }
+    }
+
+    /**
+     * Picks up the loose gold where we stand, up to what we can carry, as DK
+     * II's creatures do on every tick (0x488930). A keeper's worker takes it
+     * anywhere, so the gold a full digger leaves at its feet goes with the
+     * next worker there. DK II's worker reaches a third of a tile round its
+     * feet, here the gold dropped on a tile joins the one pile of the tile.
+     * Other creatures, and a possessed worker, leave the gold in a Treasury
+     * or a Casino alone, and the Casino's big winner leaves all gold alone.
+     */
+    private void pickUpLooseGold() {
+        Gold gold = entityData.getComponent(entityId, Gold.class);
+        Position position = entityData.getComponent(entityId, Position.class);
+        if (gold == null || position == null || gold.gold >= gold.maxGold) {
+            return;
+        }
+        Point tile = WorldUtils.vectorToPoint(position.position);
+        if (!isWorker() || getOwnerId() < Player.KEEPER1_ID || entityData.getComponent(entityId, Possessed.class) != null) {
+            IRoomController room = mapController.getRoomControllerByCoordinates(tile);
+            if (entityData.getComponent(entityId, CasinoBigWinner.class) != null || room != null
+                    && (room.hasObjectControl(AbstractRoomController.ObjectType.GOLD) && !room.isDungeonHeart()
+                    || room.hasObjectControl(AbstractRoomController.ObjectType.GAMBLER))) {
+                return;
+            }
+        }
+        EntityId pile = GameWorldController.findLooseGoldPile(entityData, entityPositionLookup, tile);
+        if (pile != null) {
+            giveObject(objectsController.createController(pile));
         }
     }
 
