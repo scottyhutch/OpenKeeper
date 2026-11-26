@@ -2259,7 +2259,7 @@ public final class CreatureController extends EntityController implements ICreat
     private Point getHeartAttackTile(EntityId heart) {
         Point ourPosition = getCreatureCoordinates();
         return DungeonHeartTarget.getAttackTile(ourPosition, getHeartTile(heart), getMeleeRange(),
-                tile -> tile.equals(ourPosition) || isWalkable(tile) && navigationService.findPath(ourPosition, tile, this) != null);
+                tile -> tile.equals(ourPosition) || isWalkable(tile) && navigationService.isReachable(ourPosition, tile, this));
     }
 
     /**
@@ -2385,7 +2385,7 @@ public final class CreatureController extends EntityController implements ICreat
         Point ourPos = WorldUtils.vectorToPoint(getPosition());
         Point theirPos = WorldUtils.vectorToPoint(getPosition(entityData, entity));
 
-        return ourPos.equals(theirPos) || navigationService.findPath(ourPos, theirPos, this) != null;
+        return navigationService.isReachable(ourPos, theirPos, this);
     }
 
     private void setAttackTarget(EntityId entity) {
@@ -3448,7 +3448,7 @@ public final class CreatureController extends EntityController implements ICreat
     private FleeDestinationFinder createFleeDestinationFinder(Point ourLocation) {
         return new FleeDestinationFinder(mapController.getMapData().getWidth(),
                 mapController.getMapData().getHeight(),
-                (x, y) -> navigationService.findPath(ourLocation, new Point(x, y), this) != null,
+                (x, y) -> navigationService.isReachable(ourLocation, new Point(x, y), this),
                 (x, y) -> mapController.getMapData().getTile(x, y).getOwnerId() == getOwnerId() && !mapController.isSolid(new Point(x, y)),
                 ThreadLocalRandom.current());
     }

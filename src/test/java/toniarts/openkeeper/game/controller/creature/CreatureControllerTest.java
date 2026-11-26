@@ -1490,6 +1490,7 @@ class CreatureControllerTest {
             });
             INavigationService navigation = proxy(INavigationService.class, (method, args) -> switch (method) {
                 case "findPath" -> walkable.test((Point) args[1]) ? new DefaultGraphPath<>() : null;
+                case "isReachable" -> walkable.test((Point) args[1]);
                 case "findRandomAccessibleTile" -> null;
                 default -> throw new UnsupportedOperationException(method);
             });
