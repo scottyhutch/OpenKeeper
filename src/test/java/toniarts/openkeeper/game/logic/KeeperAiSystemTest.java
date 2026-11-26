@@ -929,11 +929,13 @@ class KeeperAiSystemTest {
         assertEquals(0, entityData.getComponent(enemy, KeeperAiNoPrisoner.class).players);
     }
 
-    private void createNeutralPortal(Point centre) {
+    private IRoomController createNeutralPortal(Point centre) {
         IRoomController portal = createRoom(PORTAL, centre);
         portal.getRoomInstance().setOwnerId(Player.NEUTRAL_PLAYER_ID);
         neutralRooms.add(portal);
         map[centre.y][centre.x] = 'P';
+
+        return portal;
     }
 
     private void planAgain() {
@@ -2638,10 +2640,13 @@ class KeeperAiSystemTest {
     }
 
     @Test
-    void wantsABiggerLairWhenItHasClaimedAPortal() {
+    void wantsABiggerLairWhenItHasTakenAPortalFromAnotherPlayerButNotWhenItClaimsANeutralOne() {
+        IRoomController neutral = createNeutralPortal(new Point(13, 4));
         KeeperAiSystem system = createSystem(withMoreSpace(ai(0, 0, 9, 1, 50, 0, List.of(LAIR)), AI.RoomExpandPolicy.EXPAND_EXISTING, true), 1000);
         roomControl.setTypeAvailable(rooms.get(LAIR), true, true);
         roomControl.onBuild(createRoom(LAIR, new Point(9, 2), new Point(11, 4)));
+        neutral.getRoomInstance().setOwnerId(PLAYER_ID);
+        roomControl.onBuild(neutral);
 
         system.processTick(0.25f);
 
@@ -2655,7 +2660,7 @@ class KeeperAiSystemTest {
     }
 
     @Test
-    void plansTheRoomACreatureAskedForBeforeItsBuildOrderAndHoldsOneAskAtATime() {
+    void queuesTheRoomsItsCreaturesAskForAndPlansThemInTurnBeforeItsBuildOrder() {
         KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 1000);
         roomControl.setTypeAvailable(rooms.get(TREASURY), true, true);
         roomControl.setTypeAvailable(rooms.get(LAIR), true, true);
@@ -2663,33 +2668,42 @@ class KeeperAiSystemTest {
         system.start();
         try {
 
-            // Of the asks since its last turn the latest is planned, before the Treasury of its build order
+            // The first ask is planned before the Treasury of its build order, the next one waits its turn
             EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.LAIR));
             EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.TRAINEE));
             system.processTick(0.25f);
 
             assertEquals(KeeperAi.Task.FIND_ROOM_SITE, getKeeperAi().task);
-            assertEquals(TRAINING_ROOM, getKeeperAi().roomId);
+            assertEquals(LAIR, getKeeperAi().roomId);
+            assertEquals(TRAINING_ROOM, getKeeperAi().roomAsks[0]);
 
-            // An ask takes the place of the Portal plan lined up next, and is held while it is busy
-            EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.LAIR));
-            system.processTick(0.25f);
-
-            assertEquals(LAIR, getKeeperAi().wantedRoomId);
-
-            // One ask is held at a time, and nothing is asked for a room it may not build
+            // It takes the place of the Portal plan lined up next. The Lair isn't asked for again while its ask
+            // lasts, and nothing is queued for a room it may not build
             EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.GOLD));
-            system.processTick(0.25f);
+            EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.LAIR));
             EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.WORSHIPPER));
             system.processTick(0.25f);
 
-            assertEquals(LAIR, getKeeperAi().wantedRoomId);
+            assertEquals(TRAINING_ROOM, getKeeperAi().wantedRoomId);
+            assertEquals(TREASURY, getKeeperAi().roomAsks[0]);
+            assertEquals(0, getKeeperAi().roomAsks[1]);
+
+            // The Treasury asked for before it had one is planned in its turn all the same
+            roomControl.onBuild(createRoom(TREASURY, new Point(9, 2), new Point(11, 4)));
+            planAgain();
+            system.processTick(0.25f);
+
+            assertEquals(TRAINING_ROOM, getKeeperAi().roomId);
+
+            system.processTick(0.25f);
+
+            assertEquals(TREASURY, getKeeperAi().wantedRoomId);
+            assertEquals(0, getKeeperAi().roomAsks[0]);
 
             planAgain();
             system.processTick(0.25f);
 
-            assertEquals(KeeperAi.Task.FIND_ROOM_SITE, getKeeperAi().task);
-            assertEquals(LAIR, getKeeperAi().roomId);
+            assertEquals(TREASURY, getKeeperAi().roomId);
         } finally {
             system.stop();
         }
