@@ -130,6 +130,7 @@ import toniarts.openkeeper.game.data.ObjectiveType;
 import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
+import toniarts.openkeeper.game.logic.CreatureMoodSystem;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
 import toniarts.openkeeper.game.logic.MovementSystem;
 import toniarts.openkeeper.game.map.IMapTileInformation;
@@ -1252,7 +1253,9 @@ public final class CreatureController extends EntityController implements ICreat
     /**
      * Like in DK II, an angry creature takes a job from its angry list, and an
      * unhappy creature, or an angry one that got none, from its unhappy list.
-     * Once a list gave a job, it rests for a while
+     * Once a list gave a job, it rests for a while. The creature tick
+     * (DKII.EXE 0x476FC0) rolls no mood job when it holds back the need anger
+     * (0x478D00 has the same checks), so not under the Call to Arms either
      *
      * @return true if the creature got a job
      */
@@ -1260,7 +1263,7 @@ public final class CreatureController extends EntityController implements ICreat
         CreatureMood mood = entityData.getComponent(entityId, CreatureMood.class);
         int state = mood == null ? 0 : mood.getState(
                 CreatureMood.toRuntimeThreshold(creature.getAttributes().getUnhappyThreshold()));
-        if (state == 0) {
+        if (state == 0 || CreatureMoodSystem.isNeedAngerHeld(entityData, entityId, creature)) {
             return false;
         }
         double gameTime = gameTimer.getGameTime();
@@ -1808,8 +1811,8 @@ public final class CreatureController extends EntityController implements ICreat
     public boolean isAtAssignedTaskTarget() {
         Task assignedTask = getAssignedTask();
 
-        // Stopped comes first and the target is asked once, a task may search a path for its target
-        if (assignedTask == null || !isStopped()) {
+        // Stopped or at the end of the walk comes first and the target is asked once, a task may search a path for its target
+        if (assignedTask == null || !(isStopped() || isAtWalkEnd())) {
             return false;
         }
         Vector2f target = assignedTask.getTarget(this);
@@ -1823,6 +1826,21 @@ public final class CreatureController extends EntityController implements ICreat
         }
         Vector2f workPosition = assignedTask.getWorkPosition(this);
         return workPosition != null && isAt(workPosition);
+    }
+
+    /**
+     * DK II's walk is done on the tick the creature reaches its last point. The walk state (0x470C80) stops the
+     * creature right there (0x48ECE0) and goes on to the next state, it doesn't wait for it to come to rest
+     */
+    private boolean isAtWalkEnd() {
+        Navigation navigation = entityData.getComponent(entityId, Navigation.class);
+        if (navigation == null || navigation.navigationPath == null || navigation.navigationPath.isEmpty()) {
+            return false;
+        }
+        Vector3f currentPos = getPosition();
+
+        // Within the arrival tolerance the path following uses (EntitySteeringFactory)
+        return navigation.navigationPath.getLast().dst2(currentPos.x, currentPos.z) < 0.1f * 0.1f;
     }
 
     private boolean isNear(Vector2f target) {
