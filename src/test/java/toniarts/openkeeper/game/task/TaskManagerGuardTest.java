@@ -222,6 +222,7 @@ class TaskManagerGuardTest {
             case "getOwnerId" -> KEEPER;
             case "getEntityId" -> id;
             case "getCreature" -> type;
+            case "getGold" -> 100; // More than the Casino stake
             case "setAssignedTask" -> {
                 task.set((Task) args[0]);
                 yield null;

@@ -73,6 +73,8 @@ class TaskManagerJobRoomMessageTest {
             Player.KEEPER1_ID;
         case "getCreatureCoordinates" ->
             new Point(1, 1);
+        case "getGold" ->
+            100; // More than the Casino stake
         default ->
             RoomTileWorld.defaultValue(proxy, method);
     });
@@ -127,6 +129,8 @@ class TaskManagerJobRoomMessageTest {
     void aCreatureThatWantsToGambleAsksForACasino() {
 
         // DK II's Casino finder 0x4D75F0: speech 1508 with none, 205 with every Casino full
+        settings = Map.of(MiscType.GAMBLING_MODIFY_CREATURE_MONEY_MONEY_PER_SECOND,
+                CreatureSleepFixtures.variable(MiscType.GAMBLING_MODIFY_CREATURE_MONEY_MONEY_PER_SECOND, -8));
         buildable = List.of(casino);
         assertFalse(createTaskManager().assignTask(creature, Creature.JobType.DRINK));
         assertEquals(List.of(1508), speeches);
