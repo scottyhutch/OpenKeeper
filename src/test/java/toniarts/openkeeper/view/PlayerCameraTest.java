@@ -99,9 +99,9 @@ class PlayerCameraTest {
     @Test
     void setViewPutsTheCameraBackInTheSavedMode() throws ReflectiveOperationException {
         Thing.Camera standard = mode(220, 10f, 4f, 13f, 2f, 1f);
-        set(standard, "id", Thing.Camera.CameraMode.GAME.getValue());
+        set(standard, "id", Thing.Camera.CameraMode.GAME);
         Thing.Camera far = mode(240, 29f, 4f, 52f, 10f, 1.5f);
-        set(far, "id", Thing.Camera.CameraMode.FAR.getValue());
+        set(far, "id", Thing.Camera.CameraMode.FAR);
         Camera camera = new Camera(800, 600);
         PlayerCamera playerCamera = new PlayerCamera(camera, standard);
         playerCamera.switchTo(far, 0f);
