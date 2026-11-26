@@ -174,11 +174,6 @@ public final class PlayerState extends AbstractAppState implements PlayerListene
 
         assetManager = this.app.getAssetManager();
         this.stateManager = stateManager;
-        // The game can start before the state manager gets to initialize us,
-        // and setEnabled(true) can't set anything up before that. Do it now
-        if (isEnabled()) {
-            setEnabled(true);
-        }
     }
 
     @Override
