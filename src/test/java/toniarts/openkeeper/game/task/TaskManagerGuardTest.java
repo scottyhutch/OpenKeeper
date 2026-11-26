@@ -275,7 +275,11 @@ class TaskManagerGuardTest {
             default -> null;
         });
         INavigationService navigation = stub(INavigationService.class, (proxy, method, args)
-                -> "findPath".equals(method.getName()) ? new DefaultGraphPath<>() : null);
+                -> switch (method.getName()) {
+                    case "findPath" -> new DefaultGraphPath<>();
+                    case "isReachable" -> true;
+                    default -> null;
+                });
         IKwdFile kwdFile = stub(IKwdFile.class, (proxy, method, args) -> "getGameLevel".equals(method.getName()) ? CreatureSleepFixtures.level(4) : null);
         ILevelInfo levelInfo = stub(ILevelInfo.class, (proxy, method, args) -> "getLevelData".equals(method.getName()) ? kwdFile : null);
         Map<MiscType, MiscVariable> settings = new EnumMap<>(MiscType.class);

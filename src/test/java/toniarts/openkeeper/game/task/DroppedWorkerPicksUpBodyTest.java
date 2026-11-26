@@ -191,6 +191,7 @@ class DroppedWorkerPicksUpBodyTest {
         INavigationService navigationService = stub(INavigationService.class, (name, args) -> switch (name) {
             case "isAccessible" -> true;
             case "findPath" -> new DefaultGraphPath<>();
+            case "isReachable" -> true;
             default -> NO_ANSWER;
         });
         ICreaturesController creaturesController = stub(ICreaturesController.class, (name, args) -> switch (name) {

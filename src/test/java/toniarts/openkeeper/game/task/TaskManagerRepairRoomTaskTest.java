@@ -112,6 +112,8 @@ class TaskManagerRepairRoomTaskTest {
             true;
         case "findPath" ->
             RoomTileWorld.stub(GraphPath.class, (path, call, callArgs) -> RoomTileWorld.defaultValue(path, call));
+        case "isReachable" ->
+            true;
         default ->
             RoomTileWorld.defaultValue(proxy, method);
     });

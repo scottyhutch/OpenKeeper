@@ -16,6 +16,7 @@
  */
 package toniarts.openkeeper.game.task.objective;
 
+import com.badlogic.gdx.ai.pfa.DefaultGraphPath;
 import com.jme3.math.Vector2f;
 import java.lang.reflect.InvocationHandler;
 import java.lang.reflect.Proxy;
@@ -196,6 +197,9 @@ class KillCreaturesTest {
         return stub(INavigationService.class, (name, args) -> {
             if ("isReachable".equals(name)) {
                 return !walledIn.contains((Point) args[1]);
+            }
+            if ("findPath".equals(name) && !walledIn.contains((Point) args[1])) {
+                return new DefaultGraphPath<>();
             }
             return null;
         });

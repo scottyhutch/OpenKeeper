@@ -131,6 +131,7 @@ class ExploreTest {
         INavigationService navigationService = stub(INavigationService.class, (name, args) -> switch (name) {
             case "isAccessible" -> true;
             case "findPath" -> unreachableTiles.contains((Point) args[1]) ? null : stub(GraphPath.class, (pathMethod, pathArgs) -> null);
+            case "isReachable" -> !unreachableTiles.contains((Point) args[1]);
             default -> null;
         });
 

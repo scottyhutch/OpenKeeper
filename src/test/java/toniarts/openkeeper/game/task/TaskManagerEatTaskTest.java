@@ -114,7 +114,11 @@ public class TaskManagerEatTaskTest {
             return stub(IMapTileInformation.class, (tileName, tileArgs) -> "getLocation".equals(tileName) ? location : null);
         });
         INavigationService navigationService = stub(INavigationService.class,
-                (name, args) -> "findPath".equals(name) ? new DefaultGraphPath<IMapTileInformation>() : null);
+                (name, args) -> switch (name) {
+                    case "findPath" -> new DefaultGraphPath<IMapTileInformation>();
+                    case "isReachable" -> true;
+                    default -> null;
+                });
 
         // An empty map
         IMapDataInformation<?> mapData = stub(IMapDataInformation.class, (name, args) -> 0);
