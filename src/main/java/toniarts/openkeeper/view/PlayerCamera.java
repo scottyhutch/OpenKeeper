@@ -200,7 +200,7 @@ public final class PlayerCamera {
      * @return the camera mode
      */
     public Thing.Camera.CameraMode getMode() {
-        return toniarts.openkeeper.tools.convert.ConversionUtils.parseEnum(presets.getId(), Thing.Camera.CameraMode.class);
+        return presets.getId();
     }
 
     /**
