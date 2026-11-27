@@ -163,6 +163,32 @@ class NavigationServiceReachabilityTest {
         assertNull(service.findGate(new Point(1, 1), end, walker));
     }
 
+    @Test
+    void theFlagGetsToTheEndFromAnywhere() {
+        map = Stream.of(
+                "########",
+                "#......#",
+                "#.#....#",
+                "#..#.#.#",
+                "#...####",
+                "#......#",
+                "########").map(String::toCharArray).toArray(char[][]::new);
+        NavigationService service = createNavigationService();
+        Point end = new Point(6, 5);
+
+        // A way that winds between the regions doesn't hold the flag back
+        for (int y = 0; y < map.length; y++) {
+            for (int x = 0; x < map[y].length; x++) {
+                Point flag = new Point(x, y);
+                for (int moves = 0; map[y][x] == '.' && !flag.equals(end); moves++) {
+                    Point gate = service.findGate(flag, end, walker);
+                    assertTrue(moves < 10 && !gate.equals(flag), "stuck at " + gate + " from " + x + "," + y);
+                    flag = gate;
+                }
+            }
+        }
+    }
+
     private NavigationService createNavigationService() {
         IMapDataInformation<?> mapData = stub(IMapDataInformation.class, (name, args) -> switch (name) {
             case "getWidth" -> map[0].length;

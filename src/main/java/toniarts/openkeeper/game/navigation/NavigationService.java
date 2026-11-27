@@ -157,12 +157,15 @@ public final class NavigationService implements INavigationService, IGameLogicUp
             return null;
         }
 
-        // The regions on the way
+        // The regions on the way. Where the path comes back into a region, the way round is left out
         Map<Point, Region> regions = getRegions(getCachedArea(start, navigable), navigable);
         List<Region> route = new ArrayList<>();
         for (IMapTileInformation tile : path) {
             Region region = regions.get(tile.getLocation());
-            if (region != null && (route.isEmpty() || !route.getLast().equals(region))) {
+            int seen = route.indexOf(region);
+            if (seen >= 0) {
+                route.subList(seen + 1, route.size()).clear();
+            } else if (region != null) {
                 route.add(region);
             }
         }
