@@ -20,6 +20,7 @@ import com.simsilica.es.EntityId;
 import java.lang.reflect.Proxy;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.stream.Stream;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.logic.IEntityPositionLookup;
@@ -32,11 +33,12 @@ import toniarts.openkeeper.utils.Point;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
  * The reachable areas are flood filled once a tick and shared by every start
- * in the same area
+ * in the same area. Split into regions they give the gates on the way
  */
 class NavigationServiceReachabilityTest {
 
@@ -48,7 +50,7 @@ class NavigationServiceReachabilityTest {
      * Rows of land between rock: water, lava and the keeper's door in the
      * middle of them
      */
-    private final char[][] map = {
+    private char[][] map = {
         "..~..".toCharArray(),
         "#####".toCharArray(),
         "..=..".toCharArray(),
@@ -126,6 +128,41 @@ class NavigationServiceReachabilityTest {
         assertTrue(navigationService.isReachable(new Point(0, 0), new Point(4, 0), walker));
     }
 
+    @Test
+    void theGatesAreWhereTheWayTurnsOutOfSight() {
+        map = Stream.of(
+                "#########",
+                "#.....###",
+                "#.....###",
+                "#.....###",
+                "#####.###",
+                "#####.###",
+                "#####....",
+                "#########").map(String::toCharArray).toArray(char[][]::new);
+        NavigationService service = createNavigationService();
+        Point end = new Point(8, 6);
+
+        // Out of the room into the corridor, round its corner, and then the end is in sight
+        assertEquals(new Point(5, 4), service.findGate(new Point(1, 2), end, walker));
+        assertEquals(new Point(6, 6), service.findGate(new Point(5, 4), end, walker));
+        assertEquals(end, service.findGate(new Point(6, 6), end, walker));
+    }
+
+    @Test
+    void aGateThatCanBeSeenThroughIsPassedOver() {
+        map = Stream.of(
+                "#######",
+                "#..~..#",
+                "#..~..#",
+                "#######").map(String::toCharArray).toArray(char[][]::new);
+        NavigationService service = createNavigationService();
+        Point end = new Point(5, 2);
+
+        // The water is a region of its own, but the far side is in sight across it
+        assertEquals(end, service.findGate(new Point(1, 1), end, swimmer));
+        assertNull(service.findGate(new Point(1, 1), end, walker));
+    }
+
     private NavigationService createNavigationService() {
         IMapDataInformation<?> mapData = stub(IMapDataInformation.class, (name, args) -> switch (name) {
             case "getWidth" -> map[0].length;
@@ -160,6 +197,7 @@ class NavigationServiceReachabilityTest {
             case "getLocation" -> location;
             case "getX" -> location.x;
             case "getY" -> location.y;
+            case "getIndex" -> location.y * map[0].length + location.x;
             default -> null;
         }));
     }

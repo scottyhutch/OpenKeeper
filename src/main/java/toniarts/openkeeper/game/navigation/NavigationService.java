@@ -29,6 +29,7 @@ import toniarts.openkeeper.game.navigation.pathfinding.INavigable;
 import toniarts.openkeeper.game.navigation.pathfinding.MapDistance;
 import toniarts.openkeeper.game.navigation.pathfinding.MapIndexedGraph;
 import toniarts.openkeeper.game.navigation.pathfinding.MapPathFinder;
+import toniarts.openkeeper.tools.convert.map.Terrain;
 import toniarts.openkeeper.utils.Point;
 import toniarts.openkeeper.utils.Utils;
 import toniarts.openkeeper.utils.WorldUtils;
@@ -38,10 +39,13 @@ import java.lang.System.Logger.Level;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -143,12 +147,68 @@ public final class NavigationService implements INavigationService, IGameLogicUp
 
     @Override
     public boolean isReachable(Point start, Point target, INavigable navigable) {
+        return getCachedArea(start, navigable).tiles().contains(target);
+    }
+
+    @Override
+    public Point findGate(Point start, Point end, INavigable navigable) {
+        GraphPath<IMapTileInformation> path = findPath(start, end, navigable);
+        if (path == null) {
+            return null;
+        }
+
+        // The regions on the way
+        Map<Point, Region> regions = getRegions(getCachedArea(start, navigable), navigable);
+        List<Region> route = new ArrayList<>();
+        for (IMapTileInformation tile : path) {
+            Region region = regions.get(tile.getLocation());
+            if (region != null && (route.isEmpty() || !route.getLast().equals(region))) {
+                route.add(region);
+            }
+        }
+
+        // A gate is passed over when the next one, or the end, is in sight through it from the start (0x4CF490)
+        int[] eye = {start.x * 2 + 1, start.y * 2 + 1};
+        int[] last = {end.x * 2 + 1, end.y * 2 + 1, end.x * 2 + 1, end.y * 2 + 1};
+        for (int i = 1; i < route.size(); i++) {
+            int[] gate = route.get(i - 1).getGate(route.get(i));
+            int[] next = i + 1 < route.size() ? route.get(i).getGate(route.get(i + 1)) : last;
+            if (!isInSight(eye, gate, next[0], next[1]) || !isInSight(eye, gate, next[2], next[3])) {
+                return route.get(i).getTile((gate[0] + gate[2]) / 2, (gate[1] + gate[3]) / 2);
+            }
+        }
+        return end;
+    }
+
+    /**
+     * Is the point between the lines from the eye through the ends of the
+     * gate. On a line counts, as in DK II (0x4CF490). All in half tiles
+     */
+    private static boolean isInSight(int[] eye, int[] gate, int x, int y) {
+        long side = cross(eye, gate[0], gate[1], gate[2], gate[3]);
+        long first = cross(eye, gate[0], gate[1], x, y);
+        if (side == 0) {
+
+            // A gate of a corner only, the point has to be straight on past it
+            return first == 0 && (long) (gate[0] - eye[0]) * (x - eye[0]) + (long) (gate[1] - eye[1]) * (y - eye[1]) > 0;
+        }
+        return first * side >= 0 && cross(eye, x, y, gate[2], gate[3]) * side >= 0;
+    }
+
+    private static long cross(int[] eye, int ax, int ay, int bx, int by) {
+        return (long) (ax - eye[0]) * (by - eye[1]) - (long) (ay - eye[1]) * (bx - eye[0]);
+    }
+
+    /**
+     * The area the entity can get to from the start, filled once a tick
+     */
+    private ReachableArea getCachedArea(Point start, INavigable navigable) {
         Map<Point, ReachableArea> areas = reachableAreas.computeIfAbsent(new NavigableKey(navigable), key -> new ConcurrentHashMap<>());
         ReachableArea area = areas.get(start);
         if (area != null && !area.isSameFor(navigable)) {
 
             // It breaks other doors than the one the area was filled for, so it has an area of its own. Not kept
-            return getReachableArea(start, navigable).tiles().contains(target);
+            return getReachableArea(start, navigable);
         }
         if (area == null) {
             area = getReachableArea(start, navigable);
@@ -163,7 +223,7 @@ public final class NavigationService implements INavigationService, IGameLogicUp
                 areas.put(start, area);
             }
         }
-        return area.tiles().contains(target);
+        return area;
     }
 
     /**
@@ -195,7 +255,67 @@ public final class NavigationService implements INavigationService, IGameLogicUp
                 }
             }
         }
-        return new ReachableArea(area, doors);
+        return new ReachableArea(area, doors, new HashMap<>());
+    }
+
+    /**
+     * Splits the area into regions, rectangles of one kind of ground, the
+     * first time it is asked in a tick. DK II's navigation map tells water,
+     * lava and doors from the rest (0x44FC40, 0x4A66F0) and the triangles of
+     * its navigation mesh, its regions, are of one kind each. It builds them
+     * again round a tile each time the tile changes (0x4D1930, 0x4CE770)
+     */
+    private Map<Point, Region> getRegions(ReachableArea area, INavigable navigable) {
+        if (area.regions().isEmpty()) {
+            List<Point> tiles = new ArrayList<>(area.tiles());
+            tiles.sort(Comparator.comparingInt((Point p) -> p.y).thenComparingInt(p -> p.x));
+            for (Point p : tiles) {
+                if (!area.regions().containsKey(p)) {
+                    Object kind = getGroundKind(p, navigable);
+                    int x1 = p.x;
+                    while (isFree(area, x1 + 1, x1 + 1, p.y, kind, navigable)) {
+                        x1++;
+                    }
+                    int y1 = p.y;
+                    while (isFree(area, p.x, x1, y1 + 1, kind, navigable)) {
+                        y1++;
+                    }
+                    Region region = new Region(p.x, p.y, x1, y1);
+                    for (int y = p.y; y <= y1; y++) {
+                        for (int x = p.x; x <= x1; x++) {
+                            area.regions().put(new Point(x, y), region);
+                        }
+                    }
+                }
+            }
+        }
+        return area.regions();
+    }
+
+    /**
+     * Are the tiles of the row in the area, of the kind and in no region yet
+     */
+    private boolean isFree(ReachableArea area, int x0, int x1, int y, Object kind, INavigable navigable) {
+        for (int x = x0; x <= x1; x++) {
+            Point p = new Point(x, y);
+            if (!area.tiles().contains(p) || area.regions().containsKey(p) || !Objects.equals(kind, getGroundKind(p, navigable))) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * The kind of ground: the door on it, water, lava or null for the rest
+     */
+    private Object getGroundKind(Point p, INavigable navigable) {
+        EntityId door = entityPositionLookup.getBlockingDoor(p.x, p.y, navigable.getOwnerId());
+        if (door != null) {
+            return door;
+        }
+        Set<Terrain.TerrainFlag> flags = mapController.getTerrain(mapController.getMapData().getTile(p)).getFlags();
+        return flags.contains(Terrain.TerrainFlag.WATER) ? Terrain.TerrainFlag.WATER
+                : flags.contains(Terrain.TerrainFlag.LAVA) ? Terrain.TerrainFlag.LAVA : null;
     }
 
     /**
@@ -248,9 +368,10 @@ public final class NavigationService implements INavigationService, IGameLogicUp
 
     /**
      * The tiles of a reachable area and the doors met while filling it, with
-     * whether the entity it was filled for breaks them
+     * whether the entity it was filled for breaks them. And its regions by
+     * tile, once asked for
      */
-    private record ReachableArea(Set<Point> tiles, Map<EntityId, Boolean> doors) {
+    private record ReachableArea(Set<Point> tiles, Map<EntityId, Boolean> doors, Map<Point, Region> regions) {
 
         /**
          * Does the area hold for this entity too. It does unless the entity
@@ -259,6 +380,29 @@ public final class NavigationService implements INavigationService, IGameLogicUp
          */
         boolean isSameFor(INavigable navigable) {
             return doors.entrySet().stream().allMatch(door -> navigable.canBreakDoor(door.getKey()) == door.getValue());
+        }
+
+    }
+
+    /**
+     * A rectangle of a reachable area, all of one kind of ground
+     */
+    private record Region(int x0, int y0, int x1, int y1) {
+
+        /**
+         * Where it meets the other region, in half tiles: the two ends of the
+         * line between them, or twice the corner they share
+         */
+        int[] getGate(Region other) {
+            return new int[]{Math.max(x0, other.x0) * 2, Math.max(y0, other.y0) * 2,
+                (Math.min(x1, other.x1) + 1) * 2, (Math.min(y1, other.y1) + 1) * 2};
+        }
+
+        /**
+         * The tile of the region nearest the point, in half tiles
+         */
+        Point getTile(int x, int y) {
+            return new Point(Math.clamp(x / 2, x0, x1), Math.clamp(y / 2, y0, y1));
         }
 
     }

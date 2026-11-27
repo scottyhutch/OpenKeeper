@@ -73,6 +73,21 @@ public interface INavigationService {
     boolean isReachable(Point start, Point target, INavigable navigable);
 
     /**
+     * The first gate on the way from start to the end. The area the entity
+     * can get to is split into regions, rectangles of one kind of ground, and
+     * a gate is where the way goes from one region to the next. The gates
+     * that can be seen through from the start are passed over, as DK II does
+     * with its navigation regions (DKII.EXE 0x4D0150, 0x4CF490)
+     *
+     * @param start start point
+     * @param end end point
+     * @param navigable the entity to find the way for
+     * @return the tile past the middle of the first gate that hides the way
+     * on, the end if no gate does, or null if there is no way
+     */
+    Point findGate(Point start, Point end, INavigable navigable);
+
+    /**
      * Check if given tile is accessible by the given creature
      *
      * @param from from where

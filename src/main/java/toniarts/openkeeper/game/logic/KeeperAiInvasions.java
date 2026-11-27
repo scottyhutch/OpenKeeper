@@ -16,7 +16,6 @@
  */
 package toniarts.openkeeper.game.logic;
 
-import com.badlogic.gdx.ai.pfa.GraphPath;
 import com.simsilica.es.Entity;
 import com.simsilica.es.EntityData;
 import com.simsilica.es.EntityId;
@@ -82,12 +81,11 @@ final class KeeperAiInvasions {
     /**
      * On the way to the enemy the flag moves on once 4 in 5 of the creatures
      * are within 10 tiles of it. DK II (0x4FE9C0) moves it to the middle of
-     * the first gate between its navigation regions on the way, so a step
-     * can be anything from 0 to over 20 tiles; OpenKeeper has no navigation
-     * regions and steps 2 tiles along the path.
+     * the first gate between its navigation regions on the way (0x4D0E10
+     * with 0x2000, half way across), so a step can be anything from 0 to over
+     * 20 tiles.
      */
     private static final int RALLY_GATHER_TILES = 10;
-    private static final int RALLY_STEP_TILES = 2;
 
     /**
      * Creatures to the flag are dropped within 5 tiles of it
@@ -389,8 +387,8 @@ final class KeeperAiInvasions {
     /**
      * Where to call the creatures to arms: a corner of the Dungeon Heart, or
      * the nearest room when the enemy has no Heart. On the way there the flag
-     * starts at its own room and moves on each time enough of its creatures
-     * have come. Once it is at the Heart it is cast there again each time,
+     * starts at its own room and moves on to the next gate of the way each
+     * time enough of its creatures have come. Once it is at the Heart it is cast there again each time,
      * which starts its time over, as in DK II.
      */
     private Point getRallyTile(KeeperAi keeperAi, Map<Short, IPlayerController> playerControllers, AI.CallToArmsUsagePolicy policy) {
@@ -455,10 +453,9 @@ final class KeeperAiInvasions {
                     }
                 }
             }
-            GraphPath<IMapTileInformation> path = keeperAi.rallyTile != null
-                    ? navigationService.findPath(keeperAi.rallyTile, walkTo, navigable) : null;
-            if (path != null && path.getCount() > 0 && fighters <= near * 5 / 4) {
-                return path.getCount() - 1 > RALLY_STEP_TILES ? path.get(RALLY_STEP_TILES).getLocation() : corner;
+            Point gate = keeperAi.rallyTile != null ? navigationService.findGate(keeperAi.rallyTile, walkTo, navigable) : null;
+            if (gate != null && fighters <= near * 5 / 4) {
+                return gate.equals(walkTo) ? corner : gate;
             }
         }
 

@@ -2138,10 +2138,11 @@ class KeeperAiSystemTest {
 
         system.processTick(0.25f);
 
-        // Both creatures are near the flag, so it goes 2 tiles on
+        // Both creatures are near the flag, so it goes on to the gate, where the way turns to the heart
         assertEquals(1, callToArmsCasts.size());
         Point moved = callToArmsCasts.getFirst();
-        assertEquals(2, Math.abs(moved.x - 5) + Math.abs(moved.y - 6));
+        assertEquals(6, moved.y);
+        assertTrue(moved.x >= 11);
         assertEquals(moved, getKeeperAi().rallyTile);
     }
 
@@ -2896,12 +2897,21 @@ class KeeperAiSystemTest {
 
         INavigationService navigationService = (INavigationService) Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[]{INavigationService.class}, (proxy, method, args) -> {
-                    if (!"findPath".equals(method.getName()) && !"isReachable".equals(method.getName())) {
+                    if (!"findPath".equals(method.getName()) && !"isReachable".equals(method.getName())
+                            && !"findGate".equals(method.getName())) {
                         throw new UnsupportedOperationException(method.getName());
                     }
-                    routesAsked.add(List.of((Point) args[0], (Point) args[1]));
-                    Object path = findPath((Point) args[0], (Point) args[1]);
-                    return "isReachable".equals(method.getName()) ? path != null : path;
+                    Point from = (Point) args[0];
+                    Point to = (Point) args[1];
+                    routesAsked.add(List.of(from, to));
+                    Object path = findPath(from, to);
+                    return switch (method.getName()) {
+                        case "isReachable" -> path != null;
+
+                        // The only gate is where the way along x turns along y
+                        case "findGate" -> path == null ? null : from.x != to.x && from.y != to.y ? new Point(to.x, from.y) : to;
+                        default -> path;
+                    };
                 });
 
         return new KeeperAiSystem(entityData, kwdFile, Map.of(PLAYER_ID, playerController, enemyId, enemyController), gameWorldController,
