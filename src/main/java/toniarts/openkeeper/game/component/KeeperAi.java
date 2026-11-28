@@ -105,7 +105,15 @@ public final class KeeperAi implements EntityComponent {
         /**
          * A creature turned angry, 0x12
          */
-        ANGRY
+        ANGRY,
+        /**
+         * It took a room from another keeper, 0x20
+         */
+        ROOM_TAKEN,
+        /**
+         * Another keeper took one of its rooms, 0x23
+         */
+        ROOM_LOST
     }
 
     public short playerId;
@@ -174,10 +182,10 @@ public final class KeeperAi implements EntityComponent {
     public boolean[] messagesHandled = new boolean[64];
 
     /**
-     * How many Portals it and the neutral player had when it last looked,
-     * one taken from another player may ask for a bigger Lair
+     * Whether it has been asked for a Graveyard, which DK II asks only once
+     * a game (0x4C5530, 0x4C5650, CPlayer+0xF4E)
      */
-    public int portals;
+    public boolean graveyardAsked;
 
     /**
      * The direction the room site is looked for in
@@ -330,7 +338,7 @@ public final class KeeperAi implements EntityComponent {
         this.messageTiles = keeperAi.messageTiles.clone();
         this.messageTicks = keeperAi.messageTicks.clone();
         this.messagesHandled = keeperAi.messagesHandled.clone();
-        this.portals = keeperAi.portals;
+        this.graveyardAsked = keeperAi.graveyardAsked;
         this.direction = keeperAi.direction;
         this.current = keeperAi.current;
         this.target = keeperAi.target;

@@ -35,6 +35,7 @@ import toniarts.openkeeper.game.event.GameEvent.ThingFlag;
 import toniarts.openkeeper.game.event.GameEventService;
 import toniarts.openkeeper.game.event.GameEventType;
 import toniarts.openkeeper.game.event.KeeperAttacked;
+import toniarts.openkeeper.game.event.RoomTaken;
 import toniarts.openkeeper.game.event.ServerEvents;
 import toniarts.openkeeper.game.listener.MapListener;
 import toniarts.openkeeper.game.listener.RoomListener;
@@ -848,6 +849,8 @@ public final class MapController extends Container implements IMapController {
             } else {
                 gameEventService.emitToPlayer(GameEventType.ROOM_TAKEN_OVER, ThingFlag.ROOM, roomId, playerId);
                 gameEventService.emitToPlayer(GameEventType.ROOM_LOST, ThingFlag.ROOM, roomId, owner);
+                EventBus.publish(ServerEvents.ROOM_TAKEN, new RoomTaken(playerId, roomId));
+                EventBus.publish(ServerEvents.ROOM_LOST, new RoomTaken(owner, roomId));
             }
         }
     }

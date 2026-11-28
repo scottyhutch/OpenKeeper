@@ -36,6 +36,16 @@ public final class ServerEvents {
     public static final EventType<RoomWanted> ROOM_TOO_SMALL = EventType.create("RoomTooSmall", RoomWanted.class);
 
     /**
+     * A keeper took a room from another keeper
+     */
+    public static final EventType<RoomTaken> ROOM_TAKEN = EventType.create("RoomTaken", RoomTaken.class);
+
+    /**
+     * Another keeper took one of a keeper's rooms
+     */
+    public static final EventType<RoomTaken> ROOM_LOST = EventType.create("RoomLost", RoomTaken.class);
+
+    /**
      * Something of a keeper was attacked
      */
     public static final EventType<KeeperAttacked> KEEPER_ATTACKED = EventType.create("KeeperAttacked", KeeperAttacked.class);

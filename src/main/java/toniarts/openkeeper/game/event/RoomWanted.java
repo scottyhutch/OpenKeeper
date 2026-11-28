@@ -21,10 +21,25 @@ import toniarts.openkeeper.game.controller.room.AbstractRoomController.ObjectTyp
 /**
  * A creature of a keeper looked for a room to do something in and the
  * keeper has no room of that kind, like DK II's "room wanted" message (0x29),
- * or its rooms of the kind are full, like DK II's "room too small" (0x2A)
+ * or its rooms of the kind are full, like DK II's "room too small" (0x2A).
+ * DK II's message carries the room type
  *
  * @param playerId the keeper
- * @param objectType what the creature wanted the room for
+ * @param objectType what the creature wanted the room for, null for a room
+ * that serves nothing a creature can ask for by itself, like the Combat Pit
+ * @param roomId the room type, 0 when what the creature wanted the room for
+ * names it
  */
-public record RoomWanted(short playerId, ObjectType objectType) {
+public record RoomWanted(short playerId, ObjectType objectType, short roomId) {
+
+    /**
+     * A room asked for by what the creature wanted to do there
+     *
+     * @param playerId the keeper
+     * @param objectType what the creature wanted the room for
+     */
+    public RoomWanted(short playerId, ObjectType objectType) {
+        this(playerId, objectType, (short) 0);
+    }
+
 }

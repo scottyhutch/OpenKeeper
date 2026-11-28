@@ -16,9 +16,14 @@
  */
 package toniarts.openkeeper.game.task.hero;
 
+import com.simsilica.event.EventBus;
+import com.simsilica.event.EventListener;
+import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
+import toniarts.openkeeper.game.event.KeeperAttacked;
+import toniarts.openkeeper.game.event.ServerEvents;
 import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.DestroyRoomsFixtures;
 import toniarts.openkeeper.tools.convert.map.Player;
@@ -88,6 +93,28 @@ class DestroyRoomTileTest {
         world.terrain = RoomTileWorld.claimedPath();
 
         assertFalse(createTask().isValid(hero));
+    }
+
+    @Test
+    void theOwnersComputerPlayerHearsOfTheBlowsThatLeaveTheTile() {
+
+        // DK II's destroying rooms state posts message 0x22 to the room's owner (0x466080), the computer player
+        // reads it from the same list (0x4FA400)
+        List<KeeperAttacked> attacks = new ArrayList<>();
+        EventListener<KeeperAttacked> listener = (type, event) -> attacks.add(event);
+        EventBus.addListener(ServerEvents.KEEPER_ATTACKED, listener);
+        try {
+            DestroyRoomTile task = createTask(RoomTileWorld.TICKS_PER_SEC);
+            task.assign(hero, false);
+            task.executeTask(hero, 0f);
+            task.executeTask(hero, 1.0f);
+            task.executeTask(hero, 2.0f);
+        } finally {
+            EventBus.removeListener(ServerEvents.KEEPER_ATTACKED, listener);
+        }
+
+        KeeperAttacked attack = new KeeperAttacked(world.ownerId, KeeperAttacked.Target.ROOM, RoomTileWorld.TILE);
+        assertEquals(List.of(attack, attack), attacks);
     }
 
     @Test

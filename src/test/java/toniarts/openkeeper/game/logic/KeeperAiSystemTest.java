@@ -75,6 +75,7 @@ import toniarts.openkeeper.game.component.Threat;
 import toniarts.openkeeper.game.component.Unconscious;
 import toniarts.openkeeper.game.controller.ICreaturesController;
 import toniarts.openkeeper.game.controller.IGameWorldController;
+import toniarts.openkeeper.game.controller.ILevelInfo;
 import toniarts.openkeeper.game.controller.IObjectsController;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.IPlayerController;
@@ -96,12 +97,14 @@ import toniarts.openkeeper.game.controller.room.storage.IRoomObjectControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.event.CreatureUpset;
 import toniarts.openkeeper.game.event.KeeperAttacked;
+import toniarts.openkeeper.game.event.RoomTaken;
 import toniarts.openkeeper.game.event.RoomWanted;
 import toniarts.openkeeper.game.event.ServerEvents;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.map.IMapTileInformation;
 import toniarts.openkeeper.game.navigation.INavigationService;
+import toniarts.openkeeper.game.task.TaskManager;
 import toniarts.openkeeper.game.task.TaskType;
 import toniarts.openkeeper.tools.convert.map.AI;
 import static toniarts.openkeeper.tools.convert.map.AiFixtures.ai;
@@ -172,6 +175,7 @@ class KeeperAiSystemTest {
     private static final short PRISON = 11;
     private static final short TORTURE_CHAMBER = 12;
     private static final short TEMPLE = 13;
+    private static final short GRAVEYARD = 14;
     private static final short COMBAT_PIT = 16;
     private static final short WOODEN_BRIDGE = 8;
     private static final short STONE_BRIDGE = 17;
@@ -250,7 +254,8 @@ class KeeperAiSystemTest {
             Map.entry(TRAINING_ROOM, room(TRAINING_ROOM, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND, Room.RoomFlag.BUILDABLE)),
             Map.entry(TORTURE_CHAMBER, room(TORTURE_CHAMBER, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND)),
             Map.entry(TEMPLE, room(TEMPLE, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND)),
-            Map.entry(COMBAT_PIT, room(COMBAT_PIT, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND)),
+            Map.entry(GRAVEYARD, room(GRAVEYARD, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND, Room.RoomFlag.BUILDABLE)),
+            Map.entry(COMBAT_PIT, room(COMBAT_PIT, ROOM_COST, Room.RoomFlag.PLACEABLE_ON_LAND, Room.RoomFlag.BUILDABLE)),
             Map.entry(HERO_PORTAL, room(HERO_PORTAL, 0, Room.RoomFlag.PLACEABLE_ON_LAND)));
     private final KeeperSpell createImp = keeperSpell("Create Imp", 100, KeeperSpell.KeeperSpellFlag.CREATE_WORKER);
     private final Creature imp = creature((short) 1);
@@ -2810,23 +2815,91 @@ class KeeperAiSystemTest {
     }
 
     @Test
-    void wantsABiggerLairWhenItHasTakenAPortalFromAnotherPlayerButNotWhenItClaimsANeutralOne() {
-        IRoomController neutral = createNeutralPortal(new Point(13, 4));
+    void wantsABiggerLairWhenItHasTakenAPortalFromAnotherKeeper() {
         KeeperAiSystem system = createSystem(withMoreSpace(ai(0, 0, 9, 1, 50, 0, List.of(LAIR)), AI.RoomExpandPolicy.EXPAND_EXISTING, true), 1000);
         roomControl.setTypeAvailable(rooms.get(LAIR), true, true);
         roomControl.onBuild(createRoom(LAIR, new Point(9, 2), new Point(11, 4)));
-        neutral.getRoomInstance().setOwnerId(PLAYER_ID);
-        roomControl.onBuild(neutral);
 
+        // Another room taken over asks for nothing (DK II's inbox 0x4FA400, message 0x20)
+        EventBus.publish(ServerEvents.ROOM_TAKEN, new RoomTaken(PLAYER_ID, LAIR));
         system.processTick(0.25f);
 
         assertEquals(KeeperAi.Task.PLAN, getKeeperAi().task);
 
-        roomControl.onBuild(createRoom(PORTAL, new Point(13, 8)));
+        EventBus.publish(ServerEvents.ROOM_TAKEN, new RoomTaken(PLAYER_ID, PORTAL));
         system.processTick(0.25f);
 
         assertEquals(KeeperAi.Task.TAG_ROOM, getKeeperAi().task);
         assertEquals(LAIR, getKeeperAi().roomId);
+    }
+
+    @Test
+    void picksTheNextRoomAtOnceWhenItLosesARoomInsteadOfItsPortalPlan() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 1000);
+        roomControl.setTypeAvailable(rooms.get(TREASURY), true, true);
+        roomControl.setTypeAvailable(rooms.get(LAIR), true, true);
+        EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.LAIR));
+        system.processTick(0.25f);
+
+        assertEquals(LAIR, getKeeperAi().roomId);
+        assertEquals(PORTAL, getKeeperAi().wantedRoomId);
+
+        // A room lost drops the Portal plan and picks the next room, not the one being planned (0x4FA400 case 0x23,
+        // 0x4F93B0)
+        EventBus.publish(ServerEvents.ROOM_LOST, new RoomTaken(PLAYER_ID, TREASURY));
+        system.processTick(0.25f);
+
+        assertEquals(LAIR, getKeeperAi().roomId);
+        assertTrue(getKeeperAi().roomWanted);
+        assertEquals(TREASURY, getKeeperAi().wantedRoomId);
+    }
+
+    @Test
+    void isAskedForAGraveyardOnlyOnceAGame() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 1000);
+        roomControl.setTypeAvailable(rooms.get(GRAVEYARD), true, true);
+
+        // DK II's post refuses a second Graveyard ask of a player (0x4C5530, 0x4C5650)
+        EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.CORPSE));
+        system.processTick(0.25f);
+
+        assertTrue(getKeeperAi().graveyardAsked);
+        assertEquals(GRAVEYARD, getKeeperAi().roomId);
+
+        // Long after the first ask has run out
+        KeeperAi keeperAi = getKeeperAi();
+        keeperAi.messages[0] = null;
+        entityData.setComponent(entityData.findEntity(null, KeeperAi.class), keeperAi);
+        EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(PLAYER_ID, ObjectType.CORPSE));
+        system.processTick(0.25f);
+
+        assertNull(getKeeperAi().messages[0]);
+    }
+
+    @Test
+    void queuesACombatPitWhenACreaturePastTheTrainingRoomsTopLevelWouldTrain() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 1000);
+        roomControl.setTypeAvailable(rooms.get(COMBAT_PIT), true, true);
+
+        // The training job of a creature at the Training Room's top level asks for a Combat Pit (DKII.EXE 0x485240,
+        // 0x4D8870), and the computer player reads it from the keeper's message list (0x4FA400)
+        createTaskManager().isTaskAvailable(creatureAtLevel(4), Creature.JobType.TRAIN);
+        system.processTick(0.25f);
+
+        assertTrue(getRoomAsks().contains(COMBAT_PIT));
+        assertEquals(KeeperAi.Task.FIND_ROOM_SITE, getKeeperAi().task);
+        assertEquals(COMBAT_PIT, getKeeperAi().roomId);
+    }
+
+    @Test
+    void isNotAskedForACombatPitByACreatureThatCanStillTrain() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 1000);
+        roomControl.setTypeAvailable(rooms.get(COMBAT_PIT), true, true);
+
+        createTaskManager().isTaskAvailable(creatureAtLevel(3), Creature.JobType.TRAIN);
+        system.processTick(0.25f);
+
+        assertFalse(getRoomAsks().contains(COMBAT_PIT));
     }
 
     @Test
@@ -2882,6 +2955,65 @@ class KeeperAiSystemTest {
         List<Short> asks = new ArrayList<>();
         for (int i = 0; keeperAi.messages[i] != null; i++) {
             if (keeperAi.messages[i] == KeeperAi.Message.ROOM_WANTED && !keeperAi.messagesHandled[i]) {
+                asks.add((short) keeperAi.messageValues[i]);
+            }
+        }
+
+        return asks;
+    }
+
+    /**
+     * The tasks of the keeper's creatures, on a map without tiles and rooms
+     * and without the human keeper's message list
+     */
+    private TaskManager createTaskManager() {
+
+        // The test rooms all sort the same, so the rooms the keeper may build are a list of their own here
+        PlayerRoomControl buildable = new PlayerRoomControl(new Keeper(false, PLAYER_ID), List.of(rooms.get(COMBAT_PIT)));
+        buildable.setTypeAvailable(rooms.get(COMBAT_PIT), true, true);
+        IPlayerController player = (IPlayerController) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[]{IPlayerController.class}, (proxy, method, args) -> switch (method.getName()) {
+            case "getKeeper" -> keeper;
+            case "getRoomControl" -> buildable;
+            default -> null;
+        });
+        IGameWorldController gameWorldController = (IGameWorldController) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[]{IGameWorldController.class}, (proxy, method, args) -> null);
+        ILevelInfo levelInfo = (ILevelInfo) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[]{ILevelInfo.class}, (proxy, method, args) -> null);
+        IMapDataInformation<?> noTiles = (IMapDataInformation<?>) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[]{IMapDataInformation.class}, (proxy, method, args) -> 0);
+        IMapController noRooms = (IMapController) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[]{IMapController.class}, (proxy, method, args) -> switch (method.getName()) {
+            case "getMapData" -> noTiles;
+            case "getRoomsByFunction", "getRoomControllers" -> List.of();
+            default -> null;
+        });
+        return new TaskManager(entityData, gameWorldController, noRooms, null, null, null, List.of(player), levelInfo, null,
+                Map.of(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, variable(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, 4),
+                        MiscType.COMBAT_PIT_MAX_EXPERIENCE_LEVEL, variable(MiscType.COMBAT_PIT_MAX_EXPERIENCE_LEVEL, 8)));
+    }
+
+    private ICreatureController creatureAtLevel(int level) {
+        return (ICreatureController) Proxy.newProxyInstance(getClass().getClassLoader(),
+                new Class<?>[]{ICreatureController.class}, (proxy, method, args) -> switch (method.getName()) {
+            case "getOwnerId" -> PLAYER_ID;
+            case "getLevel" -> level;
+            case "getCreatureCoordinates" -> HEART;
+            case "hashCode" -> System.identityHashCode(proxy);
+            case "equals" -> proxy == args[0];
+            default -> null;
+        });
+    }
+
+    /**
+     * The rooms asked for in the inbox, seen to or not
+     */
+    private List<Short> getRoomAsks() {
+        KeeperAi keeperAi = getKeeperAi();
+        List<Short> asks = new ArrayList<>();
+        for (int i = 0; keeperAi.messages[i] != null; i++) {
+            if (keeperAi.messages[i] == KeeperAi.Message.ROOM_WANTED) {
                 asks.add((short) keeperAi.messageValues[i]);
             }
         }

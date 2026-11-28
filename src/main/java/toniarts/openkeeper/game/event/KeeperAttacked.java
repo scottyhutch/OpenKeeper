@@ -46,7 +46,7 @@ public record KeeperAttacked(short playerId, Target target, Point tile) {
          */
         LAND,
         /**
-         * An enemy claims a room, message 0x22 (0x497DF0)
+         * An enemy claims or wrecks a room, message 0x22 (0x497DF0, 0x466080)
          */
         ROOM,
         /**

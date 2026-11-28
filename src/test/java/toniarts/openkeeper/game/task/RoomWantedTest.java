@@ -117,14 +117,16 @@ class RoomWantedTest {
                 List.of(stub(IPlayerController.class, Map.of("getKeeper", new Keeper(false, Player.KEEPER1_ID)))),
                 stub(ILevelInfo.class, Map.of("getLevelData", stub(IKwdFile.class, Map.of()))), stub(IEntityPositionLookup.class, Map.of()),
                 Map.of(MiscType.GAMBLING_MODIFY_CREATURE_MONEY_MONEY_PER_SECOND,
-                        CasinoVariableFixtures.miscVariable(MiscType.GAMBLING_MODIFY_CREATURE_MONEY_MONEY_PER_SECOND, -8)));
+                        CasinoVariableFixtures.miscVariable(MiscType.GAMBLING_MODIFY_CREATURE_MONEY_MONEY_PER_SECOND, -8),
+                        MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, CasinoVariableFixtures.miscVariable(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, 4)));
     }
 
     private static ICreatureController creature(int gold) {
         return stub(ICreatureController.class, Map.of(
                 "getOwnerId", Player.KEEPER1_ID,
                 "getCreatureCoordinates", new Point(5, 5),
-                "getGold", gold));
+                "getGold", gold,
+                "getLevel", 1));
     }
 
     /**

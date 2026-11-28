@@ -17,6 +17,7 @@
 package toniarts.openkeeper.game.task.hero;
 
 import com.jme3.math.Vector2f;
+import com.simsilica.event.EventBus;
 import java.util.List;
 import java.util.Map;
 import toniarts.openkeeper.game.controller.IGameWorldController;
@@ -24,6 +25,8 @@ import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.RoomAttackMessages;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.room.IRoomController;
+import toniarts.openkeeper.game.event.KeeperAttacked;
+import toniarts.openkeeper.game.event.ServerEvents;
 import toniarts.openkeeper.game.map.IMapTileController;
 import toniarts.openkeeper.game.navigation.INavigationService;
 import toniarts.openkeeper.game.task.AbstractTileTask;
@@ -153,6 +156,7 @@ public final class DestroyRoomTile extends AbstractTileTask {
             if (messages != null) {
                 messages.roomTileAttacked(ownerId, room, getTaskLocation());
             }
+            EventBus.publish(ServerEvents.KEEPER_ATTACKED, new KeeperAttacked(ownerId, KeeperAttacked.Target.ROOM, getTaskLocation()));
             return;
         }
 

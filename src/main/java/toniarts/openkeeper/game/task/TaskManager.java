@@ -519,7 +519,9 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      * A body on the keeper's land that can't be cleared is told to the keeper
      * (DKII.EXE 0x46CF40 and 0x46D3C0): with no Graveyard, and only when the
      * keeper can build one, that a Graveyard is needed (message 0x29), and
-     * with no Graveyard that has room, that it is too small (message 0x2A)
+     * with no Graveyard that has room, that it is too small (message 0x2A).
+     * The computer player hears the same as the keeper's messages, from the
+     * same list in DK II (0x4C4600)
      *
      * @param playerId the keeper
      * @param corpse the body
@@ -527,14 +529,17 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     private void tellGraveyardMissing(short playerId, EntityId corpse) {
         RoomAttackMessages messages = gameWorldController.getRoomAttackMessages();
         IMapTileInformation tile = mapController.getMapData().getTile(WorldUtils.vectorToPoint(entityData.getComponent(corpse, Position.class).position));
-        if (messages == null || tile == null || tile.getOwnerId() != playerId) {
+        if (tile == null || tile.getOwnerId() != playerId) {
             return;
         }
         List<IRoomController> graveyards = mapController.getRoomsByFunction(ObjectType.CORPSE, playerId);
         if (graveyards.isEmpty()) {
             for (Room room : playerControllers.get(playerId).getRoomControl().getTypesAvailable()) {
                 if (room.getRoomId() == GRAVEYARD_ROOM_ID) {
-                    messages.roomNeeded(playerId, room);
+                    EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(playerId, ObjectType.CORPSE));
+                    if (messages != null) {
+                        messages.roomNeeded(playerId, room);
+                    }
                 }
             }
             return;
@@ -544,7 +549,10 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                 return;
             }
         }
-        messages.roomTooSmall(playerId, graveyards.get(0).getRoom());
+        EventBus.publish(ServerEvents.ROOM_TOO_SMALL, new RoomWanted(playerId, ObjectType.CORPSE));
+        if (messages != null) {
+            messages.roomTooSmall(playerId, graveyards.get(0).getRoom());
+        }
     }
 
     private void processDeletedCorpseEntities(Set<Entity> entities) {
@@ -898,14 +906,15 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      * only to have its keeper told about it: it doesn't go there by itself
      * (DKII.EXE 0x485240 calls the pit finder 0x4D8870 and drops the result).
      * Told here is that a Combat Pit is needed (message 0x29), when the keeper
-     * has none and can build one
+     * has none and can build one. The computer player hears it too, from the
+     * same list in DK II (0x4C4600)
      *
      * @param creature the creature
      */
     private void tellCombatPitNeeded(ICreatureController creature) {
         RoomAttackMessages messages = gameWorldController.getRoomAttackMessages();
         short playerId = creature.getOwnerId();
-        if (messages == null || playerId < Player.KEEPER1_ID
+        if (playerId < Player.KEEPER1_ID
                 || creature.getLevel() < gameSettings.get(Variable.MiscVariable.MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL).getValue()
                 || creature.getLevel() >= gameSettings.get(Variable.MiscVariable.MiscType.COMBAT_PIT_MAX_EXPERIENCE_LEVEL).getValue()) {
             return;
@@ -917,7 +926,10 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         }
         for (Room room : playerControllers.get(playerId).getRoomControl().getTypesAvailable()) {
             if (room.getRoomId() == COMBAT_PIT_ROOM_ID) {
-                messages.roomNeeded(playerId, room);
+                EventBus.publish(ServerEvents.ROOM_WANTED, new RoomWanted(playerId, null, COMBAT_PIT_ROOM_ID));
+                if (messages != null) {
+                    messages.roomNeeded(playerId, room);
+                }
             }
         }
     }
