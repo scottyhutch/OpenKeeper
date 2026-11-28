@@ -20,6 +20,7 @@ import java.lang.reflect.Proxy;
 import java.util.ArrayList;
 import java.util.List;
 import org.junit.jupiter.api.Test;
+import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.IMapController;
 import toniarts.openkeeper.game.controller.TileWork;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
@@ -50,6 +51,12 @@ class ClaimTileTaskTest {
     private static final short PLAYER = 3;
     private static final Terrain DIRT_PATH = TerrainFixtures.terrain((short) 3, TerrainFixtures.flags(), 0, 1, 660, (short) 8);
     private static final Terrain CLAIMED_PATH = TerrainFixtures.terrain((short) 8, TerrainFixtures.flags(Terrain.TerrainFlag.OWNABLE), 0, 1, 660, (short) 2);
+
+    /**
+     * A game world without the room attack messages
+     */
+    private static final IGameWorldController NO_MESSAGES = (IGameWorldController) Proxy.newProxyInstance(
+            IGameWorldController.class.getClassLoader(), new Class<?>[]{IGameWorldController.class}, (proxy, method, args) -> null);
 
     @Test
     void impClaimsDirtPathInFiveTicks() {
@@ -146,7 +153,7 @@ class ClaimTileTaskTest {
             default ->
                 throw new UnsupportedOperationException(method.getName());
         });
-        ClaimRoomTask task = new ClaimRoomTask(null, mapController, new Point(1, 1), PLAYER);
+        ClaimRoomTask task = new ClaimRoomTask(null, mapController, NO_MESSAGES, new Point(1, 1), PLAYER);
         List<GameEventType> events = new ArrayList<>();
         ICreatureController imp = creature(CreatureSleepFixtures.claimer(Creature.AnimationType.EATING, 11, 20), events);
         task.assign(imp, false);
@@ -195,7 +202,7 @@ class ClaimTileTaskTest {
             default ->
                 throw new UnsupportedOperationException(method.getName());
         });
-        ClaimRoomTask task = new ClaimRoomTask(null, mapController, new Point(1, 1), PLAYER);
+        ClaimRoomTask task = new ClaimRoomTask(null, mapController, NO_MESSAGES, new Point(1, 1), PLAYER);
         List<GameEventType> events = new ArrayList<>();
         ICreatureController imp = creature(CreatureSleepFixtures.claimer(Creature.AnimationType.EATING, 11, 20), events);
         task.assign(imp, false);

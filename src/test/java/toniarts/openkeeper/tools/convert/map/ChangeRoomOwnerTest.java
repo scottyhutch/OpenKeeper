@@ -96,16 +96,24 @@ class ChangeRoomOwnerTest {
                 controller.changeRoomOwner(new Point(-1, 0), Player.KEEPER1_ID);
                 assertTrue(sent.isEmpty());
                 controller.changeRoomOwner(new Point(1, 1), Player.KEEPER1_ID);
-                assertEquals(1, sent.size(), "One announcement per room, not per tile");
-                assertArrayEquals(new Object[]{GameEventType.ROOM_CAPTURED, GameEvent.ThingFlag.ROOM, 42, Player.KEEPER1_ID}, sent.getFirst());
+                // A neutral room is claimed, an enemy room taken over and lost by its owner (DKII.EXE 0x4E5650)
+                if (previousOwner == Player.NEUTRAL_PLAYER_ID) {
+                    assertEquals(1, sent.size(), "One announcement per room, not per tile");
+                    assertArrayEquals(new Object[]{GameEventType.ROOM_CAPTURED, GameEvent.ThingFlag.ROOM, 42, Player.KEEPER1_ID}, sent.getFirst());
+                } else {
+                    assertEquals(2, sent.size(), "One announcement per room and keeper, not per tile");
+                    assertArrayEquals(new Object[]{GameEventType.ROOM_TAKEN_OVER, GameEvent.ThingFlag.ROOM, 42, Player.KEEPER1_ID}, sent.getFirst());
+                    assertArrayEquals(new Object[]{GameEventType.ROOM_LOST, GameEvent.ThingFlag.ROOM, 42, Player.KEEPER2_ID}, sent.get(1));
+                }
+                int announced = sent.size();
                 for (Point point : instance.getCoordinates()) {
                     assertEquals(Player.KEEPER1_ID, controller.getMapData().getTile(point).getOwnerId());
                     assertEquals(100, controller.getMapData().getTile(point).getHealth());
                 }
                 controller.changeRoomOwner(new Point(2, 2), Player.KEEPER1_ID);
-                assertEquals(1, sent.size(), "Repeating the action must not replay capture");
+                assertEquals(announced, sent.size(), "Repeating the action must not replay capture");
                 controller.changeRoomOwner(new Point(0, 0), Player.NEUTRAL_PLAYER_ID);
-                assertEquals(1, sent.size(), "Neutral ownership must not produce keeper speech");
+                assertEquals(announced, sent.size(), "Neutral ownership must not produce keeper speech");
                 for (Point point : instance.getCoordinates()) {
                     assertEquals(Player.NEUTRAL_PLAYER_ID, controller.getMapData().getTile(point).getOwnerId());
                 }

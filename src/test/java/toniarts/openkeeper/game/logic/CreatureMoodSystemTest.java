@@ -33,11 +33,13 @@ import toniarts.openkeeper.game.component.CreatureSleep;
 import toniarts.openkeeper.game.component.KeeperAiMood;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.controller.IPlayerController;
+import toniarts.openkeeper.game.controller.RoomAttackMessages;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
 import toniarts.openkeeper.game.data.Keeper;
 import toniarts.openkeeper.game.event.CreatureUpset;
 import toniarts.openkeeper.game.event.ServerEvents;
+import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.tools.convert.map.Creature;
 import toniarts.openkeeper.tools.convert.map.CreatureMoodFixtures;
 import toniarts.openkeeper.tools.convert.map.CreatureSleepFixtures;
@@ -60,7 +62,8 @@ public class CreatureMoodSystemTest {
     private static final short CREATURE_ID = 7;
 
     private final EntityData entityData = new DefaultEntityData();
-    private final Creature creatureType = CreatureMoodFixtures.creature(CREATURE_ID, "Knight", (short) 6, (short) 100, (short) 50);
+    private final Creature creatureType = CreatureMoodFixtures.creature(CREATURE_ID, "Knight", (short) 6, (short) 100, (short) 50, 711, 981);
+    private final List<Integer> speeches = new ArrayList<>();
 
     @Test
     public void keeperCreatureWithoutLairGetsAngry() {
@@ -69,6 +72,23 @@ public class CreatureMoodSystemTest {
         tick();
 
         assertTrue(entityData.getComponent(creature, CreatureMood.class).noLair > 0);
+    }
+
+    /**
+     * DKII.EXE 0x478B80: the keeper is told as the anger turns the creature
+     * unhappy, with the creature type's first unhappy speech + 1 for no lair
+     */
+    @Test
+    public void keeperIsToldWhenTheCreatureTurnsUnhappyWithoutLair() {
+        EntityId creature = creature(KEEPER_ID);
+        entityData.setComponent(creature, new CreatureMood().add(CreatureMood.REASON_NO_LAIR, 16383 - 2 * 25));
+
+        tick();
+        assertEquals(List.of(), speeches);
+
+        tick();
+        tick();
+        assertEquals(List.of(712), speeches);
     }
 
     @Test
@@ -189,7 +209,14 @@ public class CreatureMoodSystemTest {
         return new CreatureMoodSystem(entityData, kwdFile, controllers, () -> 0.0,
                 Map.of(Variable.MiscVariable.MiscType.MODIFY_ANGER_OF_CREATURE_IN_LAIR_PER_SECOND,
                         CreatureSleepFixtures.variable(
-                                Variable.MiscVariable.MiscType.MODIFY_ANGER_OF_CREATURE_IN_LAIR_PER_SECOND, -550)));
+                                Variable.MiscVariable.MiscType.MODIFY_ANGER_OF_CREATURE_IN_LAIR_PER_SECOND, -550)),
+                new RoomAttackMessages(entityData, (PlayerService) Proxy.newProxyInstance(PlayerService.class.getClassLoader(),
+                        new Class<?>[]{PlayerService.class}, (proxy, method, args) -> {
+                    if (method.getName().equals("showMentorMessage")) {
+                        speeches.add((Integer) args[0]);
+                    }
+                    return null;
+                }), () -> 0.0, 4));
     }
 
     @Test

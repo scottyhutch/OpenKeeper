@@ -21,6 +21,7 @@ import com.simsilica.event.EventBus;
 import com.simsilica.event.EventListener;
 import java.lang.reflect.Proxy;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.AfterEach;
@@ -109,7 +110,7 @@ class RoomWantedTest {
     }
 
     private static TaskManager createTaskManager(List<IRoomController> rooms) {
-        return new TaskManager(new DefaultEntityData(), stub(IGameWorldController.class, Map.of()),
+        return new TaskManager(new DefaultEntityData(), stub(IGameWorldController.class, Collections.singletonMap("getRoomAttackMessages", null)),
                 stub(IMapController.class, Map.of("getMapData", stub(IMapDataInformation.class, Map.of("getWidth", 0, "getHeight", 0)),
                         "getRoomsByFunction", rooms)),
                 stub(IObjectsController.class, Map.of()), stub(ICreaturesController.class, Map.of()), stub(INavigationService.class, Map.of()),

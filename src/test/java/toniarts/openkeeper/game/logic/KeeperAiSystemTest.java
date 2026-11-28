@@ -63,6 +63,7 @@ import toniarts.openkeeper.game.component.KeeperAiDropped;
 import toniarts.openkeeper.game.component.KeeperAiEnemy;
 import toniarts.openkeeper.game.component.KeeperAiMood;
 import toniarts.openkeeper.game.component.KeeperAiNoPrisoner;
+import toniarts.openkeeper.game.component.KeeperComponent;
 import toniarts.openkeeper.game.component.ObjectComponent;
 import toniarts.openkeeper.game.component.Owner;
 import toniarts.openkeeper.game.component.Position;
@@ -80,6 +81,7 @@ import toniarts.openkeeper.game.controller.IPlayerController;
 import toniarts.openkeeper.game.controller.creature.CreatureState;
 import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.player.PlayerCreatureControl;
+import toniarts.openkeeper.game.controller.player.PlayerGoldControl;
 import toniarts.openkeeper.game.controller.player.PlayerDoorControl;
 import toniarts.openkeeper.game.controller.player.PlayerHandControl;
 import toniarts.openkeeper.game.controller.player.PlayerManaControl;
@@ -255,6 +257,7 @@ class KeeperAiSystemTest {
     private final EntityData entityData = new DefaultEntityData();
     private final IMapController mapController = createMapController();
     private Keeper keeper;
+    private PlayerGoldControl goldControl;
     private PlayerRoomControl roomControl;
     private PlayerCreatureControl creatureControl;
     private double gameTime;
@@ -541,7 +544,7 @@ class KeeperAiSystemTest {
         createNeutralPortal(new Point(9, 7));
         map[7][7] = 'W';
         chargeGoldForBuild = true;
-        keeper.setGold(ROOM_COST - 1);
+        setGold(ROOM_COST - 1);
 
         for (int tick = 0; tick < 20; tick++) {
             system.processTick(0.25f);
@@ -557,7 +560,7 @@ class KeeperAiSystemTest {
         assertEquals(new Point(7, 7), getKeeperAi().current);
         assertEquals(0, getKeeperAi().failedTargetTicks[0]);
 
-        keeper.setGold(ROOM_COST);
+        setGold(ROOM_COST);
         for (int tick = 0; tick < 5 && built.isEmpty(); tick++) {
             system.processTick(0.25f);
         }
@@ -573,13 +576,13 @@ class KeeperAiSystemTest {
         createNeutralPortal(new Point(9, 7));
         map[7][7] = 'W';
         chargeGoldForBuild = true;
-        keeper.setGold(ROOM_COST);
+        setGold(ROOM_COST);
 
         digPath(system);
 
         assertEquals(List.of(new Point(7, 7)), built);
         assertEquals(List.of(WOODEN_BRIDGE), builtRoomIds);
-        assertEquals(0, keeper.getGold());
+        assertEquals(0, goldControl.getGold());
         assertEquals(KeeperAi.Task.FINISH, getKeeperAi().task);
     }
 
@@ -1618,7 +1621,7 @@ class KeeperAiSystemTest {
 
         system.processTick(0.25f);
 
-        assertEquals(850, keeper.getGold());
+        assertEquals(850, goldControl.getGold());
         assertEquals(1, droppedOn.size());
         EntityId gold = droppedOn.keySet().iterator().next();
         assertEquals(150, entityData.getComponent(gold, Gold.class).gold);
@@ -1627,7 +1630,7 @@ class KeeperAiSystemTest {
 
         // DK II's computer player hears of it once, when the mood turns
         system.processTick(0.25f);
-        assertEquals(850, keeper.getGold());
+        assertEquals(850, goldControl.getGold());
 
         // Happy and then unhappy again is news again
         entityData.setComponent(creature, new CreatureMood());
@@ -1636,7 +1639,7 @@ class KeeperAiSystemTest {
         entityData.setComponent(creature, new CreatureMood().add(CreatureMood.REASON_GENERAL, 1000));
         tellMood(creature, 1);
         system.processTick(0.25f);
-        assertEquals(700, keeper.getGold());
+        assertEquals(700, goldControl.getGold());
     }
 
     @Test
@@ -2591,7 +2594,7 @@ class KeeperAiSystemTest {
 
         assertFalse(built.isEmpty());
         int buildsBeforeGoldWasSpent = built.size();
-        keeper.setGold(0);
+        setGold(0);
 
         for (int tick = 0; tick < 20; tick++) {
             system.processTick(0.25f);
@@ -2607,7 +2610,7 @@ class KeeperAiSystemTest {
         assertTrue(rejectedBuildAttempts > 1);
         assertEquals(1, new HashSet<>(buildAttempts.subList(buildsBeforeGoldWasSpent, buildAttempts.size())).size());
 
-        keeper.setGold(1000);
+        setGold(1000);
         for (int tick = 0; tick < 100 && getKeeperAi().task == KeeperAi.Task.BUILD_ROOM; tick++) {
             system.processTick(0.25f);
         }
@@ -2890,6 +2893,18 @@ class KeeperAiSystemTest {
         return entityData.getComponent(entityData.findEntity(null, KeeperAi.class), KeeperAi.class);
     }
 
+    /**
+     * Sets the keeper's gold, which is kept on the keeper's entity
+     */
+    private void setGold(int gold) {
+        int now = goldControl.getGold();
+        if (gold > now) {
+            goldControl.addGold(gold - now);
+        } else if (gold < now) {
+            goldControl.subGold(now - gold);
+        }
+    }
+
     private KeeperAiSystem createSystem(AI ai, int gold) {
         return createSystem(ai, gold, ENEMY_ID);
     }
@@ -2905,7 +2920,8 @@ class KeeperAiSystemTest {
                 MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, variable(MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL, 4),
                 MiscType.CREATURES_SUPPORTED_BY_FIRST_PORTAL, variable(MiscType.CREATURES_SUPPORTED_BY_FIRST_PORTAL, 2),
                 MiscType.CREATURES_SUPPORTED_PER_ADDITIONAL_PORTAL, variable(MiscType.CREATURES_SUPPORTED_PER_ADDITIONAL_PORTAL, 1),
-                MiscType.MAXIMUM_MANA_THRESHOLD, variable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000));
+                MiscType.MAXIMUM_MANA_THRESHOLD, variable(MiscType.MAXIMUM_MANA_THRESHOLD, 200000),
+                MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, variable(MiscType.MAXIMUM_MANA_GAIN_PER_SECOND, 1000));
         PlayerManaControl manaControl = new PlayerManaControl(keeper, variables);
         handControl = new PlayerHandControl(keeper, 8, entityData);
         trapControl = new PlayerTrapControl(keeper, List.of(sentry));
@@ -2929,7 +2945,9 @@ class KeeperAiSystemTest {
                     callToArmsCancels++;
                     return null;
                 });
-        keeper.setGold(gold);
+        // The keeper's gold is kept on the keeper's entity
+        entityData.setComponents(entityData.createEntity(), new KeeperComponent(PLAYER_ID), new Gold(gold, Integer.MAX_VALUE));
+        goldControl = new PlayerGoldControl(keeper, entityData);
         keeper.setMana(1000);
         roomControl = new PlayerRoomControl(keeper, new ArrayList<>(rooms.values()));
         roomControl.onBuild(createRoom(DUNGEON_HEART, HEART));
@@ -2937,6 +2955,7 @@ class KeeperAiSystemTest {
         IPlayerController playerController = (IPlayerController) Proxy.newProxyInstance(getClass().getClassLoader(),
                 new Class<?>[]{IPlayerController.class}, (proxy, method, args) -> switch (method.getName()) {
             case "getKeeper" -> keeper;
+            case "getGoldControl" -> goldControl;
             case "getRoomControl" -> roomControl;
             case "getCreatureControl" -> creatureControl;
             case "getManaControl" -> manaControl;
@@ -3016,13 +3035,13 @@ class KeeperAiSystemTest {
                         case "getGold" -> {
                             EntityId pay = createObject((short) 1, new Point(0, 0));
                             entityData.setComponent(pay, new Gold((int) args[0], (int) args[0]));
-                            keeper.setGold(keeper.getGold() - (int) args[0]);
+                            goldControl.subGold((int) args[0]);
                             handControl.push(pay, 0.0);
                         }
                         case "placeTrap", "placeDoor" -> {
                             Point tile = (Point) args[1];
                             placed.put(tile, method.getName());
-                            keeper.setGold(keeper.getGold() - 100);
+                            goldControl.subGold(100);
                             entityData.setComponents(entityData.createEntity(), "placeTrap".equals(method.getName())
                                     ? new TrapComponent((short) args[0]) : new DoorComponent((short) args[0], false, true),
                                     new Owner(PLAYER_ID, PLAYER_ID), new Position(0, WorldUtils.pointToVector3f(tile.x, tile.y)));
@@ -3046,14 +3065,14 @@ class KeeperAiSystemTest {
                             short roomId = (short) args[3];
                             buildAttempts.add(p);
                             Room room = rooms.getOrDefault(roomId, bridges.get(roomId));
-                            if (roomId == rejectedRoomBuildId || chargeGoldForBuild && keeper.getGold() < room.getCost()) {
+                            if (roomId == rejectedRoomBuildId || chargeGoldForBuild && goldControl.getGold() < room.getCost()) {
                                 rejectedBuildAttempts++;
                                 return null;
                             }
                             built.add(p);
                             builtRoomIds.add(roomId);
                             if (chargeGoldForBuild) {
-                                keeper.setGold(keeper.getGold() - room.getCost());
+                                goldControl.subGold(room.getCost());
                             }
                             map[p.y][p.x] = 'H';
                         }
