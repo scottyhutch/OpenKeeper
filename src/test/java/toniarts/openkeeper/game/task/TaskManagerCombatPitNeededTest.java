@@ -18,9 +18,12 @@ package toniarts.openkeeper.game.task;
 
 import com.simsilica.es.EntityData;
 import com.simsilica.es.base.DefaultEntityData;
+import com.simsilica.event.EventBus;
+import com.simsilica.event.EventListener;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import toniarts.openkeeper.game.controller.IGameWorldController;
 import toniarts.openkeeper.game.controller.ILevelInfo;
@@ -31,6 +34,8 @@ import toniarts.openkeeper.game.controller.creature.ICreatureController;
 import toniarts.openkeeper.game.controller.player.PlayerRoomControl;
 import toniarts.openkeeper.game.controller.room.IRoomController;
 import toniarts.openkeeper.game.data.Keeper;
+import toniarts.openkeeper.game.event.RoomWanted;
+import toniarts.openkeeper.game.event.ServerEvents;
 import toniarts.openkeeper.game.map.IMapDataInformation;
 import toniarts.openkeeper.game.state.session.PlayerService;
 import toniarts.openkeeper.game.task.hero.RoomTileWorld;
@@ -60,6 +65,9 @@ class TaskManagerCombatPitNeededTest {
     private final List<Integer> speeches = new ArrayList<>();
     private final List<IRoomController> rooms = new ArrayList<>();
     private final Room combatPit = DestroyRoomsFixtures.destroyRoomsRoom("Combat Pit", (short) 25, Room.RoomFlag.BUILDABLE);
+    private final Room trainingRoom = DestroyRoomsFixtures.destroyRoomsRoom("Training Room", (short) 25, Room.RoomFlag.BUILDABLE);
+    private final List<RoomWanted> asked = new ArrayList<>();
+    private final EventListener<RoomWanted> listener = (type, event) -> asked.add(event);
     private final Keeper keeper = new Keeper(false, Player.KEEPER1_ID);
     private final PlayerRoomControl roomControl;
     private int level = TRAINING_ROOM_MAX_LEVEL;
@@ -76,8 +84,15 @@ class TaskManagerCombatPitNeededTest {
 
     TaskManagerCombatPitNeededTest() {
         DestroyRoomsFixtures.setRoomId(combatPit, (short) 16);
-        roomControl = new PlayerRoomControl(keeper, List.of(combatPit));
+        DestroyRoomsFixtures.setRoomId(trainingRoom, (short) 7);
+        roomControl = new PlayerRoomControl(keeper, List.of(combatPit, trainingRoom));
         roomControl.setTypeAvailable(combatPit, true, true);
+        EventBus.addListener(ServerEvents.ROOM_WANTED, listener);
+    }
+
+    @AfterEach
+    void stopListening() {
+        EventBus.removeListener(ServerEvents.ROOM_WANTED, listener);
     }
 
     @Test
@@ -85,6 +100,17 @@ class TaskManagerCombatPitNeededTest {
         assertFalse(createTaskManager().isTaskAvailable(creature, Creature.JobType.TRAIN));
 
         assertEquals(List.of(1510), speeches);
+    }
+
+    @Test
+    void aCreaturePastTheTrainingRoomDoesNotAskForATrainingRoom() {
+        roomControl.setTypeAvailable(trainingRoom, true, true);
+
+        // DK II's training check (0x485240) doesn't look for a Training Room for it, only for a Combat Pit
+        assertFalse(createTaskManager().assignTask(creature, Creature.JobType.TRAIN));
+
+        assertEquals(List.of(1510), speeches);
+        assertEquals(List.of(new RoomWanted(Player.KEEPER1_ID, null, (short) 16)), asked);
     }
 
     @Test

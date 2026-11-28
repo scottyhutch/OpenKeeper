@@ -934,6 +934,10 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
         }
     }
 
+    private boolean isBelowTrainingRoomTopLevel(ICreatureController creature) {
+        return creature.getLevel() < gameSettings.get(Variable.MiscVariable.MiscType.TRAINING_ROOM_MAX_EXPERIENCE_LEVEL).getValue();
+    }
+
     /**
      * A creature that would train in a Training Room with room for it, while
      * its keeper has less gold than a second of training costs, tells its
@@ -1383,7 +1387,7 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
     public boolean assignTask(ICreatureController creature, Creature.JobType jobType) {
         boolean assigned = assignTask(creature, jobType, true);
         if (!assigned) {
-            tellJobRoomMissing(creature.getOwnerId(), jobType);
+            tellJobRoomMissing(creature, jobType);
         }
         return assigned;
     }
@@ -1395,16 +1399,18 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
      * build one, that the room is needed (message 0x29), and with every room
      * of the type full, that it is too small (message 0x2A). DK II's two other
      * reasons, a room that can't be reached (0x2B) and one that doesn't work
-     * yet (0x2C), are not told
+     * yet (0x2C), are not told. A creature at the Training Room's top level
+     * doesn't look for one (0x485240), so it tells nothing about it
      *
-     * @param playerId the keeper
+     * @param creature the creature
      * @param jobType the job the creature wanted
      */
-    private void tellJobRoomMissing(short playerId, Creature.JobType jobType) {
+    private void tellJobRoomMissing(ICreatureController creature, Creature.JobType jobType) {
         RoomAttackMessages messages = gameWorldController.getRoomAttackMessages();
+        short playerId = creature.getOwnerId();
         ObjectType objectType = switch (jobType) {
             case RESEARCH -> ObjectType.RESEARCHER;
-            case TRAIN -> ObjectType.TRAINEE;
+            case TRAIN -> isBelowTrainingRoomTopLevel(creature) ? ObjectType.TRAINEE : null;
             case TORTURE -> ObjectType.TORTUREE;
             case PRAY -> ObjectType.WORSHIPPER;
             case DRINK -> ObjectType.GAMBLER;
@@ -1437,7 +1443,10 @@ public final class TaskManager implements ITaskManager, IGameLogicUpdatable {
                 return assignClosestRoomTask(creature, ObjectType.RESEARCHER, null, assign);
             }
             case TRAIN: {
-                if (assignClosestRoomTask(creature, ObjectType.TRAINEE, null, assign)) {
+
+                // DK II's training check (0x485240) looks for a Training Room only for a creature below the room's
+                // top level, so one past it neither goes there nor asks for one. It looks for a Combat Pit instead
+                if (isBelowTrainingRoomTopLevel(creature) && assignClosestRoomTask(creature, ObjectType.TRAINEE, null, assign)) {
                     return true;
                 }
                 tellCombatPitNeeded(creature);
