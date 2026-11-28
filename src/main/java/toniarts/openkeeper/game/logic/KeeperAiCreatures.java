@@ -33,6 +33,7 @@ import toniarts.openkeeper.game.component.CreatureExperience;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.CreatureTortured;
+import toniarts.openkeeper.game.component.DroppedJob;
 import toniarts.openkeeper.game.component.Health;
 import toniarts.openkeeper.game.component.KeeperAi;
 import toniarts.openkeeper.game.component.KeeperAiMood;
@@ -158,8 +159,9 @@ final class KeeperAiCreatures {
      * creature near its next level, or past what the Training Room teaches
      * and below the level the computer player wants, goes to the Combat Pit
      * when it is fit. Any other goes to the Training Room. Not into a room
-     * it is building, not one it dropped a short while ago, nor one that
-     * trains, sleeps, eats or fights. Each creature it tries takes an action.
+     * it is building, not one it dropped a short while ago, nor one still
+     * doing the job of the room it was dropped into, nor one that trains,
+     * sleeps, eats or fights. Each creature it tries takes an action.
      *
      * @param keeperAi the computer player
      * @param playerController its player
@@ -464,7 +466,8 @@ final class KeeperAiCreatures {
     /**
      * On one tick in ten it picks up idle creatures to put them to work, as
      * long as its hand has room: a creature that likes a job it has the room
-     * for, and the job is wanted. Research while a spell is still to
+     * for, and the job is wanted, but not one still on the job of the room
+     * it was dropped into. Research while a spell is still to
      * research, training while its army is not ready, manufacture always.
      * The next turns put them down in the room. Each creature picked up
      * takes an action.
@@ -483,7 +486,7 @@ final class KeeperAiCreatures {
 
         for (Entity creature : battles.getCreatures(keeperAi.playerId)) {
             Creature.JobPreference[] jobs = kwdFile.getCreature(creature.get(CreatureComponent.class).creatureId).getHappyJobs();
-            if (!isIdle(creature) || battles.isLeftAlone(creature) || jobs == null) {
+            if (!isIdle(creature) || battles.isLeftAlone(creature) || hasDroppedJob(creature) || jobs == null) {
                 continue;
             }
             for (Creature.JobPreference job : jobs) {
@@ -694,13 +697,23 @@ final class KeeperAiCreatures {
 
     /**
      * A creature the hand may take to put it to work: not resting, not in
-     * a fight or fleeing one, not helpless and not dropped a short while ago
+     * a fight or fleeing one, not helpless, not dropped a short while ago
+     * and not still on the job of the room it was dropped into
      */
     private boolean isFree(Entity creature) {
         CreatureState state = creature.get(CreatureAi.class).getCreatureState();
 
-        return !battles.isLeftAlone(creature) && !battles.isResting(creature) && !KeeperAiBattles.HELPLESS.contains(state)
-                && !KeeperAiBattles.FIGHTING.contains(state);
+        return !battles.isLeftAlone(creature) && !hasDroppedJob(creature) && !battles.isResting(creature)
+                && !KeeperAiBattles.HELPLESS.contains(state) && !KeeperAiBattles.FIGHTING.contains(state);
+    }
+
+    /**
+     * Like DK II's computer player (0x4FF5C0, 0x503690), the hand leaves alone
+     * a creature that still has the job of the room a keeper dropped it into.
+     * It keeps that job through its breaks until it can't do it any more
+     */
+    private boolean hasDroppedJob(Entity creature) {
+        return entityData.getComponent(creature.getId(), DroppedJob.class) != null;
     }
 
     private boolean isTraining(Entity creature) {

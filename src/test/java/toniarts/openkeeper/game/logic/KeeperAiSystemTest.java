@@ -53,6 +53,7 @@ import toniarts.openkeeper.game.component.CreatureFall;
 import toniarts.openkeeper.game.component.CreatureImprisoned;
 import toniarts.openkeeper.game.component.CreatureMood;
 import toniarts.openkeeper.game.component.DoorComponent;
+import toniarts.openkeeper.game.component.DroppedJob;
 import toniarts.openkeeper.game.component.Food;
 import toniarts.openkeeper.game.component.Gold;
 import toniarts.openkeeper.game.component.Health;
@@ -1315,6 +1316,31 @@ class KeeperAiSystemTest {
             system.processTick(0.25f);
         }
         assertEquals(Map.of(fit, new Point(5, 4)), dropped);
+    }
+
+    @Test
+    void leavesACreatureOnTheJobItWasDroppedForToIt() {
+        KeeperAiSystem system = createSystem(withInvasion(ai(0, 0, 9, 1, 50, 0, List.of()), 5, 1, AI.CallToArmsUsagePolicy.AT_HEART, 0), 1000);
+        roomControl.onBuild(createRoom(TRAINING_ROOM, new Point(1, 4)));
+        roomControl.onBuild(createRoom(COMBAT_PIT, new Point(5, 4)));
+        EntityId trainee = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.WORK);
+        entityData.setComponent(trainee, new CreatureExperience(2, 751, 1000, 0, 0));
+        entityData.setComponent(trainee, new DroppedJob(Creature.JobType.TRAIN, false));
+        EntityId onABreak = createCreature(PLAYER_ID, new Point(8, 4), 100, 100, CreatureState.IDLE);
+        entityData.setComponent(onABreak, new DroppedJob(Creature.JobType.TRAIN, false));
+        for (int tick = 0; tick < 60; tick++) {
+            system.processTick(0.25f);
+        }
+
+        // Neither goes to the Combat Pit nor back to the Training Room
+        assertTrue(dropped.isEmpty());
+
+        entityData.removeComponent(trainee, DroppedJob.class);
+        for (int tick = 0; tick < 60 && dropped.isEmpty(); tick++) {
+            system.processTick(0.25f);
+        }
+
+        assertEquals(Map.of(trainee, new Point(5, 4)), dropped);
     }
 
     @Test
