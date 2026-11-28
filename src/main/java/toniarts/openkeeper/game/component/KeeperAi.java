@@ -131,6 +131,13 @@ public final class KeeperAi implements EntityComponent {
     public Point current;
 
     /**
+     * Whether the room was built on the current tile of the site with the
+     * gold for it on the last action. The tile is built on the next tick, so
+     * a tile still free then was refused
+     */
+    public boolean roomTileSent;
+
+    /**
      * Where the path being dug leads
      */
     public Point target;
@@ -269,6 +276,7 @@ public final class KeeperAi implements EntityComponent {
         this.portals = keeperAi.portals;
         this.direction = keeperAi.direction;
         this.current = keeperAi.current;
+        this.roomTileSent = keeperAi.roomTileSent;
         this.target = keeperAi.target;
         this.wallFollowing = keeperAi.wallFollowing;
         this.wallOnLeft = keeperAi.wallOnLeft;

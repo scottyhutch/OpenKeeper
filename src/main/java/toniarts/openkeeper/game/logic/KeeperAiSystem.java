@@ -1696,32 +1696,38 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
         }
         setTask(keeperAi, KeeperAi.Task.BUILD_ROOM, "the site is tagged");
         keeperAi.current = keeperAi.corner;
+        keeperAi.roomTileSent = false;
 
         return actions - 1;
     }
 
     /**
      * Goes through the room site tile by tile. It waits for the imps to dig
-     * out and claim the tile, then places the room on it
+     * out and claim the tile, then places the room on it. As in DK II
+     * (0x4FD2B0) the build ends the action, and the next one sees whether the
+     * tile was built before it moves on. The room is placed on the next tick
+     * anyway, with the rest of its wave
      */
     private int buildRoom(KeeperAi keeperAi, IPlayerController playerController, int ticksPerSecond, int actions) {
         while (actions > 0) {
             actions--;
             if (mapController.isBuildable(keeperAi.current, keeperAi.playerId, keeperAi.roomId)) {
-                Vector2f position = new Vector2f(keeperAi.current.x, keeperAi.current.y);
-                gameWorldController.build(position, position, keeperAi.playerId, keeperAi.roomId);
-                if (!mapController.isBuildable(keeperAi.current, keeperAi.playerId, keeperAi.roomId)) {
-                    log(keeperAi, "build room " + keeperAi.roomId, keeperAi.current, "the tile is dug out and claimed");
-                    return actions;
-                }
 
                 // DK II's gold check is inside the build call (0x4FD2B0, 0x4C5B40): short of gold the tile isn't built and is tried again next tick
-                if (playerController.getKeeper().getGold() < kwdFile.getRoomById(keeperAi.roomId).getCost()) {
+                boolean paid = playerController.getKeeper().getGold() >= kwdFile.getRoomById(keeperAi.roomId).getCost();
+                if (!keeperAi.roomTileSent || !paid) {
+                    Vector2f position = new Vector2f(keeperAi.current.x, keeperAi.current.y);
+                    gameWorldController.build(position, position, keeperAi.playerId, keeperAi.roomId);
+                    if (paid) {
+                        log(keeperAi, "build room " + keeperAi.roomId, keeperAi.current, "the tile is dug out and claimed");
+                    }
+                    keeperAi.roomTileSent = paid;
                     return actions;
                 }
 
                 log(keeperAi, "skip room tile", keeperAi.current, "room placement was rejected");
             }
+            keeperAi.roomTileSent = false;
 
             IMapTileInformation tile = mapController.getMapData().getTile(keeperAi.current);
             if (mapController.isSolid(keeperAi.current) || tile.getOwnerId() != keeperAi.playerId) {

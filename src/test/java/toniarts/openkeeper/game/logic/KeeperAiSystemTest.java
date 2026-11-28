@@ -220,6 +220,8 @@ class KeeperAiSystemTest {
     private short rejectedRoomBuildId;
     private int rejectedBuildAttempts;
     private boolean chargeGoldForBuild;
+    private boolean queueBuilds;
+    private final List<Runnable> queuedBuilds = new ArrayList<>();
 
     /**
      * Kept out of the level's room list, which sets the lobby build order
@@ -2506,6 +2508,37 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void buildsARoomTileEveryOtherTickWhenTheGameBuildsItATickLater() {
+        KeeperAiSystem system = createSystem(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 1000);
+        roomControl.setTypeAvailable(rooms.get(TREASURY), true, true);
+        queueBuilds = true;
+
+        List<Integer> buildTicks = new ArrayList<>();
+        for (int tick = 0; tick < 200 && built.size() < 9; tick++) {
+            queuedBuilds.forEach(Runnable::run);
+            queuedBuilds.clear();
+            int attempts = buildAttempts.size();
+            system.processTick(0.25f);
+            if (buildAttempts.size() > attempts) {
+                buildTicks.add(tick);
+            }
+            for (Point p : tagged) {
+                map[p.y][p.x] = '.';
+            }
+            tagged.clear();
+        }
+
+        // Each tile is built once and none is taken for refused. With the whole site dug out and claimed it builds
+        // on one tile and moves on with the next action, two ticks a tile at one action a tick (0x4FD2B0)
+        assertEquals(9, built.size());
+        assertEquals(9, buildAttempts.size());
+        assertEquals(0, rejectedBuildAttempts);
+        for (int i = 1; i < buildTicks.size(); i++) {
+            assertEquals(2, buildTicks.get(i) - buildTicks.get(i - 1));
+        }
+    }
+
+    @Test
     void triesOneDirectionATickForARoomSite() {
         KeeperAiSystem system = createSystem(ai(0, 0, 100, 2, 50, 0, List.of(TREASURY)), 1000);
         roomControl.setTypeAvailable(rooms.get(TREASURY), true, true);
@@ -2878,16 +2911,25 @@ class KeeperAiSystemTest {
                             short roomId = (short) args[3];
                             buildAttempts.add(p);
                             Room room = rooms.getOrDefault(roomId, bridges.get(roomId));
-                            if (roomId == rejectedRoomBuildId || chargeGoldForBuild && keeper.getGold() < room.getCost()) {
-                                rejectedBuildAttempts++;
-                                return null;
+                            Runnable place = () -> {
+                                if (roomId == rejectedRoomBuildId || chargeGoldForBuild && keeper.getGold() < room.getCost()) {
+                                    rejectedBuildAttempts++;
+                                } else {
+                                    built.add(p);
+                                    builtRoomIds.add(roomId);
+                                    if (chargeGoldForBuild) {
+                                        keeper.setGold(keeper.getGold() - room.getCost());
+                                    }
+                                    map[p.y][p.x] = 'H';
+                                }
+                            };
+
+                            // The game builds a room a tick later, in DK II's diagonal waves (#903)
+                            if (queueBuilds) {
+                                queuedBuilds.add(place);
+                            } else {
+                                place.run();
                             }
-                            built.add(p);
-                            builtRoomIds.add(roomId);
-                            if (chargeGoldForBuild) {
-                                keeper.setGold(keeper.getGold() - room.getCost());
-                            }
-                            map[p.y][p.x] = 'H';
                         }
                         default -> throw new UnsupportedOperationException(method.getName());
                     }
