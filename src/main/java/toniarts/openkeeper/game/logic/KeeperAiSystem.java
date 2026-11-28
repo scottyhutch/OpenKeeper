@@ -425,8 +425,7 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
 
         // In a fight it sees to the fight, otherwise to its imps
         if (battles.isFighting(keeperAi.playerId)) {
-            if (actions > 0 && (battles.callToArms(keeperAi, playerController, ai, ticksPerSecond)
-                    || battles.castBattleSpell(keeperAi, playerController, ai))) {
+            if (actions > 0 && battles.seeToFight(keeperAi, playerController, ai, ticksPerSecond)) {
                 actions--;
             }
         } else if (actions > 0 && createImp(keeperAi, playerController, ai)) {

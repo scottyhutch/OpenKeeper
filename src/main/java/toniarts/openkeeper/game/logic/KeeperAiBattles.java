@@ -246,11 +246,13 @@ final class KeeperAiBattles {
 
     /**
      * @param playerId the player
-     * @return true if one of the player's creatures is in a fight
+     * @return true if one of the player's creatures is in a fight, fleeing
+     * from one included, with an enemy to fight or not (DK II's state class
+     * 0x16, 0x503060)
      */
     boolean isFighting(short playerId) {
         for (Entity creature : getCreatures(playerId)) {
-            if (isFighting(creature)) {
+            if (FIGHTING.contains(creature.get(CreatureAi.class).getCreatureState())) {
                 return true;
             }
         }
@@ -259,57 +261,29 @@ final class KeeperAiBattles {
     }
 
     /**
-     * Casts Call to Arms on the first fighting creature that has more enemy
-     * threat around it than the computer player takes on without the flag.
-     * Not while a flag is up, nor for a while after one was lifted, nor on
-     * lava. It needs more mana than the spell costs, and like DK II
-     * (0x503060) a walking route from the tile 2 east of the Dungeon Heart's
-     * centre to the fighter.
+     * Sees to its creatures in a fight the way DK II does (0x503060): one by
+     * one it tries Call to Arms on the creature, then rolls by its settings
+     * for spells in battle. When the roll says so it looks for a spell for
+     * that creature's fight, and whether one goes or not, that ends the
+     * look. So a computer player that always uses spells in battle only ever
+     * looks at its first creature in a fight.
      *
      * @param keeperAi the computer player
      * @param playerController its player
      * @param ai its settings
      * @param ticksPerSecond the game ticks in a second
-     * @return true if the spell was cast
+     * @return true if a spell was cast
      */
-    boolean callToArms(KeeperAi keeperAi, IPlayerController playerController, AI ai, int ticksPerSecond) {
-        KeeperSpell callToArms = kwdFile.getKeeperSpellById(SPELL_CALL_TO_ARMS);
-        if (keeperAi.callToArms || keeperAi.cannotAttackTicks > 0 || callToArms == null) {
-            return false;
-        }
-
-        for (Entity creature : getCreatures(keeperAi.playerId)) {
-            AttackTarget attackTarget = entityData.getComponent(creature.getId(), AttackTarget.class);
-            Owner opponent = attackTarget != null ? entityData.getComponent(attackTarget.entityId, Owner.class) : null;
-            if (!isFighting(creature) || opponent == null) {
+    boolean seeToFight(KeeperAi keeperAi, IPlayerController playerController, AI ai, int ticksPerSecond) {
+        for (Entity fighter : getCreatures(keeperAi.playerId)) {
+            if (!FIGHTING.contains(fighter.get(CreatureAi.class).getCreatureState())) {
                 continue;
             }
-
-            Vector3f position = creature.get(Position.class).position;
-            Point tile = WorldUtils.vectorToPoint(position);
-            int threat = getThreat(opponent.ownerId, position, CALL_TO_ARMS_THREAT_TILES);
-            if (threat <= ai.getPlaceCallToArmsWhereThreatValueIsGreaterThan()
-                    || mapController.getTerrain(mapController.getMapData().getTile(tile)).getFlags().contains(Terrain.TerrainFlag.LAVA)) {
-                continue;
+            if (callToArms(keeperAi, playerController, ai, ticksPerSecond, fighter)) {
+                return true;
             }
-
-            int mana = playerController.getKeeper().getMana();
-            if (mana > callToArms.getManaCost()
-                    && Math.round(gameTimer.getGameTime() * ticksPerSecond) % (CALL_TO_ARMS_EVERY_SECONDS * ticksPerSecond) == 0
-                    && playerController.getSpellControl().isAvailable(callToArms)
-                    && navigationService.findPath(getHeartDropTile(playerController.getKeeper()), tile, KeeperAiSystem.getWalker(keeperAi.playerId)) != null) {
-                gameWorldController.castKeeperSpell(SPELL_CALL_TO_ARMS, null, tile, new Vector2f(position.x, position.z), keeperAi.playerId);
-
-                // The cast has its own rules, the mana tells if it went through
-                if (playerController.getKeeper().getMana() < mana) {
-                    decisionLog.log(keeperAi, "cast Call to Arms", tile, "creature " + creature.getId().getId() + " fights against a threat of "
-                            + threat + ", more than " + ai.getPlaceCallToArmsWhereThreatValueIsGreaterThan());
-                    keeperAi.callToArms = true;
-                    keeperAi.callToArmsTile = tile;
-                    keeperAi.callToArmsTicks = ai.getRemoveCallToArmsAfterSeconds();
-
-                    return true;
-                }
+            if (ai.getUseSpellsInBattle() <= Utils.getRandom().nextInt(BATTLE_SPELL_ROLL)) {
+                return castBattleSpell(keeperAi, playerController, ai, fighter);
             }
         }
 
@@ -317,61 +291,94 @@ final class KeeperAiBattles {
     }
 
     /**
-     * Casts a spell for the first of its creatures in a fight that it
-     * means to help, DK II rolls for each. A defensive spell goes on one of
-     * its creatures within 5 tiles of the fighter that is down to less
-     * than half its health and not knocked out, an attacking spell on a
-     * creature of the opponent's keeper within 5 tiles, knocked out or not.
-     * The settings say how often it casts, how often it defends rather than
-     * attacks, and how dear a spell it takes.
-     *
-     * @param keeperAi the computer player
-     * @param playerController its player
-     * @param ai its settings
-     * @return true if a spell was cast
+     * Casts Call to Arms on a fighting creature that has more enemy threat
+     * around it than the computer player takes on without the flag. Not
+     * while a flag is up, nor for a while after one was lifted, nor on lava.
+     * It needs more mana than the spell costs, and like DK II (0x503060) a
+     * walking route from the tile 2 east of the Dungeon Heart's centre to the
+     * fighter.
      */
-    boolean castBattleSpell(KeeperAi keeperAi, IPlayerController playerController, AI ai) {
-        for (Entity fighter : getCreatures(keeperAi.playerId)) {
-            if (!isFighting(fighter) || ai.getUseSpellsInBattle() > Utils.getRandom().nextInt(BATTLE_SPELL_ROLL)) {
-                continue;
-            }
+    private boolean callToArms(KeeperAi keeperAi, IPlayerController playerController, AI ai, int ticksPerSecond, Entity fighter) {
+        KeeperSpell callToArms = kwdFile.getKeeperSpellById(SPELL_CALL_TO_ARMS);
+        AttackTarget attackTarget = entityData.getComponent(fighter.getId(), AttackTarget.class);
+        Owner opponent = attackTarget != null ? entityData.getComponent(attackTarget.entityId, Owner.class) : null;
+        if (keeperAi.callToArms || keeperAi.cannotAttackTicks > 0 || callToArms == null || opponent == null) {
+            return false;
+        }
 
-            boolean defensive = Utils.getRandom().nextInt(BATTLE_SPELL_ROLL) < ai.getSpellStyle();
-            KeeperSpell spell = getBattleSpell(playerController, ai, defensive);
-            Owner opponent = entityData.getComponent(entityData.getComponent(fighter.getId(), AttackTarget.class).entityId, Owner.class);
-            if (spell == null || (!defensive && opponent == null)) {
-                return false;
-            }
+        Vector3f position = fighter.get(Position.class).position;
+        Point tile = WorldUtils.vectorToPoint(position);
+        int threat = getThreat(opponent.ownerId, position, CALL_TO_ARMS_THREAT_TILES);
+        if (threat <= ai.getPlaceCallToArmsWhereThreatValueIsGreaterThan()
+                || mapController.getTerrain(mapController.getMapData().getTile(tile)).getFlags().contains(Terrain.TerrainFlag.LAVA)) {
+            return false;
+        }
 
-            // Any of them can be the one, the later ones more likely
-            Entity target = null;
-            for (Entity creature : getCreatures(defensive ? keeperAi.playerId : opponent.ownerId)) {
-                Health health = creature.get(Health.class);
-                if (isWithin(creature.get(Position.class).position, fighter.get(Position.class).position, ATTACK_DROP_TILES)
-                        && (!defensive || health.health < health.maxHealth / 2 && entityData.getComponent(creature.getId(), Unconscious.class) == null)) {
-                    target = creature;
-                    if (Utils.getRandom().nextInt(100) > BATTLE_SPELL_TARGET_ROLL) {
-                        break;
-                    }
-                }
-            }
-            if (target == null) {
-                return false;
-            }
-
-            Vector3f position = target.get(Position.class).position;
-            Point tile = WorldUtils.vectorToPoint(position);
-            int mana = playerController.getKeeper().getMana();
-            gameWorldController.castKeeperSpell(spell.getKeeperSpellId(), target.getId(), tile, new Vector2f(position.x, position.z), keeperAi.playerId);
+        int mana = playerController.getKeeper().getMana();
+        if (mana > callToArms.getManaCost()
+                && Math.round(gameTimer.getGameTime() * ticksPerSecond) % (CALL_TO_ARMS_EVERY_SECONDS * ticksPerSecond) == 0
+                && playerController.getSpellControl().isAvailable(callToArms)
+                && navigationService.findPath(getHeartDropTile(playerController.getKeeper()), tile, KeeperAiSystem.getWalker(keeperAi.playerId)) != null) {
+            gameWorldController.castKeeperSpell(SPELL_CALL_TO_ARMS, null, tile, new Vector2f(position.x, position.z), keeperAi.playerId);
 
             // The cast has its own rules, the mana tells if it went through
             if (playerController.getKeeper().getMana() < mana) {
-                decisionLog.log(keeperAi, "cast " + spell.getName() + " on creature " + target.getId().getId(), tile,
-                        (defensive ? "hurt" : "an enemy") + " near the fight of creature " + fighter.getId().getId());
+                decisionLog.log(keeperAi, "cast Call to Arms", tile, "creature " + fighter.getId().getId() + " fights against a threat of "
+                        + threat + ", more than " + ai.getPlaceCallToArmsWhereThreatValueIsGreaterThan());
+                keeperAi.callToArms = true;
+                keeperAi.callToArmsTile = tile;
+                keeperAi.callToArmsTicks = ai.getRemoveCallToArmsAfterSeconds();
+
                 return true;
             }
+        }
 
+        return false;
+    }
+
+    /**
+     * Casts a spell for a creature in a fight. A defensive spell goes on one
+     * of its creatures within 5 tiles of the fighter that is down to less
+     * than half its health and not knocked out, an attacking spell on a
+     * creature of the opponent's keeper within 5 tiles, knocked out or not.
+     * The settings say how often it defends rather than attacks, and how
+     * dear a spell it takes.
+     */
+    private boolean castBattleSpell(KeeperAi keeperAi, IPlayerController playerController, AI ai, Entity fighter) {
+        boolean defensive = Utils.getRandom().nextInt(BATTLE_SPELL_ROLL) < ai.getSpellStyle();
+        KeeperSpell spell = getBattleSpell(playerController, ai, defensive);
+        AttackTarget attackTarget = entityData.getComponent(fighter.getId(), AttackTarget.class);
+        Owner opponent = attackTarget != null ? entityData.getComponent(attackTarget.entityId, Owner.class) : null;
+        if (spell == null || (!defensive && opponent == null)) {
             return false;
+        }
+
+        // Any of them can be the one, the later ones more likely
+        Entity target = null;
+        for (Entity creature : getCreatures(defensive ? keeperAi.playerId : opponent.ownerId)) {
+            Health health = creature.get(Health.class);
+            if (isWithin(creature.get(Position.class).position, fighter.get(Position.class).position, ATTACK_DROP_TILES)
+                    && (!defensive || health.health < health.maxHealth / 2 && entityData.getComponent(creature.getId(), Unconscious.class) == null)) {
+                target = creature;
+                if (Utils.getRandom().nextInt(100) > BATTLE_SPELL_TARGET_ROLL) {
+                    break;
+                }
+            }
+        }
+        if (target == null) {
+            return false;
+        }
+
+        Vector3f position = target.get(Position.class).position;
+        Point tile = WorldUtils.vectorToPoint(position);
+        int mana = playerController.getKeeper().getMana();
+        gameWorldController.castKeeperSpell(spell.getKeeperSpellId(), target.getId(), tile, new Vector2f(position.x, position.z), keeperAi.playerId);
+
+        // The cast has its own rules, the mana tells if it went through
+        if (playerController.getKeeper().getMana() < mana) {
+            decisionLog.log(keeperAi, "cast " + spell.getName() + " on creature " + target.getId().getId(), tile,
+                    (defensive ? "hurt" : "an enemy") + " near the fight of creature " + fighter.getId().getId());
+            return true;
         }
 
         return false;

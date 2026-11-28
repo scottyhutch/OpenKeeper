@@ -1236,6 +1236,31 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void triesCallToArmsOnlyOnItsFirstCreatureInAFightWhenItAlwaysUsesSpellsInBattle() {
+        AI ai = withBattleSpells(withCallToArms(ai(0, 0, 9, 1, 50, 0, List.of()), 150, 240, 1, 5, 1, 90), 0, 0, 0);
+        KeeperAiSystem system = createSystem(ai, 1000);
+        reachable = true;
+        spellControl.setTypeAvailable(callToArms, true, true);
+
+        // The first one runs from a fight with no enemy to point the spell at, the second one fights a strong enemy
+        createCreature(PLAYER_ID, new Point(3, 3), 100, 100, CreatureState.FLEE);
+        EntityId fighter = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.FIGHT);
+        entityData.setComponent(fighter, new AttackTarget(createCreature(ENEMY_ID, new Point(9, 3), 100, 100, CreatureState.FIGHT)));
+        createCreature(ENEMY_ID, new Point(8, 8), 100, 100, CreatureState.IDLE);
+        gameTime = 10;
+        system.processTick(0.25f);
+
+        assertTrue(callToArmsCasts.isEmpty());
+
+        // Without spells in battle it looks on to the next one
+        withBattleSpells(ai, 4, 0, 0);
+        gameTime = 20;
+        system.processTick(0.25f);
+
+        assertEquals(List.of(new Point(8, 3)), callToArmsCasts);
+    }
+
+    @Test
     void liftsTheCallToArmsAfterItsTimeAndWaitsBeforeTheNext() {
         KeeperAiSystem system = createSystem(withCallToArms(ai(0, 0, 9, 1, 50, 0, List.of()), 50, 2, 1, 5, 1, 90), 1000);
         reachable = true;
@@ -1339,7 +1364,13 @@ class KeeperAiSystemTest {
 
         assertTrue(impSpells.isEmpty());
 
+        // Its enemy gone, it is still in the fight state (DK II's class 0x16) until it leaves it
         entityData.removeComponent(fighter, AttackTarget.class);
+        system.processTick(0.25f);
+
+        assertTrue(impSpells.isEmpty());
+
+        entityData.setComponent(fighter, new CreatureAi(0, CreatureState.IDLE, (short) 2));
         system.processTick(0.25f);
 
         assertEquals(1, impSpells.size());
