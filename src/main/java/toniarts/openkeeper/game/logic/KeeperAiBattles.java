@@ -110,12 +110,13 @@ final class KeeperAiBattles {
 
     /**
      * The states of a creature in a fight, class 0x16 of DK II's state table
-     * (0x47BBE0). Fleeing from a fight is in that class too (states 0xC9 to
-     * 0xCB, which the fight state 0x45F030 goes to when the creature is
-     * scared)
+     * (0x47BBE0). Backing off from the enemy (state 0xCB, 0x4602E0, which the
+     * fight state 0x45F030 goes to when the creature is scared) and the
+     * withdrawal from a fight after it (0xC9 and 0xCA, 0x4611D0) are in that
+     * class too
      */
     static final Set<CreatureState> FIGHTING = Set.of(CreatureState.FIGHT, CreatureState.MELEE_ATTACK, CreatureState.CAST_SPELL,
-            CreatureState.FLEE);
+            CreatureState.BACK_OFF, CreatureState.FLEE);
 
     /**
      * The states the hand leaves a creature alone in

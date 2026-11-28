@@ -1215,6 +1215,22 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void castsCallToArmsOnACreatureThatBacksOffFromItsEnemy() {
+        KeeperAiSystem system = createSystem(withCallToArms(ai(0, 0, 9, 1, 50, 0, List.of()), 150, 240, 1, 5, 1, 90), 1000);
+        reachable = true;
+        spellControl.setTypeAvailable(callToArms, true, true);
+
+        // A scared creature backs off with its enemy still its target, still in the fight (DK II state 0xCB)
+        EntityId fighter = createCreature(PLAYER_ID, new Point(8, 3), 100, 100, CreatureState.BACK_OFF);
+        entityData.setComponent(fighter, new AttackTarget(createCreature(ENEMY_ID, new Point(9, 3), 100, 100, CreatureState.FIGHT)));
+        createCreature(ENEMY_ID, new Point(8, 8), 100, 100, CreatureState.IDLE);
+        gameTime = 10;
+        system.processTick(0.25f);
+
+        assertEquals(List.of(new Point(8, 3)), callToArmsCasts);
+    }
+
+    @Test
     void castsNoCallToArmsOnAFightItsCreaturesCannotWalkTo() {
         KeeperAiSystem system = createSystem(withCallToArms(ai(0, 0, 9, 1, 50, 0, List.of()), 150, 240, 1, 5, 1, 90), 1000);
         spellControl.setTypeAvailable(callToArms, true, true);
