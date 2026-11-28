@@ -1138,7 +1138,9 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
      * rooms, any other room near its Dungeon Heart, or else some of its
      * land has to lie on the edge of a square around the room. A room it
      * could not dig to a short while ago is passed over. DK II measures the
-     * neutral room from its first tile, the top left one (0x4C61C0, 0x4FC690)
+     * neutral room from its first tile, the top left one (0x4C61C0, 0x4FC690).
+     * Of two rooms as near it takes the one it made last, the one read last
+     * from the map, as its rooms are listed newest first (0x4E3800)
      *
      * @return true if it digs to a room
      */
@@ -1153,7 +1155,8 @@ public final class KeeperAiSystem implements IGameLogicUpdatable {
             Point tile = room.getRoomInstance().getCoordinates().getFirst();
             if (room.getRoomInstance().getOwnerId() == Player.NEUTRAL_PLAYER_ID && !room.getRoomInstance().isDestroyed()
                     && (portal ? id == ROOM_PORTAL || id == ROOM_HERO_PORTAL : id == roomId) && !isWaitingAfterFailedTarget(keeperAi, centre)
-                    && (first == null || getDistance(heart, tile) < getDistance(heart, first))) {
+                    && (first == null || getDistance(heart, tile) < getDistance(heart, first)
+                    || getDistance(heart, tile) == getDistance(heart, first) && (tile.y > first.y || tile.y == first.y && tile.x > first.x))) {
                 target = centre;
                 first = tile;
             }

@@ -413,6 +413,19 @@ class KeeperAiSystemTest {
     }
 
     @Test
+    void takesTheNeutralPortalReadLastFromTheMapWhenTwoAreAsNear() {
+        KeeperAiSystem system = createSystem(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 1000);
+
+        // Both top left tiles are 4 east and 2 north or south of the heart
+        createNeutralPortal(new Point(8, 5));
+        createNeutralPortal(new Point(8, 9));
+        system.processTick(0.25f);
+
+        assertEquals(KeeperAi.Task.DIG_PATH, getKeeperAi().task);
+        assertEquals(new Point(8, 9), getKeeperAi().target);
+    }
+
+    @Test
     void leavesAPortalOutsideItsBuildAreaAlone() {
         KeeperAiSystem system = createSystem(withBuildAreaEndX(withNeutralRoomRange(ai(0, 0, 9, 1, 50, 0, List.of(TREASURY)), 15, 1), 9), 1000);
         createNeutralPortal(new Point(10, 3));
